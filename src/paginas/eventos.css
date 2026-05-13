@@ -64,7 +64,7 @@ css
 }
 
 .eventos-filtro:focus {
-  border-color: #ff5e00;
+  border-color: #ffae00;
 }
 
 .eventos-lista {
@@ -216,8 +216,8 @@ css
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #070707;
-  background: #ff7a00;
+  color: #fff;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   border: 0;
   border-radius: 8px;
   padding: 0 16px;
@@ -243,7 +243,18 @@ css
 .btn-comprar {
   align-self: center;
   margin-top: 0;
+  color: #fff;
+  background: #1d1d1d;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
+}
+
+.btn-comprar:hover {
+  color: #fff;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  filter: none;
 }
 
 .btn-comprar:hover,
@@ -257,7 +268,7 @@ css
 .btn-crear-evento:hover,
 .evento-modal-botones button[type="submit"]:hover {
   color: #050505;
-  background: #ffae00;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   filter: none;
 }
 
@@ -298,8 +309,17 @@ css
 
 .mapa-desplegable-header button {
   color: #fff;
-  background: #181818;
+  background: #1d1d1d;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
   flex: 0 0 auto;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.mapa-desplegable-header button:hover {
+  color: #fff;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  filter: none;
 }
 
 #map {
@@ -379,13 +399,21 @@ css
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #080808;
-  background: #ff7a00;
-  border-radius: 6px;
+  color: #fff;
+  background: #1d1d1d;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
   padding: 0 12px;
   font-size: 13px;
   font-weight: 800;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
   white-space: nowrap;
+}
+
+.evento-file-selector:hover span {
+  color: #fff;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  filter: none;
 }
 
 .evento-file-selector strong {
