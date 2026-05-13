@@ -7,7 +7,6 @@ export default function Eventos({ usuario }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const [eventoActivo, setEventoActivo] = useState(null);
-
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [filtroGenero, setFiltroGenero] = useState("todos");
