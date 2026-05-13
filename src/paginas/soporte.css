@@ -1,0 +1,31 @@
+/* Animación más fluida que la default */
+.custom-collapse {
+  transition: height 0.20s ease, opacity 0.3s ease;
+}
+
+.custom-collapse.collapsing {
+  transition: 0.2s;
+  opacity: 0.5;
+}
+
+.custom-collapse.show {
+  opacity: 1;
+}
+.btn-primary {
+  width: 10%;
+  background-color: #ffffff;
+}
+.btn-primary:hover {
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  background-color:black;
+  border-color: #ffffff;
+}
+.accordion-button:not(.collapsed) {
+  font-size: 18px;
+  background: linear-gradient(90deg, #ffae00, #ff5e00) !important;
+  color: rgb(0, 0, 0);
+}
+
+.container{
+  width:70%;
+}

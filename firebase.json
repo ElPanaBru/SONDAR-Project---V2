@@ -1,0 +1,12 @@
+{
+  "hosting": {
+    "site": "sondar-12d3a-f006e",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+
+}

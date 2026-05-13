@@ -1,0 +1,526 @@
+css
+.eventos-container {
+  position: fixed;
+  top: 92px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  background: #030303;
+  color: #fff;
+  padding: 18px;
+}
+
+.eventos-panel {
+  width: min(100%, 740px);
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.eventos-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+
+.eventos-eyebrow,
+.eventos-acciones span {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.eventos-header h2 {
+  margin: 0;
+  font-size: clamp(28px, 4vw, 42px);
+  line-height: 0.92;
+}
+
+.eventos-acciones {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.eventos-filtro {
+  min-width: 150px;
+  height: 42px;
+  color: #fff;
+  background: #070707;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.eventos-filtro:focus {
+  border-color: #ff5e00;
+}
+
+.eventos-lista {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 6px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.evento-bloque {
+  display: grid;
+  gap: 0;
+}
+
+.evento-card {
+  min-height: 120px;
+  display: grid;
+  grid-template-columns: 172px 1fr;
+  align-items: stretch;
+  overflow: hidden;
+  color: inherit;
+  background: #050505;
+  border: 1px solid rgba(255, 174, 0, 0.2);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.evento-card:hover,
+.evento-card.activo {
+  border-color: rgba(255, 122, 0, 0.72);
+  transform: translateY(-2px);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+}
+
+.evento-card.activo {
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  box-shadow: none;
+}
+
+.evento-imagen {
+  height: auto;
+  min-height: 120px;
+  position: relative;
+  background-size: cover;
+  background-position: center;
+}
+
+.evento-imagen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 174, 0, 0.18), rgba(255, 94, 0, 0.12));
+  mix-blend-mode: screen;
+}
+
+.evento-genero {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+  max-width: calc(100% - 64px);
+  overflow: hidden;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.btn-like {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.btn-like:hover {
+  background: #ff5e00;
+  transform: scale(1.05);
+}
+
+.btn-like svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  pointer-events: none;
+  filter: invert(100%);
+}
+
+.evento-info {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  justify-content: center;
+  padding: 14px 16px;
+  background: #050505;
+}
+
+.evento-datos {
+  min-width: 0;
+}
+
+.evento-info h4 {
+  margin: 0 0 7px;
+  color: #fff;
+  font-size: clamp(22px, 3vw, 32px);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.evento-info p {
+  margin: 2px 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+
+.evento-creador {
+  font-size: 12px;
+  opacity: 0.78;
+}
+
+.btn-comprar,
+.btn-crear-evento,
+.mapa-desplegable-header button,
+.evento-modal-botones button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #070707;
+  background: #ff7a00;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.btn-crear-evento,
+.evento-modal-botones button[type="submit"] {
+  min-height: 42px;
+  padding: 0 16px;
+  color: #ffffff;
+  background: #1d1d1d;
+  border: 1px solid #3a3a3a;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.btn-comprar {
+  align-self: center;
+  margin-top: 0;
+  white-space: nowrap;
+}
+
+.btn-comprar:hover,
+.btn-crear-evento:hover,
+.mapa-desplegable-header button:hover,
+.evento-modal-botones button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.btn-crear-evento:hover,
+.evento-modal-botones button[type="submit"]:hover {
+  color: #050505;
+  background: #ffae00;
+  filter: none;
+}
+
+.mapa-desplegable {
+  overflow: hidden;
+  background: #050505;
+  border: 1px solid rgba(255, 122, 0, 0.72);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  animation: desplegarMapa 0.28s ease both;
+}
+
+.mapa-desplegable-header {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: #0b0b0b;
+  color: #fff;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mapa-desplegable-header span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mapa-desplegable-header strong {
+  display: block;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.mapa-desplegable-header button {
+  color: #fff;
+  background: #181818;
+  flex: 0 0 auto;
+}
+
+#map {
+  width: 100%;
+  height: 230px;
+  background: #111;
+}
+
+.evento-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.evento-modal {
+  width: min(100%, 420px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  color: #fff;
+  background: #141414;
+  border: 1px solid rgba(255, 174, 0, 0.28);
+  border-radius: 8px;
+  padding: 22px;
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.62);
+  animation: aparecer 0.24s ease;
+}
+
+.evento-modal h2 {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 24px;
+}
+
+.evento-modal form {
+  display: grid;
+  gap: 10px;
+}
+
+.evento-modal input {
+  width: 100%;
+  min-height: 42px;
+  color: #fff;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  outline: none;
+  padding: 0 11px;
+  transition: border-color 0.2s ease;
+}
+
+.evento-modal input:focus {
+  border-color: #ffae00;
+}
+
+.evento-file-selector {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.evento-file-selector span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #080808;
+  background: #ff7a00;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.evento-file-selector strong {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evento-file-selector input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ubicacion-row {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 8px;
+}
+
+.btn-help {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.evento-modal-botones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.evento-modal-botones button[type="button"] {
+  color: #fff;
+  background: #333;
+}
+
+.evento-modal-ayuda {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@keyframes desplegarMapa {
+  from {
+    opacity: 0;
+    transform: translateY(0);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 330px;
+  }
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .eventos-container {
+    top: 134px;
+    padding: 12px;
+  }
+
+  .eventos-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .eventos-acciones {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .eventos-filtro,
+  .btn-crear-evento {
+    width: 100%;
+  }
+
+  .evento-card {
+    grid-template-columns: 1fr;
+  }
+
+  .evento-imagen {
+    min-height: 132px;
+  }
+
+  .evento-info {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .btn-comprar {
+    width: 100%;
+  }
+
+  .mapa-desplegable-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mapa-desplegable-header button {
+    width: 100%;
+  }
+
+  #map {
+    height: 210px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .eventos-container {
+    top: 112px;
+  }
+}
