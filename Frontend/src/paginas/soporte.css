@@ -1,0 +1,48 @@
+/* Animación más fluida que la default */
+.custom-collapse {
+  transition: height 0.35s ease, opacity 0.3s ease;
+}
+
+.custom-collapse.collapsing {
+  opacity: 0.5;
+}
+
+.custom-collapse.show {
+  opacity: 1;
+}
+
+body.dark h1 {
+  color: #fff;
+}
+
+body.dark .titulo-soporte {
+  color: #fff;
+}
+
+body.dark .accordion-button {
+  background-color: #1e1e1e;
+  color: #fff;
+}
+
+body.dark .accordion-body {
+  background-color: #121212;
+  color: #fff;
+}
+
+body.dark .form-control {
+  background-color: #1e1e1e;
+  color: #fff;
+  border-color: #333;
+}
+
+body.dark .text-dark {
+  color: #fff !important;
+}
+
+body.dark .text-body {
+  color: #ddd !important;
+}
+body.dark .bg-primary {
+  background-color: #198754 !important; /* verde Bootstrap */
+}
+

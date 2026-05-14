@@ -1,25 +1,16 @@
-# Sondar-Project
------------------------------------------------------------------------------------------------------------------------------------------------------
-# INTRO
+# React + Vite
 
-# Español:
-  'SONDAR' es un proyecto orientado a los artistas under, que a menudo son opacados por los algoritmos que solo muestran lo mas popular.
-Como artista under, vas a poder subir tu musica, ya que otros usuarios, incluyendo artistas, pueden ver tu musica, asi como tu puedes ver la musica de otros artistas under. Esperamos que cuando alcances un nivel significativo de popularidad, puedas emigrar a otro entorno como YouTube para poder conseguir mas popularidad,
-ya que SONDAR esta hecho para empezar y progresar, empezando desde cero.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-# English:
-  'SONDAR' is a project geared towards underground artists, who are often overshadowed by algorithms that only showcase the most popular tracks.
-As an underground artist, you'll be able to upload your music, and other users, including other artists, can see your music, just as you can see the music of other underground artists. We hope that when you reach a significant level of popularity, you can move to another platform like YouTube to gain even more exposure.
-SONDAR is designed for beginners and those looking to progress, starting from scratch.
+Currently, two official plugins are available:
 
----------------------------------------------------------------------------------------------------------------------
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-# Technology used:
--Firebase
--Docker for porting
--Figma y Canva for design
--React Native
+## React Compiler
 
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
+## Expanding the ESLint configuration
 
-Project versions will be uploaded to GitHub whenever a big change is up, minor changes will be published as a pos
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
