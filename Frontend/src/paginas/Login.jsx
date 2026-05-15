@@ -26,7 +26,7 @@ export default function Login() {
       setMensaje(`Bienvenido ${userCredential.user.email}`);
 
       // 🔥 redirección
-      navigate("/");
+      navigate("/inicio");
 
     } catch (error) {
       console.error(error);

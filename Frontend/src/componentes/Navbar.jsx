@@ -40,7 +40,7 @@ function Navbar({ usuario }) {
       console.error("Error al cerrar sesion:", error);
     }
   };
-  
+
   return (
     <nav className="custom-navbar">
       <Link to="/" className="navbar-brand">

@@ -2,28 +2,44 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
-import { api } from "../api";
+
+const GENEROS_PERMITIDOS = [
+  "pop", "rock", "edm", "jazz", "blues",
+  "cumbia", "trap", "metal", "folklore", "otros"
+];
+
+const normalizarGenero = (genero) => {
+  const gen = genero.toLowerCase();
+  return GENEROS_PERMITIDOS.includes(gen) ? gen : "otros";
+};
+
+const escaparHtml = (valor) =>
+  String(valor)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 
 export default function Eventos({ usuario }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const markersLayer = useRef(null);
+  const avisoTimer = useRef(null);
+  const siguienteEventoId = useRef(5);
   const [eventoActivo, setEventoActivo] = useState(null);
+  const [ultimoEventoDetalle, setUltimoEventoDetalle] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [filtroGenero, setFiltroGenero] = useState("todos");
-
-  const generosPermitidos = [
-    "pop", "rock", "edm", "jazz", "blues",
-    "cumbia", "trap", "metal", "folklore", "otros"
-  ];
+  const [aviso, setAviso] = useState("");
 
   const [eventos, setEventos] = useState([
     {
       id: 1,
-      titulo: "Evento 1",
-      lugar: "Buenos Aires",
+      titulo: "RAICES ROCK",
+      lugar: "Niceto Club, Palermo",
       fecha: "29/04/2026 22:00",
-      genero: "general",
+      genero: "rock",
       coords: [-34.6037, -58.3816],
       img: "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2",
       link: "https://www.ticketek.com.ar",
@@ -32,27 +48,41 @@ export default function Eventos({ usuario }) {
     },
     {
       id: 2,
-      titulo: "Evento 2",
-      lugar: "Palermo",
+      titulo: "S.A. punk",
+      lugar: "El Emergente, Almagro",
       fecha: "30/04/2026 21:00",
-      genero: "techno",
+      genero: "metal",
       coords: [-34.5883, -58.43],
       img: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
       link: "",
       guardado: false,
       creador: "demo@gmail.com"
+    },
+    {
+      id: 3,
+      titulo: "CasaMadre",
+      lugar: "La Trastienda, San Telmo",
+      fecha: "02/05/2026 20:30",
+      genero: "rock",
+      coords: [-34.6215, -58.3713],
+      img: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a",
+      link: "https://www.ticketek.com.ar",
+      guardado: false,
+      creador: "sondar@demo.com"
+    },
+    {
+      id: 4,
+      titulo: "Marte Miente",
+      lugar: "Makena, Palermo",
+      fecha: "08/05/2026 23:00",
+      genero: "trap",
+      coords: [-34.5802, -58.4245],
+      img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
+      link: "",
+      guardado: false,
+      creador: "sondar@demo.com"
     }
   ]);
-
-  useEffect(() => {
-    api.obtenerEventos(usuario?.uid)
-      .then((eventosGuardados) => {
-        if (eventosGuardados.length) {
-          setEventos(eventosGuardados);
-        }
-      })
-      .catch((error) => console.error("Error cargando eventos:", error));
-  }, [usuario]);
 
   const [nuevoEvento, setNuevoEvento] = useState({
     titulo: "",
@@ -70,38 +100,92 @@ export default function Eventos({ usuario }) {
     [eventos, eventoActivo]
   );
 
+  const detalleEvento = eventoSeleccionado || ultimoEventoDetalle;
+
+  const eventosFiltrados = useMemo(
+    () => eventos.filter((evento) =>
+      filtroGenero === "todos" ? true : normalizarGenero(evento.genero) === filtroGenero
+    ),
+    [eventos, filtroGenero]
+  );
+
   useEffect(() => {
-    if (!eventoSeleccionado || !mapRef.current) return;
+    if (!mapRef.current || mapInstance.current) return;
 
-    if (mapInstance.current) {
-      mapInstance.current.remove();
-      mapInstance.current = null;
-    }
+    const map = L.map(mapRef.current, {
+      zoomControl: false,
+      attributionControl: false
+    }).setView([-34.6037, -58.3816], 12);
 
-    const map = L.map(mapRef.current).setView(eventoSeleccionado.coords, 15);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors"
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom: 19
     }).addTo(map);
 
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    markersLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
-
-    L.marker(eventoSeleccionado.coords)
-      .addTo(map)
-      .bindPopup(`<b>${eventoSeleccionado.titulo}</b><br>${eventoSeleccionado.lugar}`)
-      .openPopup();
 
     const resizeTimer = setTimeout(() => {
       map.invalidateSize();
-      map.flyTo(eventoSeleccionado.coords, 16, { duration: 0.8 });
-    }, 220);
+    }, 180);
 
     return () => {
       clearTimeout(resizeTimer);
       map.remove();
       mapInstance.current = null;
+      markersLayer.current = null;
     };
-  }, [eventoSeleccionado]);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(avisoTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapInstance.current || !markersLayer.current) return;
+
+    markersLayer.current.clearLayers();
+
+    eventosFiltrados.forEach((evento) => {
+      const activo = eventoActivo === evento.id;
+      const marker = L.marker(evento.coords, {
+        icon: L.divIcon({
+          className: "evento-pin-wrapper",
+          html: `
+            <button class="evento-pin ${activo ? "activo" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}">
+              <span class="evento-pin-pulse">
+                <img src="${escaparHtml(evento.img)}" alt="" />
+              </span>
+              <strong>${escaparHtml(evento.titulo)}</strong>
+            </button>
+          `,
+          iconSize: [132, 82],
+          iconAnchor: [66, 41]
+        })
+      });
+
+      marker.on("click", () => {
+        setUltimoEventoDetalle(evento);
+        setEventoActivo(evento.id);
+        mapInstance.current.flyTo(evento.coords, 16, { duration: 0.9 });
+      });
+
+      marker.addTo(markersLayer.current);
+    });
+  }, [eventosFiltrados, eventoActivo]);
+
+  useEffect(() => {
+    if (!mapInstance.current || eventosFiltrados.length === 0) return;
+
+    const bounds = L.latLngBounds(eventosFiltrados.map((evento) => evento.coords));
+    mapInstance.current.fitBounds(bounds, {
+      padding: [90, 90],
+      maxZoom: 13,
+      animate: true
+    });
+  }, [eventosFiltrados]);
 
   const geocodificarDireccion = async (direccion) => {
     try {
@@ -123,44 +207,43 @@ export default function Eventos({ usuario }) {
     }
   };
 
-  const normalizarGenero = (genero) => {
-    const gen = genero.toLowerCase();
-    return generosPermitidos.includes(gen) ? gen : "otros";
-  };
-
-  const toggleGuardar = async (id) => {
+  const toggleGuardar = (id) => {
     if (!usuario) {
-      alert("Debes estar logeado para guardar");
+      mostrarAviso("Tenes que iniciar sesion para guardar eventos");
       return;
     }
 
-    const evento = eventos.find((item) => item.id === id);
-    if (!evento) return;
-
-    const siguienteEstado = !evento.guardado;
-    setEventos(eventos.map((item) =>
-      item.id === id ? { ...item, guardado: siguienteEstado } : item
+    setEventos(eventos.map((evento) =>
+      evento.id === id ? { ...evento, guardado: !evento.guardado } : evento
     ));
-
-    try {
-      if (siguienteEstado) {
-        await api.guardarItem(usuario.uid, "evento", id, evento);
-      } else {
-        await api.quitarGuardado(usuario.uid, "evento", id);
-      }
-    } catch (error) {
-      console.error(error);
-      setEventos(eventos);
-      alert("No se pudo actualizar el guardado.");
-    }
-  };
-
-  const irAlEvento = (evento) => {
-    setEventoActivo((activo) => activo === evento.id ? null : evento.id);
   };
 
   const handleCrearEvento = () => {
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para crear eventos");
+      return;
+    }
+
     setMostrarModal(true);
+  };
+
+  const mostrarAviso = (mensaje) => {
+    clearTimeout(avisoTimer.current);
+    setAviso(mensaje);
+    avisoTimer.current = setTimeout(() => {
+      setAviso("");
+    }, 2400);
+  };
+
+  const handleFiltroGenero = (genero) => {
+    setFiltroGenero(genero);
+
+    if (!eventoSeleccionado) return;
+
+    const activoVisible = genero === "todos" || normalizarGenero(eventoSeleccionado.genero) === genero;
+    if (!activoVisible) {
+      setEventoActivo(null);
+    }
   };
 
   const handleChange = (e) => {
@@ -199,46 +282,34 @@ export default function Eventos({ usuario }) {
     });
   };
 
-  const fechaISO = (fecha, hora) => {
-    if (!fecha || !hora) return null;
-    return new Date(`${fecha}T${hora}`).toISOString();
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para crear eventos");
+      return;
+    }
 
     const coords = await geocodificarDireccion(nuevoEvento.ubicacion);
     const coordsFinales = coords || { lat: -34.6037, lng: -58.3816 };
 
-    const nuevoPayload = {
+    const nuevo = {
+      id: siguienteEventoId.current,
       titulo: nuevoEvento.titulo,
       lugar: nuevoEvento.ubicacion,
-      fecha: fechaISO(nuevoEvento.fecha, nuevoEvento.hora),
+      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
       genero: normalizarGenero(nuevoEvento.genero),
       coords: [coordsFinales.lat, coordsFinales.lng],
       img: nuevoEvento.imagen || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
       link: nuevoEvento.link || "",
-      creador: usuario?.email || "Anonimo",
-      createdBy: usuario?.uid || null,
+      guardado: false,
+      creador: usuario?.email || "Anonimo"
     };
 
-    try {
-      const nuevo = await api.crearEvento(nuevoPayload);
-      setEventos([nuevo, ...eventos]);
-      setEventoActivo(nuevo.id);
-    } catch (error) {
-      console.error(error);
-      const nuevoLocal = {
-        id: Date.now(),
-        ...nuevoPayload,
-        fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
-        guardado: false,
-      };
-      setEventos([nuevoLocal, ...eventos]);
-      setEventoActivo(nuevoLocal.id);
-      alert("El evento se mostro localmente, pero no se pudo guardar en la base de datos.");
-    }
-
+    siguienteEventoId.current += 1;
+    setEventos([nuevo, ...eventos]);
+    setUltimoEventoDetalle(nuevo);
+    setEventoActivo(nuevo.id);
     setMostrarModal(false);
     setMostrarAyuda(false);
 
@@ -254,29 +325,27 @@ export default function Eventos({ usuario }) {
     });
   };
 
-  const eventosFiltrados = eventos.filter((evento) =>
-    filtroGenero === "todos" ? true : normalizarGenero(evento.genero) === filtroGenero
-  );
-
   return (
     <div className="eventos-container">
+      <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
+
       <div className="eventos-panel">
         <div className="eventos-header">
           <div>
             <span className="eventos-eyebrow">Sondar</span>
-            <h2>Eventos</h2>
+            <h2>Eventos cerca tuyo</h2>
           </div>
 
           <div className="eventos-acciones">
             <label>
-              <span>Filtrar eventos</span>
+              <span>Genero</span>
               <select
                 className="eventos-filtro"
                 value={filtroGenero}
-                onChange={(e) => setFiltroGenero(e.target.value)}
+                onChange={(e) => handleFiltroGenero(e.target.value)}
               >
                 <option value="todos">Todos</option>
-                {generosPermitidos.map((genero) => (
+                {GENEROS_PERMITIDOS.map((genero) => (
                   <option key={genero} value={genero}>{genero}</option>
                 ))}
               </select>
@@ -286,82 +355,65 @@ export default function Eventos({ usuario }) {
             </button>
           </div>
         </div>
-
-        <div className="eventos-lista">
-          {eventosFiltrados.map((evento) => (
-            <div key={evento.id} className="evento-bloque">
-              <article
-                className={`evento-card ${eventoActivo === evento.id ? "activo" : ""}`}
-                onClick={() => irAlEvento(evento)}
-              >
-                <div
-                  className="evento-imagen"
-                  style={{ backgroundImage: `url(${evento.img})` }}
-                >
-                  <span className="evento-genero">
-                    {evento.genero || "general"}
-                  </span>
-
-                  <button
-                    className="btn-like"
-                    aria-label={evento.guardado ? "Quitar guardado" : "Guardar evento"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleGuardar(evento.id);
-                    }}
-                  >
-                    {!evento.guardado ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000">
-                        <path d="M680-80v-120H560v-80h120v-120h80v120h120v80H760v120h-80Zm-480-80q-33 0-56.5-23.5T120-240v-480q0-33 23.5-56.5T200-800h40v-80h80v80h240v-80h80v80h40q33 0 56.5 23.5T760-720v244q-20-3-40-3t-40 3v-84H200v320h280q0 20 3 40t11 40H200Zm0-480h480v-80H200v80Z" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000">
-                        <path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v255l-80 80v-175H200v400h248l80 80H200Zm462 20L520-202l56-56 85 85 170-170 56 57L662-60Z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-
-                <div className="evento-info">
-                  <div className="evento-datos">
-                    <h4>{evento.titulo}</h4>
-                    <p>{evento.lugar}</p>
-                    <p>{evento.fecha}</p>
-                    <p className="evento-creador">{evento.creador || "Anonimo"}</p>
-                  </div>
-
-                  {evento.link && (
-                    <a
-                      href={evento.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn-comprar"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Comprar
-                    </a>
-                  )}
-                </div>
-              </article>
-
-              {eventoActivo === evento.id && (
-                <section className="mapa-desplegable" aria-label={`Mapa de ${evento.titulo}`}>
-                  <div className="mapa-desplegable-header">
-                    <div>
-                      <span>Ubicacion</span>
-                      <strong>{evento.lugar}</strong>
-                    </div>
-                    <button type="button" onClick={() => setEventoActivo(null)}>
-                      Cerrar
-                    </button>
-                  </div>
-                  <div ref={mapRef} id="map"></div>
-                </section>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
+
+      {eventosFiltrados.length === 0 && (
+        <div className="eventos-vacio">
+          No hay eventos de este genero
+        </div>
+      )}
+
+      {aviso && (
+        <div className="eventos-toast" role="status">
+          {aviso}
+        </div>
+      )}
+
+      <aside className={`evento-detalle ${eventoSeleccionado ? "abierto" : ""}`} aria-live="polite">
+        {detalleEvento && (
+          <>
+            <button className="evento-detalle-cerrar" type="button" onClick={() => setEventoActivo(null)}>
+              Cerrar
+            </button>
+
+            <div
+              className="evento-detalle-imagen"
+              style={{ backgroundImage: `url(${detalleEvento.img})` }}
+            >
+              <span>{detalleEvento.genero || "general"}</span>
+            </div>
+
+            <div className="evento-detalle-info">
+              <span className="eventos-eyebrow">Evento seleccionado</span>
+              <h3>{detalleEvento.titulo}</h3>
+              <p>{detalleEvento.lugar}</p>
+              <p>{detalleEvento.fecha}</p>
+              <p className="evento-creador">{detalleEvento.creador || "Anonimo"}</p>
+
+              <div className="evento-detalle-acciones">
+                <button
+                  className="btn-like"
+                  aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"}
+                  onClick={() => toggleGuardar(detalleEvento.id)}
+                >
+                  {detalleEvento.guardado ? "Guardado" : "Guardar"}
+                </button>
+
+                {detalleEvento.link && (
+                  <a
+                    href={detalleEvento.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-comprar"
+                  >
+                    Comprar
+                  </a>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </aside>
 
       {mostrarModal && (
         <div className="evento-modal-overlay">
@@ -380,7 +432,7 @@ export default function Eventos({ usuario }) {
                 required
               />
               <datalist id="generos-lista">
-                {generosPermitidos.map((genero) => (
+                {GENEROS_PERMITIDOS.map((genero) => (
                   <option key={genero} value={genero} />
                 ))}
               </datalist>

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import './index.css'
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -11,7 +12,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </BrowserRouter>
   </React.StrictMode>
 );
-const savedMode = localStorage.getItem("darkMode");
-if (savedMode === "true") {
-  document.body.classList.add("dark");
-}

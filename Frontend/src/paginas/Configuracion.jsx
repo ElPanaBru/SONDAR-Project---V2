@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { useMemo, useState } from "react";
 import "./configuracion.css";
 
 export default function Configuracion({ usuario }) {
@@ -17,24 +16,6 @@ export default function Configuracion({ usuario }) {
   });
 
   const [mensaje, setMensaje] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  useEffect(() => {
-    if (!usuario?.uid) return;
-
-    api.obtenerConfiguracion(usuario.uid)
-      .then((configuracion) => {
-        setAjustes((prev) => ({
-          ...prev,
-          ...configuracion,
-          email: configuracion.email || usuario.email || "",
-        }));
-      })
-      .catch((error) => {
-        console.error(error);
-        setMensaje("No se pudo cargar la configuracion guardada.");
-      });
-  }, [usuario]);
 
   const nombreCuenta = useMemo(() => {
     if (usuario?.displayName) return usuario.displayName;
@@ -52,25 +33,9 @@ export default function Configuracion({ usuario }) {
     }));
   };
 
-  const guardarAjustes = async (e) => {
+  const guardarAjustes = (e) => {
     e.preventDefault();
-
-    if (!usuario?.uid) {
-      setMensaje("Inicia sesion para guardar la configuracion.");
-      return;
-    }
-
-    setGuardando(true);
-    try {
-      const configuracion = await api.guardarConfiguracion(usuario.uid, ajustes);
-      setAjustes(configuracion);
-      setMensaje("Cambios guardados en la base de datos.");
-    } catch (error) {
-      console.error(error);
-      setMensaje(error.message || "No se pudieron guardar los cambios.");
-    } finally {
-      setGuardando(false);
-    }
+    setMensaje("Cambios guardados localmente. Despues conectamos esto con Firebase.");
   };
 
   return (
@@ -303,9 +268,7 @@ export default function Configuracion({ usuario }) {
 
           <div className="config-savebar">
             {mensaje ? <p>{mensaje}</p> : <span>Los cambios aun no se enviaron.</span>}
-            <button type="submit" disabled={guardando}>
-              {guardando ? "Guardando..." : "Guardar cambios"}
-            </button>
+            <button type="submit">Guardar cambios</button>
           </div>
         </div>
       </form>

@@ -1,15 +1,12 @@
 import { useState } from "react";
-import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "./firebaseConfig";
-import { api } from "../api";
 
 export default function Register({ onSwitch }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -23,21 +20,9 @@ export default function Register({ onSwitch }) {
         password
       );
 
-      try {
-        await api.registrarUsuario({
-          uid: userCredential.user.uid,
-          email: userCredential.user.email,
-          username: userCredential.user.email.split("@")[0],
-        });
-      } catch (dbError) {
-        await deleteUser(userCredential.user);
-        throw dbError;
-      }
-
       setMensaje(`Usuario ${userCredential.user.email} creado con éxito`);
       setEmail("");
       setPassword("");
-      navigate("/");
 
     } catch (error) {
       console.error(error);
@@ -87,7 +72,7 @@ export default function Register({ onSwitch }) {
         />
 
         <button type="submit" disabled={loading} style={styles.btn}>
-          {loading ? "Registrando..." : "Registrarse"}
+          <Link to="/inicio">Registrarse</Link>
         </button>
       </form>
 

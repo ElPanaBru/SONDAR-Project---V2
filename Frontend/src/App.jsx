@@ -2,7 +2,6 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./paginas/firebaseConfig";
-import { api } from "./api";
 import "./App.css";
 
 import Navbar from "./componentes/Navbar";
@@ -13,32 +12,16 @@ import Soporte from "./paginas/Soporte";
 import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
 import Comunidad from "./paginas/Comunidad";
-import MiPerfil from "./paginas/Miperfil";
+import MiPerfil from "./paginas/MiPerfil";
 import Configuracion from "./paginas/Configuracion";
 
 function App() {
   const location = useLocation();
   const [usuario, setUsuario] = useState(null);
 
-  // 🔥 Escucha sesión de Firebase
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUsuario(user);
-
-      if (!user) return;
-
-      try {
-        const data = await api.verificarUsuario(user.uid);
-        if (!data.existe) {
-          await api.registrarUsuario({
-            uid: user.uid,
-            email: user.email,
-            username: user.displayName || user.email?.split("@")[0] || user.uid.slice(0, 8),
-          });
-        }
-      } catch (error) {
-        console.error("No se pudo sincronizar el usuario con la base:", error);
-      }
     });
 
     return () => unsubscribe();

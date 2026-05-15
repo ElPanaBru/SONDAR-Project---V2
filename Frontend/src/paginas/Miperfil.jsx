@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { api } from "../api";
+import { useState } from "react";
 import "./miperfil.css";
 
 export default function MiPerfil({ usuario }) {
@@ -13,8 +12,6 @@ export default function MiPerfil({ usuario }) {
   const [perfilEditado, setPerfilEditado] = useState(perfil);
   const [creandoPublicacion, setCreandoPublicacion] = useState(false);
   const [publicaciones, setPublicaciones] = useState([]);
-  const [guardados, setGuardados] = useState([]);
-  const [mensaje, setMensaje] = useState("");
   const [publicacionNueva, setPublicacionNueva] = useState({
     nombre: "",
     audio: null,
@@ -45,28 +42,6 @@ export default function MiPerfil({ usuario }) {
     },
   ];
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
-
-  useEffect(() => {
-    if (!usuario?.uid) return;
-
-    api.obtenerPerfil(usuario.uid)
-      .then((perfilGuardado) => {
-        setPerfil(perfilGuardado);
-        setPerfilEditado(perfilGuardado);
-      })
-      .catch((error) => {
-        console.error(error);
-        setMensaje("No se pudo cargar el perfil guardado.");
-      });
-
-    api.obtenerPublicaciones(usuario.uid)
-      .then((publicacionesGuardadas) => setPublicaciones(publicacionesGuardadas))
-      .catch((error) => console.error(error));
-
-    api.obtenerGuardados(usuario.uid)
-      .then((items) => setGuardados(items))
-      .catch((error) => console.error(error));
-  }, [usuario]);
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -139,27 +114,17 @@ export default function MiPerfil({ usuario }) {
     reader.readAsDataURL(file);
   };
 
-  const guardarPublicacion = async (e) => {
+  const guardarPublicacion = (e) => {
     e.preventDefault();
 
-    if (!usuario?.uid) {
-      setMensaje("Inicia sesion para publicar.");
-      return;
-    }
-
-    try {
-      const publicacion = await api.crearPublicacion(usuario.uid, {
-        nombre: publicacionNueva.nombre,
-        audioName: publicacionNueva.audio?.name || "",
-        miniatura: publicacionNueva.miniatura,
-      });
-
-      setPublicaciones((prev) => [publicacion, ...prev]);
-      cerrarPublicacion();
-    } catch (error) {
-      console.error(error);
-      setMensaje(error.message || "No se pudo guardar la publicacion.");
-    }
+    setPublicaciones((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        ...publicacionNueva,
+      },
+    ]);
+    cerrarPublicacion();
   };
 
   const renderContenidoActivo = () => {
@@ -186,28 +151,9 @@ export default function MiPerfil({ usuario }) {
               </div>
               <h3>{publicacion.nombre}</h3>
               {publicacion.audio ? <p>{publicacion.audio.name}</p> : null}
-              {publicacion.audioName ? <p>{publicacion.audioName}</p> : null}
             </article>
           ))}
         </div>
-      );
-    }
-
-    if (tabActiva === "guardados") {
-      return guardados.length ? (
-        <div className="perfil-publicaciones-grid">
-          {guardados.map((item) => (
-            <article
-              className="perfil-publicacion-card"
-              key={`${item.item_type}-${item.item_id}`}
-            >
-              <h3>{item.item_data?.titulo || item.item_data?.tema || "Guardado"}</h3>
-              <p>{item.item_type}</p>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p>{contenidoActivo?.mensaje}</p>
       );
     }
 
@@ -217,7 +163,6 @@ export default function MiPerfil({ usuario }) {
   return (
     <section className="perfil-page">
       <div className="perfil-card">
-        {mensaje ? <p>{mensaje}</p> : null}
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar">
             {perfil.avatar ? (
@@ -257,23 +202,10 @@ export default function MiPerfil({ usuario }) {
         <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
           <form
             className="perfil-modal"
-            onSubmit={async (e) => {
+            onSubmit={(e) => {
               e.preventDefault();
-              if (!usuario?.uid) {
-                setMensaje("Inicia sesion para guardar el perfil.");
-                return;
-              }
-
-              try {
-                const perfilGuardado = await api.guardarPerfil(usuario.uid, perfilEditado);
-                setPerfil(perfilGuardado);
-                setPerfilEditado(perfilGuardado);
-                setEditando(false);
-                setMensaje("Perfil guardado en la base de datos.");
-              } catch (error) {
-                console.error(error);
-                setMensaje(error.message || "No se pudo guardar el perfil.");
-              }
+              setPerfil(perfilEditado);
+              setEditando(false);
             }}
           >
             <div className="perfil-modal-header">

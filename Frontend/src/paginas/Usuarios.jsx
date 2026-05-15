@@ -4,7 +4,7 @@ function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/usuarios")
+    fetch("http://localhost:3001/usuarios")
       .then(res => res.json())
       .then(data => setUsuarios(data));
   }, []);
@@ -12,7 +12,7 @@ function Usuarios() {
   return (
     <div>
       {usuarios.map(u => (
-        <p key={u.id}>{u.username || u.email}</p>
+        <p key={u.id}>{u.nombre}</p>
       ))}
     </div>
   );

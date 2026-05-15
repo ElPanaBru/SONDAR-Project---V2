@@ -1,7 +1,5 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect } from "react";
-import { api } from "../api";
 import "./descubrir.css";
 
 const demosIniciales = [
@@ -73,54 +71,11 @@ const demosIniciales = [
   },
 ];
 
-export default function Descubrir({ usuario }) {
+export default function Descubrir() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [demos, setDemos] = useState(demosIniciales);
   const [demoActiva, setDemoActiva] = useState(null);
-
-  useEffect(() => {
-    if (!usuario?.uid) return;
-
-    Promise.all([
-      api.obtenerGuardados(usuario.uid),
-      api.obtenerCuenta(usuario.uid).catch(() => ({ interacciones: [] })),
-    ])
-      .then(([guardados, cuenta]) => {
-        const demosGuardadas = new Set(
-          guardados
-            .filter((item) => item.item_type === "demo")
-            .map((item) => String(item.item_id))
-        );
-        const interacciones = cuenta.interacciones || [];
-
-        setDemos((prev) =>
-          prev.map((demo) => {
-            const demoId = String(demo.id);
-            const liked = interacciones.find(
-              (item) =>
-                item.item_type === "demo" &&
-                item.item_id === demoId &&
-                item.interaction_type === "like"
-            );
-            const siguiendo = interacciones.find(
-              (item) =>
-                item.item_type === "artista" &&
-                item.item_id === demo.artista &&
-                item.interaction_type === "follow"
-            );
-
-            return {
-              ...demo,
-              guardado: demosGuardadas.has(demoId),
-              liked: liked ? liked.active : demo.liked,
-              siguiendo: siguiendo ? siguiendo.active : demo.siguiendo,
-            };
-          })
-        );
-      })
-      .catch((error) => console.error(error));
-  }, [usuario]);
 
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
 
@@ -133,49 +88,12 @@ export default function Descubrir({ usuario }) {
     });
   }, [demos, query]);
 
-  const actualizarDemo = async (id, campo) => {
-    const demo = demos.find((item) => item.id === id);
-    if (!demo) return;
-
-    if (!usuario?.uid) {
-      alert("Inicia sesion para guardar tus acciones.");
-      return;
-    }
-
-    const nuevoValor = !demo[campo];
-
+  const actualizarDemo = (id, campo) => {
     setDemos((prev) =>
       prev.map((demo) =>
-        demo.id === id ? { ...demo, [campo]: nuevoValor } : demo
+        demo.id === id ? { ...demo, [campo]: !demo[campo] } : demo
       )
     );
-
-    try {
-      if (campo === "guardado") {
-        if (nuevoValor) {
-          await api.guardarItem(usuario.uid, "demo", id, demo);
-        } else {
-          await api.quitarGuardado(usuario.uid, "demo", id);
-        }
-        return;
-      }
-
-      await api.guardarInteraccion(usuario.uid, {
-        itemType: campo === "siguiendo" ? "artista" : "demo",
-        itemId: campo === "siguiendo" ? demo.artista : id,
-        interactionType: campo === "siguiendo" ? "follow" : "like",
-        active: nuevoValor,
-        itemData: demo,
-      });
-    } catch (error) {
-      console.error(error);
-      setDemos((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, [campo]: !nuevoValor } : item
-        )
-      );
-      alert("No se pudo guardar el cambio.");
-    }
   };
 
   const abrirArtista = (demo) => {

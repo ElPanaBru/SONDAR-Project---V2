@@ -1,39 +1,58 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../api";
 import "./comunidad.css";
+
+const filtros = [
+  { id: "destacado", label: "Destacado" },
+  { id: "reciente", label: "Mas reciente" },
+  { id: "popular", label: "Mas popular" },
+  { id: "preguntas", label: "Preguntas al artista" }
+];
 
 const comunidadesIniciales = [
   {
     id: "luna-norte",
-    nombre: "r/luna-norte",
+    nombre: "@luna_norte",
     titulo: "Luna Norte",
-    descripcion: "Comunidad para compartir fechas, demos y preguntas del proyecto.",
-    categoria: "indie",
-    miembros: "1.2k",
-    actividad: "128 online",
-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81",
+    descripcion: "Comunidad oficial de Luna Norte: adelantos, fechas, preguntas y charlas directas con sus seguidores.",
+    categoria: "indie pop",
+    miembros: 605,
+    actividad: "42 seguidores en linea",
+    portada: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: "santo-beat",
-    nombre: "r/santo-beat",
-    titulo: "Santo Beat",
-    descripcion: "Beatmaking, colaboraciones y novedades de Santo Beat.",
-    categoria: "trap",
-    miembros: "870",
-    actividad: "42 online",
-    portada: "https://images.unsplash.com/photo-1511379938547-c1f69419868d",
+    id: "tomi-beats",
+    nombre: "@tomi_beats",
+    titulo: "Tomi Beats",
+    descripcion: "El espacio de Tomi Beats para compartir sets, fechas, samples y responder preguntas de la comunidad.",
+    categoria: "techno",
+    miembros: 1280,
+    actividad: "12 hilos hoy",
+    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80"
   },
+  {
+    id: "los-satelites",
+    nombre: "@los_satelites",
+    titulo: "Los Satelites",
+    descripcion: "Comunidad de la banda para hablar con fans, votar canciones del vivo y coordinar encuentros antes de fechas.",
+    categoria: "rock",
+    miembros: 842,
+    actividad: "Ensayo abierto",
+    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80"
+  },
+  {
+    id: "mica-live",
+    nombre: "@mica_live",
+    titulo: "Mica Live",
+    descripcion: "Backstage, preguntas, anuncios de shows y conversaciones con quienes siguen a Mica.",
+    categoria: "pop",
+    miembros: 1510,
+    actividad: "3 anuncios nuevos",
+    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80"
+  }
 ];
 
-const filtros = [
-  { id: "destacado", label: "Destacado" },
-  { id: "pregunta", label: "Pregunta" },
-  { id: "comentario", label: "Comentario" },
-  { id: "anuncio", label: "Anuncio" },
-];
-
-const miembrosActivos = ["L", "S", "M"];
+const miembrosActivos = ["M", "N", "L", "T", "A"];
 
 const hilosIniciales = [
   {
@@ -42,25 +61,71 @@ const hilosIniciales = [
     op: "Luna Norte",
     usuario: "@luna_norte",
     tipo: "destacado",
-    titulo: "Nuevo ensayo abierto este viernes",
-    texto: "Vamos a probar material nuevo y queremos leer sus preguntas.",
-    etiqueta: "indie",
-    votos: 12,
+    titulo: "Que tema quieren que toque primero en el proximo show?",
+    texto: "Estoy cerrando el setlist de la fecha del sabado. Quiero que la comunidad elija el primer tema.",
+    etiqueta: "setlist",
+    votos: 43,
     guardado: false,
     comentarios: [
-      {
-        id: 1,
-        autor: "Usuario Sondar",
-        usuario: "@seguidor",
-        texto: "Me encanta la idea, estaria bueno que suban un adelanto.",
-        votos: 2,
-      },
-    ],
+      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Abriria con Norte. Tiene energia de inicio y la cantamos todos.", votos: 12 },
+      { id: 12, autor: "Tomi", usuario: "@tomi_escucha", texto: "Voto por Luces. Si arranca con ese bajo explota.", votos: 7 }
+    ]
   },
+  {
+    id: 2,
+    comunidadId: "los-satelites",
+    op: "Los Satelites",
+    usuario: "@los_satelites",
+    tipo: "preguntas",
+    titulo: "Pregunten lo que quieran para el Q&A del viernes",
+    texto: "Vamos a grabar respuestas para la comunidad. Puede ser sobre canciones, instrumentos, fechas o el disco nuevo.",
+    etiqueta: "q&a",
+    votos: 28,
+    guardado: false,
+    comentarios: [
+      { id: 21, autor: "Fran", usuario: "@fran_drums", texto: "Como eligieron el sonido de bateria del ultimo single?", votos: 9 }
+    ]
+  },
+  {
+    id: 3,
+    comunidadId: "mica-live",
+    op: "Mica Live",
+    usuario: "@mica_live",
+    tipo: "reciente",
+    titulo: "Subi un adelanto del videoclip nuevo",
+    texto: "Lo dejo primero aca para ustedes. Quiero leer que parte les intriga mas antes de publicarlo en redes.",
+    etiqueta: "adelanto",
+    votos: 61,
+    guardado: true,
+    comentarios: [
+      { id: 31, autor: "Ana", usuario: "@ana_pop", texto: "La escena de las luces quedo tremenda. Se siente mas cinematografico.", votos: 16 },
+      { id: 32, autor: "Santi", usuario: "@santi_synth", texto: "El puente suena distinto al vivo, me encanto.", votos: 5 }
+    ]
+  },
+  {
+    id: 4,
+    comunidadId: "tomi-beats",
+    op: "Tomi Beats",
+    usuario: "@tomi_beats",
+    tipo: "popular",
+    titulo: "Les paso el tracklist del set de anoche",
+    texto: "Dejo el orden y abro hilo para que me pidan IDs, stems o expliquemos como arme la transicion final.",
+    etiqueta: "tracklist",
+    votos: 75,
+    guardado: false,
+    comentarios: [
+      { id: 41, autor: "Mica", usuario: "@mica_live", texto: "Necesito el ID del minuto 34, ese synth fue una locura.", votos: 18 }
+    ]
+  }
 ];
 
 export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
+  const siguienteHiloId = useRef(Math.max(...hilosIniciales.map((hilo) => hilo.id)) + 1);
+  const siguienteComentarioId = useRef(
+    Math.max(...hilosIniciales.flatMap((hilo) => hilo.comentarios.map((comentario) => comentario.id))) + 1
+  );
+  const avisoTimer = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const [comunidadActivaId, setComunidadActivaId] = useState("luna-norte");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
@@ -68,24 +133,22 @@ export default function Comunidad({ usuario }) {
   const [hilos, setHilos] = useState(hilosIniciales);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([1]);
   const [respuestas, setRespuestas] = useState({});
+  const [aviso, setAviso] = useState("");
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
     tipo: "destacado",
     etiqueta: ""
   });
-  const comunidadActiva = comunidadesIniciales.find((comunidad) => comunidad.id === comunidadActivaId) || comunidadesIniciales[0];
+
+  const comunidadActiva = comunidadesIniciales.find((comunidad) => comunidad.id === comunidadActivaId);
 
   useEffect(() => {
-    // El "puente" al servidor que tú manejas
-    api.obtenerHilos(usuario?.uid)
-      .then((hilosGuardados) => {
-        if (hilosGuardados.length) {
-          setHilos(hilosGuardados);
-        }
-      })
-      .catch(err => console.error("Error al conectar:", err));
-  }, [usuario]);
+    return () => {
+      clearTimeout(avisoTimer.current);
+    };
+  }, []);
+
   const hilosFiltrados = useMemo(() => {
     return hilos.filter((hilo) => {
       const coincideComunidad = hilo.comunidadId === comunidadActivaId;
@@ -110,12 +173,38 @@ export default function Comunidad({ usuario }) {
     });
   };
 
-  const crearHilo = async (e) => {
+  const mostrarAviso = (mensaje) => {
+    clearTimeout(avisoTimer.current);
+    setAviso(mensaje);
+    avisoTimer.current = setTimeout(() => {
+      setAviso("");
+    }, 2400);
+  };
+
+  const pedirLogin = () => {
+    mostrarAviso("Tenes que iniciar sesion para publicar en la comunidad");
+  };
+
+  const abrirCrearHilo = () => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    setMostrarModal(true);
+  };
+
+  const crearHilo = (e) => {
     e.preventDefault();
 
-    const hiloPayload = {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hilo = {
+      id: siguienteHiloId.current,
       comunidadId: comunidadActivaId,
-      userId: usuario?.uid || null,
       op: usuario?.displayName || "Usuario Sondar",
       usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
       tipo: nuevoHilo.tipo,
@@ -127,17 +216,9 @@ export default function Comunidad({ usuario }) {
       comentarios: []
     };
 
-    try {
-      const hilo = await api.crearHilo(hiloPayload);
-      setHilos([hilo, ...hilos]);
-      setRespuestasAbiertas([hilo.id, ...respuestasAbiertas]);
-    } catch (error) {
-      console.error(error);
-      const hiloLocal = { id: Date.now(), ...hiloPayload };
-      setHilos([hiloLocal, ...hilos]);
-      setRespuestasAbiertas([hiloLocal.id, ...respuestasAbiertas]);
-    }
-
+    siguienteHiloId.current += 1;
+    setHilos([hilo, ...hilos]);
+    setRespuestasAbiertas([hilo.id, ...respuestasAbiertas]);
     setMostrarModal(false);
     setNuevoHilo({
       titulo: "",
@@ -147,45 +228,16 @@ export default function Comunidad({ usuario }) {
     });
   };
 
-  const votar = async (id) => {
+  const votar = (id) => {
     setHilos(hilos.map((hilo) =>
       hilo.id === id ? { ...hilo, votos: hilo.votos + 1 } : hilo
     ));
-
-    try {
-      const data = await api.votarHilo(id);
-      setHilos((prev) => prev.map((hilo) =>
-        hilo.id === id ? { ...hilo, votos: data.votos } : hilo
-      ));
-    } catch (error) {
-      console.error(error);
-    }
   };
 
-  const guardar = async (id) => {
-    if (!usuario?.uid) {
-      alert("Inicia sesion para guardar hilos.");
-      return;
-    }
-
-    const hilo = hilos.find((item) => item.id === id);
-    if (!hilo) return;
-
-    const siguienteEstado = !hilo.guardado;
-    setHilos(hilos.map((item) =>
-      item.id === id ? { ...item, guardado: siguienteEstado } : item
+  const guardar = (id) => {
+    setHilos(hilos.map((hilo) =>
+      hilo.id === id ? { ...hilo, guardado: !hilo.guardado } : hilo
     ));
-
-    try {
-      if (siguienteEstado) {
-        await api.guardarItem(usuario.uid, "hilo", id, hilo);
-      } else {
-        await api.quitarGuardado(usuario.uid, "hilo", id);
-      }
-    } catch (error) {
-      console.error(error);
-      setHilos(hilos);
-    }
   };
 
   const toggleRespuestas = (id) => {
@@ -196,28 +248,14 @@ export default function Comunidad({ usuario }) {
     );
   };
 
-  const responder = async (hiloId) => {
+  const responder = (hiloId) => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
     const texto = respuestas[hiloId]?.trim();
     if (!texto) return;
-
-    const respuestaPayload = {
-      userId: usuario?.uid || null,
-      autor: usuario?.displayName || "Usuario Sondar",
-      usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
-      texto,
-    };
-
-    let respuestaGuardada = {
-      id: Date.now(),
-      ...respuestaPayload,
-      votos: 0,
-    };
-
-    try {
-      respuestaGuardada = await api.responderHilo(hiloId, respuestaPayload);
-    } catch (error) {
-      console.error(error);
-    }
 
     setHilos(hilos.map((hilo) =>
       hilo.id === hiloId
@@ -225,16 +263,23 @@ export default function Comunidad({ usuario }) {
             ...hilo,
             comentarios: [
               ...hilo.comentarios,
-              respuestaGuardada
+              {
+                id: siguienteComentarioId.current,
+                autor: usuario?.displayName || "Usuario Sondar",
+                usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
+                texto,
+                votos: 0
+              }
             ]
           }
         : hilo
     ));
 
+    siguienteComentarioId.current += 1;
     setRespuestas({ ...respuestas, [hiloId]: "" });
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
-  
+
   return (
     <main className="comunidad-container">
       <section className="comunidad-layout reddit-layout">
@@ -284,7 +329,7 @@ export default function Comunidad({ usuario }) {
                 <span>seguidores · Comunidad oficial</span>
                 </div>
               </div>
-              <button className="comunidad-crear" onClick={() => setMostrarModal(true)}>
+              <button className="comunidad-crear" onClick={abrirCrearHilo}>
                 Crear hilo
               </button>
             </div>
@@ -303,7 +348,7 @@ export default function Comunidad({ usuario }) {
           </div>
 
           <div className="comunidad-feed">
-            <section className="comunidad-composer" onClick={() => setMostrarModal(true)}>
+            <section className="comunidad-composer" onClick={abrirCrearHilo}>
               <div className="publicacion-avatar">
                 {(usuario?.displayName || usuario?.email || "S").charAt(0).toUpperCase()}
               </div>
@@ -439,6 +484,12 @@ export default function Comunidad({ usuario }) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {aviso && (
+        <div className="comunidad-toast" role="status">
+          {aviso}
         </div>
       )}
     </main>
