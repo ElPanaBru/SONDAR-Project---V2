@@ -6,8 +6,6 @@ import "./App.css";
 
 import Navbar from "./componentes/Navbar";
 import Auth from "./paginas/Auth";
-import Login from "./paginas/Login";
-import Registro from "./paginas/Registro";
 import Soporte from "./paginas/Soporte";
 import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
@@ -40,8 +38,6 @@ function App() {
           <Route path="/soporte" element={<Soporte />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Registro />} />
           <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
           <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
