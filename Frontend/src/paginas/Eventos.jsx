@@ -71,6 +71,7 @@ export default function Eventos({ usuario }) {
       creador: "sondar@demo.com"
     },
     {
+      
       id: 4,
       titulo: "Marte Miente",
       lugar: "Makena, Palermo",
