@@ -1,21 +1,35 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   deleteUser,
 } from "firebase/auth";
 import { auth } from "./firebaseConfig";
+import { api } from "../api";
+import "./auth.css";
 
 export default function Auth() {
   const [modo, setModo] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState(""); 
+  const [username, setUsername] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const modoURL = params.get("modo");
+
+    if (modoURL === "registro") {
+      setModo("registro");
+    } else {
+      setModo("login");
+    }
+  }, [location.search]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,12 +44,16 @@ export default function Auth() {
       let userCredential;
 
       if (modo === "login") {
-        userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        userCredential = await signInWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          cleanPassword
+        );
+
         const user = userCredential.user;
 
-        const response = await fetch(`http://localhost:3000/api/usuarios/verificar/${user.uid}`);
-        const data = await response.json();
-        
+        const data = await api.verificarUsuario(user.uid);
+
         if (!data.existe) {
           await auth.signOut();
           setMensaje("Error: Usuario no registrado en la base de datos.");
@@ -43,51 +61,113 @@ export default function Auth() {
           return;
         }
 
-        navigate("/inicio");
+        setMensaje(`Bienvenido ${userCredential.user.email}`);
+        setEmail("");
+        setPassword("");
 
+        navigate("/");
       } else if (modo === "registro") {
-        userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
+        userCredential = await createUserWithEmailAndPassword(
+          auth,
+          cleanEmail,
+          cleanPassword
+        );
+
         const user = userCredential.user;
 
         try {
-          const response = await fetch('http://127.0.0.1:3000/api/usuarios/registrar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              uid: user.uid, 
-              email: user.email,
-              username: cleanUsername 
-            })
+          await api.registrarUsuario({
+            uid: user.uid,
+            email: user.email,
+            username: cleanUsername,
           });
 
-          if (!response.ok) throw new Error("Fallo en base de datos");
+          setMensaje(`Bienvenido ${userCredential.user.email}`);
+          setEmail("");
+          setPassword("");
+          setUsername("");
 
-          navigate("/inicio");
-          
+          navigate("/");
         } catch (dbError) {
           await deleteUser(user);
           console.dir(dbError);
-          throw new Error("No se pudo vincular con el servidor. Intente de nuevo.");
+
+          throw new Error(
+            "No se pudo vincular con el servidor. Intente de nuevo."
+          );
         }
       }
     } catch (error) {
       console.error(error);
-      const erroresFirebase = {
-        "auth/email-already-in-use": "El correo ya está registrado",
-        "auth/weak-password": "La contraseña es muy corta",
-        "auth/invalid-credential": "Credenciales incorrectas"
-      };
-      setMensaje(erroresFirebase[error.code] || error.message);
+
+      if (modo === "login") {
+        switch (error.code) {
+          case "auth/user-not-found":
+            setMensaje("Usuario no encontrado");
+            break;
+
+          case "auth/wrong-password":
+            setMensaje("Contraseña incorrecta");
+            break;
+
+          case "auth/invalid-credential":
+            setMensaje("Email o contraseña incorrectos");
+            break;
+
+          case "auth/invalid-email":
+            setMensaje("Correo inválido");
+            break;
+
+          case "auth/too-many-requests":
+            setMensaje("Demasiados intentos. Probá más tarde");
+            break;
+
+          default:
+            setMensaje(error.message || "Error al iniciar sesión");
+        }
+      } else {
+        switch (error.code) {
+          case "auth/email-already-in-use":
+            setMensaje("El correo ya está registrado");
+            break;
+
+          case "auth/weak-password":
+            setMensaje(
+              "La contraseña debe tener al menos 6 caracteres"
+            );
+            break;
+
+          case "auth/invalid-email":
+            setMensaje("Correo inválido");
+            break;
+
+          case "auth/too-many-requests":
+            setMensaje("Demasiados intentos. Probá más tarde");
+            break;
+
+          default:
+            setMensaje(error.message || "Error al registrarse");
+        }
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.switchContainer}>
+    <div className="auth-container" style={styles.container}>
+      <div
+        className="switch-container"
+        style={styles.switchContainer}
+      >
         <button
-          onClick={() => { setModo("login"); setMensaje(""); }}
+          onClick={() => {
+            setModo("login");
+            setMensaje("");
+          }}
+          className={`switch-btn ${
+            modo === "login" ? "active" : ""
+          }`}
           style={{
             ...styles.switchBtn,
             background: modo === "login" ? "#1976d2" : "#eee",
@@ -98,7 +178,13 @@ export default function Auth() {
         </button>
 
         <button
-          onClick={() => { setModo("registro"); setMensaje(""); }}
+          onClick={() => {
+            setModo("registro");
+            setMensaje("");
+          }}
+          className={`switch-btn ${
+            modo === "registro" ? "active" : ""
+          }`}
           style={{
             ...styles.switchBtn,
             background: modo === "registro" ? "#1976d2" : "#eee",
@@ -109,7 +195,11 @@ export default function Auth() {
         </button>
       </div>
 
-      <h2>{modo === "login" ? "Iniciar sesión" : "Crear cuenta"}</h2>
+      <h2>
+        {modo === "login"
+          ? "Iniciar sesión"
+          : "Crear cuenta"}
+      </h2>
 
       <form onSubmit={handleSubmit}>
         {modo === "registro" && (
@@ -119,6 +209,7 @@ export default function Auth() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
+            className="auth-input"
             style={styles.input}
           />
         )}
@@ -129,6 +220,7 @@ export default function Auth() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          className="auth-input"
           style={styles.input}
         />
 
@@ -138,17 +230,31 @@ export default function Auth() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
+          className="auth-input"
           style={styles.input}
         />
 
-        <button type="submit" disabled={loading} style={styles.btn}>
+        <button
+          type="submit"
+          disabled={loading}
+          className="auth-btn"
+          style={styles.btn}
+        >
           {loading
-            ? modo === "login" ? "Ingresando..." : "Registrando..."
-            : modo === "login" ? "Ingresar" : "Registrarse"}
+            ? modo === "login"
+              ? "Ingresando..."
+              : "Registrando..."
+            : modo === "login"
+            ? "Ingresar"
+            : "Registrarse"}
         </button>
       </form>
 
-      {mensaje && <p style={styles.msg}>{mensaje}</p>}
+      {mensaje && (
+        <p className="auth-msg" style={styles.msg}>
+          {mensaje}
+        </p>
+      )}
     </div>
   );
 }
@@ -161,15 +267,17 @@ const styles = {
     border: "1px solid #ccc",
     borderRadius: "10px",
     textAlign: "center",
-    backgroundColor: "#fff", 
-    color: "#000"
+    backgroundColor: "#fff",
+    color: "#000",
   },
+
   switchContainer: {
     display: "flex",
     marginBottom: "15px",
     borderRadius: "5px",
     overflow: "hidden",
   },
+
   switchBtn: {
     flex: 1,
     padding: "10px",
@@ -177,12 +285,14 @@ const styles = {
     cursor: "pointer",
     transition: "0.2s",
   },
+
   input: {
     width: "100%",
     padding: "10px",
     margin: "8px 0",
-    boxSizing: "border-box", 
+    boxSizing: "border-box",
   },
+
   btn: {
     width: "100%",
     padding: "10px",
@@ -191,11 +301,12 @@ const styles = {
     border: "none",
     borderRadius: "5px",
     cursor: "pointer",
-    marginTop: "10px"
+    marginTop: "10px",
   },
+
   msg: {
     marginTop: "15px",
     fontSize: "14px",
-    color: "#d32f2f"
+    color: "#d32f2f",
   },
 };

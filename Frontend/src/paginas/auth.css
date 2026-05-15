@@ -1,0 +1,67 @@
+.auth-container {
+  max-width: 340px;
+  margin: 100px auto;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  text-align: center;
+  background: #fff;
+}
+
+/* Switch login/registro */
+.switch-container {
+  display: flex;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.switch-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s;
+  background: #eee;
+}
+
+.switch-btn.active {
+  background: #1976d2;
+  color: #fff;
+}
+
+/* Inputs */
+.auth-input {
+  width: 100%;
+  padding: 8px;
+  margin: 8px 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+
+/* Botón */
+.auth-btn {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.auth-btn:hover {
+  background: linear-gradient(90deg, #865b00, #7a2d00) !important;
+  color: #ffffff;
+}
+
+.auth-btn:disabled {
+  background: #555555;
+  cursor: not-allowed;
+}
+
+/* Mensaje */
+.auth-msg {
+  margin-top: 15px;
+}

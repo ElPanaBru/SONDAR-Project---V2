@@ -1,39 +1,70 @@
 import { Routes, Route, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./paginas/firebaseConfig";
+import { api } from "./api";
+import "./App.css";
+
 import Navbar from "./componentes/Navbar";
 import Auth from "./paginas/Auth";
 import Login from "./paginas/Login";
 import Registro from "./paginas/Registro";
-import Mapa from "./paginas/Mapa";
 import Soporte from "./paginas/Soporte";
-import Usuarios from "./paginas/Usuarios";
-import Inicio from "./paginas/Inicio";
+import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
 import Comunidad from "./paginas/Comunidad";
+import MiPerfil from "./paginas/Miperfil";
+import Configuracion from "./paginas/Configuracion";
 
 function App() {
   const location = useLocation();
+  const [usuario, setUsuario] = useState(null);
 
-  // rutas donde NO se muestra el navbar
-  const hideNavbarRoutes = ["/", "/login", "/registro"];
+  // 🔥 Escucha sesión de Firebase
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUsuario(user);
 
+      if (!user) return;
+
+      try {
+        const data = await api.verificarUsuario(user.uid);
+        if (!data.existe) {
+          await api.registrarUsuario({
+            uid: user.uid,
+            email: user.email,
+            username: user.displayName || user.email?.split("@")[0] || user.uid.slice(0, 8),
+          });
+        }
+      } catch (error) {
+        console.error("No se pudo sincronizar el usuario con la base:", error);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const hideNavbarRoutes = ["/auth", "/login", "/registro"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
 
   return (
-    <>
-      {!shouldHideNavbar && <Navbar />}
+    <div className="app-container">
+      {!shouldHideNavbar && <Navbar usuario={usuario} />}
 
-      <Routes>
-        <Route path="/inicio" element={<Inicio />} />
-        <Route path="/soporte" element={<Soporte />} />
-        <Route path="/" element={<Auth />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/registro" element={<Registro />} />
-        <Route path="/mapa" element={<Mapa />} />
-        <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/descubrir" element={<Descubrir />} />
-        <Route path="/comunidad" element={<Comunidad />} />
-      </Routes>
-    </>
+      <div className={`main-content ${!shouldHideNavbar ? "with-navbar" : ""}`}>
+        <Routes>
+          <Route path="/" element={<Eventos usuario={usuario} />} />
+          <Route path="/soporte" element={<Soporte />} />
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Registro />} />
+          <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
+          <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
+          <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
+        </Routes>
+      </div>
+    </div>
   );
 }
 

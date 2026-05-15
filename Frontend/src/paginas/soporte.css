@@ -1,48 +1,31 @@
 /* Animación más fluida que la default */
 .custom-collapse {
-  transition: height 0.35s ease, opacity 0.3s ease;
+  transition: height 0.20s ease, opacity 0.3s ease;
 }
 
 .custom-collapse.collapsing {
+  transition: 0.2s;
   opacity: 0.5;
 }
 
 .custom-collapse.show {
   opacity: 1;
 }
-
-body.dark h1 {
-  color: #fff;
+.btn-primary {
+  width: 10%;
+  background-color: #ffffff;
+}
+.btn-primary:hover {
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  background-color:black;
+  border-color: #ffffff;
+}
+.accordion-button:not(.collapsed) {
+  font-size: 18px;
+  background: linear-gradient(90deg, #ffae00, #ff5e00) !important;
+  color: rgb(0, 0, 0);
 }
 
-body.dark .titulo-soporte {
-  color: #fff;
+.container{
+  width:70%;
 }
-
-body.dark .accordion-button {
-  background-color: #1e1e1e;
-  color: #fff;
-}
-
-body.dark .accordion-body {
-  background-color: #121212;
-  color: #fff;
-}
-
-body.dark .form-control {
-  background-color: #1e1e1e;
-  color: #fff;
-  border-color: #333;
-}
-
-body.dark .text-dark {
-  color: #fff !important;
-}
-
-body.dark .text-body {
-  color: #ddd !important;
-}
-body.dark .bg-primary {
-  background-color: #198754 !important; /* verde Bootstrap */
-}
-
