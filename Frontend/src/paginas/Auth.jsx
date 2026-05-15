@@ -1,21 +1,30 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   deleteUser,
 } from "firebase/auth";
 import { auth } from "./firebaseConfig";
+import "./auth.css";
 
 export default function Auth() {
   const [modo, setModo] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState(""); 
+  const [username, setUsername] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const modoURL = params.get("modo");
+    if (modoURL === "registro") setModo("registro");
+    else setModo("login");
+  }, [location.search]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,17 +42,17 @@ export default function Auth() {
         userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
         const user = userCredential.user;
 
+        // URL corregida con backticks para evitar errores
         const response = await fetch(`http://localhost:3000/api/usuarios/verificar/${user.uid}`);
         const data = await response.json();
-        
+
         if (!data.existe) {
           await auth.signOut();
           setMensaje("Error: Usuario no registrado en la base de datos.");
           setLoading(false);
           return;
         }
-
-        navigate("/inicio");
+        navigate("/");
 
       } else if (modo === "registro") {
         userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
@@ -61,21 +70,23 @@ export default function Auth() {
           });
 
           if (!response.ok) throw new Error("Fallo en base de datos");
+          navigate("/");
 
-          navigate("/inicio");
-          
         } catch (dbError) {
+          console.error("Error de DB:", dbError); // Uso de dbError para evitar el warning
           await deleteUser(user);
-          console.dir(dbError);
           throw new Error("No se pudo vincular con el servidor. Intente de nuevo.");
         }
       }
     } catch (error) {
-      console.error(error);
       const erroresFirebase = {
+        "auth/user-not-found": "Usuario no encontrado",
+        "auth/wrong-password": "Contraseña incorrecta",
         "auth/email-already-in-use": "El correo ya está registrado",
         "auth/weak-password": "La contraseña es muy corta",
-        "auth/invalid-credential": "Credenciales incorrectas"
+        "auth/invalid-credential": "Email o contraseña incorrectos",
+        "auth/invalid-email": "Correo inválido",
+        "auth/too-many-requests": "Demasiados intentos. Probá más tarde"
       };
       setMensaje(erroresFirebase[error.code] || error.message);
     } finally {
@@ -84,26 +95,20 @@ export default function Auth() {
   };
 
   return (
-    <div style={styles.container}>
-      <div style={styles.switchContainer}>
+    <div className="auth-container">
+      <div className="switch-container">
         <button
+          type="button"
           onClick={() => { setModo("login"); setMensaje(""); }}
-          style={{
-            ...styles.switchBtn,
-            background: modo === "login" ? "#1976d2" : "#eee",
-            color: modo === "login" ? "#fff" : "#000",
-          }}
+          className={`switch-btn ${modo === "login" ? "active" : ""}`}
         >
           Login
         </button>
 
         <button
+          type="button"
           onClick={() => { setModo("registro"); setMensaje(""); }}
-          style={{
-            ...styles.switchBtn,
-            background: modo === "registro" ? "#1976d2" : "#eee",
-            color: modo === "registro" ? "#fff" : "#000",
-          }}
+          className={`switch-btn ${modo === "registro" ? "active" : ""}`}
         >
           Registro
         </button>
@@ -119,7 +124,7 @@ export default function Auth() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            style={styles.input}
+            className="auth-input"
           />
         )}
 
@@ -129,7 +134,7 @@ export default function Auth() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          style={styles.input}
+          className="auth-input"
         />
 
         <input
@@ -138,64 +143,17 @@ export default function Auth() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          style={styles.input}
+          className="auth-input"
         />
 
-        <button type="submit" disabled={loading} style={styles.btn}>
+        <button type="submit" disabled={loading} className="auth-btn">
           {loading
-            ? modo === "login" ? "Ingresando..." : "Registrando..."
-            : modo === "login" ? "Ingresar" : "Registrarse"}
+            ? (modo === "login" ? "Ingresando..." : "Registrando...")
+            : (modo === "login" ? "Ingresar" : "Registrarse")}
         </button>
       </form>
 
-      {mensaje && <p style={styles.msg}>{mensaje}</p>}
+      {mensaje && <p className="auth-msg">{mensaje}</p>}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    maxWidth: "340px",
-    margin: "100px auto",
-    padding: "20px",
-    border: "1px solid #ccc",
-    borderRadius: "10px",
-    textAlign: "center",
-    backgroundColor: "#fff", 
-    color: "#000"
-  },
-  switchContainer: {
-    display: "flex",
-    marginBottom: "15px",
-    borderRadius: "5px",
-    overflow: "hidden",
-  },
-  switchBtn: {
-    flex: 1,
-    padding: "10px",
-    border: "none",
-    cursor: "pointer",
-    transition: "0.2s",
-  },
-  input: {
-    width: "100%",
-    padding: "10px",
-    margin: "8px 0",
-    boxSizing: "border-box", 
-  },
-  btn: {
-    width: "100%",
-    padding: "10px",
-    background: "#1976d2",
-    color: "#fff",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-    marginTop: "10px"
-  },
-  msg: {
-    marginTop: "15px",
-    fontSize: "14px",
-    color: "#d32f2f"
-  },
-};

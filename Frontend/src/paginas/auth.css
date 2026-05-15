@@ -1,3 +1,4 @@
+/* Contenedor principal del formulario [cite: 1] */
 .auth-container {
   max-width: 340px;
   margin: 100px auto;
@@ -8,7 +9,7 @@
   background: #fff;
 }
 
-/* Switch login/registro */
+/* Switch login/registro [cite: 2] */
 .switch-container {
   display: flex;
   margin-bottom: 15px;
@@ -18,7 +19,7 @@
 
 .switch-btn {
   flex: 1;
-  padding: 10px;
+  padding: 10px; /* [cite: 3] */
   border: none;
   cursor: pointer;
   transition: 0.2s;
@@ -26,42 +27,45 @@
 }
 
 .switch-btn.active {
-  background: #1976d2;
-  color: #fff;
+  background: #1976d2; /* Color azul de acción [cite: 3] */
+  color: #fff; /* [cite: 4] */
 }
 
-/* Inputs */
+/* Inputs de texto [cite: 4] */
 .auth-input {
   width: 100%;
-  padding: 8px;
+  padding: 10px; 
   margin: 8px 0;
   border: 1px solid #ccc;
   border-radius: 5px;
+  box-sizing: border-box; /* Evita que el input se desborde [cite: 5] */
 }
 
-/* Botón */
+/* Botón principal con degradado [cite: 5] */
 .auth-btn {
   width: 100%;
   padding: 10px;
-  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  background: linear-gradient(90deg, #ffae00, #ff5e00); /* [cite: 5] */
   color: #fff;
   border: none;
   border-radius: 5px;
-  cursor: pointer;
+  cursor: pointer; /* [cite: 6] */
   transition: 0.2s;
+  margin-top: 10px;
 }
 
 .auth-btn:hover {
-  background: linear-gradient(90deg, #865b00, #7a2d00) !important;
+  background: linear-gradient(90deg, #865b00, #7a2d00) !important; /* [cite: 6] */
   color: #ffffff;
 }
 
 .auth-btn:disabled {
-  background: #555555;
-  cursor: not-allowed;
+  background: #555555; /* [cite: 6] */
+  cursor: not-allowed; /* [cite: 7] */
 }
 
-/* Mensaje */
+/* Mensajes de error [cite: 7] */
 .auth-msg {
   margin-top: 15px;
+  color: #d32f2f; /* Rojo para errores [cite: 68] */
 }
