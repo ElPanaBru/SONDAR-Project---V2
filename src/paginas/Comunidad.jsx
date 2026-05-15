@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import "./comunidad.css";
 
@@ -121,6 +121,11 @@ const hilosIniciales = [
 
 export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
+  const siguienteHiloId = useRef(Math.max(...hilosIniciales.map((hilo) => hilo.id)) + 1);
+  const siguienteComentarioId = useRef(
+    Math.max(...hilosIniciales.flatMap((hilo) => hilo.comentarios.map((comentario) => comentario.id))) + 1
+  );
+  const avisoTimer = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const [comunidadActivaId, setComunidadActivaId] = useState("luna-norte");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
@@ -128,6 +133,7 @@ export default function Comunidad({ usuario }) {
   const [hilos, setHilos] = useState(hilosIniciales);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([1]);
   const [respuestas, setRespuestas] = useState({});
+  const [aviso, setAviso] = useState("");
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
@@ -136,6 +142,12 @@ export default function Comunidad({ usuario }) {
   });
 
   const comunidadActiva = comunidadesIniciales.find((comunidad) => comunidad.id === comunidadActivaId);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(avisoTimer.current);
+    };
+  }, []);
 
   const hilosFiltrados = useMemo(() => {
     return hilos.filter((hilo) => {
@@ -161,10 +173,37 @@ export default function Comunidad({ usuario }) {
     });
   };
 
+  const mostrarAviso = (mensaje) => {
+    clearTimeout(avisoTimer.current);
+    setAviso(mensaje);
+    avisoTimer.current = setTimeout(() => {
+      setAviso("");
+    }, 2400);
+  };
+
+  const pedirLogin = () => {
+    mostrarAviso("Tenes que iniciar sesion para publicar en la comunidad");
+  };
+
+  const abrirCrearHilo = () => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    setMostrarModal(true);
+  };
+
   const crearHilo = (e) => {
     e.preventDefault();
 
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
     const hilo = {
+      id: siguienteHiloId.current,
       comunidadId: comunidadActivaId,
       op: usuario?.displayName || "Usuario Sondar",
       usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
@@ -177,6 +216,7 @@ export default function Comunidad({ usuario }) {
       comentarios: []
     };
 
+    siguienteHiloId.current += 1;
     setHilos([hilo, ...hilos]);
     setRespuestasAbiertas([hilo.id, ...respuestasAbiertas]);
     setMostrarModal(false);
@@ -209,6 +249,11 @@ export default function Comunidad({ usuario }) {
   };
 
   const responder = (hiloId) => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
     const texto = respuestas[hiloId]?.trim();
     if (!texto) return;
 
@@ -219,7 +264,7 @@ export default function Comunidad({ usuario }) {
             comentarios: [
               ...hilo.comentarios,
               {
-                id: Date.now(),
+                id: siguienteComentarioId.current,
                 autor: usuario?.displayName || "Usuario Sondar",
                 usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
                 texto,
@@ -230,6 +275,7 @@ export default function Comunidad({ usuario }) {
         : hilo
     ));
 
+    siguienteComentarioId.current += 1;
     setRespuestas({ ...respuestas, [hiloId]: "" });
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
@@ -283,7 +329,7 @@ export default function Comunidad({ usuario }) {
                 <span>seguidores · Comunidad oficial</span>
                 </div>
               </div>
-              <button className="comunidad-crear" onClick={() => setMostrarModal(true)}>
+              <button className="comunidad-crear" onClick={abrirCrearHilo}>
                 Crear hilo
               </button>
             </div>
@@ -302,7 +348,7 @@ export default function Comunidad({ usuario }) {
           </div>
 
           <div className="comunidad-feed">
-            <section className="comunidad-composer" onClick={() => setMostrarModal(true)}>
+            <section className="comunidad-composer" onClick={abrirCrearHilo}>
               <div className="publicacion-avatar">
                 {(usuario?.displayName || usuario?.email || "S").charAt(0).toUpperCase()}
               </div>
@@ -438,6 +484,12 @@ export default function Comunidad({ usuario }) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {aviso && (
+        <div className="comunidad-toast" role="status">
+          {aviso}
         </div>
       )}
     </main>
