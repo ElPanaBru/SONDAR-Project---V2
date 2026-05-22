@@ -299,19 +299,15 @@ export default function Eventos({ usuario }) {
     });
   };
 
-  const handleImagen = (e) => {
+const handleImagen = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setNuevoEvento((prev) => ({
-        ...prev,
-        imagen: reader.result,
-        nombreImagen: file.name
-      }));
-    };
-    reader.readAsDataURL(file);
+    // Guardamos el objeto File directo (mucho más liviano)
+    setNuevoEvento((prev) => ({
+      ...prev,
+      imagen: file,
+      nombreImagen: file.name
+    }));
   };
 
   const formatearFecha = (fecha, hora) => {
@@ -332,22 +328,24 @@ export default function Eventos({ usuario }) {
 
     setSubiendo(true);
 
-    const payload = {
-      titulo: nuevoEvento.titulo,
-      genero: normalizarGenero(nuevoEvento.genero),
-      ubicacion: nuevoEvento.lugar || "Ubicación manual", 
-      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
-      img: nuevoEvento.imagen || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
-      link: nuevoEvento.link || "",
-      creador: usuario?.email || "Anonimo",
-      coords: [nuevoEvento.lat, nuevoEvento.lng] 
-    };
+    const formData = new FormData();
+    formData.append("titulo", nuevoEvento.titulo);
+    formData.append("genero", normalizarGenero(nuevoEvento.genero));
+    formData.append("ubicacion", nuevoEvento.lugar);
+    formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
+    formData.append("link", nuevoEvento.link);
+    formData.append("creador", usuario?.email || "Anonimo");
+    formData.append("latitud", nuevoEvento.lat);
+    formData.append("longitud", nuevoEvento.lng);
+
+    if (nuevoEvento.imagen) {
+      formData.append("imagen", nuevoEvento.imagen);
+    }
 
     try {
       const response = await fetch("http://localhost:3000/api/eventos/crear", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: formData
       });
 
       if (!response.ok) {
@@ -380,7 +378,6 @@ export default function Eventos({ usuario }) {
       setSubiendo(false);
     }
   };
-
   return (
     <div className="eventos-container">
       <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
