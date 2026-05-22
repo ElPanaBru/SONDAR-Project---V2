@@ -9,7 +9,7 @@ const GENEROS_PERMITIDOS = [
 ];
 
 const normalizarGenero = (genero) => {
-  const gen = genero.toLowerCase();
+  const gen = genero ? genero.toLowerCase() : "otros";
   return GENEROS_PERMITIDOS.includes(gen) ? gen : "otros";
 };
 
@@ -21,79 +21,75 @@ const escaparHtml = (valor) =>
     .replaceAll(">", "&gt;");
 
 export default function Eventos({ usuario }) {
+  // Referencias para el mapa principal
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersLayer = useRef(null);
   const avisoTimer = useRef(null);
-  const siguienteEventoId = useRef(5);
+  
+  // Referencias para el MINI MAPA del modal (Picker)
+  const miniMapRef = useRef(null);
+  const miniMapInstance = useRef(null);
+  const miniMarkerRef = useRef(null);
+
+  // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
   const [ultimoEventoDetalle, setUltimoEventoDetalle] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [mostrarAyuda, setMostrarAyuda] = useState(false);
   const [filtroGenero, setFiltroGenero] = useState("todos");
   const [aviso, setAviso] = useState("");
 
-  const [eventos, setEventos] = useState([
-    {
-      id: 1,
-      titulo: "RAICES ROCK",
-      lugar: "Niceto Club, Palermo",
-      fecha: "29/04/2026 22:00",
-      genero: "rock",
-      coords: [-34.6037, -58.3816],
-      img: "https://images.unsplash.com/photo-1507874457470-272b3c8d8ee2",
-      link: "https://www.ticketek.com.ar",
-      guardado: false,
-      creador: "demo@gmail.com"
-    },
-    {
-      id: 2,
-      titulo: "S.A. punk",
-      lugar: "El Emergente, Almagro",
-      fecha: "30/04/2026 21:00",
-      genero: "metal",
-      coords: [-34.5883, -58.43],
-      img: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
-      link: "",
-      guardado: false,
-      creador: "demo@gmail.com"
-    },
-    {
-      id: 3,
-      titulo: "CasaMadre",
-      lugar: "La Trastienda, San Telmo",
-      fecha: "02/05/2026 20:30",
-      genero: "rock",
-      coords: [-34.6215, -58.3713],
-      img: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a",
-      link: "https://www.ticketek.com.ar",
-      guardado: false,
-      creador: "sondar@demo.com"
-    },
-    {
-      id: 4,
-      titulo: "Marte Miente",
-      lugar: "Makena, Palermo",
-      fecha: "08/05/2026 23:00",
-      genero: "trap",
-      coords: [-34.5802, -58.4245],
-      img: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f",
-      link: "",
-      guardado: false,
-      creador: "sondar@demo.com"
-    }
-  ]);
+  // Estados de Datos y Carga
+  const [eventos, setEventos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [subiendo, setSubiendo] = useState(false);
 
+  // Estado del nuevo evento
   const [nuevoEvento, setNuevoEvento] = useState({
     titulo: "",
     genero: "",
-    ubicacion: "",
+    lugar: "", 
     fecha: "",
     hora: "",
     link: "",
     imagen: null,
-    nombreImagen: ""
+    nombreImagen: "",
+    lat: -34.6037, 
+    lng: -58.3816
   });
+
+  const coordsInicialesRef = useRef({ lat: -34.6037, lng: -58.3816 });
+
+  // 1. Carga inicial de eventos desde el Backend
+  useEffect(() => {
+    let isMounted = true;
+    const cargarEventos = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/eventos");
+        if (res.ok) {
+          const data = await res.json();
+          const eventosMapeados = data.map(ev => ({
+            ...ev,
+            coords: [parseFloat(ev.latitud), parseFloat(ev.longitud)]
+          }));
+          
+          if (isMounted) {
+            setEventos(eventosMapeados);
+            setLoading(false);
+          }
+        } else {
+          console.error("Error al traer eventos del servidor");
+          if (isMounted) setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error de red:", error);
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    cargarEventos();
+    return () => { isMounted = false; };
+  }, []);
 
   const eventoSeleccionado = useMemo(
     () => eventos.find((evento) => evento.id === eventoActivo),
@@ -109,6 +105,7 @@ export default function Eventos({ usuario }) {
     [eventos, filtroGenero]
   );
 
+  // 2. Inicialización del Mapa Principal (Modo Oscuro)
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
@@ -125,12 +122,7 @@ export default function Eventos({ usuario }) {
     markersLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
 
-    const resizeTimer = setTimeout(() => {
-      map.invalidateSize();
-    }, 180);
-
     return () => {
-      clearTimeout(resizeTimer);
       map.remove();
       mapInstance.current = null;
       markersLayer.current = null;
@@ -138,19 +130,89 @@ export default function Eventos({ usuario }) {
   }, []);
 
   useEffect(() => {
-    return () => {
-      clearTimeout(avisoTimer.current);
-    };
-  }, []);
+    if (!loading && mapInstance.current) {
+      setTimeout(() => {
+        mapInstance.current.invalidateSize();
+      }, 100);
+    }
+  }, [loading]);
 
+  // 3. Inicialización del MINI MAPA (Clásico/Ordinario y grande)
+  useEffect(() => {
+    if (!mostrarModal || !miniMapRef.current) return;
+
+    if (miniMapInstance.current) {
+      miniMapInstance.current.remove();
+      miniMapInstance.current = null;
+    }
+
+    const { lat, lng } = coordsInicialesRef.current;
+
+    const miniMap = L.map(miniMapRef.current, {
+      zoomControl: true,
+      attributionControl: false
+    }).setView([lat, lng], 14); // Buen nivel de zoom para ver alturas de calles al abrir
+
+    // Capas claras de OpenStreetMap para máxima lectura de calles y plazas
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19
+    }).addTo(miniMap);
+
+    const pin = L.marker([lat, lng], {
+      draggable: true
+    }).addTo(miniMap);
+
+    miniMarkerRef.current = pin;
+    miniMapInstance.current = miniMap;
+
+    // Redibujado seguro contemplando el nuevo tamaño del modal
+    setTimeout(() => {
+      miniMap.invalidateSize();
+    }, 250);
+
+    pin.on("dragend", () => {
+      const posicion = pin.getLatLng();
+      setNuevoEvento(prev => ({ ...prev, lat: posicion.lat, lng: posicion.lng }));
+    });
+
+    miniMap.on("click", (e) => {
+      pin.setLatLng(e.latlng);
+      setNuevoEvento(prev => ({ ...prev, lat: e.latlng.lat, lng: e.latlng.lng }));
+    });
+
+    return () => {
+      if (miniMapInstance.current) {
+        miniMapInstance.current.remove();
+        miniMapInstance.current = null;
+      }
+    };
+  }, [mostrarModal]);
+
+  // 4. Renderizado de Marcadores en el Mapa Principal
   useEffect(() => {
     if (!mapInstance.current || !markersLayer.current) return;
 
     markersLayer.current.clearLayers();
+    const coordenadasUsadas = {};
 
     eventosFiltrados.forEach((evento) => {
+      if (!evento.coords || isNaN(evento.coords[0]) || isNaN(evento.coords[1])) return;
+
+      let lat = evento.coords[0];
+      let lng = evento.coords[1];
+      const claveCoordenada = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+
+      if (coordenadasUsadas[claveCoordenada]) {
+        lat += (Math.random() - 0.5) * 0.0012;
+        lng += (Math.random() - 0.5) * 0.0012;
+      } else {
+        coordenadasUsadas[claveCoordenada] = true;
+      }
+
+      const posicionFinal = [lat, lng];
       const activo = eventoActivo === evento.id;
-      const marker = L.marker(evento.coords, {
+
+      const marker = L.marker(posicionFinal, {
         icon: L.divIcon({
           className: "evento-pin-wrapper",
           html: `
@@ -169,17 +231,24 @@ export default function Eventos({ usuario }) {
       marker.on("click", () => {
         setUltimoEventoDetalle(evento);
         setEventoActivo(evento.id);
-        mapInstance.current.flyTo(evento.coords, 16, { duration: 0.9 });
+        mapInstance.current.flyTo(posicionFinal, 16, { duration: 0.9 });
       });
 
       marker.addTo(markersLayer.current);
     });
   }, [eventosFiltrados, eventoActivo]);
 
+  // 5. Encuadre automático del mapa principal
   useEffect(() => {
     if (!mapInstance.current || eventosFiltrados.length === 0) return;
+    
+    const coordsValidas = eventosFiltrados
+      .filter(ev => ev.coords && !isNaN(ev.coords[0]) && !isNaN(ev.coords[1]))
+      .map(ev => ev.coords);
 
-    const bounds = L.latLngBounds(eventosFiltrados.map((evento) => evento.coords));
+    if (coordsValidas.length === 0) return;
+
+    const bounds = L.latLngBounds(coordsValidas);
     mapInstance.current.fitBounds(bounds, {
       padding: [90, 90],
       maxZoom: 13,
@@ -187,32 +256,12 @@ export default function Eventos({ usuario }) {
     });
   }, [eventosFiltrados]);
 
-  const geocodificarDireccion = async (direccion) => {
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(direccion)}`
-      );
-      const data = await res.json();
-
-      if (data.length > 0) {
-        return {
-          lat: parseFloat(data[0].lat),
-          lng: parseFloat(data[0].lon)
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error(error);
-      return null;
-    }
-  };
-
+  // Funciones Auxiliares de UI
   const toggleGuardar = (id) => {
     if (!usuario) {
       mostrarAviso("Tenes que iniciar sesion para guardar eventos");
       return;
     }
-
     setEventos(eventos.map((evento) =>
       evento.id === id ? { ...evento, guardado: !evento.guardado } : evento
     ));
@@ -223,7 +272,6 @@ export default function Eventos({ usuario }) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
-
     setMostrarModal(true);
   };
 
@@ -237,9 +285,7 @@ export default function Eventos({ usuario }) {
 
   const handleFiltroGenero = (genero) => {
     setFiltroGenero(genero);
-
     if (!eventoSeleccionado) return;
-
     const activoVisible = genero === "todos" || normalizarGenero(eventoSeleccionado.genero) === genero;
     if (!activoVisible) {
       setEventoActivo(null);
@@ -270,15 +316,9 @@ export default function Eventos({ usuario }) {
 
   const formatearFecha = (fecha, hora) => {
     if (!fecha || !hora) return "";
-
     const fechaObj = new Date(`${fecha}T${hora}`);
-
     return fechaObj.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
+      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
     });
   };
 
@@ -290,39 +330,55 @@ export default function Eventos({ usuario }) {
       return;
     }
 
-    const coords = await geocodificarDireccion(nuevoEvento.ubicacion);
-    const coordsFinales = coords || { lat: -34.6037, lng: -58.3816 };
+    setSubiendo(true);
 
-    const nuevo = {
-      id: siguienteEventoId.current,
+    const payload = {
       titulo: nuevoEvento.titulo,
-      lugar: nuevoEvento.ubicacion,
-      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
       genero: normalizarGenero(nuevoEvento.genero),
-      coords: [coordsFinales.lat, coordsFinales.lng],
+      ubicacion: nuevoEvento.lugar || "Ubicación manual", 
+      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
       img: nuevoEvento.imagen || "https://images.unsplash.com/photo-1514525253161-7a46d19cd819",
       link: nuevoEvento.link || "",
-      guardado: false,
-      creador: usuario?.email || "Anonimo"
+      creador: usuario?.email || "Anonimo",
+      coords: [nuevoEvento.lat, nuevoEvento.lng] 
     };
 
-    siguienteEventoId.current += 1;
-    setEventos([nuevo, ...eventos]);
-    setUltimoEventoDetalle(nuevo);
-    setEventoActivo(nuevo.id);
-    setMostrarModal(false);
-    setMostrarAyuda(false);
+    try {
+      const response = await fetch("http://localhost:3000/api/eventos/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-    setNuevoEvento({
-      titulo: "",
-      genero: "",
-      ubicacion: "",
-      fecha: "",
-      hora: "",
-      link: "",
-      imagen: null,
-      nombreImagen: ""
-    });
+      if (!response.ok) {
+        throw new Error("No se pudo guardar el evento en el servidor.");
+      }
+
+      const eventoGuardado = await response.json();
+      
+      const eventoParaMapa = {
+        ...eventoGuardado,
+        coords: [parseFloat(eventoGuardado.latitud), parseFloat(eventoGuardado.longitud)]
+      };
+
+      setEventos([eventoParaMapa, ...eventos]);
+      setUltimoEventoDetalle(eventoParaMapa);
+      setEventoActivo(eventoParaMapa.id);
+      
+      setMostrarModal(false);
+
+      setNuevoEvento({
+        titulo: "", genero: "", lugar: "", fecha: "", hora: "", link: "", imagen: null, nombreImagen: "", lat: -34.6037, lng: -58.3816
+      });
+
+      mostrarAviso("¡Evento creado con éxito!");
+
+    } catch (error) {
+      console.error(error);
+      mostrarAviso("Hubo un error al guardar el evento.");
+    } finally {
+      setSubiendo(false);
+    }
   };
 
   return (
@@ -357,7 +413,13 @@ export default function Eventos({ usuario }) {
         </div>
       </div>
 
-      {eventosFiltrados.length === 0 && (
+      {loading && (
+        <div style={{ position: "absolute", zIndex: 1000, top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(0,0,0,0.8)", padding: "1rem 2rem", borderRadius: "8px", color: "white" }}>
+          Cargando mapa y eventos...
+        </div>
+      )}
+
+      {!loading && eventosFiltrados.length === 0 && (
         <div className="eventos-vacio">
           No hay eventos de este genero
         </div>
@@ -443,35 +505,32 @@ export default function Eventos({ usuario }) {
                 <input type="file" accept="image/*" onChange={handleImagen} />
               </label>
 
-              <div className="ubicacion-row">
-                <input
-                  type="text"
-                  name="ubicacion"
-                  placeholder="Ej: Av Corrientes 1234, Buenos Aires"
-                  value={nuevoEvento.ubicacion}
-                  onChange={handleChange}
-                  required
-                />
+              <input
+                type="text"
+                name="lugar"
+                placeholder="Nombre del lugar (Ej: Niceto Club, Palermo)"
+                value={nuevoEvento.lugar}
+                onChange={handleChange}
+                required
+              />
 
-                <button className="btn-help" type="button" onClick={() => setMostrarAyuda(!mostrarAyuda)}>
-                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M513.5-254.5Q528-269 528-290t-14.5-35.5Q499-340 478-340t-35.5 14.5Q428-311 428-290t14.5 35.5Q457-240 478-240t35.5-14.5ZM442-394h74q0-33 7.5-52t42.5-52q26-26 41-49.5t15-56.5q0-56-41-86t-97-30q-57 0-92.5 30T342-618l66 26q5-18 22.5-39t53.5-21q32 0 48 17.5t16 38.5q0 20-12 37.5T506-526q-44 39-54 59t-10 73Zm38 314q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-80q134 0 227-93t93-227q0-134-93-227t-227-93q-134 0-227 93t-93 227q0 134 93 227t227 93Zm0-320Z"/></svg>
-                </button>
+              <div className="mini-mapa-instruccion">
+                Hacé click en el mapa o arrastrá el pin para ubicar el evento:
               </div>
+              
+              {/* Refactorizado con la nueva clase CSS limpia */}
+              <div ref={miniMapRef} className="evento-minimapa"></div>
 
               <input type="date" name="fecha" value={nuevoEvento.fecha} onChange={handleChange} required />
               <input type="time" name="hora" value={nuevoEvento.hora} onChange={handleChange} required />
               <input type="url" name="link" placeholder="URL de compra (opcional)" value={nuevoEvento.link} onChange={handleChange} />
 
               <div className="evento-modal-botones">
-                <button type="submit">Crear</button>
-                <button type="button" onClick={() => setMostrarModal(false)}>Cancelar</button>
+                <button type="submit" disabled={subiendo}>
+                  {subiendo ? "Guardando..." : "Crear"}
+                </button>
+                <button type="button" onClick={() => setMostrarModal(false)} disabled={subiendo}>Cancelar</button>
               </div>
-
-              {mostrarAyuda && (
-                <p className="evento-modal-ayuda">
-                  Para agregar una ubicacion valida en el primer intento, podes buscar en Google Maps el lugar del evento, copiar la direccion y pegarla en el campo de ubicacion.
-                </p>
-              )}
             </form>
           </div>
         </div>

@@ -68,7 +68,7 @@ export default function Auth() {
               username: cleanUsername 
             })
           });
-
+          
           if (!response.ok) throw new Error("Fallo en base de datos");
           navigate("/");
 
