@@ -1,0 +1,746 @@
+.eventos-container {
+  /* Evitar artefactos/bordes visibles debajo del navbar */
+  margin-top: 0;
+  border-top: 0;
+  overflow: hidden;
+
+  background: #020202;
+  color: #fff;
+
+  position: fixed;
+  top: 70px;
+  right: 0;
+  bottom: 0;
+
+  /* Sidebar: cerrado 54px */
+  left: 54px;
+  width: calc(100% - 54px);
+  margin-left: 0;
+
+}
+
+/* Sidebar: abierto 210px (animado por SidebarNav) */
+.sidebar-nav.open ~ .main-content .eventos-container,
+.sidebar-nav.open + .main-content .eventos-container {
+  left: 210px;
+  width: calc(100% - 210px);
+}
+
+/* (El segundo bloque .eventos-container se eliminó para evitar pisar el layout del sidebar) */
+
+
+.eventos-mapa {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #071113;
+}
+
+/* Aseguramos que el modal pueda recibir clicks siempre */
+.evento-modal-overlay {
+  z-index: 20000;
+}
+
+
+.eventos-mapa::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 420;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 28% 20%, rgba(255, 94, 0, 0.1), transparent 24%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.18), transparent 46%, rgba(0, 0, 0, 0.28));
+}
+
+.eventos-mapa .leaflet-tile {
+  filter: brightness(1.45) contrast(0.98) saturate(1.08);
+}
+
+.eventos-panel {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  right: 18px;
+  z-index: 600;
+  pointer-events: none;
+}
+
+.eventos-header {
+  width: min(100%, 920px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  pointer-events: auto;
+  flex-wrap: wrap;
+}
+
+.eventos-header > div:first-child {
+  min-width: 0;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+}
+
+.eventos-eyebrow,
+.eventos-acciones span {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.eventos-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 0.98;
+}
+
+.eventos-acciones {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+}
+
+.eventos-genero {
+  display: block;
+  margin-top: 10px;
+}
+
+.genero-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.genero-row select,
+.genero-row .btn-crear-evento {
+  flex: 0 1 auto;
+}
+
+/* Responsive: prevent overlapping and ensure wrap */
+@media (max-width: 920px) {
+  .eventos-header {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .eventos-header > div:first-child,
+  .eventos-acciones {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .genero-row {
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .eventos-filtro {
+    min-width: 140px;
+    flex: 1 1 160px;
+  }
+
+  .btn-crear-evento {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .eventos-container {
+    top: 134px;
+  }
+
+  .eventos-header h2 {
+    font-size: 24px;
+  }
+
+  .genero-label {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .eventos-filtro {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .btn-crear-evento {
+    width: 100%;
+    margin-top: 8px;
+  }
+}
+
+.genero-label {
+  color: rgba(255,255,255,0.78);
+  font-weight: 800;
+  font-size: 13px;
+  text-transform: uppercase;
+  margin-right: 6px;
+  min-width: 70px;
+}
+
+
+.eventos-filtro {
+  min-width: 150px;
+  height: 42px;
+  color: #fff;
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  padding: 0 12px;
+  outline: none;
+}
+
+.eventos-filtro:focus {
+  border-color: var(--evento-naranja);
+}
+
+.btn-comprar,
+.btn-crear-evento,
+.evento-modal-botones button,
+.evento-detalle-acciones .btn-like {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.evento-modal-botones button[type="submit"] {
+  background: var(--evento-gradiente);
+  border-color: var(--evento-naranja);
+}
+
+.btn-comprar:hover,
+.btn-crear-evento:hover,
+.evento-modal-botones button:hover,
+.evento-detalle-acciones .btn-like:hover {
+  background: var(--evento-gradiente);
+  border-color: var(--evento-naranja);
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.eventos-vacio {
+  position: absolute;
+  top: 180px;
+  left: 50%;
+  z-index: 610;
+  color: rgba(255, 255, 255, 0.86);
+  background: rgba(0, 0, 0, 0.74);
+  border: 1px solid rgba(255, 94, 0, 0.35);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 800;
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.eventos-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1000;
+  width: min(360px, calc(100vw - 32px));
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 94, 0, 0.42);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.44);
+  transform: translate(-50%, -50%);
+  animation: eventosToast 2.4s ease both;
+  backdrop-filter: blur(12px);
+}
+
+.evento-pin-wrapper {
+  background: transparent;
+  border: 0;
+}
+
+.evento-pin {
+  width: 132px;
+  height: 80px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.evento-pin-pulse {
+  width: 58px;
+  height: 58px;
+  display: block;
+  overflow: hidden;
+  background: #090909;
+  border: 2px solid rgba(255, 94, 0, 0.76);
+  border-radius: 50%;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5), 0 0 0 8px rgba(255, 94, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.evento-pin-pulse img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+.evento-pin strong {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  max-width: 126px;
+  overflow: hidden;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.86);
+  border: 1px solid rgba(255, 94, 0, 0.45);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.evento-pin:hover .evento-pin-pulse,
+.evento-pin.activo .evento-pin-pulse {
+  transform: scale(1.08);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 0 0 10px rgba(255, 94, 0, 0.16);
+}
+
+.evento-pin.activo strong {
+  /* efecto: sombra del texto (en vez de fondo cuadrado) */
+  background: transparent;
+  border-color: transparent;
+  text-shadow:
+    0 0 10px rgba(255, 94, 0, 0.55),
+    0 0 22px rgba(255, 94, 0, 0.35),
+    0 0 38px rgba(255, 174, 0, 0.22);
+}
+
+/* Sombra suave también en hover */
+.evento-pin:hover strong {
+  text-shadow:
+    0 0 10px rgba(255, 94, 0, 0.35),
+    0 0 20px rgba(255, 94, 0, 0.25);
+}
+
+/* Evitar el “borde/fondo cuadrado” del texto incluso en normal */
+.evento-pin strong {
+  background: transparent;
+  border-color: transparent;
+}
+
+
+.evento-detalle {
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  bottom: 24px;
+  z-index: 650;
+  width: min(430px, 34vw);
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  background: var(--evento-panel);
+  border: 1px solid rgba(255, 94, 0, 0.38);
+  border-radius: 8px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(100% + 24px));
+  transition: opacity 0.28s ease, transform 0.32s ease;
+  backdrop-filter: blur(16px);
+}
+
+.evento-detalle.abierto {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+.evento-detalle-cerrar {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  min-height: 34px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.evento-detalle-cerrar:hover {
+  background: var(--evento-gradiente);
+  border-color: var(--evento-naranja);
+  transform: translateY(-1px);
+}
+
+.evento-detalle-imagen {
+  min-height: 210px;
+  position: relative;
+  flex: 0 0 34%;
+  background-size: cover;
+  background-position: center;
+}
+
+.evento-detalle-imagen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.82));
+}
+
+.evento-detalle-imagen span {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 1;
+  color: #fff;
+  background: var(--evento-gradiente);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.evento-detalle-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.evento-detalle-info h3 {
+  margin: 0 0 10px;
+  color: #fff;
+  font-size: clamp(28px, 5vw, 42px);
+  line-height: 0.94;
+}
+
+.evento-detalle-info p {
+  margin: 4px 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 15px;
+}
+
+.evento-creador {
+  font-size: 13px;
+  opacity: 0.78;
+}
+
+.evento-detalle-acciones {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.evento-detalle-acciones .btn-like,
+.evento-detalle-acciones .btn-comprar {
+  position: static;
+  width: auto;
+  height: auto;
+  color: #fff;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.evento-detalle-acciones .btn-like:hover,
+.evento-detalle-acciones .btn-comprar:hover {
+  background: var(--evento-gradiente);
+  filter: none;
+}
+
+.leaflet-control-zoom {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-radius: 8px !important;
+}
+
+.leaflet-control-zoom a {
+  color: #fff !important;
+  background: rgba(0, 0, 0, 0.76) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: #ff5e00 !important;
+  background-image: var(--evento-gradiente) !important;
+}
+
+.evento-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.74);
+  backdrop-filter: blur(4px);
+}
+
+
+.evento-modal {
+  width: min(100%, 420px);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  color: #fff;
+  background: #141414;
+  border: 1px solid rgba(255, 94, 0, 0.36);
+  border-radius: 8px;
+  padding: 22px;
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.62);
+  animation: aparecer 0.24s ease;
+}
+
+.evento-modal h2 {
+  margin: 0 0 16px;
+  text-align: center;
+  font-size: 24px;
+}
+
+.evento-modal form {
+  display: grid;
+  gap: 10px;
+}
+
+.evento-modal input {
+  width: 100%;
+  min-height: 42px;
+  color: #fff;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  outline: none;
+  padding: 0 11px;
+  transition: border-color 0.2s ease;
+}
+
+.evento-modal input:focus {
+  border-color: var(--evento-naranja);
+}
+
+.evento-file-selector {
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.evento-file-selector span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: var(--evento-gradiente);
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.evento-file-selector strong {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evento-file-selector input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ubicacion-row {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 8px;
+}
+
+.btn-help {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.evento-modal-botones {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.evento-modal-botones button[type="button"] {
+  color: #fff;
+  background: #333;
+}
+
+.evento-modal-botones button:disabled {
+  cursor: progress;
+  filter: grayscale(0.25) brightness(0.82);
+  transform: none;
+}
+
+.evento-modal-ayuda {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes eventosToast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.96);
+  }
+  12%,
+  82% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 8px)) scale(0.98);
+  }
+}
+
+@media (max-width: 720px) {
+  .eventos-container {
+    top: 134px;
+  }
+
+  .eventos-panel {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+  }
+
+  .eventos-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .eventos-header > div:first-child,
+  .eventos-acciones {
+    width: 100%;
+  }
+
+  .eventos-acciones {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .eventos-filtro,
+  .btn-crear-evento {
+    width: 100%;
+  }
+
+  .evento-detalle {
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: calc(100% - 24px);
+    transform: translateY(calc(100% + 24px));
+  }
+
+  .evento-detalle.abierto {
+    transform: translateY(0);
+  }
+
+  .evento-detalle-imagen {
+    min-height: 132px;
+  }
+
+  .evento-detalle-acciones {
+    flex-direction: column;
+  }
+
+  .evento-detalle-acciones .btn-like,
+  .btn-comprar {
+    width: 100%;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .eventos-container {
+    top: 112px;
+  }
+}

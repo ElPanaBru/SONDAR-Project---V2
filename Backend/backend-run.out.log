@@ -1,0 +1,3 @@
+◇ injected env (5) from Backend\.env // tip: ◈ encrypted .env [www.dotenvx.com]
+◇ injected env (0) from Backend\.env // tip: ⌘ enable debugging { debug: true }
+Servidor en puerto 3000

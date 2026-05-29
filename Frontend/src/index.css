@@ -1,0 +1,23 @@
+:root {
+  --text: rgb(255, 255, 255);
+  --text-h: #3cff00;
+  --bg: #000000;
+  --accent: #aa3bff;
+}
+
+body {
+  /* Universal: dejamos el body sin desplazamientos para no romper layouts */
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+
+* {
+  box-sizing: border-box;
+}
+
+#root {
+  
+  width: 100%;
+}

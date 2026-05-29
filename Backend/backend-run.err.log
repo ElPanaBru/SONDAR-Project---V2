@@ -1,0 +1,2 @@
+PostgreSQL no esta disponible. Se usa almacenamiento local JSON.
+connect ECONNREFUSED 127.0.0.1:5433
