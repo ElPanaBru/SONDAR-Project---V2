@@ -291,6 +291,7 @@ export default function Comunidad({ usuario }) {
                 <button
                   className={`comunidad-mini-card ${comunidadActivaId === comunidad.id ? "activa" : ""}`}
                   key={comunidad.id}
+                  type="button"
                   onClick={() => setComunidadActivaId(comunidad.id)}
                 >
                   <div className="comunidad-mini-icon">
@@ -329,7 +330,7 @@ export default function Comunidad({ usuario }) {
                 <span>seguidores · Comunidad oficial</span>
                 </div>
               </div>
-              <button className="comunidad-crear" onClick={abrirCrearHilo}>
+              <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
                 Crear hilo
               </button>
             </div>
@@ -340,6 +341,7 @@ export default function Comunidad({ usuario }) {
               <button
                 key={filtro.id}
                 className={filtroActivo === filtro.id ? "activo" : ""}
+                type="button"
                 onClick={() => setFiltroActivo(filtro.id)}
               >
                 {filtro.label}
@@ -365,7 +367,7 @@ export default function Comunidad({ usuario }) {
             {hilosFiltrados.map((hilo) => (
               <article className="publicacion-card hilo-card" key={hilo.id}>
                 <div className="hilo-votos">
-                  <button onClick={() => votar(hilo.id)} aria-label="Votar hilo">+</button>
+                  <button type="button" onClick={() => votar(hilo.id)} aria-label="Votar hilo">+</button>
                   <strong>{hilo.votos}</strong>
                 </div>
 
@@ -381,10 +383,10 @@ export default function Comunidad({ usuario }) {
                   <p>{hilo.texto}</p>
 
                   <div className="publicacion-acciones">
-                    <button onClick={() => toggleRespuestas(hilo.id)}>
+                    <button type="button" onClick={() => toggleRespuestas(hilo.id)}>
                       {hilo.comentarios.length} respuestas
                     </button>
-                    <button onClick={() => guardar(hilo.id)}>
+                    <button type="button" onClick={() => guardar(hilo.id)}>
                       {hilo.guardado ? "Guardado" : "Guardar"}
                     </button>
                   </div>

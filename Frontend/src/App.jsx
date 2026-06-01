@@ -27,12 +27,17 @@ function App() {
 
   const hideNavbarRoutes = ["/auth", "/login", "/registro"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
+  const isDescubrirRoute = location.pathname === "/descubrir";
 
   return (
     <div className="app-container">
       {!shouldHideNavbar && <Navbar usuario={usuario} />}
 
-      <div className={`main-content ${!shouldHideNavbar ? "with-navbar" : ""}`}>
+      <div
+        className={`main-content ${!shouldHideNavbar ? "with-navbar" : ""} ${
+          isDescubrirRoute ? "descubrir-content" : ""
+        }`}
+      >
         <Routes>
           <Route path="/" element={<Eventos usuario={usuario} />} />
           <Route path="/soporte" element={<Soporte />} />

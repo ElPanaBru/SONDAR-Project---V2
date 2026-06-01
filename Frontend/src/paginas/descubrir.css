@@ -169,12 +169,12 @@
 
 .feed-item.reel-saliendo-abajo .album-centro,
 .feed-item.reel-saliendo-abajo .acciones-verticales {
-  animation: reelSaleAbajo 0.42s ease both;
+  animation: reelSaleAbajo 0.82s ease both;
 }
 
 .feed-item.reel-saliendo-arriba .album-centro,
 .feed-item.reel-saliendo-arriba .acciones-verticales {
-  animation: reelSaleArriba 0.42s ease both;
+  animation: reelSaleArriba 0.82s ease both;
 }
 
 .album-portada {
@@ -515,12 +515,13 @@
 }
 
 .comentarios-panel {
-  position: absolute;
-  top: calc(50% - var(--album-half) + var(--album-offset-y));
-  left: var(--comentarios-left);
+  position: fixed;
+  top: calc(var(--nav-alto) + 24px);
+  right: 96px;
+  left: auto;
   z-index: 20;
-  width: min(var(--comentarios-width), calc(100% - var(--comentarios-left) - 112px));
-  height: var(--album-size);
+  width: min(var(--comentarios-width), calc(100vw - 136px));
+  height: calc(100vh - var(--nav-alto) - 48px);
   display: grid;
   grid-template-rows: auto 1fr auto;
   overflow: hidden;
@@ -532,7 +533,7 @@
   transform: translateX(32px);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.32s ease, opacity 0.32s ease;
+  transition: transform 0.24s ease, opacity 0.24s ease;
 }
 
 .comentarios-panel.abierto {
@@ -591,7 +592,7 @@
 
 .comentario {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: 38px minmax(0, 1fr) auto;
   gap: 12px;
   margin-bottom: 22px;
 }
@@ -630,6 +631,115 @@
   color: rgba(255, 255, 255, 0.58);
   font-size: 12px;
   font-weight: 800;
+}
+
+.comentario-acciones {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.comentario-acciones button,
+.comentario-ver-respuestas {
+  color: rgba(255, 255, 255, 0.66);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.comentario-acciones button:hover,
+.comentario-ver-respuestas:hover {
+  color: #ffae00;
+}
+
+.comentario-like {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  color: rgba(255, 255, 255, 0.74);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.comentario-like svg {
+  width: 22px;
+  height: 22px;
+}
+
+.comentario-like:hover,
+.comentario-like.activo {
+  color: #050505;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  transform: translateY(-1px);
+}
+
+.comentario-ver-respuestas {
+  display: inline-flex;
+  margin-top: 12px;
+}
+
+.comentario-respuestas {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.comentario-respuesta {
+  margin-bottom: 0;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+
+.comentario-respuesta .comentario-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+
+.respuesta-comentario-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.respuesta-comentario-form input {
+  min-width: 0;
+  height: 38px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  outline: none;
+  padding: 0 12px;
+}
+
+.respuesta-comentario-form input:focus {
+  border-color: rgba(255, 174, 0, 0.72);
+}
+
+.respuesta-comentario-form button {
+  min-height: 38px;
+  color: #050505;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .comentario-form {
@@ -676,6 +786,26 @@
 .comentario-form button svg {
   width: 23px;
   height: 23px;
+}
+
+.descubrir-toast {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 11000;
+  width: min(380px, calc(100vw - 32px));
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid rgba(255, 94, 0, 0.42);
+  border-radius: 8px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.44);
+  transform: translate(-50%, -50%);
+  animation: descubrirToast 2.4s ease both;
+  backdrop-filter: blur(12px);
 }
 
 .reel-progress {
@@ -858,6 +988,22 @@
   }
 }
 
+@keyframes descubrirToast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.96);
+  }
+  12%,
+  82% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 8px)) scale(0.98);
+  }
+}
+
 .descubrir-vacio {
   width: min(1180px, 100%);
   margin: 24px auto 0;
@@ -1022,11 +1168,24 @@
   }
 
   .comentarios-panel {
-    top: calc(50% - var(--album-half) + var(--album-offset-y));
-    left: auto;
+    top: calc(var(--nav-alto) + 12px);
     right: 12px;
-    height: var(--album-size);
+    left: auto;
+    height: calc(100vh - var(--nav-alto) - 24px);
     width: min(420px, calc(100% - 24px));
+  }
+
+  .comentario {
+    grid-template-columns: 34px minmax(0, 1fr) 32px;
+    gap: 10px;
+  }
+
+  .comentario-respuestas {
+    padding-left: 10px;
+  }
+
+  .respuesta-comentario-form {
+    grid-template-columns: 1fr;
   }
 
   .feed-copy strong {
