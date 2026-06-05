@@ -220,7 +220,7 @@ export default function Descubrir({ usuario }) {
   const [lanzamientos, setLanzamientos] = useState(lanzamientosIniciales);
   const [reproduciendo, setReproduciendo] = useState(lanzamientosIniciales[0].id);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
-  const [reelAnimando, setReelAnimando] = useState(null);
+  const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
   const [comentarios, setComentarios] = useState(comentariosIniciales);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
@@ -232,7 +232,12 @@ export default function Descubrir({ usuario }) {
   );
   const reproduciendoRef = useRef(reproduciendo);
   const comentariosAbiertosRef = useRef(comentariosAbiertos);
+  const lanzamientosFiltradosRef = useRef([]);
+  const ruedaAcumuladaRef = useRef(0);
+  const ultimoMovimientoRuedaRef = useRef(0);
+  const toqueInicioRef = useRef(null);
   const avisoTimer = useRef(null);
+  const comentariosAnimacionTimer = useRef(null);
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
 
   const lanzamientosFiltrados = useMemo(() => {
@@ -254,8 +259,13 @@ export default function Descubrir({ usuario }) {
   }, [comentariosAbiertos]);
 
   useEffect(() => {
+    lanzamientosFiltradosRef.current = lanzamientosFiltrados;
+  }, [lanzamientosFiltrados]);
+
+  useEffect(() => {
     return () => {
       clearTimeout(avisoTimer.current);
+      clearTimeout(comentariosAnimacionTimer.current);
     };
   }, []);
 
@@ -277,6 +287,8 @@ export default function Descubrir({ usuario }) {
         reproduciendoRef.current = id;
         setReproduciendo(id);
         if (comentariosAbiertosRef.current !== null) {
+          setComentariosAnimando(false);
+          clearTimeout(comentariosAnimacionTimer.current);
           comentariosAbiertosRef.current = id;
           setComentariosAbiertos(id);
         }
@@ -295,6 +307,105 @@ export default function Descubrir({ usuario }) {
 
     return () => observer.disconnect();
   }, [lanzamientosFiltrados]);
+
+  useEffect(() => {
+    const pista = document.querySelector(".feed-pista");
+    if (!pista) return undefined;
+
+    const obtenerPanelComentarios = (elemento) =>
+      elemento.closest?.(".comentarios-panel.abierto") || null;
+
+    const puedeScrollearPanel = (elemento, deltaY) => {
+      const panel = obtenerPanelComentarios(elemento);
+      if (!panel) return false;
+
+      const areaScrollable = elemento.closest?.(".comentarios-lista") || panel;
+      const { scrollTop, scrollHeight, clientHeight } = areaScrollable;
+      const margen = 2;
+      const puedeSubir = scrollTop > margen;
+      const puedeBajar = scrollTop + clientHeight < scrollHeight - margen;
+
+      return deltaY < 0 ? puedeSubir : puedeBajar;
+    };
+
+    const manejarRueda = (event) => {
+      if (obtenerPanelComentarios(event.target)) {
+        if (!puedeScrollearPanel(event.target, event.deltaY)) {
+          event.preventDefault();
+        }
+        ruedaAcumuladaRef.current = 0;
+        return;
+      }
+
+      ruedaAcumuladaRef.current += event.deltaY;
+      const ahora = performance.now();
+      const intensidad = Math.abs(ruedaAcumuladaRef.current);
+
+      if (intensidad < 54 || ahora - ultimoMovimientoRuedaRef.current < 420) return;
+
+      const direccion = ruedaAcumuladaRef.current > 0 ? "abajo" : "arriba";
+      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const seMovio = desplazarReel(idActual, direccion);
+
+      if (seMovio) {
+        event.preventDefault();
+        ultimoMovimientoRuedaRef.current = ahora;
+      }
+
+      ruedaAcumuladaRef.current = 0;
+    };
+
+    const manejarToqueInicio = (event) => {
+      if (obtenerPanelComentarios(event.target)) {
+        toqueInicioRef.current = null;
+        return;
+      }
+
+      const toque = event.touches[0];
+      toqueInicioRef.current = {
+        x: toque.clientX,
+        y: toque.clientY,
+      };
+    };
+
+    const manejarToqueFin = (event) => {
+      if (!toqueInicioRef.current || event.changedTouches.length === 0) return;
+
+      const toque = event.changedTouches[0];
+      const deltaX = toque.clientX - toqueInicioRef.current.x;
+      const deltaY = toque.clientY - toqueInicioRef.current.y;
+      const distanciaVertical = Math.abs(deltaY);
+      const ahora = performance.now();
+
+      toqueInicioRef.current = null;
+
+      if (
+        distanciaVertical < 58 ||
+        Math.abs(deltaX) > distanciaVertical * 0.72 ||
+        ahora - ultimoMovimientoRuedaRef.current < 360
+      ) {
+        return;
+      }
+
+      const direccion = deltaY < 0 ? "abajo" : "arriba";
+      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const seMovio = desplazarReel(idActual, direccion);
+
+      if (seMovio) {
+        ultimoMovimientoRuedaRef.current = ahora;
+      }
+    };
+
+    pista.addEventListener("wheel", manejarRueda, { passive: false });
+    pista.addEventListener("touchstart", manejarToqueInicio, { passive: true });
+    pista.addEventListener("touchend", manejarToqueFin, { passive: true });
+
+    return () => {
+      pista.removeEventListener("wheel", manejarRueda);
+      pista.removeEventListener("touchstart", manejarToqueInicio);
+      pista.removeEventListener("touchend", manejarToqueFin);
+    };
+  }, []);
 
   useEffect(() => {
     if (reproduciendo === null) return undefined;
@@ -359,23 +470,31 @@ export default function Descubrir({ usuario }) {
     setReproduciendo((actual) => (actual === id ? null : id));
   };
 
-  const moverReel = (id, direccion) => {
+  const cambiarComentariosConAnimacion = (siguiente) => {
+    clearTimeout(comentariosAnimacionTimer.current);
+    setComentariosAnimando(true);
+    setComentariosAbiertos(siguiente);
+    comentariosAbiertosRef.current = siguiente;
+    comentariosAnimacionTimer.current = setTimeout(() => {
+      setComentariosAnimando(false);
+    }, 360);
+  };
+
+  function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
     const destino =
       direccion === "arriba"
         ? actual?.previousElementSibling
         : actual?.nextElementSibling;
 
-    if (!destino) return;
+    if (!destino) return false;
 
-    if (comentariosAbiertosRef.current === null) {
-      setReelAnimando({ id, direccion });
-    }
+    destino.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
 
-    window.setTimeout(() => {
-      destino.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 220);
-    window.setTimeout(() => setReelAnimando(null), 940);
+  const moverReel = (id, direccion) => {
+    desplazarReel(id, direccion);
   };
 
   const enviarComentario = (event) => {
@@ -488,7 +607,12 @@ export default function Descubrir({ usuario }) {
   };
 
   return (
-    <section className="descubrir-feed" aria-label="Descubrir musica">
+    <section
+      className={`descubrir-feed ${comentariosAbiertos !== null ? "comentarios-globales" : ""} ${
+        comentariosAnimando ? "comentarios-animando" : ""
+      }`}
+      aria-label="Descubrir musica"
+    >
       <div className="feed-pista">
         {lanzamientosFiltrados.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
@@ -499,10 +623,6 @@ export default function Descubrir({ usuario }) {
               data-reel-id={lanzamiento.id}
               className={`feed-item ${estaReproduciendo ? "sonando" : ""} ${
                 comentariosAbiertos === lanzamiento.id ? "comentarios-activos" : ""
-              } ${
-                reelAnimando?.id === lanzamiento.id && comentariosAbiertos === null
-                  ? `reel-saliendo-${reelAnimando.direccion}`
-                  : ""
               }`}
               key={lanzamiento.id}
               style={{
@@ -617,8 +737,8 @@ export default function Descubrir({ usuario }) {
                     type="button"
                     aria-label="Comentar"
                     onClick={() =>
-                      setComentariosAbiertos((actual) =>
-                        actual === lanzamiento.id ? null : lanzamiento.id
+                      cambiarComentariosConAnimacion(
+                        comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
                       )
                     }
                   >
@@ -663,7 +783,7 @@ export default function Descubrir({ usuario }) {
                   <button
                     type="button"
                     aria-label="Cerrar comentarios"
-                    onClick={() => setComentariosAbiertos(null)}
+                    onClick={() => cambiarComentariosConAnimacion(null)}
                   >
                     <Icono nombre="cerrar" />
                   </button>

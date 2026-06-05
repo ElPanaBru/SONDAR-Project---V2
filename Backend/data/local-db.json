@@ -1,0 +1,49 @@
+{
+  "users": [
+    {
+      "id": "vY92GtenV8Vj4bbXqY8LYYVJ9n92",
+      "email": "jorge@gmail.com",
+      "username": "jorge",
+      "user_type": "oyente",
+      "created_at": "2026-06-05T11:22:11.149Z",
+      "last_login": "2026-06-05T11:22:11.150Z"
+    }
+  ],
+  "profiles": {
+    "vY92GtenV8Vj4bbXqY8LYYVJ9n92": {
+      "user_id": "vY92GtenV8Vj4bbXqY8LYYVJ9n92",
+      "nombre": "jorge",
+      "bio": "Cuenta local de prueba SONDAR.",
+      "avatar": "",
+      "updated_at": "2026-06-05T12:47:24.696Z"
+    }
+  },
+  "settings": {
+    "vY92GtenV8Vj4bbXqY8LYYVJ9n92": {
+      "user_id": "vY92GtenV8Vj4bbXqY8LYYVJ9n92",
+      "email": "jorge@gmail.com",
+      "telefono": "",
+      "idioma": "es",
+      "zonaHoraria": "America/Argentina/Buenos_Aires",
+      "loginAlertas": true,
+      "newsletter": false,
+      "actividadCuenta": true,
+      "perfilPrivado": false,
+      "mostrarEmail": false,
+      "permitirMensajes": true,
+      "updated_at": "2026-06-05T12:47:24.696Z"
+    }
+  },
+  "savedItems": [],
+  "interactions": [],
+  "publications": [],
+  "events": [],
+  "threads": [],
+  "comments": [],
+  "counters": {
+    "publication": 1,
+    "event": 1,
+    "thread": 1,
+    "comment": 1
+  }
+}
