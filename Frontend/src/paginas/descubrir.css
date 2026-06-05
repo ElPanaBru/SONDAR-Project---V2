@@ -22,6 +22,8 @@
   margin: 0 auto;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 174, 0, 0.75) rgba(255, 255, 255, 0.08);
   background: #060606;
@@ -44,6 +46,7 @@
   position: relative;
   min-height: calc(100vh - var(--nav-alto));
   scroll-snap-align: start;
+  scroll-snap-stop: always;
   display: grid;
   grid-template-columns: 1fr;
   grid-template-rows: 1fr auto;
@@ -160,21 +163,15 @@
   width: var(--album-size);
   min-width: 0;
   transform: translate(var(--layout-shift-x), var(--album-offset-y));
-  transition: transform 0.32s ease;
+  transition: transform 0.24s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.feed-item.comentarios-activos .album-centro {
+.descubrir-feed.comentarios-globales .album-centro {
   transform: translate(var(--comentarios-shift), var(--album-offset-y));
 }
 
-.feed-item.reel-saliendo-abajo .album-centro,
-.feed-item.reel-saliendo-abajo .acciones-verticales {
-  animation: reelSaleAbajo 0.82s ease both;
-}
-
-.feed-item.reel-saliendo-arriba .album-centro,
-.feed-item.reel-saliendo-arriba .acciones-verticales {
-  animation: reelSaleArriba 0.82s ease both;
+.feed-item.sonando .album-portada {
+  animation: reelEntraSuave 0.42s cubic-bezier(0.2, 0, 0, 1) both;
 }
 
 .album-portada {
@@ -460,10 +457,10 @@
   transform: translateY(-50%);
   display: grid;
   gap: 18px;
-  transition: transform 0.32s ease;
+  transition: transform 0.24s cubic-bezier(0.2, 0, 0, 1);
 }
 
-.feed-item.comentarios-activos .acciones-verticales {
+.descubrir-feed.comentarios-globales .acciones-verticales {
   transform: translate(var(--comentarios-shift), -50%);
 }
 
@@ -530,16 +527,24 @@
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
-  transform: translateX(32px);
+  transform: translate(24px, 12px) scale(0.985);
   opacity: 0;
   pointer-events: none;
-  transition: transform 0.24s ease, opacity 0.24s ease;
 }
 
 .comentarios-panel.abierto {
-  transform: translateX(0);
+  transform: translate(0, 0) scale(1);
   opacity: 1;
   pointer-events: auto;
+}
+
+.descubrir-feed.comentarios-animando .album-centro,
+.descubrir-feed.comentarios-animando .acciones-verticales {
+  transition-duration: 0.34s;
+}
+
+.descubrir-feed.comentarios-animando .comentarios-panel {
+  transition: transform 0.34s cubic-bezier(0.18, 0.9, 0.24, 1), opacity 0.22s ease;
 }
 
 .comentarios-header {
@@ -587,6 +592,7 @@
 
 .comentarios-lista {
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 18px 20px;
 }
 
@@ -924,7 +930,7 @@
 }
 
 .feed-item.comentarios-activos .reel-nav {
-  right: 18px;
+  right: var(--flechas-right);
 }
 
 .reel-nav button:hover:not(:disabled) {
@@ -937,27 +943,16 @@
   opacity: 0.32;
 }
 
-@keyframes reelSaleAbajo {
+@keyframes reelEntraSuave {
   0% {
-    opacity: 1;
-    filter: blur(0);
+    opacity: 0.82;
+    filter: saturate(0.92);
+    transform: translateY(18px) scale(0.985);
   }
   100% {
-    opacity: 0.35;
-    filter: blur(3px);
-    transform: translateY(-46px) scale(0.96);
-  }
-}
-
-@keyframes reelSaleArriba {
-  0% {
     opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0.35;
-    filter: blur(3px);
-    transform: translateY(46px) scale(0.96);
+    filter: saturate(1);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1049,7 +1044,7 @@
     width: var(--album-size);
   }
 
-  .feed-item.comentarios-activos .album-centro {
+  .descubrir-feed.comentarios-globales .album-centro {
     transform: translate(var(--comentarios-shift), var(--album-offset-y));
   }
 
@@ -1059,7 +1054,7 @@
     top: 50%;
   }
 
-  .feed-item.comentarios-activos .acciones-verticales {
+  .descubrir-feed.comentarios-globales .acciones-verticales {
     transform: translate(var(--comentarios-shift), -50%);
   }
 
@@ -1123,11 +1118,12 @@
     width: var(--album-size);
   }
 
-  .feed-item.comentarios-activos .album-centro,
+  .descubrir-feed.comentarios-globales .album-centro,
   .feed-item.comentarios-activos .album-centro {
     transform: translateY(var(--album-offset-y));
   }
 
+  .descubrir-feed.comentarios-globales .acciones-verticales,
   .feed-item.comentarios-activos .acciones-verticales {
     transform: translateY(-50%);
   }
@@ -1168,6 +1164,7 @@
   }
 
   .comentarios-panel {
+    transform: translateY(18px) scale(0.985);
     top: calc(var(--nav-alto) + 12px);
     right: 12px;
     left: auto;
@@ -1198,5 +1195,31 @@
 
   .reel-nav {
     display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-pista {
+    scroll-behavior: auto;
+  }
+
+  .album-centro,
+  .acciones-verticales,
+  .comentarios-panel,
+  .accion-boton,
+  .comentario-like,
+  .comentario-form button {
+    transition-duration: 0.01ms;
+  }
+
+  .feed-item.sonando .album-portada,
+  .accion-item:first-child .accion-boton.activo,
+  .accion-item:first-child .accion-boton.activo svg,
+  .descubrir-toast {
+    animation: none;
+  }
+
+  .descubrir-feed.comentarios-animando .comentarios-panel {
+    transition: none;
   }
 }
