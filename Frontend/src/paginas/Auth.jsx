@@ -63,15 +63,6 @@ export default function Auth() {
     return response.json();
   };
 
-  const limpiarCuentaIncompleta = async (accessToken) => {
-    await fetch(apiUrl("/api/usuarios/me"), {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    }).catch(() => null);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMensaje("");
@@ -113,30 +104,29 @@ export default function Auth() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: cleanPassword,
-        options: {
-          data: {
-            username: cleanUsername
-          }
-        }
+      const crearCuentaResponse = await fetch(apiUrl("/api/usuarios/crear-cuenta"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPassword,
+          username: cleanUsername
+        })
       });
 
-      if (error) throw error;
-
-      if (!data.session) {
-        setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
-        return;
+      if (!crearCuentaResponse.ok) {
+        const data = await crearCuentaResponse.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo crear la cuenta.");
       }
 
-      try {
-        await crearPerfilBackend(data.session.access_token, cleanUsername);
-      } catch (dbError) {
-        await limpiarCuentaIncompleta(data.session.access_token);
-        await supabase.auth.signOut();
-        throw dbError;
-      }
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
+      });
+
+      if (loginError) throw loginError;
 
       navigate("/");
     } catch (error) {

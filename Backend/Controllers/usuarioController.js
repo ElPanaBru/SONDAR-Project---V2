@@ -2,6 +2,73 @@ const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 
 const usuariosController = {
+  crearCuenta: async (req, res) => {
+    const { email, password, username, user_type } = req.body;
+    const cleanEmail = email?.trim().toLowerCase();
+    const cleanUsername = username?.trim();
+    const cleanPassword = password?.trim();
+    const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
+    let authUserId = null;
+
+    if (!cleanEmail || !cleanPassword || !cleanUsername) {
+      return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
+    }
+
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({ error: 'La contrasena debe tener al menos 6 caracteres.' });
+    }
+
+    try {
+      const { data, error } = await supabase.auth.admin.createUser({
+        email: cleanEmail,
+        password: cleanPassword,
+        email_confirm: true,
+        user_metadata: {
+          username: cleanUsername
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      authUserId = data.user.id;
+
+      const query = `
+        INSERT INTO users (id, email, username, user_type)
+        VALUES ($1, $2, $3, $4)
+        RETURNING *`;
+
+      const result = await pool.query(query, [
+        authUserId,
+        cleanEmail,
+        cleanUsername,
+        tipoUsuario
+      ]);
+
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      if (authUserId) {
+        await supabase.auth.admin.deleteUser(authUserId).catch(() => null);
+      }
+
+      if (error.code === '23505') {
+        return res.status(400).json({ error: 'El email o nombre de usuario ya esta en uso.' });
+      }
+
+      if (error.code === '23514') {
+        return res.status(400).json({ error: 'El tipo de usuario no es valido para la base de datos.' });
+      }
+
+      if (error.message?.includes('already been registered')) {
+        return res.status(400).json({ error: 'El correo ya esta registrado.' });
+      }
+
+      console.error('Error al crear cuenta:', error);
+      res.status(500).json({ error: 'Error al crear la cuenta.' });
+    }
+  },
+
   verificarUsuario: async (req, res) => {
     const userId = req.user.id;
 

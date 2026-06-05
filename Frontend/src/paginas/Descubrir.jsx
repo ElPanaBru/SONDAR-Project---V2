@@ -269,6 +269,19 @@ export default function Descubrir({ usuario }) {
     };
   }, []);
 
+  function desplazarReel(id, direccion) {
+    const actual = document.getElementById(`reel-${id}`);
+    const destino =
+      direccion === "arriba"
+        ? actual?.previousElementSibling
+        : actual?.nextElementSibling;
+
+    if (!destino) return false;
+
+    destino.scrollIntoView({ behavior: "smooth", block: "start" });
+    return true;
+  }
+
   useEffect(() => {
     const pista = document.querySelector(".feed-pista");
     if (!pista) return undefined;
@@ -479,19 +492,6 @@ export default function Descubrir({ usuario }) {
       setComentariosAnimando(false);
     }, 360);
   };
-
-  function desplazarReel(id, direccion) {
-    const actual = document.getElementById(`reel-${id}`);
-    const destino =
-      direccion === "arriba"
-        ? actual?.previousElementSibling
-        : actual?.nextElementSibling;
-
-    if (!destino) return false;
-
-    destino.scrollIntoView({ behavior: "smooth", block: "start" });
-    return true;
-  }
 
   const moverReel = (id, direccion) => {
     desplazarReel(id, direccion);
