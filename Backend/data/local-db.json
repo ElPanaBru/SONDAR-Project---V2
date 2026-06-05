@@ -7,6 +7,12 @@
       "user_type": "oyente",
       "created_at": "2026-06-05T11:22:11.149Z",
       "last_login": "2026-06-05T11:22:11.150Z"
+    },
+    {
+      "username": "aqdada",
+      "user_type": "oyente",
+      "created_at": "2026-06-05T16:15:57.107Z",
+      "last_login": "2026-06-05T16:18:38.957Z"
     }
   ],
   "profiles": {
@@ -16,6 +22,12 @@
       "bio": "Cuenta local de prueba SONDAR.",
       "avatar": "",
       "updated_at": "2026-06-05T12:47:24.696Z"
+    },
+    "undefined": {
+      "nombre": "fran",
+      "bio": "",
+      "avatar": "",
+      "updated_at": "2026-06-05T16:15:57.107Z"
     }
   },
   "settings": {
@@ -32,6 +44,18 @@
       "mostrarEmail": false,
       "permitirMensajes": true,
       "updated_at": "2026-06-05T12:47:24.696Z"
+    },
+    "undefined": {
+      "telefono": "",
+      "idioma": "es",
+      "zonaHoraria": "America/Argentina/Buenos_Aires",
+      "loginAlertas": true,
+      "newsletter": false,
+      "actividadCuenta": true,
+      "perfilPrivado": false,
+      "mostrarEmail": false,
+      "permitirMensajes": true,
+      "updated_at": "2026-06-05T16:15:57.107Z"
     }
   },
   "savedItems": [],

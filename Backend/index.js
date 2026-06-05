@@ -18,6 +18,18 @@ app.use(cors({
 
 app.use(express.json());
 
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    port: PORT,
+    frontendUrl: process.env.FRONTEND_URL || null,
+    supabaseUrl: process.env.SUPABASE_URL || null,
+    dbHost: process.env.DB_HOST || null,
+    dbName: process.env.DB_NAME || null,
+    dbUser: process.env.DB_USER || null
+  });
+});
+
 // Rutas Globales de la API
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/eventos', eventosRoutes);

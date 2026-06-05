@@ -56,8 +56,17 @@ export default function Auth() {
       }
     });
 
+    if (response.status === 404) {
+      return { existe: false };
+    }
+
     if (!response.ok) {
-      throw new Error("No se pudo verificar el perfil en el servidor.");
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        data.error
+          ? `${response.status} - ${data.error}`
+          : `${response.status} - No se pudo verificar el perfil en el servidor.`
+      );
     }
 
     return response.json();
@@ -118,7 +127,11 @@ export default function Auth() {
 
       if (!crearCuentaResponse.ok) {
         const data = await crearCuentaResponse.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo crear la cuenta.");
+        throw new Error(
+          data.error
+            ? `${crearCuentaResponse.status} - ${data.error}`
+            : `${crearCuentaResponse.status} - No se pudo crear la cuenta.`
+        );
       }
 
       const { error: loginError } = await supabase.auth.signInWithPassword({
