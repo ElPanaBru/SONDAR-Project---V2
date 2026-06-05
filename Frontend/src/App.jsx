@@ -1,7 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./paginas/firebaseConfig";
+import { supabase } from "./lib/supabaseClient";
 import "./App.css";
 
 import Navbar from "./componentes/Navbar";
@@ -10,7 +9,7 @@ import Soporte from "./paginas/Soporte";
 import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
 import Comunidad from "./paginas/Comunidad";
-import MiPerfil from "./paginas/MiPerfil";
+import MiPerfil from "./paginas/Miperfil";
 import Configuracion from "./paginas/Configuracion";
 
 function App() {
@@ -18,11 +17,15 @@ function App() {
   const [usuario, setUsuario] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUsuario(user);
+    supabase.auth.getSession().then(({ data }) => {
+      setUsuario(data.session?.user || null);
     });
 
-    return () => unsubscribe();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUsuario(session?.user || null);
+    });
+
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   const hideNavbarRoutes = ["/auth", "/login", "/registro"];

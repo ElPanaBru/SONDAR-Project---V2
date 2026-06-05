@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  deleteUser,
-} from "firebase/auth";
-import { auth } from "./firebaseConfig";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { apiUrl } from "../lib/api";
+import { supabase } from "../lib/supabaseClient";
 import "./auth.css";
+
+const mensajesSupabase = {
+  "Invalid login credentials": "Email o contraseña incorrectos",
+  "Email not confirmed": "Tenes que confirmar tu correo antes de ingresar",
+  "User already registered": "El correo ya esta registrado",
+  "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres"
+};
 
 export default function Auth() {
   const [modo, setModo] = useState("login");
@@ -22,9 +25,52 @@ export default function Auth() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const modoURL = params.get("modo");
-    if (modoURL === "registro") setModo("registro");
-    else setModo("login");
+    setModo(modoURL === "registro" ? "registro" : "login");
   }, [location.search]);
+
+  const traducirError = (error) => {
+    if (!error) return "Ocurrio un error inesperado.";
+    return mensajesSupabase[error.message] || error.message;
+  };
+
+  const crearPerfilBackend = async (accessToken, cleanUsername) => {
+    const response = await fetch(apiUrl("/api/usuarios/registrar"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ username: cleanUsername })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "No se pudo crear el perfil en el servidor.");
+    }
+  };
+
+  const verificarPerfilBackend = async (accessToken) => {
+    const response = await fetch(apiUrl("/api/usuarios/me"), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo verificar el perfil en el servidor.");
+    }
+
+    return response.json();
+  };
+
+  const limpiarCuentaIncompleta = async (accessToken) => {
+    await fetch(apiUrl("/api/usuarios/me"), {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    }).catch(() => null);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,59 +82,65 @@ export default function Auth() {
     const cleanUsername = username.trim();
 
     try {
-      let userCredential;
-
       if (modo === "login") {
-        userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-        const user = userCredential.user;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPassword
+        });
 
-        // URL corregida con backticks para evitar errores
-        const response = await fetch(`http://localhost:3000/api/usuarios/verificar/${user.uid}`);
-        const data = await response.json();
+        if (error) throw error;
 
-        if (!data.existe) {
-          await auth.signOut();
-          setMensaje("Error: Usuario no registrado en la base de datos.");
-          setLoading(false);
-          return;
+        const perfil = await verificarPerfilBackend(data.session.access_token);
+
+        if (!perfil.existe) {
+          const pendingUsername = data.user?.user_metadata?.username;
+
+          if (!pendingUsername) {
+            await supabase.auth.signOut();
+            setMensaje("Error: usuario no registrado en la base de datos.");
+            return;
+          }
+
+          await crearPerfilBackend(data.session.access_token, pendingUsername);
         }
+
         navigate("/");
-
-      } else if (modo === "registro") {
-        userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPassword);
-        const user = userCredential.user;
-
-        try {
-          const response = await fetch('http://127.0.0.1:3000/api/usuarios/registrar', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              uid: user.uid, 
-              email: user.email,
-              username: cleanUsername 
-            })
-          });
-          
-          if (!response.ok) throw new Error("Fallo en base de datos");
-          navigate("/");
-
-        } catch (dbError) {
-          console.error("Error de DB:", dbError); // Uso de dbError para evitar el warning
-          await deleteUser(user);
-          throw new Error("No se pudo vincular con el servidor. Intente de nuevo.");
-        }
+        return;
       }
+
+      if (!cleanUsername) {
+        setMensaje("El nombre de usuario es obligatorio.");
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: cleanPassword,
+        options: {
+          data: {
+            username: cleanUsername
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.session) {
+        setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
+        return;
+      }
+
+      try {
+        await crearPerfilBackend(data.session.access_token, cleanUsername);
+      } catch (dbError) {
+        await limpiarCuentaIncompleta(data.session.access_token);
+        await supabase.auth.signOut();
+        throw dbError;
+      }
+
+      navigate("/");
     } catch (error) {
-      const erroresFirebase = {
-        "auth/user-not-found": "Usuario no encontrado",
-        "auth/wrong-password": "Contraseña incorrecta",
-        "auth/email-already-in-use": "El correo ya está registrado",
-        "auth/weak-password": "La contraseña es muy corta",
-        "auth/invalid-credential": "Email o contraseña incorrectos",
-        "auth/invalid-email": "Correo inválido",
-        "auth/too-many-requests": "Demasiados intentos. Probá más tarde"
-      };
-      setMensaje(erroresFirebase[error.code] || error.message);
+      setMensaje(traducirError(error));
     } finally {
       setLoading(false);
     }
@@ -114,7 +166,7 @@ export default function Auth() {
         </button>
       </div>
 
-      <h2>{modo === "login" ? "Iniciar sesión" : "Crear cuenta"}</h2>
+      <h2>{modo === "login" ? "Iniciar sesion" : "Crear cuenta"}</h2>
 
       <form onSubmit={handleSubmit}>
         {modo === "registro" && (

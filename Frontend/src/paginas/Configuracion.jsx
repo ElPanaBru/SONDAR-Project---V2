@@ -35,7 +35,7 @@ export default function Configuracion({ usuario }) {
 
   const guardarAjustes = (e) => {
     e.preventDefault();
-    setMensaje("Cambios guardados localmente. Despues conectamos esto con Firebase.");
+    setMensaje("Cambios guardados localmente. Despues conectamos esto con Supabase.");
   };
 
   return (

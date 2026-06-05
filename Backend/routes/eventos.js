@@ -1,12 +1,17 @@
 const express = require('express');
-const router = express.Router();
 const multer = require('multer');
-const upload = multer({ dest: 'uploads/' });
+const router = express.Router();
 const eventoController = require('../Controllers/eventoController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  }
+});
 
 router.get('/', eventoController.listarEventos);
-
-// AGREGAR 'upload.single("imagen")' AQUÍ:
-router.post('/crear', upload.single('imagen'), eventoController.crearEvento);
+router.post('/crear', authMiddleware, upload.single('imagen'), eventoController.crearEvento);
 
 module.exports = router;

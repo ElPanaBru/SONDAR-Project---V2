@@ -3,18 +3,21 @@ const express = require('express');
 const cors = require('cors');
 const usuariosRoutes = require('./routes/usuarios');
 const eventosRoutes = require('./routes/eventos');
+const postsRoutes = require('./routes/posts');
+
 const app = express();
-const path = require('path');
-// Esto hace que la carpeta 'uploads' sea accesible desde el navegador
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use(cors());
-app.use(express.json());
+const PORT = process.env.PORT || 3000;
+
 app.use(cors({
-  origin: "http://localhost:5173",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
-// Montamos las rutas
+
+app.use(express.json());
+
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/eventos', eventosRoutes);
-app.listen(3000, () => console.log("Servidor en puerto 3000"));
+app.use('/api/posts', postsRoutes);
+
+app.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));

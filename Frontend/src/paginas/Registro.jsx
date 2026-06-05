@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebaseConfig";
+import { supabase } from "../lib/supabaseClient";
 
 export default function Register({ onSwitch }) {
   const [email, setEmail] = useState("");
@@ -14,35 +13,18 @@ export default function Register({ onSwitch }) {
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password.trim()
+      });
 
-      setMensaje(`Usuario ${userCredential.user.email} creado con éxito`);
+      if (error) throw error;
+
+      setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
       setEmail("");
       setPassword("");
-
     } catch (error) {
-      console.error(error);
-
-      switch (error.code) {
-        case "auth/email-already-in-use":
-          setMensaje("El correo ya está registrado");
-          break;
-        case "auth/weak-password":
-          setMensaje("La contraseña debe tener al menos 6 caracteres");
-          break;
-        case "auth/invalid-email":
-          setMensaje("Correo inválido");
-          break;
-        case "auth/too-many-requests":
-          setMensaje("Demasiados intentos. Probá más tarde");
-          break;
-        default:
-          setMensaje("Error: " + error.message);
-      }
+      setMensaje(error.message || "Error al crear la cuenta.");
     } finally {
       setLoading(false);
     }
@@ -72,16 +54,16 @@ export default function Register({ onSwitch }) {
         />
 
         <button type="submit" disabled={loading} style={styles.btn}>
-          <Link to="/inicio">Registrarse</Link>
+          {loading ? "Registrando..." : "Registrarse"}
         </button>
       </form>
 
       <p style={styles.msg}>{mensaje}</p>
 
       <p>
-        ¿Ya tenés cuenta?{" "}
+        ¿Ya tenes cuenta?{" "}
         <button onClick={onSwitch} style={styles.linkBtn}>
-          Iniciar sesión
+          Iniciar sesion
         </button>
       </p>
     </div>
@@ -95,12 +77,12 @@ const styles = {
     padding: "20px",
     border: "1px solid #ccc",
     borderRadius: "10px",
-    textAlign: "center",
+    textAlign: "center"
   },
   input: {
     width: "100%",
     padding: "8px",
-    margin: "8px 0",
+    margin: "8px 0"
   },
   btn: {
     width: "100%",
@@ -109,16 +91,16 @@ const styles = {
     color: "#fff",
     border: "none",
     borderRadius: "5px",
-    cursor: "pointer",
+    cursor: "pointer"
   },
   linkBtn: {
     background: "none",
     border: "none",
     color: "#1976d2",
     cursor: "pointer",
-    textDecoration: "underline",
+    textDecoration: "underline"
   },
   msg: {
-    marginTop: "15px",
-  },
+    marginTop: "15px"
+  }
 };

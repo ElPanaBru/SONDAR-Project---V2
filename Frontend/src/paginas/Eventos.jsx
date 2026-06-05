@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
+import { apiUrl } from "../lib/api";
+import { supabase } from "../lib/supabaseClient";
 
 const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
@@ -65,11 +67,12 @@ export default function Eventos({ usuario }) {
     let isMounted = true;
     const cargarEventos = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/eventos");
+        const res = await fetch(apiUrl("/api/eventos"));
         if (res.ok) {
           const data = await res.json();
           const eventosMapeados = data.map(ev => ({
             ...ev,
+            img: ev.img || ev.img_url,
             coords: [parseFloat(ev.latitud), parseFloat(ev.longitud)]
           }));
           
@@ -211,6 +214,7 @@ export default function Eventos({ usuario }) {
 
       const posicionFinal = [lat, lng];
       const activo = eventoActivo === evento.id;
+      const imagenEvento = evento.img || evento.img_url || "/logo.png";
 
       const marker = L.marker(posicionFinal, {
         icon: L.divIcon({
@@ -218,7 +222,7 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(evento.img)}" alt="" />
+                <img src="${escaparHtml(imagenEvento)}" alt="" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>
@@ -313,9 +317,7 @@ const handleImagen = (e) => {
   const formatearFecha = (fecha, hora) => {
     if (!fecha || !hora) return "";
     const fechaObj = new Date(`${fecha}T${hora}`);
-    return fechaObj.toLocaleString("es-AR", {
-      day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit"
-    });
+    return fechaObj.toISOString();
   };
 
   const handleSubmit = async (e) => {
@@ -334,7 +336,6 @@ const handleImagen = (e) => {
     formData.append("ubicacion", nuevoEvento.lugar);
     formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
     formData.append("link", nuevoEvento.link);
-    formData.append("creador", usuario?.email || "Anonimo");
     formData.append("latitud", nuevoEvento.lat);
     formData.append("longitud", nuevoEvento.lng);
 
@@ -343,19 +344,32 @@ const handleImagen = (e) => {
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/eventos/crear", {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (!token) {
+        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
+        return;
+      }
+
+      const response = await fetch(apiUrl("/api/eventos/crear"), {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
         body: formData
       });
 
       if (!response.ok) {
-        throw new Error("No se pudo guardar el evento en el servidor.");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo guardar el evento en el servidor.");
       }
 
       const eventoGuardado = await response.json();
       
       const eventoParaMapa = {
         ...eventoGuardado,
+        img: eventoGuardado.img || eventoGuardado.img_url,
         coords: [parseFloat(eventoGuardado.latitud), parseFloat(eventoGuardado.longitud)]
       };
 
@@ -437,7 +451,7 @@ const handleImagen = (e) => {
 
             <div
               className="evento-detalle-imagen"
-              style={{ backgroundImage: `url(${detalleEvento.img})` }}
+              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/logo.png"})` }}
             >
               <span>{detalleEvento.genero || "general"}</span>
             </div>
