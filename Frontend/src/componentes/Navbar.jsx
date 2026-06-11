@@ -15,9 +15,7 @@ function Navbar({ usuario }) {
 
     if (!query) return;
 
-    if (ruta === "/mapa") {
-      navigate(`/mapa?bares=${query}`);
-    } else if (ruta === "/comunidad") {
+    if (ruta === "/comunidad") {
       navigate(`/comunidad?comunidad=${query}`);
     } else {
       navigate(`/descubrir?query=${query}`);
@@ -26,7 +24,6 @@ function Navbar({ usuario }) {
 
   const getPlaceholder = () => {
     const ruta = location.pathname;
-    if (ruta === "/mapa") return "Buscar bares...";
     if (ruta === "/comunidad") return "Buscar comunidades...";
     return "Buscar artistas o canciones...";
   };

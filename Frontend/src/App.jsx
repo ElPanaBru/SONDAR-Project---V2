@@ -28,7 +28,7 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  const hideNavbarRoutes = ["/auth", "/login", "/registro"];
+  const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
 

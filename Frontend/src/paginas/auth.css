@@ -6,26 +6,7 @@
   text-align: center;
 }
 
-.auth-card {
-  background: rgba(10, 10, 10, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(12px);
-  padding: 22px;
-  color: #ffffff;
-}
 
-.auth-title {
-  margin: 10px 0 18px;
-  font-size: 24px;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
 /* Switch login/registro */
 .switch-container {
