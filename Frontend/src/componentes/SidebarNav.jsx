@@ -27,7 +27,7 @@ const links = [
 ];
 
 const crearItems = [
-  { label: "Evento", to: "/", icon: "eventos" },
+  { label: "Evento", to: "/", icon: "eventos", action: "crear-evento" },
   { label: "Demo", to: "/descubrir", icon: "descubrir" },
   { label: "Comunidad", to: "/comunidad", icon: "comunidad" },
 ];
@@ -37,9 +37,15 @@ export default function SidebarNav() {
   const [crearOpen, setCrearOpen] = useState(false);
   const navigate = useNavigate();
 
-  const irA = (to) => {
+  const irA = (item) => {
     setCrearOpen(false);
-    navigate(to);
+    navigate(item.to);
+
+    if (item.action === "crear-evento") {
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("sondar:crear-evento"));
+      }, 0);
+    }
   };
 
   return (
@@ -96,7 +102,7 @@ export default function SidebarNav() {
                     type="button"
                     role="menuitem"
                     className="sidebar-create-option"
-                    onClick={() => irA(item.to)}
+                    onClick={() => irA(item)}
                   >
                     <span aria-hidden="true">
                       <Icono nombre={item.icon} />

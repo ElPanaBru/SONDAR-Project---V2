@@ -279,6 +279,12 @@ export default function Eventos({ usuario }) {
     setMostrarModal(true);
   };
 
+  useEffect(() => {
+    const abrirDesdeSidebar = () => handleCrearEvento();
+    window.addEventListener("sondar:crear-evento", abrirDesdeSidebar);
+    return () => window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
+  });
+
   const mostrarAviso = (mensaje) => {
     clearTimeout(avisoTimer.current);
     setAviso(mensaje);
@@ -489,11 +495,19 @@ const handleImagen = (e) => {
       </aside>
 
       {mostrarModal && (
-        <div className="evento-modal-overlay">
-          <div className="evento-modal">
-            <h2>Crear Evento</h2>
+        <div className="evento-modal-overlay" onMouseDown={() => !subiendo && setMostrarModal(false)}>
+          <section className="evento-modal" role="dialog" aria-modal="true" aria-labelledby="crear-evento-titulo" onMouseDown={(event) => event.stopPropagation()}>
+            <header className="evento-modal-header">
+              <button className="evento-modal-volver" type="button" onClick={() => setMostrarModal(false)} disabled={subiendo} aria-label="Cerrar creador de evento">
+                &#8592;
+              </button>
+              <h2 id="crear-evento-titulo">Crear nuevo evento</h2>
+              <button className="evento-modal-compartir" type="submit" form="crear-evento-form" disabled={subiendo}>
+                {subiendo ? "Guardando..." : "Crear evento"}
+              </button>
+            </header>
 
-            <form onSubmit={handleSubmit}>
+            <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
               <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
 
               <input
@@ -536,14 +550,8 @@ const handleImagen = (e) => {
               <input type="time" name="hora" value={nuevoEvento.hora} onChange={handleChange} required />
               <input type="url" name="link" placeholder="URL de compra (opcional)" value={nuevoEvento.link} onChange={handleChange} />
 
-              <div className="evento-modal-botones">
-                <button type="submit" disabled={subiendo}>
-                  {subiendo ? "Guardando..." : "Crear"}
-                </button>
-                <button type="button" onClick={() => setMostrarModal(false)} disabled={subiendo}>Cancelar</button>
-              </div>
             </form>
-          </div>
+          </section>
         </div>
       )}
     </div>
