@@ -54,10 +54,7 @@
   padding: 24px clamp(18px, 4vw, 56px) 24px;
   isolation: isolate;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--tono-a) 36%, transparent), transparent 32%),
-    radial-gradient(circle at 18% 72%, color-mix(in srgb, var(--tono-b) 28%, transparent), transparent 30%),
-    linear-gradient(160deg, color-mix(in srgb, var(--tono-c) 88%, #050505), #050505 58%, #020202);
+  background: #050505;
 }
 
 .feed-item::before {
@@ -65,15 +62,7 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  background:
-    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.74)),
-    repeating-linear-gradient(
-      90deg,
-      rgba(255, 255, 255, 0.025) 0,
-      rgba(255, 255, 255, 0.025) 1px,
-      transparent 1px,
-      transparent 74px
-    );
+  background: #050505;
 }
 
 .feed-artista {
@@ -608,11 +597,23 @@
   height: 36px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   color: #050505;
   background: linear-gradient(90deg, #ffae00, #ff5e00);
   border-radius: 50%;
   font-size: 14px;
   font-weight: 900;
+}
+
+.comentario-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.comentario-avatar svg {
+  width: 22px;
+  height: 22px;
 }
 
 .comentario strong {

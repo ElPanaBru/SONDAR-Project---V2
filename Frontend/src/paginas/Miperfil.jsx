@@ -1,14 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./miperfil.css";
+
+const perfilInicial = (usuario) => {
+  const fallback = {
+    nombre: usuario?.displayName || usuario?.user_metadata?.name || usuario?.email?.split("@")[0] || "nombreUsuario",
+    bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    avatar: "",
+  };
+
+  try {
+    const saved = localStorage.getItem("sondar_perfil_local");
+    return saved ? { ...fallback, ...JSON.parse(saved) } : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 export default function MiPerfil({ usuario }) {
   const [editando, setEditando] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
-  const [perfil, setPerfil] = useState({
-    nombre: usuario?.displayName || usuario?.email?.split("@")[0] || "nombreUsuario",
-    bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    avatar: "",
-  });
+  const [perfil, setPerfil] = useState(() => perfilInicial(usuario));
   const [perfilEditado, setPerfilEditado] = useState(perfil);
   const [creandoPublicacion, setCreandoPublicacion] = useState(false);
   const [publicaciones, setPublicaciones] = useState([]);
@@ -42,6 +53,17 @@ export default function MiPerfil({ usuario }) {
     },
   ];
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
+
+  useEffect(() => {
+    const actualizar = (event) => {
+      if (!event.detail) return;
+      setPerfil(event.detail);
+      setPerfilEditado(event.detail);
+    };
+
+    window.addEventListener("sondar-perfil-actualizado", actualizar);
+    return () => window.removeEventListener("sondar-perfil-actualizado", actualizar);
+  }, []);
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -205,6 +227,7 @@ export default function MiPerfil({ usuario }) {
             onSubmit={(e) => {
               e.preventDefault();
               setPerfil(perfilEditado);
+              localStorage.setItem("sondar_perfil_local", JSON.stringify(perfilEditado));
               setEditando(false);
             }}
           >

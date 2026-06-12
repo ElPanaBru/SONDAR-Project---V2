@@ -2,6 +2,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import "./App.css";
+import "./paginas/otroperfil.css";
 
 import Navbar from "./componentes/Navbar";
 import Auth from "./paginas/Auth";
@@ -11,6 +12,7 @@ import Descubrir from "./paginas/Descubrir";
 import Comunidad from "./paginas/Comunidad";
 import MiPerfil from "./paginas/Miperfil";
 import Configuracion from "./paginas/Configuracion";
+import SidebarNav from "./componentes/SidebarNav";
 
 function App() {
   const location = useLocation();
@@ -35,9 +37,10 @@ function App() {
   return (
     <div className="app-container">
       {!shouldHideNavbar && <Navbar usuario={usuario} />}
+      {!shouldHideNavbar && <SidebarNav usuario={usuario} />}
 
       <div
-        className={`main-content ${!shouldHideNavbar ? "with-navbar" : ""} ${
+        className={`main-content ${!shouldHideNavbar ? "with-navbar with-sidebar" : ""} ${
           isDescubrirRoute ? "descubrir-content" : ""
         }`}
       >

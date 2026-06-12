@@ -6,16 +6,18 @@
 }
 
 body {
-  margin: 0;
+  /* Universal: dejamos el body sin desplazamientos para no romper layouts */
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
 }
+
 
 * {
   box-sizing: border-box;
 }
 
 #root {
+  
   width: 100%;
 }

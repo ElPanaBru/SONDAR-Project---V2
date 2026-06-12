@@ -1,9 +1,4 @@
 .comunidad-container {
-  --comunidad-naranja: #ff5e00;
-  --comunidad-naranja-claro: #ffae00;
-  --comunidad-gradiente: linear-gradient(90deg, #ffae00, #ff5e00);
-  --comunidad-boton-bg: #1a1a1a;
-  --comunidad-boton-border: rgba(255, 255, 255, 0.14);
   position: fixed;
   top: 92px;
   right: 0;
@@ -160,22 +155,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  background: var(--comunidad-boton-bg);
-  border: 1px solid var(--comunidad-boton-border);
+  color: #070707;
+  background: #ff7a00;
+  border: 0;
   border-radius: 8px;
   padding: 0 16px;
-  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+  transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .comunidad-crear:hover,
 .comunidad-modal-botones button:hover {
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
   filter: brightness(1.08);
   transform: translateY(-1px);
 }
@@ -192,24 +184,21 @@
 
 .comunidad-filtros button {
   min-height: 46px;
-  color: rgba(255, 255, 255, 0.78);
-  background: #101010;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.72);
+  background: transparent;
+  border: 0;
+  border-bottom: 4px solid transparent;
   padding: 0 16px;
-  border-radius: 999px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .comunidad-filtros button:hover,
 .comunidad-filtros button.activo {
   color: #fff;
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
-  transform: translateY(-1px);
+  border-bottom-color: #ff7a00;
 }
 
 .comunidad-feed {
@@ -252,14 +241,6 @@
   padding: 0 14px;
   font: inherit;
   cursor: pointer;
-  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
-}
-
-.comunidad-composer:hover .composer-cuerpo button,
-.composer-cuerpo button:hover {
-  color: #fff;
-  background: #0d0d0d;
-  border-color: rgba(255, 94, 0, 0.48);
 }
 
 .composer-acciones {
@@ -277,9 +258,8 @@
 .composer-acciones strong {
   margin-left: auto;
   min-height: 36px;
-  color: #050505;
-  background: var(--comunidad-gradiente);
-  border-color: transparent;
+  color: rgba(255, 255, 255, 0.42);
+  background: #2a2a2a;
 }
 
 .publicacion-card {
@@ -367,21 +347,18 @@
 .publicacion-acciones button {
   min-height: 36px;
   color: #fff;
-  background: var(--comunidad-boton-bg);
-  border: 1px solid var(--comunidad-boton-border);
+  background: #050505;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   padding: 0 12px;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .publicacion-acciones button:hover {
-  color: #050505;
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
-  transform: translateY(-1px);
+  color: #ff9a2a;
+  border-color: rgba(255, 122, 0, 0.72);
 }
 
 .comunidad-sidebar {
@@ -422,13 +399,11 @@
   border-radius: 8px;
   padding: 9px;
   cursor: pointer;
-  transition: background 0.2s ease, outline-color 0.2s ease, transform 0.2s ease;
 }
 
 .comunidad-mini-card:hover,
 .comunidad-mini-card.activa {
   background: #181818;
-  transform: translateY(-1px);
 }
 
 .comunidad-mini-card.activa {
@@ -498,20 +473,17 @@
   align-items: center;
   justify-content: center;
   color: #fff;
-  background: var(--comunidad-boton-bg);
-  border: 1px solid var(--comunidad-boton-border);
+  background: #050505;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   font-size: 22px;
   font-weight: 900;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .hilo-votos button:hover {
   color: #050505;
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
-  transform: translateY(-1px);
+  background: #ff7a00;
 }
 
 .hilo-votos strong {
@@ -575,21 +547,13 @@
 
 .respuesta-form button {
   min-height: 42px;
-  color: #fff;
-  background: var(--comunidad-boton-bg);
-  border: 1px solid var(--comunidad-boton-border);
+  color: #050505;
+  background: #ff7a00;
+  border: 0;
   border-radius: 8px;
   padding: 0 14px;
   font-weight: 800;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, filter 0.2s ease, transform 0.2s ease;
-}
-
-.respuesta-form button:hover {
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
-  filter: brightness(1.08);
-  transform: translateY(-1px);
 }
 
 .subreddit-stats {
@@ -614,26 +578,6 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   padding: 18px;
-}
-
-.comunidad-toast {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 11000;
-  width: min(380px, calc(100vw - 32px));
-  color: rgba(255, 255, 255, 0.92);
-  text-align: center;
-  background: rgba(0, 0, 0, 0.82);
-  border: 1px solid rgba(255, 94, 0, 0.42);
-  border-radius: 8px;
-  padding: 14px 18px;
-  font-size: 15px;
-  font-weight: 800;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.44);
-  transform: translate(-50%, -50%);
-  animation: comunidadToast 2.4s ease both;
-  backdrop-filter: blur(12px);
 }
 
 .comunidad-modal-overlay {
@@ -713,11 +657,6 @@
 .comunidad-modal-botones button[type="button"] {
   color: #fff;
   background: #333;
-}
-
-.comunidad-modal-botones button[type="submit"] {
-  background: var(--comunidad-gradiente);
-  border-color: var(--comunidad-naranja);
 }
 
 @keyframes comunidadAparecer {
@@ -811,21 +750,5 @@
   .comunidad-form-row,
   .comunidad-modal-botones {
     grid-template-columns: 1fr;
-  }
-}
-
-@keyframes comunidadToast {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% + 10px)) scale(0.96);
-  }
-  12%,
-  82% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% - 8px)) scale(0.98);
   }
 }

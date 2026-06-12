@@ -1,18 +1,33 @@
 .eventos-container {
-  --evento-naranja: #ff5e00;
-  --evento-naranja-claro: #ff8a1f;
-  --evento-gradiente: linear-gradient(90deg, #ffae00, #ff5e00);
-  --evento-negro: #050505;
-  --evento-panel: rgba(9, 9, 9, 0.88);
-  position: fixed;
-  top: 92px;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  /* Evitar artefactos/bordes visibles debajo del navbar */
+  margin-top: 0;
+  border-top: 0;
   overflow: hidden;
+
   background: #020202;
   color: #fff;
+
+  position: fixed;
+  top: 70px;
+  right: 0;
+  bottom: 0;
+
+  /* Sidebar: cerrado 54px */
+  left: 54px;
+  width: calc(100% - 54px);
+  margin-left: 0;
+
 }
+
+/* Sidebar: abierto 210px (animado por SidebarNav) */
+.sidebar-nav.open ~ .main-content .eventos-container,
+.sidebar-nav.open + .main-content .eventos-container {
+  left: 210px;
+  width: calc(100% - 210px);
+}
+
+/* (El segundo bloque .eventos-container se eliminó para evitar pisar el layout del sidebar) */
+
 
 .eventos-mapa {
   position: absolute;
@@ -20,6 +35,12 @@
   z-index: 0;
   background: #071113;
 }
+
+/* Aseguramos que el modal pueda recibir clicks siempre */
+.evento-modal-overlay {
+  z-index: 20000;
+}
+
 
 .eventos-mapa::after {
   content: "";
@@ -52,6 +73,7 @@
   justify-content: space-between;
   gap: 16px;
   pointer-events: auto;
+  flex-wrap: wrap;
 }
 
 .eventos-header > div:first-child {
@@ -91,6 +113,87 @@
   border-radius: 8px;
   backdrop-filter: blur(12px);
 }
+
+.eventos-genero {
+  display: block;
+  margin-top: 10px;
+}
+
+.genero-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.genero-row select,
+.genero-row .btn-crear-evento {
+  flex: 0 1 auto;
+}
+
+/* Responsive: prevent overlapping and ensure wrap */
+@media (max-width: 920px) {
+  .eventos-header {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .eventos-header > div:first-child,
+  .eventos-acciones {
+    width: 100%;
+    padding: 10px;
+  }
+
+  .genero-row {
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .eventos-filtro {
+    min-width: 140px;
+    flex: 1 1 160px;
+  }
+
+  .btn-crear-evento {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .eventos-container {
+    top: 134px;
+  }
+
+  .eventos-header h2 {
+    font-size: 24px;
+  }
+
+  .genero-label {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .eventos-filtro {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .btn-crear-evento {
+    width: 100%;
+    margin-top: 8px;
+  }
+}
+
+.genero-label {
+  color: rgba(255,255,255,0.78);
+  font-weight: 800;
+  font-size: 13px;
+  text-transform: uppercase;
+  margin-right: 6px;
+  min-width: 70px;
+}
+
 
 .eventos-filtro {
   min-width: 150px;
@@ -243,17 +346,40 @@
 }
 
 .evento-pin.activo strong {
-  background: var(--evento-gradiente);
-  border-color: var(--evento-naranja);
+  /* efecto: sombra del texto (en vez de fondo cuadrado) */
+  background: transparent;
+  border-color: transparent;
+  text-shadow:
+    0 0 10px rgba(255, 94, 0, 0.55),
+    0 0 22px rgba(255, 94, 0, 0.35),
+    0 0 38px rgba(255, 174, 0, 0.22);
 }
+
+/* Sombra suave también en hover */
+.evento-pin:hover strong {
+  text-shadow:
+    0 0 10px rgba(255, 94, 0, 0.35),
+    0 0 20px rgba(255, 94, 0, 0.25);
+}
+
+/* Evitar el “borde/fondo cuadrado” del texto incluso en normal */
+.evento-pin strong {
+  background: transparent;
+  border-color: transparent;
+}
+
 
 .evento-detalle {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  right: 24px;
+  top: 24px;
+  bottom: 24px;
   z-index: 650;
-  width: min(390px, calc(100vw - 36px));
-  overflow: hidden;
+  width: min(430px, 34vw);
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
   background: var(--evento-panel);
   border: 1px solid rgba(255, 94, 0, 0.38);
   border-radius: 8px;
@@ -294,8 +420,9 @@
 }
 
 .evento-detalle-imagen {
-  min-height: 180px;
+  min-height: 210px;
   position: relative;
+  flex: 0 0 34%;
   background-size: cover;
   background-position: center;
 }
@@ -322,6 +449,9 @@
 }
 
 .evento-detalle-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: 18px;
 }
 
@@ -346,7 +476,8 @@
 .evento-detalle-acciones {
   display: flex;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .evento-detalle-acciones .btn-like,
@@ -385,7 +516,7 @@
 .evento-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: 100000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -394,39 +525,18 @@
   backdrop-filter: blur(4px);
 }
 
+
 .evento-modal {
-  width: min(100%, 650px); /* Agrandado de 420px a 650px para dar espacio al mapa */
-  max-height: calc(100vh - 40px);
+  width: min(100%, 420px);
+  max-height: calc(100vh - 24px);
   overflow-y: auto;
   color: #fff;
   background: #141414;
   border: 1px solid rgba(255, 94, 0, 0.36);
-  border-radius: 12px; /* Un toque más redondeado */
-  padding: 26px;
+  border-radius: 8px;
+  padding: 22px;
   box-shadow: 0 20px 54px rgba(0, 0, 0, 0.62);
   animation: aparecer 0.24s ease;
-}
-.mini-mapa-instruccion {
-  color: #b3b3b3;
-  font-size: 0.85rem;
-  margin-bottom: 6px;
-  text-align: left;
-}
-.evento-minimapa {
-  width: 100%;
-  height: 340px; /* Altura ideal para explorar calles con comodidad */
-  border-radius: 8px;
-  margin-bottom: 15px;
-  border: 2px solid #333;
-  overflow: hidden; /* Evita que el mapa sobresalga de los bordes redondeados */
-}
-.evento-minimapa .leaflet-control-zoom a {
-  color: #333 !important;
-  background: #fff !important;
-  border-color: #ccc !important;
-}
-.evento-minimapa .leaflet-control-zoom a:hover {
-  background: #f4f4f4 !important;
 }
 
 .evento-modal h2 {
@@ -531,6 +641,12 @@
   background: #333;
 }
 
+.evento-modal-botones button:disabled {
+  cursor: progress;
+  filter: grayscale(0.25) brightness(0.82);
+  transform: none;
+}
+
 .evento-modal-ayuda {
   margin: 4px 0 0;
   color: rgba(255, 255, 255, 0.76);
@@ -597,10 +713,11 @@
   }
 
   .evento-detalle {
-    right: 10px;
-    bottom: 10px;
-    left: 10px;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
     width: auto;
+    max-height: calc(100% - 24px);
     transform: translateY(calc(100% + 24px));
   }
 
@@ -627,4 +744,3 @@
     top: 112px;
   }
 }
-

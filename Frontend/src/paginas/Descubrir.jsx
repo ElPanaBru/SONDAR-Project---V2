@@ -186,10 +186,129 @@ const comentariosIniciales = [
   },
 ];
 
+const comentariosPorLanzamientoIniciales = {
+  1: comentariosIniciales,
+  2: [
+    {
+      id: 201,
+      usuario: "@beatcurioso",
+      tiempo: "hace 9 min",
+      texto: "La percusion de esta demo tiene un groove tremendo.",
+      likes: 430,
+      liked: false,
+      respuestas: [
+        {
+          id: 2011,
+          usuario: "@santobeat",
+          tiempo: "hace 4 min",
+          texto: "Gracias, la arme con samples grabados en sala.",
+          likes: 39,
+          liked: false,
+        },
+      ],
+    },
+    {
+      id: 202,
+      usuario: "@noche808",
+      tiempo: "hace 27 min",
+      texto: "El bajo pide volumen alto. Esto en vivo puede explotar.",
+      likes: 290,
+      liked: false,
+      respuestas: [],
+    },
+  ],
+  3: [
+    {
+      id: 301,
+      usuario: "@guitarraruido",
+      tiempo: "hace 18 min",
+      texto: "Las guitarras tienen una pared hermosa, muy bien mezcladas.",
+      likes: 980,
+      liked: false,
+      respuestas: [],
+    },
+    {
+      id: 302,
+      usuario: "@alternativo_sur",
+      tiempo: "hace 46 min",
+      texto: "El estribillo entra directo, tiene olor a cierre de show.",
+      likes: 604,
+      liked: false,
+      respuestas: [
+        {
+          id: 3021,
+          usuario: "@mareagris",
+          tiempo: "hace 30 min",
+          texto: "Esa era la idea: que el final levante todo.",
+          likes: 71,
+          liked: false,
+        },
+      ],
+    },
+  ],
+  4: [
+    {
+      id: 401,
+      usuario: "@habitacionpop",
+      tiempo: "hace 7 min",
+      texto: "El ruido de cinta queda perfecto con esas guitarras limpias.",
+      likes: 220,
+      liked: false,
+      respuestas: [],
+    },
+    {
+      id: 402,
+      usuario: "@solarclub",
+      tiempo: "hace 39 min",
+      texto: "Muy linda la melodia del puente. Se queda dando vueltas.",
+      likes: 188,
+      liked: false,
+      respuestas: [],
+    },
+  ],
+  5: [
+    {
+      id: 501,
+      usuario: "@bajofunk",
+      tiempo: "hace 15 min",
+      texto: "Ese bajo esta adelante como corresponde. Tremendo pulso.",
+      likes: 510,
+      liked: false,
+      respuestas: [],
+    },
+    {
+      id: 502,
+      usuario: "@vallefan",
+      tiempo: "hace 1 hora",
+      texto: "Me encanta que suene a sala chica, tiene mucha presencia.",
+      likes: 344,
+      liked: false,
+      respuestas: [
+        {
+          id: 5021,
+          usuario: "@valleclub",
+          tiempo: "hace 42 min",
+          texto: "Lo grabamos casi todo tocando juntos.",
+          likes: 55,
+          liked: false,
+        },
+      ],
+    },
+  ],
+};
+
 function Icono({ nombre }) {
   return (
     <svg aria-hidden="true" viewBox="0 -960 960 960" width="28" height="28" fill="currentColor">
       <path d={iconos[nombre]} />
+    </svg>
+  );
+}
+
+function IconoPersona() {
+  return (
+    <svg aria-hidden="true" viewBox="0 -960 960 960" width="22" height="22" fill="currentColor">
+      <path d="M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q35-41 54.5-93T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 59 19.5 111t54.5 93Zm246-204q-59 0-99.5-40.5T340-620q0-59 40.5-99.5T480-760q59 0 99.5 40.5T620-620q0 59-40.5 99.5T480-480Zm0 400q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z" />
     </svg>
   );
 }
@@ -222,7 +341,7 @@ export default function Descubrir({ usuario }) {
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
-  const [comentarios, setComentarios] = useState(comentariosIniciales);
+  const [comentariosPorLanzamiento, setComentariosPorLanzamiento] = useState(comentariosPorLanzamientoIniciales);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestaActiva, setRespuestaActiva] = useState(null);
   const [respuestaTexto, setRespuestaTexto] = useState("");
@@ -239,6 +358,8 @@ export default function Descubrir({ usuario }) {
   const avisoTimer = useRef(null);
   const comentariosAnimacionTimer = useRef(null);
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
+  const usuarioComentario = obtenerUsuarioActual(usuario);
+  const inicialUsuario = usuario ? usuarioComentario.charAt(1).toUpperCase() : "";
 
   const lanzamientosFiltrados = useMemo(() => {
     if (!query) return lanzamientos;
@@ -508,25 +629,32 @@ export default function Descubrir({ usuario }) {
 
     if (!texto) return;
 
-    setComentarios((prev) => [
-      {
-        id: Date.now(),
-        usuario: obtenerUsuarioActual(usuario),
-        tiempo: "ahora",
-        texto,
-        likes: 0,
-        liked: false,
-        respuestas: [],
-      },
+    const lanzamientoId = comentariosAbiertos ?? reproduciendo;
+    if (!lanzamientoId) return;
+
+    setComentariosPorLanzamiento((prev) => ({
       ...prev,
-    ]);
+      [lanzamientoId]: [
+        {
+          id: Date.now(),
+          usuario: obtenerUsuarioActual(usuario),
+          tiempo: "ahora",
+          texto,
+          likes: 0,
+          liked: false,
+          respuestas: [],
+        },
+        ...(prev[lanzamientoId] || []),
+      ],
+    }));
     setComentarioTexto("");
   };
 
-  const toggleLikeComentario = (comentarioId, respuestaId = null) => {
+  const toggleLikeComentario = (lanzamientoId, comentarioId, respuestaId = null) => {
     ejecutarConSesion(() => {
-      setComentarios((prev) =>
-        prev.map((comentario) => {
+      setComentariosPorLanzamiento((prev) => ({
+        ...prev,
+        [lanzamientoId]: (prev[lanzamientoId] || []).map((comentario) => {
           if (comentario.id !== comentarioId) return comentario;
 
           if (respuestaId !== null) {
@@ -550,26 +678,28 @@ export default function Descubrir({ usuario }) {
             likes: comentario.liked ? comentario.likes - 1 : comentario.likes + 1,
           };
         })
-      );
+      }));
     });
   };
 
-  const abrirRespuesta = (comentarioId) => {
+  const abrirRespuesta = (lanzamientoId, comentarioId) => {
     ejecutarConSesion(() => {
-      setRespuestaActiva((actual) => (actual === comentarioId ? null : comentarioId));
+      const respuestaKey = `${lanzamientoId}-${comentarioId}`;
+      setRespuestaActiva((actual) => (actual === respuestaKey ? null : respuestaKey));
       setRespuestaTexto("");
     });
   };
 
-  const toggleRespuestas = (comentarioId) => {
+  const toggleRespuestas = (lanzamientoId, comentarioId) => {
+    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
     setRespuestasAbiertas((abiertas) =>
-      abiertas.includes(comentarioId)
-        ? abiertas.filter((id) => id !== comentarioId)
-        : [...abiertas, comentarioId]
+      abiertas.includes(respuestaKey)
+        ? abiertas.filter((id) => id !== respuestaKey)
+        : [...abiertas, respuestaKey]
     );
   };
 
-  const enviarRespuesta = (event, comentarioId) => {
+  const enviarRespuesta = (event, lanzamientoId, comentarioId) => {
     event.preventDefault();
     if (!usuario) {
       pedirLogin();
@@ -579,8 +709,9 @@ export default function Descubrir({ usuario }) {
     const texto = respuestaTexto.trim();
     if (!texto) return;
 
-    setComentarios((prev) =>
-      prev.map((comentario) =>
+    setComentariosPorLanzamiento((prev) => ({
+      ...prev,
+      [lanzamientoId]: (prev[lanzamientoId] || []).map((comentario) =>
         comentario.id === comentarioId
           ? {
               ...comentario,
@@ -597,12 +728,13 @@ export default function Descubrir({ usuario }) {
               ],
             }
           : comentario
-      )
-    );
+      ),
+    }));
     setRespuestaTexto("");
     setRespuestaActiva(null);
+    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
     setRespuestasAbiertas((abiertas) =>
-      abiertas.includes(comentarioId) ? abiertas : [...abiertas, comentarioId]
+      abiertas.includes(respuestaKey) ? abiertas : [...abiertas, respuestaKey]
     );
   };
 
@@ -616,6 +748,7 @@ export default function Descubrir({ usuario }) {
       <div className="feed-pista">
         {lanzamientosFiltrados.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
+          const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
 
           return (
             <article
@@ -744,7 +877,7 @@ export default function Descubrir({ usuario }) {
                   >
                     <Icono nombre="comentario" />
                   </button>
-                  <span>{lanzamiento.comentarios}</span>
+                  <span>{comentariosDelLanzamiento.length}</span>
                 </div>
                 <div className="accion-item">
                   <button
@@ -779,7 +912,7 @@ export default function Descubrir({ usuario }) {
               >
                 <header className="comentarios-header">
                   <strong>Comentarios</strong>
-                  <span>{lanzamiento.comentarios}</span>
+                  <span>{comentariosDelLanzamiento.length}</span>
                   <button
                     type="button"
                     aria-label="Cerrar comentarios"
@@ -789,7 +922,7 @@ export default function Descubrir({ usuario }) {
                   </button>
                 </header>
                 <div className="comentarios-lista">
-                  {comentarios.map((comentario) => (
+                  {comentariosDelLanzamiento.map((comentario) => (
                     <article className="comentario" key={comentario.id}>
                       <div className="comentario-avatar">
                         {comentario.usuario.charAt(1).toUpperCase()}
@@ -800,7 +933,7 @@ export default function Descubrir({ usuario }) {
                         </strong>
                         <p>{comentario.texto}</p>
                         <div className="comentario-acciones">
-                          <button type="button" onClick={() => abrirRespuesta(comentario.id)}>
+                          <button type="button" onClick={() => abrirRespuesta(lanzamiento.id, comentario.id)}>
                             Responder
                           </button>
                           <small>{formatearConteo(comentario.likes)} me gusta</small>
@@ -809,14 +942,14 @@ export default function Descubrir({ usuario }) {
                           <button
                             className="comentario-ver-respuestas"
                             type="button"
-                            onClick={() => toggleRespuestas(comentario.id)}
+                            onClick={() => toggleRespuestas(lanzamiento.id, comentario.id)}
                           >
-                            {respuestasAbiertas.includes(comentario.id)
+                            {respuestasAbiertas.includes(`${lanzamiento.id}-${comentario.id}`)
                               ? "Ocultar respuestas"
                               : `Ver ${comentario.respuestas.length} respuestas`}
                           </button>
                         ) : null}
-                        {respuestasAbiertas.includes(comentario.id) ? (
+                        {respuestasAbiertas.includes(`${lanzamiento.id}-${comentario.id}`) ? (
                           <div className="comentario-respuestas">
                             {comentario.respuestas.map((respuesta) => (
                               <article className="comentario comentario-respuesta" key={respuesta.id}>
@@ -829,7 +962,7 @@ export default function Descubrir({ usuario }) {
                                   </strong>
                                   <p>{respuesta.texto}</p>
                                   <div className="comentario-acciones">
-                                    <button type="button" onClick={() => abrirRespuesta(comentario.id)}>
+                                    <button type="button" onClick={() => abrirRespuesta(lanzamiento.id, comentario.id)}>
                                       Responder
                                     </button>
                                     <small>{formatearConteo(respuesta.likes)} me gusta</small>
@@ -839,7 +972,7 @@ export default function Descubrir({ usuario }) {
                                   className={`comentario-like ${respuesta.liked ? "activo" : ""}`}
                                   type="button"
                                   aria-label={respuesta.liked ? "Quitar me gusta" : "Me gusta"}
-                                  onClick={() => toggleLikeComentario(comentario.id, respuesta.id)}
+                                  onClick={() => toggleLikeComentario(lanzamiento.id, comentario.id, respuesta.id)}
                                 >
                                   <Icono nombre="corazon" />
                                 </button>
@@ -847,8 +980,8 @@ export default function Descubrir({ usuario }) {
                             ))}
                           </div>
                         ) : null}
-                        {respuestaActiva === comentario.id ? (
-                          <form className="respuesta-comentario-form" onSubmit={(event) => enviarRespuesta(event, comentario.id)}>
+                        {respuestaActiva === `${lanzamiento.id}-${comentario.id}` ? (
+                          <form className="respuesta-comentario-form" onSubmit={(event) => enviarRespuesta(event, lanzamiento.id, comentario.id)}>
                             <input
                               type="text"
                               placeholder={`Responder a ${comentario.usuario}`}
@@ -864,7 +997,7 @@ export default function Descubrir({ usuario }) {
                         className={`comentario-like ${comentario.liked ? "activo" : ""}`}
                         type="button"
                         aria-label={comentario.liked ? "Quitar me gusta" : "Me gusta"}
-                        onClick={() => toggleLikeComentario(comentario.id)}
+                        onClick={() => toggleLikeComentario(lanzamiento.id, comentario.id)}
                       >
                         <Icono nombre="corazon" />
                       </button>
@@ -872,7 +1005,13 @@ export default function Descubrir({ usuario }) {
                   ))}
                 </div>
                 <form className="comentario-form" onSubmit={enviarComentario}>
-                  <div className="comentario-avatar">T</div>
+                  <div className="comentario-avatar">
+                    {!usuario ? (
+                      <IconoPersona />
+                    ) : (
+                      inicialUsuario
+                    )}
+                  </div>
                   <input
                     type="text"
                     placeholder="Agrega un comentario..."
