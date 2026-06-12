@@ -53,6 +53,7 @@ export default function Eventos({ usuario }) {
     lugar: "", 
     fecha: "",
     hora: "",
+    precio: "",
     link: "",
     imagen: null,
     nombreImagen: "",
@@ -152,7 +153,7 @@ export default function Eventos({ usuario }) {
     const { lat, lng } = coordsInicialesRef.current;
 
     const miniMap = L.map(miniMapRef.current, {
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: false
     }).setView([lat, lng], 14); // Buen nivel de zoom para ver alturas de calles al abrir
 
@@ -160,6 +161,8 @@ export default function Eventos({ usuario }) {
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19
     }).addTo(miniMap);
+
+    L.control.zoom({ position: "bottomleft" }).addTo(miniMap);
 
     const pin = L.marker([lat, lng], {
       draggable: true
@@ -341,6 +344,7 @@ const handleImagen = (e) => {
     formData.append("genero", normalizarGenero(nuevoEvento.genero));
     formData.append("ubicacion", nuevoEvento.lugar);
     formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
+    formData.append("precio", nuevoEvento.precio);
     formData.append("link", nuevoEvento.link);
     formData.append("latitud", nuevoEvento.lat);
     formData.append("longitud", nuevoEvento.lng);
@@ -386,7 +390,7 @@ const handleImagen = (e) => {
       setMostrarModal(false);
 
       setNuevoEvento({
-        titulo: "", genero: "", lugar: "", fecha: "", hora: "", link: "", imagen: null, nombreImagen: "", lat: -34.6037, lng: -58.3816
+        titulo: "", genero: "", lugar: "", fecha: "", hora: "", precio: "", link: "", imagen: null, nombreImagen: "", lat: -34.6037, lng: -58.3816
       });
 
       mostrarAviso("¡Evento creado con éxito!");
@@ -467,6 +471,9 @@ const handleImagen = (e) => {
               <h3>{detalleEvento.titulo}</h3>
               <p>{detalleEvento.lugar}</p>
               <p>{detalleEvento.fecha}</p>
+              {detalleEvento.precio !== null && detalleEvento.precio !== undefined && detalleEvento.precio !== "" ? (
+                <p>Entrada: ${Number(detalleEvento.precio).toLocaleString("es-AR")}</p>
+              ) : null}
               <p className="evento-creador">{detalleEvento.creador || "Anonimo"}</p>
 
               <div className="evento-detalle-acciones">
@@ -548,6 +555,15 @@ const handleImagen = (e) => {
 
               <input type="date" name="fecha" value={nuevoEvento.fecha} onChange={handleChange} required />
               <input type="time" name="hora" value={nuevoEvento.hora} onChange={handleChange} required />
+              <input
+                type="number"
+                name="precio"
+                min="0"
+                step="0.01"
+                placeholder="Precio de entrada (opcional)"
+                value={nuevoEvento.precio}
+                onChange={handleChange}
+              />
               <input type="url" name="link" placeholder="URL de compra (opcional)" value={nuevoEvento.link} onChange={handleChange} />
 
             </form>

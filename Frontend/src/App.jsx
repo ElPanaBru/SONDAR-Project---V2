@@ -11,6 +11,7 @@ import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
 import Comunidad from "./paginas/Comunidad";
 import MiPerfil from "./paginas/Miperfil";
+import OtroPerfil from "./paginas/OtroPerfil";
 import Configuracion from "./paginas/Configuracion";
 import SidebarNav from "./componentes/SidebarNav";
 
@@ -49,6 +50,7 @@ function App() {
           <Route path="/soporte" element={<Soporte />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
+          <Route path="/perfil/:usuario" element={<OtroPerfil />} />
           <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
           <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />

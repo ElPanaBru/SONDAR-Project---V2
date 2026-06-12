@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS eventos (
     lugar TEXT,
     fecha TIMESTAMPTZ NOT NULL,
     img_url TEXT,
+    precio NUMERIC(12, 2),
     link TEXT,
     creador_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     latitud DOUBLE PRECISION,

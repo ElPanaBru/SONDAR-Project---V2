@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const demoNotificaciones = [
   {
@@ -11,11 +11,7 @@ const demoNotificaciones = [
 ];
 
 function NotificationPanel({ usuario, onClose }) {
-  const [items, setItems] = useState([]);
-
-  useEffect(() => {
-    setItems(usuario ? demoNotificaciones : []);
-  }, [usuario]);
+  const [items, setItems] = useState(() => (usuario ? demoNotificaciones : []));
 
   const marcarLeida = (notificacion) => {
     setItems((prev) =>
@@ -28,14 +24,7 @@ function NotificationPanel({ usuario, onClose }) {
   };
 
   return (
-    <div className="panel-overlay" role="presentation" onMouseDown={onClose}>
-      <div
-        className="panel notifications-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Notificaciones"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+      <div className="notifications-panel" role="dialog" aria-label="Notificaciones">
         <div className="panel-header">
           <h3>Notificaciones</h3>
           <button className="panel-close" onClick={onClose} aria-label="Cerrar" type="button">
@@ -64,7 +53,6 @@ function NotificationPanel({ usuario, onClose }) {
           )}
         </div>
       </div>
-    </div>
   );
 }
 

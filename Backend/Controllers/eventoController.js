@@ -32,7 +32,7 @@ const eventoController = {
   },
 
   crearEvento: async (req, res) => {
-    const { titulo, genero, ubicacion, fecha, link, latitud, longitud } = req.body;
+    const { titulo, genero, ubicacion, fecha, precio, link, latitud, longitud } = req.body;
     const creadorId = req.user.id;
     let imagenSubida = null;
 
@@ -40,12 +40,18 @@ const eventoController = {
       return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
     }
 
+    const precioNormalizado = precio === '' || precio === undefined ? null : Number(precio);
+
+    if (precioNormalizado !== null && (!Number.isFinite(precioNormalizado) || precioNormalizado < 0)) {
+      return res.status(400).json({ error: 'El precio de entrada no es valido.' });
+    }
+
     try {
       imagenSubida = await subirImagenEvento(req.file);
 
       const query = `
-        INSERT INTO eventos (titulo, genero, lugar, fecha, img_url, link, creador_id, latitud, longitud)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO eventos (titulo, genero, lugar, fecha, img_url, precio, link, creador_id, latitud, longitud)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *`;
 
       const values = [
@@ -54,6 +60,7 @@ const eventoController = {
         ubicacion,
         fecha,
         imagenSubida?.publicUrl || null,
+        precioNormalizado,
         link || null,
         creadorId,
         latitud,

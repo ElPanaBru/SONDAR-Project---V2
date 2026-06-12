@@ -1,9 +1,25 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
-import ChatPrivatePanel from "./ChatPrivatePanel";
+
+const iconosCrear = {
+  evento:
+    "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
+  demo:
+    "m300-300 280-80 80-280-280 80-80 280Zm180-120q-25 0-42.5-17.5T420-480q0-25 17.5-42.5T480-540q25 0 42.5 17.5T540-480q0 25-17.5 42.5T480-420Zm0 340q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z",
+  comunidad:
+    "M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Z",
+};
+
+function IconoCrear({ nombre }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 -960 960 960" width="18" height="18" fill="currentColor">
+      <path d={iconosCrear[nombre]} />
+    </svg>
+  );
+}
 
 const perfilGuardado = (usuario) => {
   const fallback = {
@@ -23,11 +39,46 @@ const perfilGuardado = (usuario) => {
 function Navbar({ usuario }) {
   const [busqueda, setBusqueda] = useState("");
   const [mostrarNotifs, setMostrarNotifs] = useState(false);
-  const [mostrarChat, setMostrarChat] = useState(false);
+  const [mostrarCrear, setMostrarCrear] = useState(false);
+  const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilGuardado(usuario));
+  const crearRef = useRef(null);
+  const notificacionesRef = useRef(null);
+  const perfilRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const actualizarPerfil = (event) => {
+      setPerfilEditado(event.detail || perfilGuardado(usuario));
+    };
+    window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
+    return () => window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
+  }, [usuario]);
+
+  useEffect(() => {
+    const cerrarAlHacerClickAfuera = (event) => {
+      if (!crearRef.current?.contains(event.target)) setMostrarCrear(false);
+      if (!notificacionesRef.current?.contains(event.target)) setMostrarNotifs(false);
+      if (!perfilRef.current?.contains(event.target)) setMostrarPerfil(false);
+    };
+
+    const cerrarConEscape = (event) => {
+      if (event.key !== "Escape") return;
+      setMostrarCrear(false);
+      setMostrarNotifs(false);
+      setMostrarPerfil(false);
+    };
+
+    document.addEventListener("pointerdown", cerrarAlHacerClickAfuera);
+    document.addEventListener("keydown", cerrarConEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", cerrarAlHacerClickAfuera);
+      document.removeEventListener("keydown", cerrarConEscape);
+    };
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -35,6 +86,10 @@ function Navbar({ usuario }) {
     const query = busqueda.trim();
 
     if (!query) return;
+
+    setMostrarCrear(false);
+    setMostrarNotifs(false);
+    setMostrarPerfil(false);
 
     if (ruta === "/comunidad") {
       navigate(`/comunidad?comunidad=${query}`);
@@ -51,6 +106,7 @@ function Navbar({ usuario }) {
 
   const handleLogout = async () => {
     try {
+      setMostrarPerfil(false);
       await supabase.auth.signOut();
       navigate("/", { replace: true });
     } catch (error) {
@@ -60,6 +116,7 @@ function Navbar({ usuario }) {
 
   const abrirEditor = () => {
     setPerfilEditado(perfilGuardado(usuario));
+    setMostrarPerfil(false);
     setMostrarEditor(true);
   };
 
@@ -90,6 +147,22 @@ function Navbar({ usuario }) {
     window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilEditado }));
     setMostrarEditor(false);
   };
+
+  const crearDesdeNavbar = (tipo) => {
+    setMostrarCrear(false);
+
+    if (tipo === "evento") {
+      navigate("/");
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("sondar:crear-evento"));
+      }, 0);
+      return;
+    }
+
+    navigate(tipo === "comunidad" ? "/comunidad" : "/descubrir");
+  };
+
+  const inicialPerfil = (perfilEditado.nombre || usuario?.email || "S").charAt(0).toUpperCase();
 
   return (
     <>
@@ -127,82 +200,104 @@ function Navbar({ usuario }) {
             </div>
           ) : (
             <div className="profile-menu">
-              <button
-                className="inbox-button inbox-button--chat"
-                type="button"
-                onClick={() => setMostrarChat(true)}
-                aria-label="Bandeja de entrada"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                  <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-120H640q-30 38-71.5 59T480-240q-47 0-88.5-21T320-320H200v120Zm349-142q31-22 43-58h168v-360H200v360h168q12 36 43 58t69 22q38 0 69-22Z" />
-                </svg>
-              </button>
+              <div className="navbar-create-wrap" ref={crearRef}>
+                <button
+                  className={`navbar-create-button ${mostrarCrear ? "active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setMostrarNotifs(false);
+                    setMostrarPerfil(false);
+                    setMostrarCrear((value) => !value);
+                  }}
+                  aria-expanded={mostrarCrear}
+                  aria-haspopup="menu"
+                >
+                  <span aria-hidden="true">+</span>
+                  Crear
+                </button>
+                {mostrarCrear ? (
+                  <div className="navbar-create-menu" role="menu" aria-label="Opciones para crear">
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />Evento</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Demo</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("comunidad")}><IconoCrear nombre="comunidad" />Comunidad</button>
+                  </div>
+                ) : null}
+              </div>
 
-              <button
-                className="inbox-button inbox-button--notifs"
-                type="button"
-                onClick={() => setMostrarNotifs(true)}
-                aria-label="Notificaciones"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
-                  <path d="M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z" />
-                </svg>
-              </button>
+              <div className="navbar-notifications-wrap" ref={notificacionesRef}>
+                <button
+                  className={`inbox-button inbox-button--notifs ${mostrarNotifs ? "active" : ""}`}
+                  type="button"
+                  onClick={() => {
+                    setMostrarCrear(false);
+                    setMostrarPerfil(false);
+                    setMostrarNotifs((value) => !value);
+                  }}
+                  aria-label="Notificaciones"
+                  aria-expanded={mostrarNotifs}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                    <path d="M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z" />
+                  </svg>
+                </button>
+                {mostrarNotifs ? (
+                  <NotificationPanel usuario={usuario} onClose={() => setMostrarNotifs(false)} />
+                ) : null}
+              </div>
 
-              <Link className="profile-button profile-link-button" to="/perfil">
-                <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="currentColor">
-                  <path d="M234-276q51-39 114-61.5T480-360q69 0 132 22.5T726-276q35-41 54.5-93T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 59 19.5 111t54.5 93Zm246-204q-59 0-99.5-40.5T340-620q0-59 40.5-99.5T480-760q59 0 99.5 40.5T620-620q0 59-40.5 99.5T480-480Zm0 400q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z" />
-                </svg>
-                Mi perfil
-              </Link>
+              <div className="navbar-profile-wrap" ref={perfilRef}>
+                <button
+                  className="profile-avatar-button"
+                  type="button"
+                  aria-expanded={mostrarPerfil}
+                  aria-haspopup="menu"
+                  aria-label="Abrir menu de cuenta"
+                  onClick={() => {
+                    setMostrarCrear(false);
+                    setMostrarNotifs(false);
+                    setMostrarPerfil((value) => !value);
+                  }}
+                >
+                  {perfilEditado.avatar ? <img src={perfilEditado.avatar} alt="" /> : <span>{inicialPerfil}</span>}
+                </button>
 
-              <button
-                className="profile-button account-menu-button dropdown-toggle"
-                type="button"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-                aria-label="Abrir menu de cuenta"
-              >
-                <span className="account-menu-lines" aria-hidden="true">=</span>
-              </button>
-
-              <ul className="dropdown-menu dropdown-menu-end profile-dropdown">
-                <li>
-                  <button className="dropdown-item" type="button" onClick={abrirEditor}>
-                    Editar perfil
-                  </button>
-                </li>
-                <li>
-                  <Link className="dropdown-item" to="/soporte">
-                    Soporte
-                  </Link>
-                </li>
-                <li>
-                  <Link className="dropdown-item" to="/configuracion">
-                    Configuracion
-                  </Link>
-                </li>
-                <li>
-                  <hr className="dropdown-divider" />
-                </li>
-                <li>
-                  <button className="dropdown-item" type="button" onClick={handleLogout}>
-                    Cerrar sesion
-                  </button>
-                </li>
-              </ul>
+                {mostrarPerfil ? (
+                  <ul className="profile-dropdown" role="menu">
+                    <li>
+                      <Link className="dropdown-item" to="/perfil" onClick={() => setMostrarPerfil(false)}>
+                        Mi perfil
+                      </Link>
+                    </li>
+                    <li>
+                      <button className="dropdown-item" type="button" onClick={abrirEditor}>
+                        Editar perfil
+                      </button>
+                    </li>
+                    <li>
+                      <Link className="dropdown-item" to="/soporte" onClick={() => setMostrarPerfil(false)}>
+                        Soporte
+                      </Link>
+                    </li>
+                    <li>
+                      <Link className="dropdown-item" to="/configuracion" onClick={() => setMostrarPerfil(false)}>
+                        Configuracion
+                      </Link>
+                    </li>
+                    <li>
+                      <hr className="dropdown-divider" />
+                    </li>
+                    <li>
+                      <button className="dropdown-item" type="button" onClick={handleLogout}>
+                        Cerrar sesion
+                      </button>
+                    </li>
+                  </ul>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
       </nav>
-
-      {usuario && mostrarNotifs ? (
-        <NotificationPanel usuario={usuario} onClose={() => setMostrarNotifs(false)} />
-      ) : null}
-
-      {usuario && mostrarChat ? (
-        <ChatPrivatePanel usuario={usuario} onClose={() => setMostrarChat(false)} />
-      ) : null}
 
       {usuario && mostrarEditor ? (
         <div className="panel-overlay" role="presentation" onMouseDown={() => setMostrarEditor(false)}>
