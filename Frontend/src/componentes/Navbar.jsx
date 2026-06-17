@@ -1,5 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
@@ -22,18 +23,11 @@ function IconoCrear({ nombre }) {
 }
 
 const perfilGuardado = (usuario) => {
-  const fallback = {
+  return {
     nombre: usuario?.user_metadata?.name || usuario?.email?.split("@")[0] || "Usuario SONDAR",
     bio: "Musica, comunidad y nuevas canciones.",
     avatar: "",
   };
-
-  try {
-    const saved = localStorage.getItem("sondar_perfil_local");
-    return saved ? { ...fallback, ...JSON.parse(saved) } : fallback;
-  } catch {
-    return fallback;
-  }
 };
 
 function Navbar({ usuario }) {
@@ -55,6 +49,48 @@ function Navbar({ usuario }) {
     };
     window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
     return () => window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
+  }, [usuario]);
+
+  useEffect(() => {
+    let activo = true;
+
+    const cargarPerfil = async () => {
+      if (!usuario) {
+        setPerfilEditado(perfilGuardado(null));
+        return;
+      }
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) {
+          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          return;
+        }
+
+        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          return;
+        }
+
+        const dataPerfil = await response.json();
+        if (activo) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
+      } catch (error) {
+        console.error("Error al cargar perfil en navbar:", error);
+        if (activo) setPerfilEditado(perfilGuardado(usuario));
+      }
+    };
+
+    cargarPerfil();
+    return () => {
+      activo = false;
+    };
   }, [usuario]);
 
   useEffect(() => {
@@ -115,7 +151,7 @@ function Navbar({ usuario }) {
   };
 
   const abrirEditor = () => {
-    setPerfilEditado(perfilGuardado(usuario));
+    setPerfilEditado((actual) => ({ ...perfilGuardado(usuario), ...actual }));
     setMostrarPerfil(false);
     setMostrarEditor(true);
   };
@@ -141,25 +177,54 @@ function Navbar({ usuario }) {
     reader.readAsDataURL(file);
   };
 
-  const guardarPerfil = (e) => {
+  const guardarPerfil = async (e) => {
     e.preventDefault();
-    localStorage.setItem("sondar_perfil_local", JSON.stringify(perfilEditado));
-    window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilEditado }));
-    setMostrarEditor(false);
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(perfilEditado),
+      });
+
+      if (!response.ok) return;
+
+      const perfilGuardadoBackend = await response.json();
+      setPerfilEditado(perfilGuardadoBackend);
+      window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilGuardadoBackend }));
+      setMostrarEditor(false);
+    } catch (error) {
+      console.error("Error al guardar perfil en navbar:", error);
+    }
   };
 
   const crearDesdeNavbar = (tipo) => {
     setMostrarCrear(false);
 
     if (tipo === "evento") {
-      navigate("/");
+      navigate("/?crear=evento");
       window.setTimeout(() => {
         window.dispatchEvent(new CustomEvent("sondar:crear-evento"));
       }, 0);
       return;
     }
 
-    navigate(tipo === "comunidad" ? "/comunidad" : "/descubrir");
+    if (tipo === "demo") {
+      navigate("/descubrir?crear=reel");
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("sondar:crear-reel"));
+      }, 0);
+      return;
+    }
+
+    navigate("/comunidad");
   };
 
   const inicialPerfil = (perfilEditado.nombre || usuario?.email || "S").charAt(0).toUpperCase();
@@ -218,7 +283,7 @@ function Navbar({ usuario }) {
                 {mostrarCrear ? (
                   <div className="navbar-create-menu" role="menu" aria-label="Opciones para crear">
                     <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />Evento</button>
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Demo</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Reel</button>
                     <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("comunidad")}><IconoCrear nombre="comunidad" />Comunidad</button>
                   </div>
                 ) : null}
@@ -267,11 +332,6 @@ function Navbar({ usuario }) {
                       <Link className="dropdown-item" to="/perfil" onClick={() => setMostrarPerfil(false)}>
                         Mi perfil
                       </Link>
-                    </li>
-                    <li>
-                      <button className="dropdown-item" type="button" onClick={abrirEditor}>
-                        Editar perfil
-                      </button>
                     </li>
                     <li>
                       <Link className="dropdown-item" to="/soporte" onClick={() => setMostrarPerfil(false)}>

@@ -10,6 +10,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
 }
 
 
@@ -18,6 +19,6 @@ body {
 }
 
 #root {
-  
   width: 100%;
+  min-width: 0;
 }

@@ -1,69 +1,172 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { apiUrl } from "../lib/api";
+import { supabase } from "../lib/supabaseClient";
 import "./miperfil.css";
 
-const perfilInicial = (usuario) => {
-  const fallback = {
-    nombre: usuario?.displayName || usuario?.user_metadata?.name || usuario?.email?.split("@")[0] || "nombreUsuario",
-    bio: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    avatar: "",
-  };
-
-  try {
-    const saved = localStorage.getItem("sondar_perfil_local");
-    return saved ? { ...fallback, ...JSON.parse(saved) } : fallback;
-  } catch {
-    return fallback;
-  }
+const iconosPerfil = {
+  grid: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-480h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-360h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-200h160v-80H200v80Zm240 0h160v-80H440v80Zm240 0h80v-80h-80v80Z",
+  calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
+  heart: "m480-120-58-52q-101-91-167-157T150-447q-39-51-54.5-94T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 50-15.5 93T810-447q-39 52-105 118T538-172l-58 52Z",
+  bookmark: "M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Z",
+  share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
 };
 
+const contenidoInicial = {
+  publicaciones: [],
+  eventos: [],
+  favoritos: [],
+  guardados: [],
+  seguidos: [],
+  stats: {
+    publicaciones: 0,
+    seguidores: 0,
+    seguidos: 0,
+  },
+};
+
+function IconoPerfil({ nombre, size = 22 }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 -960 960 960" width={size} height={size} fill="currentColor">
+      <path d={iconosPerfil[nombre]} />
+    </svg>
+  );
+}
+
+function perfilDesdeUsuario(usuario) {
+  const nombre =
+    usuario?.user_metadata?.username ||
+    usuario?.user_metadata?.name ||
+    usuario?.email?.split("@")[0] ||
+    "nombreUsuario";
+
+  return {
+    nombre,
+    usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
+    bio: "Artista en SONDAR.",
+    avatar: "",
+  };
+}
+
+function formatearNumero(valor) {
+  return new Intl.NumberFormat("es-AR", { notation: "compact", maximumFractionDigits: 1 }).format(valor || 0);
+}
+
+function iconoTab(tab) {
+  if (tab === "eventos") return "calendar";
+  if (tab === "favoritos") return "heart";
+  if (tab === "guardados") return "bookmark";
+  return "grid";
+}
+
+function destinoContenido(item) {
+  if (item.tipo === "evento") return `/?evento=${item.id}`;
+  return `/descubrir?lanzamiento=db-${item.id}`;
+}
+
+function tarjetaContenido(item, onAbrir) {
+  return (
+    <article
+      className="perfil-publicacion-card"
+      key={`${item.tipo}-${item.id}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onAbrir(item)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") onAbrir(item);
+      }}
+    >
+      <div className="perfil-publicacion-img">
+        {item.imagen ? (
+          <img src={item.imagen} alt={item.nombre} />
+        ) : (
+          <span>{item.nombre?.charAt(0).toUpperCase() || "S"}</span>
+        )}
+      </div>
+      <h3>{item.nombre}</h3>
+      <p>{item.detalle || item.genero || item.tipo}</p>
+    </article>
+  );
+}
+
 export default function MiPerfil({ usuario }) {
+  const navigate = useNavigate();
   const [editando, setEditando] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
-  const [perfil, setPerfil] = useState(() => perfilInicial(usuario));
-  const [perfilEditado, setPerfilEditado] = useState(perfil);
-  const [creandoPublicacion, setCreandoPublicacion] = useState(false);
-  const [publicaciones, setPublicaciones] = useState([]);
-  const [publicacionNueva, setPublicacionNueva] = useState({
-    nombre: "",
-    audio: null,
-    miniatura: "",
-  });
+  const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
+  const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
+  const [contenido, setContenido] = useState(contenidoInicial);
+  const [cargando, setCargando] = useState(false);
+  const [aviso, setAviso] = useState("");
 
-  const inicial = perfil.nombre.trim().charAt(0).toUpperCase() || "S";
-  const opcionesPerfil = [
-    {
-      id: "publicaciones",
-      label: "Publicaciones",
-      mensaje: "Aun no hay publicaciones.",
-    },
-    {
-      id: "eventos",
-      label: "Eventos",
-      mensaje: "Aun no hay eventos.",
-    },
-    {
-      id: "favoritos",
-      label: "Favoritos",
-      mensaje: "Aun no hay favoritos.",
-    },
-    {
-      id: "guardados",
-      label: "Guardados",
-      mensaje: "Aun no hay guardados.",
-    },
-  ];
+  const opcionesPerfil = useMemo(
+    () => [
+      { id: "publicaciones", label: "Publicaciones", mensaje: "Aun no hay publicaciones." },
+      { id: "eventos", label: "Eventos", mensaje: "Aun no hay eventos." },
+      { id: "favoritos", label: "Favoritos", mensaje: "Aun no hay favoritos." },
+      { id: "guardados", label: "Guardados", mensaje: "Aun no hay guardados." },
+    ],
+    []
+  );
+
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
+  const inicial = perfil.nombre.trim().charAt(0).toUpperCase() || "S";
 
   useEffect(() => {
-    const actualizar = (event) => {
-      if (!event.detail) return;
-      setPerfil(event.detail);
-      setPerfilEditado(event.detail);
+    let activo = true;
+
+    const cargarPerfil = async () => {
+      if (!usuario) {
+        const fallback = perfilDesdeUsuario(null);
+        setPerfil(fallback);
+        setPerfilEditado(fallback);
+        setContenido(contenidoInicial);
+        return;
+      }
+
+      setCargando(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const dataError = await response.json().catch(() => ({}));
+          throw new Error(dataError.error || "No se pudo cargar el perfil.");
+        }
+
+        const dataPerfil = await response.json();
+        if (!activo) return;
+
+        setPerfil(dataPerfil.perfil);
+        setPerfilEditado(dataPerfil.perfil);
+        setContenido({
+          publicaciones: dataPerfil.publicaciones || [],
+          eventos: dataPerfil.eventos || [],
+          favoritos: dataPerfil.favoritos || [],
+          guardados: dataPerfil.guardados || [],
+          seguidos: dataPerfil.seguidos || [],
+          stats: dataPerfil.stats || contenidoInicial.stats,
+        });
+      } catch (error) {
+        console.error(error);
+        if (activo) setAviso(error.message || "No se pudo cargar el perfil.");
+      } finally {
+        if (activo) setCargando(false);
+      }
     };
 
-    window.addEventListener("sondar-perfil-actualizado", actualizar);
-    return () => window.removeEventListener("sondar-perfil-actualizado", actualizar);
-  }, []);
+    cargarPerfil();
+    return () => {
+      activo = false;
+    };
+  }, [usuario]);
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -75,24 +178,15 @@ export default function MiPerfil({ usuario }) {
     setEditando(false);
   };
 
-  const cerrarPublicacion = () => {
-    setCreandoPublicacion(false);
-    setPublicacionNueva({
-      nombre: "",
-      audio: null,
-      miniatura: "",
-    });
-  };
-
-  const handleChange = (e) => {
+  const handleChange = (event) => {
     setPerfilEditado({
       ...perfilEditado,
-      [e.target.name]: e.target.value,
+      [event.target.name]: event.target.value,
     });
   };
 
-  const handleAvatar = (e) => {
-    const file = e.target.files[0];
+  const handleAvatar = (event) => {
+    const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -105,86 +199,91 @@ export default function MiPerfil({ usuario }) {
     reader.readAsDataURL(file);
   };
 
-  const handlePublicacionChange = (e) => {
-    setPublicacionNueva({
-      ...publicacionNueva,
-      [e.target.name]: e.target.value,
-    });
+  const guardarPerfil = async (event) => {
+    event.preventDefault();
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) {
+        setAviso("Tu sesion expiro. Volve a iniciar sesion.");
+        return;
+      }
+
+      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(perfilEditado),
+      });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo guardar el perfil.");
+      }
+
+      const perfilGuardado = await response.json();
+      setPerfil(perfilGuardado);
+      setPerfilEditado(perfilGuardado);
+      window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilGuardado }));
+      setEditando(false);
+      setAviso("Perfil guardado");
+    } catch (error) {
+      console.error(error);
+      setAviso(error.message || "No se pudo guardar el perfil.");
+    }
   };
 
-  const handleAudio = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setPublicacionNueva((prev) => ({
-      ...prev,
-      audio: file,
-    }));
-  };
-
-  const handleMiniatura = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPublicacionNueva((prev) => ({
-        ...prev,
-        miniatura: reader.result,
-      }));
+  const compartirPerfil = async () => {
+    const datos = {
+      title: `Perfil de ${perfil.nombre}`,
+      text: `Mira el perfil de ${perfil.nombre} en SONDAR`,
+      url: window.location.href,
     };
-    reader.readAsDataURL(file);
-  };
 
-  const guardarPublicacion = (e) => {
-    e.preventDefault();
+    if (navigator.share) {
+      await navigator.share(datos).catch(() => {});
+      return;
+    }
 
-    setPublicaciones((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        ...publicacionNueva,
-      },
-    ]);
-    cerrarPublicacion();
+    await navigator.clipboard?.writeText(window.location.href);
   };
 
   const renderContenidoActivo = () => {
-    if (tabActiva === "publicaciones") {
-      return (
-        <div className="perfil-publicaciones-grid">
-          <button
-            className="perfil-publicacion-add"
-            type="button"
-            onClick={() => setCreandoPublicacion(true)}
-            aria-label="Subir publicacion"
-          >
-            +
-          </button>
+    const items = contenido[tabActiva] || [];
 
-          {publicaciones.map((publicacion) => (
-            <article className="perfil-publicacion-card" key={publicacion.id}>
-              <div className="perfil-publicacion-img">
-                {publicacion.miniatura ? (
-                  <img src={publicacion.miniatura} alt={publicacion.nombre} />
-                ) : (
-                  <span>{publicacion.nombre.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <h3>{publicacion.nombre}</h3>
-              {publicacion.audio ? <p>{publicacion.audio.name}</p> : null}
-            </article>
-          ))}
+    if (cargando) {
+      return (
+        <div className="perfil-empty-state">
+          <span><IconoPerfil nombre={iconoTab(tabActiva)} size={34} /></span>
+          <h3>Cargando perfil...</h3>
+          <p>Estamos trayendo tu contenido desde Supabase.</p>
         </div>
       );
     }
 
-    return <p>{contenidoActivo?.mensaje}</p>;
+    if (items.length > 0) {
+      return (
+        <div className="perfil-publicaciones-grid">
+          {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="perfil-empty-state">
+        <span><IconoPerfil nombre={iconoTab(tabActiva)} size={34} /></span>
+        <h3>{contenidoActivo?.mensaje}</h3>
+        <p>Cuando haya contenido guardado en Supabase, aparecera en esta seccion.</p>
+      </div>
+    );
   };
 
   return (
     <section className="perfil-page">
-      <div className="perfil-card">
+      <header className="perfil-card">
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar">
             {perfil.avatar ? (
@@ -193,52 +292,46 @@ export default function MiPerfil({ usuario }) {
               <span>{inicial}</span>
             )}
           </div>
-
-          <button className="perfil-primary-btn" type="button">
-            Seguir
-          </button>
         </div>
 
         <div className="perfil-info">
           <div className="perfil-title-row">
             <h1>{perfil.nombre}</h1>
-            <button
-              className="perfil-edit-btn"
-              type="button"
-              onClick={abrirEditor}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T817-647L290-120H120Zm640-584-56-56 56 56Zm-141 85-28-29 57 57-29-28Z"/></svg>
+            <button className="perfil-primary-btn" type="button" onClick={abrirEditor}>
+              Editar perfil
+            </button>
+            <button className="perfil-secondary-btn" type="button" onClick={compartirPerfil}>
+              <IconoPerfil nombre="share" size={18} />
+              Compartir
             </button>
           </div>
 
           <div className="perfil-stats">
-            <p>0 Seguidores</p>
-            <p>0 Seguidos</p>
+            <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
+            <p><strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores</p>
+            <p><strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos</p>
           </div>
 
-          <p className="perfil-bio">"{perfil.bio}"</p>
+          <div className="perfil-description">
+            <strong>{perfil.nombre}</strong>
+            <span>{perfil.usuario} - Artista en SONDAR</span>
+            <p>{perfil.bio}</p>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {aviso ? (
+        <div className="perfil-toast" role="status">
+          {aviso}
+        </div>
+      ) : null}
 
       {editando ? (
         <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
-          <form
-            className="perfil-modal"
-            onSubmit={(e) => {
-              e.preventDefault();
-              setPerfil(perfilEditado);
-              localStorage.setItem("sondar_perfil_local", JSON.stringify(perfilEditado));
-              setEditando(false);
-            }}
-          >
+          <form className="perfil-modal" onSubmit={guardarPerfil}>
             <div className="perfil-modal-header">
               <h2>Editar perfil</h2>
-              <button
-                className="perfil-modal-close"
-                type="button"
-                onClick={cerrarEditor}
-                aria-label="Cerrar editor"
-              >
+              <button className="perfil-modal-close" type="button" onClick={cerrarEditor} aria-label="Cerrar editor">
                 x
               </button>
             </div>
@@ -249,9 +342,7 @@ export default function MiPerfil({ usuario }) {
                   {perfilEditado.avatar ? (
                     <img src={perfilEditado.avatar} alt={perfilEditado.nombre} />
                   ) : (
-                    <span>
-                      {perfilEditado.nombre.trim().charAt(0).toUpperCase() || "S"}
-                    </span>
+                    <span>{perfilEditado.nombre.trim().charAt(0).toUpperCase() || "S"}</span>
                   )}
                 </div>
 
@@ -297,62 +388,13 @@ export default function MiPerfil({ usuario }) {
         </div>
       ) : null}
 
-      {creandoPublicacion ? (
-        <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
-          <form className="perfil-modal perfil-publicacion-modal" onSubmit={guardarPublicacion}>
-            <div className="perfil-modal-header">
-              <h2>Nueva publicacion</h2>
-              <button
-                className="perfil-modal-close"
-                type="button"
-                onClick={cerrarPublicacion}
-                aria-label="Cerrar publicacion"
-              >
-                x
-              </button>
-            </div>
-
-            <div className="perfil-publicacion-form">
-              <label>
-                Nombre de la cancion
-                <input
-                  type="text"
-                  name="nombre"
-                  value={publicacionNueva.nombre}
-                  onChange={handlePublicacionChange}
-                  maxLength="48"
-                  required
-                />
-              </label>
-
-              <label>
-                Archivo de audio
-                <input type="file" onChange={handleAudio} required />
-              </label>
-
-              <label>
-                Miniatura
-                <input type="file" accept="image/*" onChange={handleMiniatura} required />
-              </label>
-
-              {publicacionNueva.miniatura ? (
-                <div className="perfil-miniatura-preview">
-                  <img src={publicacionNueva.miniatura} alt="Miniatura seleccionada" />
-                </div>
-              ) : null}
-
-              <div className="perfil-form-actions">
-                <button type="submit">Publicar</button>
-                <button type="button" onClick={cerrarPublicacion}>
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      ) : null}
-
-      <div className="perfil-tabs">
+      <div
+        className="perfil-tabs"
+        style={{
+          "--perfil-tab-index": opcionesPerfil.findIndex((opcion) => opcion.id === tabActiva),
+          "--perfil-tab-count": opcionesPerfil.length,
+        }}
+      >
         {opcionesPerfil.map((opcion) => (
           <button
             key={opcion.id}
@@ -360,7 +402,8 @@ export default function MiPerfil({ usuario }) {
             type="button"
             onClick={() => setTabActiva(opcion.id)}
           >
-            {opcion.label}
+            <IconoPerfil nombre={iconoTab(opcion.id)} size={20} />
+            <span>{opcion.label}</span>
           </button>
         ))}
       </div>

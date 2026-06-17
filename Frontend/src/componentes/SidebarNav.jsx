@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { apiUrl } from "../lib/api";
+import { supabase } from "../lib/supabaseClient";
 import "./sidebarNav.css";
 
 const iconos = {
@@ -25,12 +27,45 @@ const links = [
   { to: "/comunidad", label: "Comunidad", icon: "comunidad" },
 ];
 
-const siguiendo = [
-  { label: "Marea Gris", usuario: "@mareagris", to: "/perfil/mareagris", colorA: "#aa3bff", colorB: "#3157ff" },
-];
-
-export default function SidebarNav() {
+export default function SidebarNav({ usuario }) {
   const [open, setOpen] = useState(false);
+  const [seguidos, setSeguidos] = useState([]);
+
+  useEffect(() => {
+    let activo = true;
+
+    const cargarSeguidos = async () => {
+      if (!usuario) {
+        setSeguidos([]);
+        return;
+      }
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch(apiUrl("/api/usuarios/me/seguidos"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) return;
+        const dataSeguidos = await response.json();
+        if (activo) setSeguidos(dataSeguidos);
+      } catch (error) {
+        console.error("No se pudieron cargar los seguidos:", error);
+      }
+    };
+
+    cargarSeguidos();
+    window.addEventListener("sondar:seguimiento-actualizado", cargarSeguidos);
+    return () => {
+      activo = false;
+      window.removeEventListener("sondar:seguimiento-actualizado", cargarSeguidos);
+    };
+  }, [usuario]);
 
   return (
     <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegacion principal">
@@ -68,21 +103,21 @@ export default function SidebarNav() {
 
         <div className="sidebar-section sidebar-following-section">
           <div className="sidebar-section-title">Siguiendo</div>
-          {siguiendo.map((perfil) => (
+          {seguidos.map((perfil) => (
             <NavLink
-              key={perfil.usuario}
-              to={perfil.to}
+              key={perfil.id}
+              to={`/perfil/${perfil.id}`}
               className="sidebar-link sidebar-following-link"
             >
               <span
                 className="sidebar-following-avatar"
-                style={{ background: `linear-gradient(135deg, ${perfil.colorA}, ${perfil.colorB})` }}
+                style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
                 aria-hidden="true"
               >
-                {perfil.label.charAt(0)}
+                {perfil.avatar ? <img src={perfil.avatar} alt="" /> : perfil.nombre.charAt(0)}
               </span>
               <span className="sidebar-link-text">
-                <strong>{perfil.label}</strong>
+                <strong>{perfil.nombre}</strong>
                 <small>{perfil.usuario}</small>
               </span>
             </NavLink>

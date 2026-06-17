@@ -50,7 +50,7 @@ function App() {
           <Route path="/soporte" element={<Soporte />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
-          <Route path="/perfil/:usuario" element={<OtroPerfil />} />
+          <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />
           <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
           <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />

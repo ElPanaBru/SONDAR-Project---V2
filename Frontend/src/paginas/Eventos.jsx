@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
@@ -10,9 +11,17 @@ const GENEROS_PERMITIDOS = [
   "cumbia", "trap", "metal", "folklore", "otros"
 ];
 
+const DURACION_ACERCAMIENTO_MAPA = 0.8;
+const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
+
 const normalizarGenero = (genero) => {
-  const gen = genero ? genero.toLowerCase() : "otros";
+  const gen = genero?.trim().toLowerCase() || "otros";
   return GENEROS_PERMITIDOS.includes(gen) ? gen : "otros";
+};
+
+const mostrarGenero = (genero) => {
+  const valor = normalizarGenero(genero);
+  return valor === "edm" ? "EDM" : valor.charAt(0).toUpperCase() + valor.slice(1);
 };
 
 const escaparHtml = (valor) =>
@@ -22,7 +31,22 @@ const escaparHtml = (valor) =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 
+const acercarMapaABounds = (mapa, bounds, maxZoom) => {
+  const zoomDestino = Math.min(
+    mapa.getBoundsZoom(bounds, false, L.point(180, 180)),
+    maxZoom
+  );
+
+  mapa.flyTo(bounds.getCenter(), zoomDestino, {
+    duration: DURACION_ACERCAMIENTO_MAPA,
+    easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+  });
+};
+
 export default function Eventos({ usuario }) {
+  const [searchParams] = useSearchParams();
+  const eventoCompartido = searchParams.get("evento");
+  const crearEventoParam = searchParams.get("crear");
   // Referencias para el mapa principal
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -33,6 +57,7 @@ export default function Eventos({ usuario }) {
   const miniMapRef = useRef(null);
   const miniMapInstance = useRef(null);
   const miniMarkerRef = useRef(null);
+  const imagenEventoInputRef = useRef(null);
 
   // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
@@ -40,6 +65,8 @@ export default function Eventos({ usuario }) {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [filtroGenero, setFiltroGenero] = useState("todos");
   const [aviso, setAviso] = useState("");
+  const [zoomMapa, setZoomMapa] = useState(12);
+  const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
 
   // Estados de Datos y Carga
   const [eventos, setEventos] = useState([]);
@@ -68,7 +95,15 @@ export default function Eventos({ usuario }) {
     let isMounted = true;
     const cargarEventos = async () => {
       try {
-        const res = await fetch(apiUrl("/api/eventos"));
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const res = await fetch(apiUrl("/api/eventos"), {
+          headers: token
+            ? {
+                Authorization: `Bearer ${token}`
+              }
+            : undefined
+        });
         if (res.ok) {
           const data = await res.json();
           const eventosMapeados = data.map(ev => ({
@@ -93,7 +128,7 @@ export default function Eventos({ usuario }) {
 
     cargarEventos();
     return () => { isMounted = false; };
-  }, []);
+  }, [usuario?.id]);
 
   const eventoSeleccionado = useMemo(
     () => eventos.find((evento) => evento.id === eventoActivo),
@@ -102,10 +137,15 @@ export default function Eventos({ usuario }) {
 
   const detalleEvento = eventoSeleccionado || ultimoEventoDetalle;
 
+  useEffect(() => {
+    setMenuEventoAbierto(false);
+  }, [eventoActivo]);
+
   const eventosFiltrados = useMemo(
-    () => eventos.filter((evento) =>
-      filtroGenero === "todos" ? true : normalizarGenero(evento.genero) === filtroGenero
-    ),
+    () => eventos.filter((evento) => {
+      const genero = normalizarGenero(evento.genero);
+      return filtroGenero === "todos" || genero === filtroGenero;
+    }),
     [eventos, filtroGenero]
   );
 
@@ -115,14 +155,20 @@ export default function Eventos({ usuario }) {
 
     const map = L.map(mapRef.current, {
       zoomControl: false,
-      attributionControl: false
+      attributionControl: false,
+      minZoom: 4,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1
     }).setView([-34.6037, -58.3816], 12);
 
     L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19
+      maxZoom: 19,
+      noWrap: true,
+      bounds: [[-85, -180], [85, 180]]
     }).addTo(map);
 
     L.control.zoom({ position: "bottomright" }).addTo(map);
+    map.on("zoomend", () => setZoomMapa(map.getZoom()));
     markersLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
 
@@ -140,6 +186,30 @@ export default function Eventos({ usuario }) {
       }, 100);
     }
   }, [loading]);
+
+  useEffect(() => {
+    if (!eventoCompartido || loading || eventos.length === 0) return;
+    const eventoDestino = eventos.find((evento) => String(evento.id) === String(eventoCompartido));
+    if (!eventoDestino) return;
+
+    setUltimoEventoDetalle(eventoDestino);
+    setEventoActivo(eventoDestino.id);
+    if (eventoDestino.coords && mapInstance.current) {
+      mapInstance.current.flyTo(eventoDestino.coords, 16, {
+        duration: DURACION_ACERCAMIENTO_MAPA,
+        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+      });
+    }
+  }, [eventoCompartido, eventos, loading]);
+
+  useEffect(() => {
+    if (crearEventoParam !== "evento") return;
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para crear eventos");
+      return;
+    }
+    setMostrarModal(true);
+  }, [crearEventoParam, usuario]);
 
   // 3. Inicialización del MINI MAPA (Clásico/Ordinario y grande)
   useEffect(() => {
@@ -199,51 +269,91 @@ export default function Eventos({ usuario }) {
     if (!mapInstance.current || !markersLayer.current) return;
 
     markersLayer.current.clearLayers();
-    const coordenadasUsadas = {};
+    const map = mapInstance.current;
+    const eventosValidos = eventosFiltrados.filter(
+      (evento) => evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1])
+    );
+    const distanciaAgrupacion = zoomMapa >= 15 ? 34 : zoomMapa >= 12 ? 58 : 82;
+    const grupos = [];
 
-    eventosFiltrados.forEach((evento) => {
-      if (!evento.coords || isNaN(evento.coords[0]) || isNaN(evento.coords[1])) return;
+    eventosValidos.forEach((evento) => {
+      const punto = map.project(evento.coords, zoomMapa);
+      const grupoCercano = grupos.find((grupo) => grupo.punto.distanceTo(punto) < distanciaAgrupacion);
 
-      let lat = evento.coords[0];
-      let lng = evento.coords[1];
-      const claveCoordenada = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-
-      if (coordenadasUsadas[claveCoordenada]) {
-        lat += (Math.random() - 0.5) * 0.0012;
-        lng += (Math.random() - 0.5) * 0.0012;
+      if (grupoCercano) {
+        grupoCercano.eventos.push(evento);
+        const cantidad = grupoCercano.eventos.length;
+        grupoCercano.punto = L.point(
+          (grupoCercano.punto.x * (cantidad - 1) + punto.x) / cantidad,
+          (grupoCercano.punto.y * (cantidad - 1) + punto.y) / cantidad
+        );
       } else {
-        coordenadasUsadas[claveCoordenada] = true;
+        grupos.push({ eventos: [evento], punto });
+      }
+    });
+
+    grupos.forEach((grupo) => {
+      if (grupo.eventos.length > 1) {
+        const posicionGrupo = map.unproject(grupo.punto, zoomMapa);
+        const cluster = L.marker(posicionGrupo, {
+          icon: L.divIcon({
+            className: "evento-cluster-wrapper",
+            html: `<button class="evento-cluster" type="button" aria-label="${grupo.eventos.length} eventos cercanos">${grupo.eventos.length}</button>`,
+            iconSize: [52, 52],
+            iconAnchor: [26, 26]
+          })
+        });
+
+        cluster.on("click", () => {
+        const bounds = L.latLngBounds(grupo.eventos.map((evento) => evento.coords));
+        if (bounds.getNorthEast().equals(bounds.getSouthWest())) {
+          map.flyTo(bounds.getCenter(), Math.min(zoomMapa + 2, 18), {
+            duration: DURACION_ACERCAMIENTO_MAPA,
+            easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+          });
+        } else {
+          acercarMapaABounds(map, bounds, 17);
+        }
+        });
+
+        cluster.addTo(markersLayer.current);
+        return;
       }
 
-      const posicionFinal = [lat, lng];
+      const evento = grupo.eventos[0];
+      const posicionFinal = evento.coords;
       const activo = eventoActivo === evento.id;
       const imagenEvento = evento.img || evento.img_url || "/logo.png";
+      const compacto = zoomMapa <= 11;
 
       const marker = L.marker(posicionFinal, {
         icon: L.divIcon({
           className: "evento-pin-wrapper",
           html: `
-            <button class="evento-pin ${activo ? "activo" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}">
+            <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
                 <img src="${escaparHtml(imagenEvento)}" alt="" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>
           `,
-          iconSize: [132, 82],
-          iconAnchor: [66, 41]
+          iconSize: [150, 92],
+          iconAnchor: [75, 46]
         })
       });
 
       marker.on("click", () => {
         setUltimoEventoDetalle(evento);
         setEventoActivo(evento.id);
-        mapInstance.current.flyTo(posicionFinal, 16, { duration: 0.9 });
+      mapInstance.current.flyTo(posicionFinal, 16, {
+        duration: DURACION_ACERCAMIENTO_MAPA,
+        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+      });
       });
 
       marker.addTo(markersLayer.current);
     });
-  }, [eventosFiltrados, eventoActivo]);
+  }, [eventosFiltrados, eventoActivo, zoomMapa]);
 
   // 5. Encuadre automático del mapa principal
   useEffect(() => {
@@ -256,22 +366,91 @@ export default function Eventos({ usuario }) {
     if (coordsValidas.length === 0) return;
 
     const bounds = L.latLngBounds(coordsValidas);
-    mapInstance.current.fitBounds(bounds, {
-      padding: [90, 90],
-      maxZoom: 13,
-      animate: true
-    });
+   acercarMapaABounds(mapInstance.current, bounds, 13);
   }, [eventosFiltrados]);
 
   // Funciones Auxiliares de UI
-  const toggleGuardar = (id) => {
+  const toggleGuardar = async (id) => {
     if (!usuario) {
       mostrarAviso("Tenes que iniciar sesion para guardar eventos");
       return;
     }
-    setEventos(eventos.map((evento) =>
-      evento.id === id ? { ...evento, guardado: !evento.guardado } : evento
-    ));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (!token) {
+        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
+        return;
+      }
+
+      const response = await fetch(apiUrl(`/api/eventos/${id}/guardar`), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo guardar el evento.");
+      }
+
+      const dataGuardado = await response.json();
+      setEventos((actuales) => actuales.map((evento) =>
+        evento.id === id ? { ...evento, guardado: dataGuardado.guardado } : evento
+      ));
+      setUltimoEventoDetalle((actual) =>
+        actual?.id === id ? { ...actual, guardado: dataGuardado.guardado } : actual
+      );
+    } catch (error) {
+      console.error(error);
+      mostrarAviso(error.message || "No se pudo actualizar el guardado.");
+    }
+  };
+
+  const usuarioPuedeEliminarEvento = (evento) =>
+    Boolean(
+      usuario &&
+      (evento?.creador_id === usuario.id ||
+        evento?.creadorId === usuario.id ||
+        (usuario?.email && evento?.creador === usuario.email))
+    );
+
+  const eliminarEvento = async (evento) => {
+    if (!usuarioPuedeEliminarEvento(evento)) return;
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (!token) {
+        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
+        return;
+      }
+
+      const response = await fetch(apiUrl(`/api/eventos/${evento.id}`), {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "No se pudo eliminar el evento.");
+      }
+
+      setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
+      setEventoActivo(null);
+      setUltimoEventoDetalle(null);
+      setMenuEventoAbierto(false);
+      mostrarAviso("Evento eliminado");
+    } catch (error) {
+      console.error(error);
+      mostrarAviso("Hubo un error al eliminar el evento.");
+    }
   };
 
   const handleCrearEvento = () => {
@@ -298,6 +477,7 @@ export default function Eventos({ usuario }) {
 
   const handleFiltroGenero = (genero) => {
     setFiltroGenero(genero);
+    setMenuEventoAbierto(false);
     if (!eventoSeleccionado) return;
     const activoVisible = genero === "todos" || normalizarGenero(eventoSeleccionado.genero) === genero;
     if (!activoVisible) {
@@ -323,10 +503,34 @@ const handleImagen = (e) => {
     }));
   };
 
+  const limpiarImagenEvento = () => {
+    if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
+    setNuevoEvento((prev) => ({
+      ...prev,
+      imagen: null,
+      nombreImagen: ""
+    }));
+  };
+
   const formatearFecha = (fecha, hora) => {
     if (!fecha || !hora) return "";
     const fechaObj = new Date(`${fecha}T${hora}`);
     return fechaObj.toISOString();
+  };
+
+  const formatearFechaVisible = (fecha) => {
+    if (!fecha) return "Sin fecha";
+
+    const valor = new Date(fecha);
+    if (Number.isNaN(valor.getTime())) return fecha;
+
+    return new Intl.DateTimeFormat("es-AR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(valor);
   };
 
   const handleSubmit = async (e) => {
@@ -388,6 +592,7 @@ const handleImagen = (e) => {
       setEventoActivo(eventoParaMapa.id);
       
       setMostrarModal(false);
+      if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
 
       setNuevoEvento({
         titulo: "", genero: "", lugar: "", fecha: "", hora: "", precio: "", link: "", imagen: null, nombreImagen: "", lat: -34.6037, lng: -58.3816
@@ -397,24 +602,20 @@ const handleImagen = (e) => {
 
     } catch (error) {
       console.error(error);
-      mostrarAviso("Hubo un error al guardar el evento.");
+      mostrarAviso(error.message || "Hubo un error al guardar el evento.");
     } finally {
       setSubiendo(false);
     }
   };
   return (
-    <div className="eventos-container">
+    <div className={`eventos-container ${eventoSeleccionado ? "detalle-abierto" : ""}`}>
       <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
 
       <div className="eventos-panel">
         <div className="eventos-header">
-          <div>
-            <span className="eventos-eyebrow">Sondar</span>
+          <div className="eventos-titulo">
             <h2>Eventos cerca tuyo</h2>
-          </div>
-
-          <div className="eventos-acciones">
-            <label>
+            <label className="eventos-genero">
               <span>Genero</span>
               <select
                 className="eventos-filtro"
@@ -423,13 +624,10 @@ const handleImagen = (e) => {
               >
                 <option value="todos">Todos</option>
                 {GENEROS_PERMITIDOS.map((genero) => (
-                  <option key={genero} value={genero}>{genero}</option>
+                  <option key={genero} value={genero}>{mostrarGenero(genero)}</option>
                 ))}
               </select>
             </label>
-            <button className="btn-crear-evento" onClick={handleCrearEvento}>
-              Crear Evento
-            </button>
           </div>
         </div>
       </div>
@@ -459,22 +657,56 @@ const handleImagen = (e) => {
               Cerrar
             </button>
 
+            {usuarioPuedeEliminarEvento(detalleEvento) ? (
+              <div className="evento-detalle-menu">
+                <button
+                  className="evento-detalle-menu-btn"
+                  type="button"
+                  aria-label="Opciones del evento"
+                  aria-expanded={menuEventoAbierto}
+                  onClick={() => setMenuEventoAbierto((actual) => !actual)}
+                >
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </button>
+                {menuEventoAbierto ? (
+                  <div className="evento-detalle-menu-popover">
+                    <button type="button" onClick={() => eliminarEvento(detalleEvento)}>
+                      Eliminar
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div
               className="evento-detalle-imagen"
               style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/logo.png"})` }}
             >
-              <span>{detalleEvento.genero || "general"}</span>
+              <span>{mostrarGenero(detalleEvento.genero)}</span>
             </div>
 
             <div className="evento-detalle-info">
               <span className="eventos-eyebrow">Evento seleccionado</span>
               <h3>{detalleEvento.titulo}</h3>
-              <p>{detalleEvento.lugar}</p>
-              <p>{detalleEvento.fecha}</p>
+              <dl className="evento-detalle-datos">
+                <div>
+                  <dt>Lugar</dt>
+                  <dd>{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</dd>
+                </div>
+                <div>
+                  <dt>Fecha</dt>
+                  <dd>{formatearFechaVisible(detalleEvento.fecha)}</dd>
+                </div>
+                <div>
+                  <dt>Organiza</dt>
+                  <dd>{detalleEvento.creador || "Anonimo"}</dd>
+                </div>
+              </dl>
               {detalleEvento.precio !== null && detalleEvento.precio !== undefined && detalleEvento.precio !== "" ? (
                 <p>Entrada: ${Number(detalleEvento.precio).toLocaleString("es-AR")}</p>
               ) : null}
-              <p className="evento-creador">{detalleEvento.creador || "Anonimo"}</p>
 
               <div className="evento-detalle-acciones">
                 <button
@@ -502,40 +734,45 @@ const handleImagen = (e) => {
       </aside>
 
       {mostrarModal && (
-        <div className="evento-modal-overlay" onMouseDown={() => !subiendo && setMostrarModal(false)}>
+        <div className="evento-modal-overlay">
           <section className="evento-modal" role="dialog" aria-modal="true" aria-labelledby="crear-evento-titulo" onMouseDown={(event) => event.stopPropagation()}>
             <header className="evento-modal-header">
+              <div>
+                <span>EVENTOS</span>
+                <h2 id="crear-evento-titulo">Crear nuevo evento</h2>
+              </div>
               <button className="evento-modal-volver" type="button" onClick={() => setMostrarModal(false)} disabled={subiendo} aria-label="Cerrar creador de evento">
-                &#8592;
-              </button>
-              <h2 id="crear-evento-titulo">Crear nuevo evento</h2>
-              <button className="evento-modal-compartir" type="submit" form="crear-evento-form" disabled={subiendo}>
-                {subiendo ? "Guardando..." : "Crear evento"}
+                <svg aria-hidden="true" viewBox="0 -960 960 960" fill="currentColor">
+                  <path d="m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z" />
+                </svg>
               </button>
             </header>
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
               <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
 
-              <input
-                list="generos-lista"
-                name="genero"
-                placeholder="Genero"
-                value={nuevoEvento.genero}
-                onChange={handleChange}
-                required
-              />
-              <datalist id="generos-lista">
-                {GENEROS_PERMITIDOS.map((genero) => (
-                  <option key={genero} value={genero} />
-                ))}
-              </datalist>
+            <select
+              name="genero"
+              value={nuevoEvento.genero}
+              onChange={handleChange}
+              required
+            >
+              <option value="" disabled>Seleccionar genero</option>
+              {GENEROS_PERMITIDOS.map((genero) => (
+                <option key={genero} value={genero}>{mostrarGenero(genero)}</option>
+              ))}
+            </select>
 
               <label className="evento-file-selector">
                 <span>Seleccionar imagen</span>
                 <strong>{nuevoEvento.nombreImagen || "Sin archivo"}</strong>
-                <input type="file" accept="image/*" onChange={handleImagen} />
+                <input ref={imagenEventoInputRef} type="file" accept="image/*" onChange={handleImagen} />
               </label>
+              {nuevoEvento.nombreImagen ? (
+                <button className="evento-file-clear" type="button" onClick={limpiarImagenEvento}>
+                  Quitar imagen
+                </button>
+              ) : null}
 
               <input
                 type="text"
@@ -566,6 +803,9 @@ const handleImagen = (e) => {
               />
               <input type="url" name="link" placeholder="URL de compra (opcional)" value={nuevoEvento.link} onChange={handleChange} />
 
+              <button className="evento-modal-publicar" type="submit" disabled={subiendo}>
+                {subiendo ? "Guardando..." : "Crear evento"}
+              </button>
             </form>
           </section>
         </div>

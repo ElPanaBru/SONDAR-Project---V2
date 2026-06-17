@@ -1,13 +1,20 @@
 .comunidad-container {
   position: fixed;
-  top: 92px;
+  top: 75px;
   right: 0;
   bottom: 0;
-  left: 0;
+  left: 74px;
   overflow: hidden;
   background: #030303;
   color: #fff;
   padding: 16px;
+}
+
+@media (min-width: 1101px) {
+  .comunidad-container {
+    top: 55px;
+    left: 56px;
+  }
 }
 
 .comunidad-layout {
@@ -672,7 +679,7 @@
 
 @media (max-width: 1100px) {
   .comunidad-container {
-    top: 112px;
+    top: 92px;
   }
 
   .comunidad-layout,
@@ -687,7 +694,8 @@
 
 @media (max-width: 720px) {
   .comunidad-container {
-    top: 134px;
+    top: 114px;
+    left: 66px;
     padding: 12px;
   }
 
@@ -750,5 +758,12 @@
   .comunidad-form-row,
   .comunidad-modal-botones {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .comunidad-container {
+    top: 55px;
+    left: 56px;
   }
 }

@@ -1,8 +1,12 @@
 .app-container {
   min-height: 100vh;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .main-content {
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
   padding: 20px;
 }
@@ -27,6 +31,31 @@
 .main-content.with-sidebar.descubrir-content {
   padding-left: 58px;
   padding-top: 72px;
+}
+
+@media (min-width: 1101px) {
+  .main-content {
+    padding: 15px;
+  }
+
+  .main-content.with-navbar,
+  .main-content.with-sidebar.with-navbar {
+    padding-top: 76px;
+  }
+
+  .main-content.with-sidebar {
+    padding-left: 56px;
+  }
+
+  .main-content.descubrir-content {
+    padding: 0;
+    padding-top: 55px;
+  }
+
+  .main-content.with-sidebar.descubrir-content {
+    padding-left: 56px;
+    padding-top: 55px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -56,5 +85,22 @@
 
   .main-content.with-sidebar.descubrir-content {
     padding-top: 114px;
+  }
+}
+
+/* El contenido siempre comienza debajo del navbar compacto. */
+@media (max-width: 1100px) {
+  .main-content.with-navbar,
+  .main-content.with-sidebar.with-navbar {
+    padding-top: 76px;
+  }
+
+  .main-content.with-sidebar {
+    padding-left: 56px;
+  }
+
+  .main-content.with-sidebar.descubrir-content {
+    padding-left: 56px;
+    padding-top: 55px;
   }
 }

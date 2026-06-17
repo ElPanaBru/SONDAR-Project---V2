@@ -13,5 +13,7 @@ const upload = multer({
 
 router.get('/', eventoController.listarEventos);
 router.post('/crear', authMiddleware, upload.single('imagen'), eventoController.crearEvento);
+router.post('/:id/guardar', authMiddleware, eventoController.alternarGuardado);
+router.delete('/:id', authMiddleware, eventoController.eliminarEvento);
 
 module.exports = router;
