@@ -1488,6 +1488,10 @@
     flex-direction: column;
     gap: 10px;
   }
+
+  .eventos-titulo .eventos-genero {
+    width: 100%;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -1528,7 +1532,7 @@
 
 .evento-modal {
   width: min(820px, calc(100vw - 96px));
-  height: min(460px, calc(100vh - 95px));
+  height: min(500px, calc(100vh - 95px));
   grid-template-rows: 56px minmax(0, 1fr);
   background: #0b0b0b;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1584,8 +1588,12 @@
 
 .evento-modal .evento-modal-form {
   gap: 6px;
-  padding: 12px 12px 12px calc(57% + 12px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 12px 12px 14px calc(57% + 12px);
   background: #0b0b0b;
+  scrollbar-color: rgba(255, 174, 0, 0.75) transparent;
+  scrollbar-width: thin;
 }
 
 .evento-modal-form > input,
@@ -1655,6 +1663,12 @@
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.evento-modal-form > .evento-file-clear {
+  flex: 0 0 30px;
+  min-height: 30px;
+  height: 30px;
 }
 
 .evento-modal-form > .evento-minimapa {

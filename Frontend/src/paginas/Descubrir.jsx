@@ -370,6 +370,17 @@ function AvatarComentario({ comentario }) {
   return inicialComentario(comentario);
 }
 
+function buscarAvatarEnComentarios(comentarios, userId) {
+  for (const comentario of comentarios || []) {
+    if (comentario.userId === userId && comentario.avatar) return comentario.avatar;
+
+    const avatarRespuesta = buscarAvatarEnComentarios(comentario.respuestas, userId);
+    if (avatarRespuesta) return avatarRespuesta;
+  }
+
+  return "";
+}
+
 const reelVacio = {
   tema: "",
   album: "",
@@ -514,7 +525,49 @@ export default function Descubrir({ usuario }) {
             })
           );
 
-          if (activo) setComentariosPorLanzamiento(Object.fromEntries(comentariosEntries));
+          const comentariosPorReel = Object.fromEntries(comentariosEntries);
+          let reelsConAvatar = reelsBackend.map((reel) => ({
+            ...reel,
+            avatar:
+              reel.avatar ||
+              buscarAvatarEnComentarios(comentariosPorReel[reel.id], reel.creadorId),
+          }));
+
+          if (token) {
+            const creadoresSinAvatar = [
+              ...new Set(
+                reelsConAvatar
+                  .filter((reel) => !reel.avatar && reel.creadorId)
+                  .map((reel) => reel.creadorId)
+              ),
+            ];
+
+            const avatarEntries = await Promise.all(
+              creadoresSinAvatar.map(async (creadorId) => {
+                try {
+                  const perfilResponse = await fetch(apiUrl(`/api/usuarios/${creadorId}/perfil`), {
+                    headers: { Authorization: `Bearer ${token}` },
+                  });
+                  if (!perfilResponse.ok) return [creadorId, ""];
+                  const perfilData = await perfilResponse.json();
+                  return [creadorId, perfilData.perfil?.avatar || ""];
+                } catch {
+                  return [creadorId, ""];
+                }
+              })
+            );
+            const avatarPorCreador = Object.fromEntries(avatarEntries);
+
+            reelsConAvatar = reelsConAvatar.map((reel) => ({
+              ...reel,
+              avatar: reel.avatar || avatarPorCreador[reel.creadorId] || "",
+            }));
+          }
+
+          if (activo) {
+            setLanzamientos(reelsConAvatar);
+            setComentariosPorLanzamiento(comentariosPorReel);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -733,6 +786,28 @@ export default function Descubrir({ usuario }) {
     };
   }, [audioReproduciendo, reproduciendo]);
 
+  useEffect(() => {
+    const pausarReelActivo = () => {
+      audioReelRef.current?.pause();
+      reproduciendoRef.current = null;
+      setReproduciendo(null);
+    };
+
+    const pausarSiNoEstaVisible = () => {
+      if (document.hidden) pausarReelActivo();
+    };
+
+    document.addEventListener("visibilitychange", pausarSiNoEstaVisible);
+    window.addEventListener("blur", pausarReelActivo);
+    window.addEventListener("pagehide", pausarReelActivo);
+
+    return () => {
+      document.removeEventListener("visibilitychange", pausarSiNoEstaVisible);
+      window.removeEventListener("blur", pausarReelActivo);
+      window.removeEventListener("pagehide", pausarReelActivo);
+    };
+  }, []);
+
   const mostrarAviso = (mensaje) => {
     clearTimeout(avisoTimer.current);
     setAviso(mensaje);
@@ -902,11 +977,21 @@ export default function Descubrir({ usuario }) {
       }
 
       const reelGuardado = await response.json();
-      const reel = {
+      let reel = {
         ...reelGuardado,
         id: `db-${reelGuardado.id}`,
         backendId: reelGuardado.backendId || reelGuardado.id,
       };
+
+      if (!reel.avatar) {
+        const perfilResponse = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => null);
+        if (perfilResponse?.ok) {
+          const perfilData = await perfilResponse.json();
+          reel = { ...reel, avatar: perfilData.perfil?.avatar || "" };
+        }
+      }
 
       setLanzamientos((actuales) => [reel, ...actuales]);
       setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
@@ -1493,9 +1578,8 @@ export default function Descubrir({ usuario }) {
                       aria-hidden="true"
                     />
                   ) : null}
-                  <span className="album-sello">SONDAR</span>
                   {lanzamiento.genero ? (
-                    <span className="album-genero">{mostrarGeneroReel(lanzamiento.genero)}</span>
+                    <span className="album-sello">{mostrarGeneroReel(lanzamiento.genero)}</span>
                   ) : null}
                   <span className="album-brillo" />
                   <span className="album-disco" />
@@ -1515,7 +1599,11 @@ export default function Descubrir({ usuario }) {
                       onClick={() => abrirArtista(lanzamiento)}
                       aria-label={`Ver perfil de ${lanzamiento.artista}`}
                     >
-                      {lanzamiento.artista.charAt(0)}
+                      {lanzamiento.avatar ? (
+                        <img src={lanzamiento.avatar} alt="" />
+                      ) : (
+                        lanzamiento.artista.charAt(0)
+                      )}
                     </button>
                     <div className="album-copy">
                       <div className="album-linea">
@@ -1867,9 +1955,8 @@ export default function Descubrir({ usuario }) {
                 className={`crear-reel-preview ${nuevoReel.portada ? "con-portada" : ""}`}
                 style={nuevoReel.portada ? { backgroundImage: `url(${nuevoReel.portada})` } : undefined}
               >
-                <span className="crear-reel-sello">SONDAR</span>
                 {nuevoReel.genero ? (
-                  <span className="crear-reel-genero">{mostrarGeneroReel(nuevoReel.genero)}</span>
+                  <span className="crear-reel-sello">{mostrarGeneroReel(nuevoReel.genero)}</span>
                 ) : null}
                 <div className="crear-reel-preview-copy">
                   <strong>{nuevoReel.album || "Nombre del reel"}</strong>

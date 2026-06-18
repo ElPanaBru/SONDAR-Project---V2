@@ -33,6 +33,16 @@
   padding-top: 72px;
 }
 
+.main-content.buscar-content {
+  padding: 0;
+  padding-top: 72px;
+}
+
+.main-content.with-sidebar.buscar-content {
+  padding-left: 58px;
+  padding-top: 72px;
+}
+
 @media (min-width: 1101px) {
   .main-content {
     padding: 15px;
@@ -56,6 +66,16 @@
     padding-left: 56px;
     padding-top: 55px;
   }
+
+  .main-content.buscar-content {
+    padding: 0;
+    padding-top: 55px;
+  }
+
+  .main-content.with-sidebar.buscar-content {
+    padding-left: 56px;
+    padding-top: 55px;
+  }
 }
 
 @media (max-width: 520px) {
@@ -64,6 +84,10 @@
   }
 
   .main-content.with-sidebar.descubrir-content {
+    padding-left: 54px;
+  }
+
+  .main-content.with-sidebar.buscar-content {
     padding-left: 54px;
   }
 }
@@ -76,6 +100,10 @@
   .main-content.with-sidebar.descubrir-content {
     padding-top: 92px;
   }
+
+  .main-content.with-sidebar.buscar-content {
+    padding-top: 92px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -84,6 +112,10 @@
   }
 
   .main-content.with-sidebar.descubrir-content {
+    padding-top: 114px;
+  }
+
+  .main-content.with-sidebar.buscar-content {
     padding-top: 114px;
   }
 }
@@ -100,6 +132,11 @@
   }
 
   .main-content.with-sidebar.descubrir-content {
+    padding-left: 56px;
+    padding-top: 55px;
+  }
+
+  .main-content.with-sidebar.buscar-content {
     padding-left: 56px;
     padding-top: 55px;
   }

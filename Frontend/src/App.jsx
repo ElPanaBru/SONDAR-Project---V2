@@ -9,6 +9,7 @@ import Auth from "./paginas/Auth";
 import Soporte from "./paginas/Soporte";
 import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
+import Buscar from "./paginas/Buscar";
 import Comunidad from "./paginas/Comunidad";
 import MiPerfil from "./paginas/Miperfil";
 import OtroPerfil from "./paginas/OtroPerfil";
@@ -34,6 +35,7 @@ function App() {
   const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
+  const isBuscarRoute = location.pathname === "/buscar";
 
   return (
     <div className="app-container">
@@ -43,6 +45,8 @@ function App() {
       <div
         className={`main-content ${!shouldHideNavbar ? "with-navbar with-sidebar" : ""} ${
           isDescubrirRoute ? "descubrir-content" : ""
+        } ${
+          isBuscarRoute ? "buscar-content" : ""
         }`}
       >
         <Routes>
@@ -51,6 +55,7 @@ function App() {
           <Route path="/auth" element={<Auth />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
           <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />
+          <Route path="/buscar" element={<Buscar usuario={usuario} />} />
           <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
           <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />

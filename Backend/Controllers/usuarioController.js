@@ -33,6 +33,22 @@ function mapearUsuarioPerfil(usuario) {
   };
 }
 
+function mapearUsuarioBusqueda(usuario, stats = {}) {
+  return {
+    id: usuario.id,
+    username: usuario.username,
+    user_type: usuario.user_type,
+    nombre: nombreVisible(usuario),
+    usuario: usuarioVisible(usuario),
+    bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
+    avatar: usuario.profile_img_url || '',
+    banner: usuario.banner_url || '',
+    verificado: Boolean(usuario.verified),
+    seguidores: Number(stats.seguidores || 0),
+    publicaciones: Number(stats.publicaciones || 0),
+  };
+}
+
 function mapearReelPerfil(reel) {
   return {
     id: reel.id,
@@ -218,6 +234,71 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
 }
 
 const usuariosController = {
+  buscarUsuarios: async (req, res) => {
+    const termino = String(req.query.query || '').trim();
+
+    if (!termino) {
+      return res.json([]);
+    }
+
+    try {
+      const patron = `%${termino}%`;
+      const result = await pool.query(
+        `SELECT *
+         FROM users
+         WHERE
+          username ILIKE $1 OR
+          email ILIKE $1 OR
+          COALESCE(full_name, '') ILIKE $1 OR
+          COALESCE(artist_name, '') ILIKE $1 OR
+          COALESCE(bio, '') ILIKE $1 OR
+          COALESCE(artist_bio, '') ILIKE $1
+         ORDER BY
+          CASE
+            WHEN lower(username) = lower($2) THEN 0
+            WHEN lower(COALESCE(artist_name, full_name, username)) = lower($2) THEN 1
+            ELSE 2
+          END,
+          created_at DESC
+         LIMIT 20`,
+        [patron, termino]
+      );
+
+      if (result.rows.length === 0) {
+        return res.json([]);
+      }
+
+      let statsPorUsuario = {};
+      try {
+        const statsResult = await pool.query(
+          `SELECT
+            u.id,
+            (SELECT COUNT(*)::int FROM follows f WHERE f.following_id = u.id) AS seguidores,
+            (
+              (SELECT COUNT(*)::int FROM reels r WHERE r.creador_id = u.id) +
+              (SELECT COUNT(*)::int FROM eventos e WHERE e.creador_id = u.id)
+            ) AS publicaciones
+           FROM users u
+           WHERE u.id = ANY($1::uuid[])`,
+          [result.rows.map((usuario) => usuario.id)]
+        );
+
+        statsPorUsuario = Object.fromEntries(
+          statsResult.rows.map((row) => [row.id, row])
+        );
+      } catch (error) {
+        if (error.code !== '42P01') throw error;
+      }
+
+      res.json(result.rows.map((usuario) =>
+        mapearUsuarioBusqueda(usuario, statsPorUsuario[usuario.id])
+      ));
+    } catch (error) {
+      console.error('Error al buscar usuarios:', error);
+      res.status(500).json({ error: 'No se pudieron buscar usuarios.' });
+    }
+  },
+
   crearCuenta: async (req, res) => {
     const { email, password, username, user_type } = req.body;
     const cleanEmail = email?.trim().toLowerCase();

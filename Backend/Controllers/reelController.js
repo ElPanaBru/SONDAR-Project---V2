@@ -60,6 +60,7 @@ function mapearReel(reel) {
     colorC: '#111111',
     portada: reel.portada_url,
     audio: reel.audio_url,
+    avatar: reel.creador_avatar || reel.profile_img_url || '',
     liked: false,
     guardado: false,
     siguiendo: false,
@@ -145,7 +146,8 @@ const reelController = {
         SELECT
           r.*,
           COALESCE(u.username, u.email) AS creador_nombre,
-          u.email AS creador_email
+          u.email AS creador_email,
+          u.profile_img_url AS creador_avatar
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
         ORDER BY r.created_at DESC, r.id DESC
@@ -290,10 +292,16 @@ const reelController = {
         ]
       );
 
+      const usuarioResult = await pool.query(
+        'SELECT profile_img_url FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
       res.status(201).json(mapearReel({
         ...result.rows[0],
         creador_nombre: req.user.user_metadata?.username || req.user.email?.split('@')[0],
-        creador_email: req.user.email
+        creador_email: req.user.email,
+        creador_avatar: usuarioResult.rows[0]?.profile_img_url || ''
       }));
     } catch (error) {
       await eliminarArchivoReel(portadaSubida?.path).catch(() => null);

@@ -8,6 +8,7 @@ router.get('/me', authMiddleware, usuariosController.verificarUsuario);
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, usuariosController.actualizarPerfilActual);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
+router.get('/', usuariosController.buscarUsuarios);
 router.post('/registrar', authMiddleware, usuariosController.registrarUsuario);
 router.post('/convertir-a-musico', authMiddleware, usuariosController.convertirAMusico);
 router.delete('/me', authMiddleware, usuariosController.eliminarCuentaActual);

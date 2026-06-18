@@ -116,9 +116,14 @@ function Navbar({ usuario }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (location.pathname !== "/buscar") return;
+    const queryActual = new URLSearchParams(location.search).get("query") || "";
+    setBusqueda(queryActual);
+  }, [location.pathname, location.search]);
+
   const handleSearch = (e) => {
     e.preventDefault();
-    const ruta = location.pathname;
     const query = busqueda.trim();
 
     if (!query) return;
@@ -127,17 +132,11 @@ function Navbar({ usuario }) {
     setMostrarNotifs(false);
     setMostrarPerfil(false);
 
-    if (ruta === "/comunidad") {
-      navigate(`/comunidad?comunidad=${query}`);
-    } else {
-      navigate(`/descubrir?query=${query}`);
-    }
+    navigate(`/buscar?query=${encodeURIComponent(query)}`);
   };
 
   const getPlaceholder = () => {
-    const ruta = location.pathname;
-    if (ruta === "/comunidad") return "Buscar comunidades...";
-    return "Buscar artistas o canciones...";
+    return "Buscar usuarios, reels o eventos...";
   };
 
   const handleLogout = async () => {
