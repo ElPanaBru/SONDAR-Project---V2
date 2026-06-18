@@ -1706,23 +1706,29 @@
   left: 20px;
   z-index: 1;
   display: grid;
-  gap: 5px;
+  gap: 6px;
+  color: #ffffff;
+  text-shadow: var(--reel-texto-difuminado);
 }
 
 .crear-reel-preview-copy strong {
   overflow-wrap: anywhere;
   font-size: clamp(30px, 4vw, 48px);
-  line-height: 0.94;
+  line-height: 1.12;
+  padding-bottom: 0.2em;
 }
 
 .crear-reel-preview-copy span {
+  color: #ffffff;
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 900;
+  line-height: 1.18;
 }
 
 .crear-reel-preview-copy small {
-  color: rgba(255, 255, 255, 0.72);
+  color: rgba(255, 255, 255, 0.82);
   font-weight: 800;
+  text-shadow: var(--reel-texto-difuminado-chico);
 }
 
 .crear-reel-campos {

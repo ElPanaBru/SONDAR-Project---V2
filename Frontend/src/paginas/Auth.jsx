@@ -150,65 +150,105 @@ export default function Auth() {
   };
 
   return (
-    <div className="auth-container">
-      <div className="switch-container">
-        <button
-          type="button"
-          onClick={() => { setModo("login"); setMensaje(""); }}
-          className={`switch-btn ${modo === "login" ? "active" : ""}`}
-        >
-          Login
-        </button>
+    <section className="auth-page">
+      <video
+        className="auth-video"
+        src="/auth-background.mp4"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        onLoadedMetadata={(event) => {
+          event.currentTarget.playbackRate = 1.45;
+        }}
+        aria-hidden="true"
+      />
+      <div className="auth-overlay" />
 
-        <button
-          type="button"
-          onClick={() => { setModo("registro"); setMensaje(""); }}
-          className={`switch-btn ${modo === "registro" ? "active" : ""}`}
-        >
-          Registro
-        </button>
+      <div className="auth-shell">
+        <div className="auth-hero">
+          <img src="/logo.png" alt="SONDAR" />
+          <span>SONDAR</span>
+          <h1>Tu musica empieza aca.</h1>
+          <p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>
+        </div>
+
+        <div className="auth-card">
+          <div className="switch-container" role="tablist" aria-label="Modo de acceso">
+            <button
+              type="button"
+              onClick={() => { setModo("login"); setMensaje(""); }}
+              className={`switch-btn ${modo === "login" ? "active" : ""}`}
+              aria-selected={modo === "login"}
+            >
+              Login
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setModo("registro"); setMensaje(""); }}
+              className={`switch-btn ${modo === "registro" ? "active" : ""}`}
+              aria-selected={modo === "registro"}
+            >
+              Registro
+            </button>
+          </div>
+
+          <div className="auth-heading">
+            <span>{modo === "login" ? "Bienvenido de vuelta" : "Nuevo en SONDAR"}</span>
+            <h2>{modo === "login" ? "Iniciar sesion" : "Crear cuenta"}</h2>
+          </div>
+
+          <form className="auth-form" onSubmit={handleSubmit}>
+            {modo === "registro" && (
+              <label className="auth-field">
+                Nombre de usuario
+                <input
+                  type="text"
+                  placeholder="Tu nombre artistico"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  className="auth-input"
+                />
+              </label>
+            )}
+
+            <label className="auth-field">
+              Correo
+              <input
+                type="email"
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </label>
+
+            <label className="auth-field">
+              Contrasena
+              <input
+                type="password"
+                placeholder="Minimo 6 caracteres"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </label>
+
+            <button type="submit" disabled={loading} className="auth-btn">
+              {loading
+                ? (modo === "login" ? "Ingresando..." : "Registrando...")
+                : (modo === "login" ? "Ingresar" : "Registrarse")}
+            </button>
+          </form>
+
+          {mensaje && <p className="auth-msg">{mensaje}</p>}
+        </div>
       </div>
-
-      <h2>{modo === "login" ? "Iniciar sesion" : "Crear cuenta"}</h2>
-
-      <form onSubmit={handleSubmit}>
-        {modo === "registro" && (
-          <input
-            type="text"
-            placeholder="Nombre de usuario"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            className="auth-input"
-          />
-        )}
-
-        <input
-          type="email"
-          placeholder="Correo"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="auth-input"
-        />
-
-        <input
-          type="password"
-          placeholder="Contraseña"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          className="auth-input"
-        />
-
-        <button type="submit" disabled={loading} className="auth-btn">
-          {loading
-            ? (modo === "login" ? "Ingresando..." : "Registrando...")
-            : (modo === "login" ? "Ingresar" : "Registrarse")}
-        </button>
-      </form>
-
-      {mensaje && <p className="auth-msg">{mensaje}</p>}
-    </div>
+    </section>
   );
 }

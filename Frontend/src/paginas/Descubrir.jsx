@@ -425,6 +425,9 @@ export default function Descubrir({ usuario }) {
   const avisoTimer = useRef(null);
   const comentariosAnimacionTimer = useRef(null);
   const audioReelRef = useRef(null);
+  const audioReelActivoIdRef = useRef(null);
+  const tiemposReelRef = useRef({});
+  const reelPausadoPorUsuarioRef = useRef(null);
   const portadaReelInputRef = useRef(null);
   const audioReelInputRef = useRef(null);
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
@@ -447,6 +450,15 @@ export default function Descubrir({ usuario }) {
   const idsLanzamientosFiltrados = lanzamientosFiltrados
     .map((lanzamiento) => lanzamiento.id)
     .join(",");
+
+  const guardarTiempoAudioActual = () => {
+    const audio = audioReelRef.current;
+    const id = audioReelActivoIdRef.current;
+
+    if (audio && id !== null && Number.isFinite(audio.currentTime)) {
+      tiemposReelRef.current[id] = audio.currentTime;
+    }
+  };
 
   useEffect(() => {
     reproduciendoRef.current = reproduciendo;
@@ -608,7 +620,9 @@ export default function Descubrir({ usuario }) {
         const idRaw = visible.target.getAttribute("data-reel-id");
         const id = idRaw?.startsWith("db-") ? idRaw : Number(idRaw);
         if (!id || reproduciendoRef.current === id) return;
+        if (reelPausadoPorUsuarioRef.current === id) return;
 
+        reelPausadoPorUsuarioRef.current = null;
         reproduciendoRef.current = id;
         setReproduciendo(id);
         if (comentariosAbiertosRef.current !== null) {
@@ -617,7 +631,7 @@ export default function Descubrir({ usuario }) {
           comentariosAbiertosRef.current = id;
           setComentariosAbiertos(id);
         }
-        setProgresos((prev) => ({ ...prev, [id]: 0 }));
+        setProgresos((prev) => (prev[id] === undefined ? { ...prev, [id]: 0 } : prev));
       },
       {
         root: pista,
@@ -758,31 +772,61 @@ export default function Descubrir({ usuario }) {
 
   useEffect(() => {
     if (!audioReproduciendo || reproduciendo === null) {
+      guardarTiempoAudioActual();
       audioReelRef.current?.pause();
       return undefined;
     }
 
     const idReel = reproduciendo;
     const audio = new Audio(audioReproduciendo);
+    const tiemposReel = tiemposReelRef.current;
     audio.loop = true;
+    audio.preload = "metadata";
+    guardarTiempoAudioActual();
     audioReelRef.current?.pause();
     audioReelRef.current = audio;
+    audioReelActivoIdRef.current = idReel;
+
+    const restaurarTiempoGuardado = () => {
+      const tiempoGuardado = tiemposReel[idReel];
+      if (!Number.isFinite(tiempoGuardado) || tiempoGuardado <= 0) return;
+
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        audio.currentTime = Math.min(tiempoGuardado, Math.max(0, audio.duration - 0.1));
+      } else {
+        audio.currentTime = tiempoGuardado;
+      }
+    };
 
     const actualizarProgreso = () => {
       if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
+      tiemposReel[idReel] = audio.currentTime;
       setProgresos((actuales) => ({
         ...actuales,
         [idReel]: (audio.currentTime / audio.duration) * 100,
       }));
     };
 
+    try {
+      restaurarTiempoGuardado();
+    } catch {
+      audio.addEventListener("loadedmetadata", restaurarTiempoGuardado, { once: true });
+    }
+
     audio.addEventListener("timeupdate", actualizarProgreso);
     audio.play().catch(() => setReproduciendo(null));
 
     return () => {
+      if (Number.isFinite(audio.currentTime)) {
+        tiemposReel[idReel] = audio.currentTime;
+      }
       audio.pause();
       audio.removeEventListener("timeupdate", actualizarProgreso);
-      if (audioReelRef.current === audio) audioReelRef.current = null;
+      audio.removeEventListener("loadedmetadata", restaurarTiempoGuardado);
+      if (audioReelRef.current === audio) {
+        audioReelRef.current = null;
+        audioReelActivoIdRef.current = null;
+      }
     };
   }, [audioReproduciendo, reproduciendo]);
 
@@ -1172,6 +1216,12 @@ export default function Descubrir({ usuario }) {
   const alternarReproduccion = (id) => {
     setReproduciendo((actual) => {
       const siguiente = actual === id ? null : id;
+      if (actual === id) {
+        guardarTiempoAudioActual();
+        reelPausadoPorUsuarioRef.current = id;
+      } else {
+        reelPausadoPorUsuarioRef.current = null;
+      }
       reproduciendoRef.current = siguiente;
       return siguiente;
     });
