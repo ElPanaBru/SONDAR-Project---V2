@@ -130,15 +130,8 @@ export default function OtroPerfil({ usuarioActual }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
 
-        if (!token) {
-          setAviso("Inicia sesion para ver perfiles registrados.");
-          return;
-        }
-
         const response = await fetch(apiUrl(`/api/usuarios/${identificador}/perfil`), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
         if (!response.ok) {
@@ -218,6 +211,7 @@ export default function OtroPerfil({ usuarioActual }) {
   };
 
   const abrirListaSocial = (tipo) => {
+    if (!usuarioActual) return;
     setListaSocialActiva(tipo);
   };
 
@@ -302,12 +296,20 @@ export default function OtroPerfil({ usuarioActual }) {
 
           <div className="perfil-stats">
             <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
-            <button type="button" onClick={() => abrirListaSocial("seguidores")}>
-              <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
-            </button>
-            <button type="button" onClick={() => abrirListaSocial("seguidos")}>
-              <strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos
-            </button>
+            {usuarioActual ? (
+              <button type="button" onClick={() => abrirListaSocial("seguidores")}>
+                <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
+              </button>
+            ) : (
+              <p><strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores</p>
+            )}
+            {usuarioActual ? (
+              <button type="button" onClick={() => abrirListaSocial("seguidos")}>
+                <strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos
+              </button>
+            ) : (
+              <p><strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos</p>
+            )}
           </div>
 
           <div className="perfil-description">

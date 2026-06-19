@@ -4,6 +4,7 @@ const supabase = require('./supabaseClient');
 
 const EVENTOS_BUCKET = process.env.SUPABASE_EVENTOS_BUCKET || 'eventos';
 const REELS_BUCKET = process.env.SUPABASE_REELS_BUCKET || 'reels';
+const PERFILES_BUCKET = process.env.SUPABASE_PERFILES_BUCKET || 'perfiles';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -99,6 +100,10 @@ async function subirAudioReel(file) {
   return subirArchivo(REELS_BUCKET, 'reels/audios', file, validarAudio);
 }
 
+async function subirAvatarUsuario(file, userId) {
+  return subirArchivo(PERFILES_BUCKET, `usuarios/${userId}`, file, validarImagen);
+}
+
 async function eliminarImagenEvento(storagePath) {
   if (!storagePath) return;
 
@@ -115,10 +120,20 @@ async function eliminarArchivoReel(storagePath) {
     .remove([storagePath]);
 }
 
+async function eliminarAvatarUsuario(storagePath) {
+  if (!storagePath) return;
+
+  await supabase.storage
+    .from(PERFILES_BUCKET)
+    .remove([storagePath]);
+}
+
 module.exports = {
   subirImagenEvento,
   eliminarImagenEvento,
   subirPortadaReel,
   subirAudioReel,
-  eliminarArchivoReel
+  eliminarArchivoReel,
+  subirAvatarUsuario,
+  eliminarAvatarUsuario
 };

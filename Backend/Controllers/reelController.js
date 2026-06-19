@@ -552,11 +552,13 @@ const reelController = {
         [req.user.id, id]
       );
 
-      if (compartido.rowCount > 0) {
-        await client.query('UPDATE reels SET compartidos = compartidos + 1 WHERE id = $1', [id]);
-      }
-
-      const counts = await client.query('SELECT compartidos FROM reels WHERE id = $1', [id]);
+      const counts = await client.query(
+        `UPDATE reels
+         SET compartidos = (SELECT COUNT(*)::int FROM reel_shares WHERE reel_id = $1)
+         WHERE id = $1
+         RETURNING compartidos`,
+        [id]
+      );
       await client.query('COMMIT');
 
       res.json({

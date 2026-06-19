@@ -2412,8 +2412,8 @@ export default function Descubrir({ usuario }) {
             <strong>{perfilVista.perfil.nombre}</strong>
             <small>{perfilVista.perfil.usuario}</small>
             <div className="perfil-vista-stats">
-              <span><b>{formatearNumero(perfilVista.stats.seguidores)}</b> Seguidores</span>
-              <span><b>{formatearNumero(perfilVista.stats.publicaciones)}</b> Publicaciones</span>
+              <span><b>{formatearConteo(perfilVista.stats.seguidores)}</b> Seguidores</span>
+              <span><b>{formatearConteo(perfilVista.stats.publicaciones)}</b> Publicaciones</span>
             </div>
             <p>{perfilVista.perfil.bio}</p>
             <div className="perfil-vista-actions">

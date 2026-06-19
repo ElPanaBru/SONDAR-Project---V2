@@ -1,5 +1,11 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const {
+  subirAvatarUsuario,
+  eliminarAvatarUsuario,
+  eliminarImagenEvento,
+  eliminarArchivoReel,
+} = require('../services/storageService');
 
 function nombreVisible(usuario) {
   return (
@@ -411,15 +417,35 @@ const usuariosController = {
     const { identificador } = req.params;
 
     try {
-      await asegurarUsuarioPublico(req.user);
+      if (req.user) {
+        await asegurarUsuarioPublico(req.user);
+      }
       const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
 
       if (!usuarioEncontrado) {
         return res.status(404).json({ error: 'Perfil no encontrado.' });
       }
 
-      const datosPerfil = await obtenerDatosPerfil(usuarioEncontrado.id, req.user.id);
-      res.json(datosPerfil);
+      const datosPerfil = await obtenerDatosPerfil(usuarioEncontrado.id, req.user?.id);
+      const {
+        perfil,
+        publicaciones,
+        eventos,
+        seguidores,
+        seguidos,
+        siguiendo,
+        stats,
+      } = datosPerfil;
+
+      res.json({
+        perfil,
+        publicaciones,
+        eventos,
+        seguidores: req.user ? seguidores : [],
+        seguidos: req.user ? seguidos : [],
+        siguiendo,
+        stats,
+      });
     } catch (error) {
       console.error('Error al obtener perfil publico:', error);
       res.status(500).json({ error: 'No se pudo cargar el perfil.' });
@@ -429,6 +455,7 @@ const usuariosController = {
   actualizarPerfilActual: async (req, res) => {
     const { nombre, bio, avatar } = req.body;
     const nombreLimpio = nombre?.trim();
+    let avatarSubido = null;
 
     if (!nombreLimpio) {
       return res.status(400).json({ error: 'El nombre es obligatorio.' });
@@ -436,6 +463,12 @@ const usuariosController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
+      const perfilAnterior = await pool.query(
+        'SELECT profile_img_path FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+      const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
       const result = await pool.query(
         `UPDATE users
          SET full_name = $1,
@@ -443,20 +476,33 @@ const usuariosController = {
              username = $2,
              bio = $3,
              profile_img_url = COALESCE($4, profile_img_url),
+             profile_img_path = COALESCE($5, profile_img_path),
              updated_at = timezone('utc'::text, now())
-         WHERE id = $5
+         WHERE id = $6
          RETURNING *`,
         [
           nombreLimpio,
           nombreLimpio.toLowerCase().replace(/\s+/g, '_').slice(0, 40),
           bio || '',
-          avatar || null,
+          avatarUrl,
+          avatarSubido?.path || null,
           req.user.id,
         ]
       );
 
+      const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
+      if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
+        await eliminarAvatarUsuario(avatarAnteriorPath).catch((error) => {
+          console.error('No se pudo eliminar el avatar anterior:', error);
+        });
+      }
+
       res.json(mapearUsuarioPerfil(result.rows[0]));
     } catch (error) {
+      if (avatarSubido?.path) {
+        await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      }
+
       if (error.code === '23505') {
         return res.status(400).json({ error: 'Ese nombre de usuario ya esta en uso.' });
       }
@@ -613,11 +659,13 @@ const usuariosController = {
 
   eliminarCuentaActual: async (req, res) => {
     const userId = req.user.id;
-    const client = await pool.connect();
 
     try {
-      await client.query('BEGIN');
-      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+      const [perfil, eventos, reels] = await Promise.all([
+        pool.query('SELECT profile_img_path FROM users WHERE id = $1', [userId]),
+        pool.query('SELECT img_path FROM eventos WHERE creador_id = $1', [userId]),
+        pool.query('SELECT portada_path, audio_path FROM reels WHERE creador_id = $1', [userId]),
+      ]);
 
       const { error } = await supabase.auth.admin.deleteUser(userId);
 
@@ -625,14 +673,20 @@ const usuariosController = {
         throw new Error(error.message);
       }
 
-      await client.query('COMMIT');
+      const eliminacionesStorage = [
+        eliminarAvatarUsuario(perfil.rows[0]?.profile_img_path),
+        ...eventos.rows.map((evento) => eliminarImagenEvento(evento.img_path)),
+        ...reels.rows.flatMap((reel) => [
+          eliminarArchivoReel(reel.portada_path),
+          eliminarArchivoReel(reel.audio_path),
+        ]),
+      ];
+      await Promise.allSettled(eliminacionesStorage);
+
       res.json({ success: true });
     } catch (error) {
-      await client.query('ROLLBACK');
       console.error('Error al eliminar cuenta:', error);
       res.status(500).json({ error: 'No se pudo eliminar la cuenta.' });
-    } finally {
-      client.release();
     }
   }
 };

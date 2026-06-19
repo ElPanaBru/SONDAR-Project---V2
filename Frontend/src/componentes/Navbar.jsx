@@ -37,11 +37,19 @@ function Navbar({ usuario }) {
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilGuardado(usuario));
+  const [avatarArchivo, setAvatarArchivo] = useState(null);
   const crearRef = useRef(null);
   const notificacionesRef = useRef(null);
   const perfilRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const avatarPreview = perfilEditado.avatar;
+    return () => {
+      if (avatarPreview?.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [perfilEditado.avatar]);
 
   useEffect(() => {
     const actualizarPerfil = (event) => {
@@ -149,12 +157,6 @@ function Navbar({ usuario }) {
     }
   };
 
-  const abrirEditor = () => {
-    setPerfilEditado((actual) => ({ ...perfilGuardado(usuario), ...actual }));
-    setMostrarPerfil(false);
-    setMostrarEditor(true);
-  };
-
   const handlePerfilChange = (e) => {
     setPerfilEditado({
       ...perfilEditado,
@@ -166,14 +168,11 @@ function Navbar({ usuario }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPerfilEditado((prev) => ({
-        ...prev,
-        avatar: reader.result || "",
-      }));
-    };
-    reader.readAsDataURL(file);
+    setAvatarArchivo(file);
+    setPerfilEditado((prev) => ({
+      ...prev,
+      avatar: URL.createObjectURL(file),
+    }));
   };
 
   const guardarPerfil = async (e) => {
@@ -184,19 +183,24 @@ function Navbar({ usuario }) {
       const token = data.session?.access_token;
       if (!token) return;
 
+      const formData = new FormData();
+      formData.append("nombre", perfilEditado.nombre);
+      formData.append("bio", perfilEditado.bio || "");
+      if (avatarArchivo) formData.append("avatar", avatarArchivo);
+
       const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(perfilEditado),
+        body: formData,
       });
 
       if (!response.ok) return;
 
       const perfilGuardadoBackend = await response.json();
       setPerfilEditado(perfilGuardadoBackend);
+      setAvatarArchivo(null);
       window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilGuardadoBackend }));
       setMostrarEditor(false);
     } catch (error) {

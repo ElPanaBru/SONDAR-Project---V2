@@ -111,8 +111,8 @@ const eventoController = {
       imagenSubida = await subirImagenEvento(req.file);
 
       const query = `
-        INSERT INTO eventos (titulo, genero, lugar, fecha, img_url, precio, link, creador_id, latitud, longitud)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO eventos (titulo, genero, lugar, fecha, img_url, img_path, precio, link, creador_id, latitud, longitud)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`;
 
       const values = [
@@ -121,6 +121,7 @@ const eventoController = {
         ubicacion,
         fecha,
         imagenSubida?.publicUrl || null,
+        imagenSubida?.path || null,
         precioNormalizado,
         link || null,
         creadorId,
@@ -149,13 +150,17 @@ const eventoController = {
 
     try {
       const result = await pool.query(
-        'DELETE FROM eventos WHERE id = $1 AND creador_id = $2 RETURNING id',
+        'DELETE FROM eventos WHERE id = $1 AND creador_id = $2 RETURNING id, img_path',
         [id, creadorId]
       );
 
       if (result.rowCount === 0) {
         return res.status(404).json({ error: 'Evento no encontrado o sin permiso para eliminarlo.' });
       }
+
+      await eliminarImagenEvento(result.rows[0].img_path).catch((error) => {
+        console.error('No se pudo eliminar la imagen del evento:', error);
+      });
 
       res.json({ ok: true, id: result.rows[0].id });
     } catch (error) {

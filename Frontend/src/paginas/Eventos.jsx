@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import "leaflet/dist/leaflet.css";
@@ -13,13 +13,45 @@ const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
   "cumbia", "trap", "metal", "folklore", "otros"
 ];
+const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
 
 const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
+const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
+const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
+const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const crearEventoVacio = () => ({
+  titulo: "",
+  genero: "",
+  lugar: "",
+  fecha: "",
+  hora: "",
+  precio: "",
+  link: "",
+  imagen: null,
+  nombreImagen: "",
+  ...COORDENADAS_INICIALES,
+});
+
+const mapearEvento = (evento) => ({
+  ...evento,
+  img: evento.img || evento.img_url,
+  coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
+});
+
+const tieneCoordenadasValidas = (evento) =>
+  evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1]);
 
 const normalizarGenero = (genero) => {
   const gen = genero?.trim().toLowerCase() || "otros";
-  return GENEROS_PERMITIDOS.includes(gen) ? gen : "otros";
+  return GENEROS_PERMITIDOS_SET.has(gen) ? gen : "otros";
 };
 
 const mostrarGenero = (genero) => {
@@ -44,6 +76,20 @@ const acercarMapaABounds = (mapa, bounds, maxZoom) => {
     duration: DURACION_ACERCAMIENTO_MAPA,
     easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
   });
+};
+
+const formatearFecha = (fecha, hora) => {
+  if (!fecha || !hora) return "";
+  return new Date(`${fecha}T${hora}`).toISOString();
+};
+
+const formatearFechaVisible = (fecha) => {
+  if (!fecha) return "Sin fecha";
+
+  const valor = new Date(fecha);
+  if (Number.isNaN(valor.getTime())) return fecha;
+
+  return FORMATEADOR_FECHA_VISIBLE.format(valor);
 };
 
 export default function Eventos({ usuario }) {
@@ -81,21 +127,19 @@ export default function Eventos({ usuario }) {
   const [subiendo, setSubiendo] = useState(false);
 
   // Estado del nuevo evento
-  const [nuevoEvento, setNuevoEvento] = useState({
-    titulo: "",
-    genero: "",
-    lugar: "", 
-    fecha: "",
-    hora: "",
-    precio: "",
-    link: "",
-    imagen: null,
-    nombreImagen: "",
-    lat: -34.6037, 
-    lng: -58.3816
-  });
+  const [nuevoEvento, setNuevoEvento] = useState(crearEventoVacio);
 
-  const coordsInicialesRef = useRef({ lat: -34.6037, lng: -58.3816 });
+  const coordsInicialesRef = useRef(COORDENADAS_INICIALES);
+
+  const mostrarAviso = useCallback((mensaje) => {
+    clearTimeout(avisoTimer.current);
+    setAviso(mensaje);
+    avisoTimer.current = setTimeout(() => {
+      setAviso("");
+    }, 2400);
+  }, []);
+
+  useEffect(() => () => clearTimeout(avisoTimer.current), []);
 
   // 1. Carga inicial de eventos desde el Backend
   useEffect(() => {
@@ -113,11 +157,7 @@ export default function Eventos({ usuario }) {
         });
         if (res.ok) {
           const data = await res.json();
-          const eventosMapeados = data.map(ev => ({
-            ...ev,
-            img: ev.img || ev.img_url,
-            coords: [parseFloat(ev.latitud), parseFloat(ev.longitud)]
-          }));
+          const eventosMapeados = data.map(mapearEvento);
           
           if (isMounted) {
             setEventos(eventosMapeados);
@@ -156,6 +196,11 @@ export default function Eventos({ usuario }) {
     [eventos, filtroGenero]
   );
 
+  const eventosConCoordenadas = useMemo(
+    () => eventosFiltrados.filter(tieneCoordenadasValidas),
+    [eventosFiltrados]
+  );
+
   // 2. Inicialización del Mapa Principal (Modo Oscuro)
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
@@ -188,9 +233,10 @@ export default function Eventos({ usuario }) {
 
   useEffect(() => {
     if (!loading && mapInstance.current) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         mapInstance.current.invalidateSize();
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [loading]);
 
@@ -216,7 +262,7 @@ export default function Eventos({ usuario }) {
       return;
     }
     setMostrarModal(true);
-  }, [crearEventoParam, usuario]);
+  }, [crearEventoParam, mostrarAviso, usuario]);
 
   // 3. Inicialización del MINI MAPA (Clásico/Ordinario y grande)
   useEffect(() => {
@@ -249,7 +295,7 @@ export default function Eventos({ usuario }) {
     miniMapInstance.current = miniMap;
 
     // Redibujado seguro contemplando el nuevo tamaño del modal
-    setTimeout(() => {
+    const resizeTimer = setTimeout(() => {
       miniMap.invalidateSize();
     }, 250);
 
@@ -264,6 +310,7 @@ export default function Eventos({ usuario }) {
     });
 
     return () => {
+      clearTimeout(resizeTimer);
       if (miniMapInstance.current) {
         miniMapInstance.current.remove();
         miniMapInstance.current = null;
@@ -277,13 +324,10 @@ export default function Eventos({ usuario }) {
 
     markersLayer.current.clearLayers();
     const map = mapInstance.current;
-    const eventosValidos = eventosFiltrados.filter(
-      (evento) => evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1])
-    );
     const distanciaAgrupacion = zoomMapa >= 15 ? 34 : zoomMapa >= 12 ? 58 : 82;
     const grupos = [];
 
-    eventosValidos.forEach((evento) => {
+    eventosConCoordenadas.forEach((evento) => {
       const punto = map.project(evento.coords, zoomMapa);
       const grupoCercano = grupos.find((grupo) => grupo.punto.distanceTo(punto) < distanciaAgrupacion);
 
@@ -360,21 +404,19 @@ export default function Eventos({ usuario }) {
 
       marker.addTo(markersLayer.current);
     });
-  }, [eventosFiltrados, eventoActivo, zoomMapa]);
+  }, [eventosConCoordenadas, eventoActivo, zoomMapa]);
 
   // 5. Encuadre automático del mapa principal
   useEffect(() => {
-    if (!mapInstance.current || eventosFiltrados.length === 0) return;
-    
-    const coordsValidas = eventosFiltrados
-      .filter(ev => ev.coords && !isNaN(ev.coords[0]) && !isNaN(ev.coords[1]))
-      .map(ev => ev.coords);
+    if (!mapInstance.current || eventosConCoordenadas.length === 0) return;
+
+    const coordsValidas = eventosConCoordenadas.map((evento) => evento.coords);
 
     if (coordsValidas.length === 0) return;
 
     const bounds = L.latLngBounds(coordsValidas);
    acercarMapaABounds(mapInstance.current, bounds, 13);
-  }, [eventosFiltrados]);
+  }, [eventosConCoordenadas]);
 
   // Funciones Auxiliares de UI
   const toggleGuardar = async (id) => {
@@ -460,27 +502,19 @@ export default function Eventos({ usuario }) {
     }
   };
 
-  const handleCrearEvento = () => {
+  const handleCrearEvento = useCallback(() => {
     if (!usuario) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
     setMostrarModal(true);
-  };
+  }, [mostrarAviso, usuario]);
 
   useEffect(() => {
     const abrirDesdeSidebar = () => handleCrearEvento();
     window.addEventListener("sondar:crear-evento", abrirDesdeSidebar);
     return () => window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
-  });
-
-  const mostrarAviso = (mensaje) => {
-    clearTimeout(avisoTimer.current);
-    setAviso(mensaje);
-    avisoTimer.current = setTimeout(() => {
-      setAviso("");
-    }, 2400);
-  };
+  }, [handleCrearEvento]);
 
   const handleFiltroGenero = (genero) => {
     setFiltroGenero(genero);
@@ -493,10 +527,8 @@ export default function Eventos({ usuario }) {
   };
 
   const handleChange = (e) => {
-    setNuevoEvento({
-      ...nuevoEvento,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    setNuevoEvento((actual) => ({ ...actual, [name]: value }));
   };
 
 const handleImagen = (e) => {
@@ -519,27 +551,6 @@ const handleImagen = (e) => {
     }));
   };
 
-  const formatearFecha = (fecha, hora) => {
-    if (!fecha || !hora) return "";
-    const fechaObj = new Date(`${fecha}T${hora}`);
-    return fechaObj.toISOString();
-  };
-
-  const formatearFechaVisible = (fecha) => {
-    if (!fecha) return "Sin fecha";
-
-    const valor = new Date(fecha);
-    if (Number.isNaN(valor.getTime())) return fecha;
-
-    return new Intl.DateTimeFormat("es-AR", {
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(valor);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -557,8 +568,7 @@ const handleImagen = (e) => {
     }
 
     const fechaEvento = new Date(`${fechaInput}T${horaInput}`);
-    const dosMesesEnMs = 1000 * 60 * 60 * 24 * 30 * 2;
-    const maxFecha = new Date(ahora.getTime() + dosMesesEnMs);
+    const maxFecha = new Date(ahora.getTime() + DOS_MESES_EN_MS);
 
 
     if (Number.isNaN(fechaEvento.getTime())) {
@@ -625,22 +635,16 @@ const handleImagen = (e) => {
 
       const eventoGuardado = await response.json();
       
-      const eventoParaMapa = {
-        ...eventoGuardado,
-        img: eventoGuardado.img || eventoGuardado.img_url,
-        coords: [parseFloat(eventoGuardado.latitud), parseFloat(eventoGuardado.longitud)]
-      };
+      const eventoParaMapa = mapearEvento(eventoGuardado);
 
-      setEventos([eventoParaMapa, ...eventos]);
+      setEventos((actuales) => [eventoParaMapa, ...actuales]);
       setUltimoEventoDetalle(eventoParaMapa);
       setEventoActivo(eventoParaMapa.id);
       
       setMostrarModal(false);
       if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
 
-      setNuevoEvento({
-        titulo: "", genero: "", lugar: "", fecha: "", hora: "", precio: "", link: "", imagen: null, nombreImagen: "", lat: -34.6037, lng: -58.3816
-      });
+      setNuevoEvento(crearEventoVacio());
 
       mostrarAviso("¡Evento creado con éxito!");
 

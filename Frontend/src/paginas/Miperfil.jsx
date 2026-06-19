@@ -102,6 +102,7 @@ export default function MiPerfil({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
+  const [avatarArchivo, setAvatarArchivo] = useState(null);
 
   const opcionesPerfil = useMemo(
     () => [
@@ -115,6 +116,13 @@ export default function MiPerfil({ usuario }) {
 
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
   const inicial = perfil.nombre.trim().charAt(0).toUpperCase() || "S";
+
+  useEffect(() => {
+    const avatarPreview = perfilEditado.avatar;
+    return () => {
+      if (avatarPreview?.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [perfilEditado.avatar]);
 
   useEffect(() => {
     let activo = true;
@@ -175,11 +183,13 @@ export default function MiPerfil({ usuario }) {
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
+    setAvatarArchivo(null);
     setEditando(true);
   };
 
   const cerrarEditor = () => {
     setPerfilEditado(perfil);
+    setAvatarArchivo(null);
     setEditando(false);
   };
 
@@ -194,14 +204,11 @@ export default function MiPerfil({ usuario }) {
     const file = event.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPerfilEditado((prev) => ({
-        ...prev,
-        avatar: reader.result,
-      }));
-    };
-    reader.readAsDataURL(file);
+    setAvatarArchivo(file);
+    setPerfilEditado((prev) => ({
+      ...prev,
+      avatar: URL.createObjectURL(file),
+    }));
   };
 
   const guardarPerfil = async (event) => {
@@ -215,13 +222,17 @@ export default function MiPerfil({ usuario }) {
         return;
       }
 
+      const formData = new FormData();
+      formData.append("nombre", perfilEditado.nombre);
+      formData.append("bio", perfilEditado.bio || "");
+      if (avatarArchivo) formData.append("avatar", avatarArchivo);
+
       const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(perfilEditado),
+        body: formData,
       });
 
       if (!response.ok) {
@@ -232,6 +243,7 @@ export default function MiPerfil({ usuario }) {
       const perfilGuardado = await response.json();
       setPerfil(perfilGuardado);
       setPerfilEditado(perfilGuardado);
+      setAvatarArchivo(null);
       window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: perfilGuardado }));
       setEditando(false);
       setAviso("Perfil guardado");
