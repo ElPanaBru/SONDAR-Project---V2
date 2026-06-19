@@ -1,147 +1,229 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { apiUrl } from "../lib/api";
+import { supabase } from "../lib/supabaseClient";
 import "./comunidad.css";
 
 const filtros = [
   { id: "destacado", label: "Destacado" },
   { id: "reciente", label: "Mas reciente" },
   { id: "popular", label: "Mas popular" },
-  { id: "preguntas", label: "Preguntas al artista" }
+  { id: "preguntas", label: "Preguntas" },
 ];
 
-const comunidadesIniciales = [
+const comunidadesPorGenero = [
   {
-    id: "luna-norte",
-    nombre: "@luna_norte",
-    titulo: "Luna Norte",
-    descripcion: "Comunidad oficial de Luna Norte: adelantos, fechas, preguntas y charlas directas con sus seguidores.",
-    categoria: "indie pop",
-    miembros: 605,
-    actividad: "42 seguidores en linea",
-    portada: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=1400&q=80"
-  },
-  {
-    id: "tomi-beats",
-    nombre: "@tomi_beats",
-    titulo: "Tomi Beats",
-    descripcion: "El espacio de Tomi Beats para compartir sets, fechas, samples y responder preguntas de la comunidad.",
-    categoria: "techno",
-    miembros: 1280,
-    actividad: "12 hilos hoy",
-    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80"
-  },
-  {
-    id: "los-satelites",
-    nombre: "@los_satelites",
-    titulo: "Los Satelites",
-    descripcion: "Comunidad de la banda para hablar con fans, votar canciones del vivo y coordinar encuentros antes de fechas.",
-    categoria: "rock",
-    miembros: 842,
-    actividad: "Ensayo abierto",
-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80"
-  },
-  {
-    id: "mica-live",
-    nombre: "@mica_live",
-    titulo: "Mica Live",
-    descripcion: "Backstage, preguntas, anuncios de shows y conversaciones con quienes siguen a Mica.",
+    id: "pop",
+    nombre: "@pop",
+    titulo: "Pop",
+    genero: "pop",
+    descripcion: "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
     categoria: "pop",
-    miembros: 1510,
-    actividad: "3 anuncios nuevos",
-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80"
-  }
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "rock",
+    nombre: "@rock",
+    titulo: "Rock",
+    genero: "rock",
+    descripcion: "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
+    categoria: "rock",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "edm",
+    nombre: "@edm",
+    titulo: "EDM",
+    genero: "edm",
+    descripcion: "Sets, drops, produccion, festivales y novedades de la comunidad EDM.",
+    categoria: "edm",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "jazz",
+    nombre: "@jazz",
+    titulo: "Jazz",
+    genero: "jazz",
+    descripcion: "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
+    categoria: "jazz",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "blues",
+    nombre: "@blues",
+    titulo: "Blues",
+    genero: "blues",
+    descripcion: "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
+    categoria: "blues",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "cumbia",
+    nombre: "@cumbia",
+    titulo: "Cumbia",
+    genero: "cumbia",
+    descripcion: "Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.",
+    categoria: "cumbia",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "trap",
+    nombre: "@trap",
+    titulo: "Trap",
+    genero: "trap",
+    descripcion: "Beats, barras, productores, lanzamientos y debates de la escena trap.",
+    categoria: "trap",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "metal",
+    nombre: "@metal",
+    titulo: "Metal",
+    genero: "metal",
+    descripcion: "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
+    categoria: "metal",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "folklore",
+    nombre: "@folklore",
+    titulo: "Folklore",
+    genero: "folklore",
+    descripcion: "Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
+    categoria: "folklore",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
+  },
 ];
 
-const miembrosActivos = ["M", "N", "L", "T", "A"];
+const miembrosActivos = ["S", "O", "N", "D", "R"];
 
 const hilosIniciales = [
   {
     id: 1,
-    comunidadId: "luna-norte",
-    op: "Luna Norte",
-    usuario: "@luna_norte",
+    comunidadId: "rock",
+    op: "SONDAR",
+    usuario: "@sondar",
     tipo: "destacado",
-    titulo: "Que tema quieren que toque primero en el proximo show?",
-    texto: "Estoy cerrando el setlist de la fecha del sabado. Quiero que la comunidad elija el primer tema.",
-    etiqueta: "setlist",
-    votos: 43,
+    titulo: "Que bandas nuevas de rock estan siguiendo?",
+    texto: "Armen una lista con artistas para descubrir esta semana.",
+    etiqueta: "rock",
+    votos: 24,
+    likes: 24,
+    liked: false,
     guardado: false,
+    tiempo: "hace 2 h",
     comentarios: [
-      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Abriria con Norte. Tiene energia de inicio y la cantamos todos.", votos: 12 },
-      { id: 12, autor: "Tomi", usuario: "@tomi_escucha", texto: "Voto por Luces. Si arranca con ese bajo explota.", votos: 7 }
-    ]
+      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Marea Gris viene sonando fuerte.", votos: 8, likes: 8, respuestas: [] },
+    ],
   },
   {
     id: 2,
-    comunidadId: "los-satelites",
-    op: "Los Satelites",
-    usuario: "@los_satelites",
+    comunidadId: "trap",
+    op: "SONDAR",
+    usuario: "@sondar",
     tipo: "preguntas",
-    titulo: "Pregunten lo que quieran para el Q&A del viernes",
-    texto: "Vamos a grabar respuestas para la comunidad. Puede ser sobre canciones, instrumentos, fechas o el disco nuevo.",
-    etiqueta: "q&a",
-    votos: 28,
+    titulo: "Productores de trap para colaborar",
+    texto: "Dejen beats, referencias o busquedas de feats para conectar con otros usuarios.",
+    etiqueta: "trap",
+    votos: 18,
+    likes: 18,
+    liked: false,
     guardado: false,
-    comentarios: [
-      { id: 21, autor: "Fran", usuario: "@fran_drums", texto: "Como eligieron el sonido de bateria del ultimo single?", votos: 9 }
-    ]
+    tiempo: "hace 4 h",
+    comentarios: [],
   },
   {
     id: 3,
-    comunidadId: "mica-live",
-    op: "Mica Live",
-    usuario: "@mica_live",
-    tipo: "reciente",
-    titulo: "Subi un adelanto del videoclip nuevo",
-    texto: "Lo dejo primero aca para ustedes. Quiero leer que parte les intriga mas antes de publicarlo en redes.",
-    etiqueta: "adelanto",
-    votos: 61,
-    guardado: true,
-    comentarios: [
-      { id: 31, autor: "Ana", usuario: "@ana_pop", texto: "La escena de las luces quedo tremenda. Se siente mas cinematografico.", votos: 16 },
-      { id: 32, autor: "Santi", usuario: "@santi_synth", texto: "El puente suena distinto al vivo, me encanto.", votos: 5 }
-    ]
-  },
-  {
-    id: 4,
-    comunidadId: "tomi-beats",
-    op: "Tomi Beats",
-    usuario: "@tomi_beats",
+    comunidadId: "edm",
+    op: "SONDAR",
+    usuario: "@sondar",
     tipo: "popular",
-    titulo: "Les paso el tracklist del set de anoche",
-    texto: "Dejo el orden y abro hilo para que me pidan IDs, stems o expliquemos como arme la transicion final.",
-    etiqueta: "tracklist",
-    votos: 75,
-    guardado: false,
-    comentarios: [
-      { id: 41, autor: "Mica", usuario: "@mica_live", texto: "Necesito el ID del minuto 34, ese synth fue una locura.", votos: 18 }
-    ]
-  }
+    titulo: "Sets favoritos para estudiar produccion",
+    texto: "Compartan sets o tracks que sirvan para analizar transiciones, drops y mezcla.",
+    etiqueta: "edm",
+    votos: 31,
+    likes: 31,
+    liked: false,
+    guardado: true,
+    tiempo: "hace 1 d",
+    comentarios: [],
+  },
 ];
+
+const crearHeadersJson = (token) => ({
+  "Content-Type": "application/json",
+  ...(token ? { Authorization: `Bearer ${token}` } : {}),
+});
+
+const mostrarGenero = (genero) => {
+  if (!genero) return "";
+  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+};
+
+const normalizarHilo = (hilo) => ({
+  ...hilo,
+  votos: Number(hilo.votos ?? hilo.likes ?? 0),
+  likes: Number(hilo.likes ?? hilo.votos ?? 0),
+  comentarios: (hilo.comentarios || []).map((comentario) => ({
+    ...comentario,
+    votos: Number(comentario.votos ?? comentario.likes ?? 0),
+    likes: Number(comentario.likes ?? comentario.votos ?? 0),
+    respuestas: comentario.respuestas || [],
+  })),
+});
 
 export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
-  const siguienteHiloId = useRef(Math.max(...hilosIniciales.map((hilo) => hilo.id)) + 1);
-  const siguienteComentarioId = useRef(
-    Math.max(...hilosIniciales.flatMap((hilo) => hilo.comentarios.map((comentario) => comentario.id))) + 1
-  );
+  const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
-  const [comunidadActivaId, setComunidadActivaId] = useState("luna-norte");
+  const [comunidades, setComunidades] = useState(comunidadesPorGenero);
+  const [comunidadActivaId, setComunidadActivaId] = useState("pop");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [hilos, setHilos] = useState(hilosIniciales);
-  const [respuestasAbiertas, setRespuestasAbiertas] = useState([1]);
+  const [hilos, setHilos] = useState(hilosIniciales.map(normalizarHilo));
+  const [cargandoHilos, setCargandoHilos] = useState(false);
+  const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestas, setRespuestas] = useState({});
   const [aviso, setAviso] = useState("");
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
-    tipo: "destacado",
-    etiqueta: ""
+    tipo: "reciente",
+    etiqueta: "",
   });
 
-  const comunidadActiva = comunidadesIniciales.find((comunidad) => comunidad.id === comunidadActivaId);
+  const comunidadActiva = useMemo(
+    () => comunidades.find((comunidad) => comunidad.id === comunidadActivaId) || comunidades[0],
+    [comunidadActivaId, comunidades]
+  );
 
   useEffect(() => {
     return () => {
@@ -149,27 +231,121 @@ export default function Comunidad({ usuario }) {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelado = false;
+
+    async function cargarComunidades() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const response = await fetch(apiUrl("/api/comunidades"), {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (!response.ok) throw new Error("No se pudieron cargar las comunidades.");
+
+        const dataComunidades = await response.json();
+        if (!cancelado && dataComunidades.length > 0) {
+          setComunidades(dataComunidades);
+          setComunidadActivaId((actual) =>
+            dataComunidades.some((comunidad) => comunidad.id === actual)
+              ? actual
+              : dataComunidades[0].id
+          );
+        }
+      } catch (error) {
+        if (!cancelado) {
+          mostrarAviso(error.message || "Usando comunidades locales por ahora.");
+        }
+      }
+    }
+
+    cargarComunidades();
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const comunidadBuscada = comunidades.find((comunidad) => {
+      const valores = [comunidad.id, comunidad.nombre, comunidad.titulo, comunidad.genero]
+        .join(" ")
+        .toLowerCase();
+      return busqueda && valores.includes(busqueda);
+    });
+
+    if (comunidadBuscada) {
+      setComunidadActivaId(comunidadBuscada.id);
+    }
+  }, [busqueda, comunidades]);
+
+  useEffect(() => {
+    if (!comunidadActiva?.id) return;
+    let cancelado = false;
+
+    async function cargarHilos() {
+      setCargandoHilos(true);
+
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const params = new URLSearchParams({ filtro: filtroActivo });
+        if (busqueda) params.set("q", busqueda);
+
+        const response = await fetch(
+          apiUrl(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`),
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+
+        if (!response.ok) throw new Error("No se pudieron cargar las publicaciones.");
+
+        const dataHilos = await response.json();
+        if (!cancelado) {
+          setHilos(dataHilos.map(normalizarHilo));
+          setRespuestasAbiertas((abiertas) =>
+            abiertas.filter((id) => dataHilos.some((hilo) => hilo.id === id))
+          );
+        }
+      } catch (error) {
+        if (!cancelado) {
+          const locales = hilosIniciales
+            .map(normalizarHilo)
+            .filter((hilo) => hilo.comunidadId === comunidadActiva.id);
+          setHilos(locales);
+          mostrarAviso(error.message || "No se pudieron cargar las publicaciones.");
+        }
+      } finally {
+        if (!cancelado) setCargandoHilos(false);
+      }
+    }
+
+    cargarHilos();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [busqueda, comunidadActiva?.id, filtroActivo]);
+
   const hilosFiltrados = useMemo(() => {
     return hilos.filter((hilo) => {
-      const coincideComunidad = hilo.comunidadId === comunidadActivaId;
-      const coincideFiltro = filtroActivo === "destacado" || hilo.tipo === filtroActivo;
       const textoBusqueda = [
         hilo.op,
         hilo.usuario,
         hilo.tipo,
         hilo.etiqueta,
         hilo.titulo,
-        hilo.texto
+        hilo.texto,
       ].join(" ").toLowerCase();
 
-      return coincideComunidad && coincideFiltro && (!busqueda || textoBusqueda.includes(busqueda));
+      return !busqueda || textoBusqueda.includes(busqueda);
     });
-  }, [busqueda, comunidadActivaId, filtroActivo, hilos]);
+  }, [busqueda, hilos]);
 
   const handleChange = (e) => {
     setNuevoHilo({
       ...nuevoHilo,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -194,7 +370,13 @@ export default function Comunidad({ usuario }) {
     setMostrarModal(true);
   };
 
-  const crearHilo = (e) => {
+  const actualizarHilo = (id, actualizar) => {
+    setHilos((actuales) =>
+      actuales.map((hilo) => (hilo.id === id ? actualizar(hilo) : hilo))
+    );
+  };
+
+  const crearHilo = async (e) => {
     e.preventDefault();
 
     if (!usuario) {
@@ -202,42 +384,118 @@ export default function Comunidad({ usuario }) {
       return;
     }
 
-    const hilo = {
-      id: siguienteHiloId.current,
-      comunidadId: comunidadActivaId,
-      op: usuario?.displayName || "Usuario Sondar",
-      usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
-      tipo: nuevoHilo.tipo,
-      titulo: nuevoHilo.titulo,
-      texto: nuevoHilo.texto,
-      etiqueta: nuevoHilo.etiqueta || comunidadActiva.categoria,
-      votos: 1,
-      guardado: false,
-      comentarios: []
-    };
+    const titulo = nuevoHilo.titulo.trim();
+    const texto = nuevoHilo.texto.trim();
+    if (!titulo || !texto) {
+      mostrarAviso("Completa titulo y texto para publicar");
+      return;
+    }
 
-    siguienteHiloId.current += 1;
-    setHilos([hilo, ...hilos]);
-    setRespuestasAbiertas([hilo.id, ...respuestasAbiertas]);
-    setMostrarModal(false);
-    setNuevoHilo({
-      titulo: "",
-      texto: "",
-      tipo: "destacado",
-      etiqueta: ""
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch(apiUrl(`/api/comunidades/${comunidadActivaId}/publicaciones`), {
+        method: "POST",
+        headers: crearHeadersJson(token),
+        body: JSON.stringify({
+          titulo,
+          texto,
+          tipo: nuevoHilo.tipo,
+          etiqueta: nuevoHilo.etiqueta || comunidadActiva.genero,
+        }),
+      });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo publicar en la comunidad.");
+      }
+
+      const hiloGuardado = normalizarHilo(await response.json());
+      setHilos((actuales) => [hiloGuardado, ...actuales]);
+      setRespuestasAbiertas((abiertas) => [hiloGuardado.id, ...abiertas]);
+      setMostrarModal(false);
+      setNuevoHilo({
+        titulo: "",
+        texto: "",
+        tipo: "reciente",
+        etiqueta: "",
+      });
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo publicar en la comunidad.");
+    }
+  };
+
+  const votar = async (id) => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hiloAnterior = hilos.find((hilo) => hilo.id === id);
+    actualizarHilo(id, (hilo) => {
+      const liked = !hilo.liked;
+      const likes = Math.max(0, hilo.likes + (liked ? 1 : -1));
+      return { ...hilo, liked, likes, votos: likes };
     });
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/like`), {
+        method: "POST",
+        headers: crearHeadersJson(token),
+      });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo actualizar el me gusta.");
+      }
+
+      const dataLike = await response.json();
+      actualizarHilo(id, (hilo) => ({
+        ...hilo,
+        liked: dataLike.liked,
+        likes: dataLike.likes,
+        votos: dataLike.votos ?? dataLike.likes,
+      }));
+    } catch (error) {
+      if (hiloAnterior) {
+        actualizarHilo(id, () => hiloAnterior);
+      }
+      mostrarAviso(error.message || "No se pudo actualizar el me gusta.");
+    }
   };
 
-  const votar = (id) => {
-    setHilos(hilos.map((hilo) =>
-      hilo.id === id ? { ...hilo, votos: hilo.votos + 1 } : hilo
-    ));
-  };
+  const guardar = async (id) => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
 
-  const guardar = (id) => {
-    setHilos(hilos.map((hilo) =>
-      hilo.id === id ? { ...hilo, guardado: !hilo.guardado } : hilo
-    ));
+    const hiloAnterior = hilos.find((hilo) => hilo.id === id);
+    actualizarHilo(id, (hilo) => ({ ...hilo, guardado: !hilo.guardado }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/guardar`), {
+        method: "POST",
+        headers: crearHeadersJson(token),
+      });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo guardar la publicacion.");
+      }
+
+      const dataGuardado = await response.json();
+      actualizarHilo(id, (hilo) => ({ ...hilo, guardado: dataGuardado.guardado }));
+    } catch (error) {
+      if (hiloAnterior) {
+        actualizarHilo(id, () => hiloAnterior);
+      }
+      mostrarAviso(error.message || "No se pudo guardar la publicacion.");
+    }
   };
 
   const toggleRespuestas = (id) => {
@@ -248,7 +506,7 @@ export default function Comunidad({ usuario }) {
     );
   };
 
-  const responder = (hiloId) => {
+  const responder = async (hiloId) => {
     if (!usuario) {
       pedirLogin();
       return;
@@ -257,25 +515,52 @@ export default function Comunidad({ usuario }) {
     const texto = respuestas[hiloId]?.trim();
     if (!texto) return;
 
-    setHilos(hilos.map((hilo) =>
-      hilo.id === hiloId
-        ? {
-            ...hilo,
-            comentarios: [
-              ...hilo.comentarios,
-              {
-                id: siguienteComentarioId.current,
-                autor: usuario?.displayName || "Usuario Sondar",
-                usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@seguidor",
-                texto,
-                votos: 0
-              }
-            ]
-          }
-        : hilo
-    ));
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${hiloId}/comentarios`), {
+        method: "POST",
+        headers: crearHeadersJson(token),
+        body: JSON.stringify({ texto }),
+      });
 
-    siguienteComentarioId.current += 1;
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo guardar el comentario.");
+      }
+
+      const comentarioGuardado = await response.json();
+      setHilos((actuales) =>
+        actuales.map((hilo) =>
+          hilo.id === hiloId
+            ? {
+                ...hilo,
+                comentarios: [...hilo.comentarios, normalizarHilo({ comentarios: [comentarioGuardado] }).comentarios[0]],
+              }
+            : hilo
+        )
+      );
+    } catch (error) {
+      const comentarioLocal = {
+        id: siguienteComentarioId.current,
+        autor: usuario?.user_metadata?.username || usuario?.email?.split("@")[0] || "Usuario SONDAR",
+        usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
+        texto,
+        votos: 0,
+        likes: 0,
+        respuestas: [],
+      };
+      siguienteComentarioId.current += 1;
+      setHilos((actuales) =>
+        actuales.map((hilo) =>
+          hilo.id === hiloId
+            ? { ...hilo, comentarios: [...hilo.comentarios, comentarioLocal] }
+            : hilo
+        )
+      );
+      mostrarAviso(error.message || "Comentario local hasta reconectar.");
+    }
+
     setRespuestas({ ...respuestas, [hiloId]: "" });
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
@@ -285,9 +570,9 @@ export default function Comunidad({ usuario }) {
       <section className="comunidad-layout reddit-layout">
         <aside className="comunidad-sidebar subreddit-list">
           <section className="comunidad-panel">
-            <h2>Artistas</h2>
+            <h2>Generos</h2>
             <div className="comunidades-lista">
-              {comunidadesIniciales.map((comunidad) => (
+              {comunidades.map((comunidad) => (
                 <button
                   className={`comunidad-mini-card ${comunidadActivaId === comunidad.id ? "activa" : ""}`}
                   key={comunidad.id}
@@ -299,7 +584,7 @@ export default function Comunidad({ usuario }) {
                   </div>
                   <div>
                     <strong>{comunidad.nombre}</strong>
-                    <span>{comunidad.miembros} seguidores</span>
+                    <span>{comunidad.publicaciones || 0} publicaciones</span>
                     <p>{comunidad.actividad}</p>
                   </div>
                 </button>
@@ -318,7 +603,7 @@ export default function Comunidad({ usuario }) {
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
                 <span className="comunidad-eyebrow">{comunidadActiva.nombre}</span>
-                <h1>{comunidadActiva.titulo}</h1>
+                <h1>Comunidad {mostrarGenero(comunidadActiva.genero)}</h1>
                 <p>{comunidadActiva.descripcion}</p>
                 <div className="comunidad-miembros">
                   <div className="miembros-stack" aria-hidden="true">
@@ -326,17 +611,17 @@ export default function Comunidad({ usuario }) {
                       <span key={miembro}>{miembro}</span>
                     ))}
                   </div>
-                  <strong>{comunidadActiva.miembros}</strong>
-                <span>seguidores · Comunidad oficial</span>
+                  <strong>{comunidadActiva.publicaciones || 0}</strong>
+                  <span>publicaciones - Comunidad por genero</span>
                 </div>
               </div>
               <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
-                Crear hilo
+                Crear publicacion
               </button>
             </div>
           </header>
 
-          <div className="comunidad-filtros" aria-label="Filtros de hilos">
+          <div className="comunidad-filtros" aria-label="Filtros de publicaciones">
             {filtros.map((filtro) => (
               <button
                 key={filtro.id}
@@ -352,31 +637,44 @@ export default function Comunidad({ usuario }) {
           <div className="comunidad-feed">
             <section className="comunidad-composer" onClick={abrirCrearHilo}>
               <div className="publicacion-avatar">
-                {(usuario?.displayName || usuario?.email || "S").charAt(0).toUpperCase()}
+                {(usuario?.user_metadata?.username || usuario?.email || "S").charAt(0).toUpperCase()}
               </div>
               <div className="composer-cuerpo">
-                <button type="button">Escribir en la comunidad de {comunidadActiva.titulo}</button>
+                <button type="button">Escribir en {comunidadActiva.nombre}</button>
                 <div className="composer-acciones">
-                  <span>Pregunta al artista</span>
+                  <span>Pregunta</span>
                   <span>Comentario</span>
                   <strong>Publicar</strong>
                 </div>
               </div>
             </section>
 
-            {hilosFiltrados.map((hilo) => (
+            {cargandoHilos && (
+              <div className="comunidad-vacio">
+                Cargando publicaciones...
+              </div>
+            )}
+
+            {!cargandoHilos && hilosFiltrados.map((hilo) => (
               <article className="publicacion-card hilo-card" key={hilo.id}>
                 <div className="hilo-votos">
-                  <button type="button" onClick={() => votar(hilo.id)} aria-label="Votar hilo">+</button>
+                  <button
+                    className={hilo.liked ? "activo" : ""}
+                    type="button"
+                    onClick={() => votar(hilo.id)}
+                    aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
+                  >
+                    +
+                  </button>
                   <strong>{hilo.votos}</strong>
                 </div>
 
                 <div className="publicacion-contenido">
                   <div className="publicacion-meta">
                     <strong>{hilo.usuario}</strong>
-                    <span>Artista: {hilo.op}</span>
-                    <span>hace 23 horas</span>
-                    <span>{hilo.etiqueta}</span>
+                    <span>{hilo.op}</span>
+                    <span>{hilo.tiempo || "ahora"}</span>
+                    <span>{hilo.etiqueta || comunidadActiva.genero}</span>
                   </div>
 
                   <h2>{hilo.titulo}</h2>
@@ -409,7 +707,7 @@ export default function Comunidad({ usuario }) {
 
                       <div className="respuesta-form">
                         <textarea
-                          placeholder={`Responderle a ${hilo.op} o sumarte a la charla`}
+                          placeholder="Responder o sumarte a la charla"
                           value={respuestas[hilo.id] || ""}
                           onChange={(e) => setRespuestas({ ...respuestas, [hilo.id]: e.target.value })}
                         />
@@ -423,9 +721,9 @@ export default function Comunidad({ usuario }) {
               </article>
             ))}
 
-            {hilosFiltrados.length === 0 && (
+            {!cargandoHilos && hilosFiltrados.length === 0 && (
               <div className="comunidad-vacio">
-                No hay hilos para ese filtro en esta comunidad.
+                No hay publicaciones para ese filtro en esta comunidad.
               </div>
             )}
           </div>
@@ -433,13 +731,13 @@ export default function Comunidad({ usuario }) {
 
         <aside className="comunidad-sidebar detalle-comunidad">
           <section className="comunidad-panel comunidad-panel-acento">
-            <h2>Acerca de {comunidadActiva.titulo}</h2>
+            <h2>Acerca de {comunidadActiva.nombre}</h2>
             <p>{comunidadActiva.descripcion}</p>
             <div className="subreddit-stats">
-              <strong>{comunidadActiva.miembros}</strong>
-              <span>seguidores</span>
-              <strong>{comunidadActiva.actividad}</strong>
-              <span>actividad</span>
+              <strong>{comunidadActiva.publicaciones || 0}</strong>
+              <span>publicaciones</span>
+              <strong>{mostrarGenero(comunidadActiva.genero)}</strong>
+              <span>genero</span>
             </div>
           </section>
         </aside>
@@ -448,11 +746,11 @@ export default function Comunidad({ usuario }) {
       {mostrarModal && (
         <div className="comunidad-modal-overlay">
           <div className="comunidad-modal">
-            <h2>Crear hilo</h2>
+            <h2>Crear publicacion</h2>
             <form onSubmit={crearHilo}>
               <input
                 name="titulo"
-                placeholder="Titulo del hilo"
+                placeholder="Titulo de la publicacion"
                 value={nuevoHilo.titulo}
                 onChange={handleChange}
                 required
@@ -460,7 +758,7 @@ export default function Comunidad({ usuario }) {
 
               <textarea
                 name="texto"
-                placeholder="Escribi una pregunta, comentario o propuesta para la comunidad del artista"
+                placeholder={`Escribi en la comunidad ${comunidadActiva.nombre}`}
                 value={nuevoHilo.texto}
                 onChange={handleChange}
                 required
@@ -474,7 +772,7 @@ export default function Comunidad({ usuario }) {
                 </select>
                 <input
                   name="etiqueta"
-                  placeholder="Etiqueta"
+                  placeholder={`Etiqueta (${comunidadActiva.genero})`}
                   value={nuevoHilo.etiqueta}
                   onChange={handleChange}
                 />

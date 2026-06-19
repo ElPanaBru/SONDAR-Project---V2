@@ -5,6 +5,7 @@ const usuariosRoutes = require('./routes/usuarios');
 const eventosRoutes = require('./routes/eventos');
 const postsRoutes = require('./routes/posts');
 const reelsRoutes = require('./routes/reels');
+const comunidadesRoutes = require('./routes/comunidades');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,5 +49,6 @@ app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/eventos', eventosRoutes);
 app.use('/api/posts', postsRoutes);
 app.use('/api/reels', reelsRoutes);
+app.use('/api/comunidades', comunidadesRoutes);
 
 app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
