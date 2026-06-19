@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
+
 import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import "../componentes/eventoOrganizadorPopover.css";
+
 
 const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
@@ -67,6 +70,10 @@ export default function Eventos({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
+  const [hoverOrganizador, setHoverOrganizador] = useState(null);
+  
+  const navigate = useNavigate();
+
 
   // Estados de Datos y Carga
   const [eventos, setEventos] = useState([]);
@@ -536,6 +543,43 @@ const handleImagen = (e) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validaciones de fecha: no permitir en el pasado ni demasiado futuro.
+    // - Pasado: fecha+hora debe ser >= ahora
+    // - Futuro: no más de 2 meses desde hoy
+    const ahora = new Date();
+    const fechaInput = nuevoEvento.fecha;
+    const horaInput = nuevoEvento.hora;
+
+    if (!fechaInput || !horaInput) {
+      mostrarAviso("Elegí una fecha y hora válidas.");
+      setSubiendo(false);
+      return;
+    }
+
+    const fechaEvento = new Date(`${fechaInput}T${horaInput}`);
+    const dosMesesEnMs = 1000 * 60 * 60 * 24 * 30 * 2;
+    const maxFecha = new Date(ahora.getTime() + dosMesesEnMs);
+
+
+    if (Number.isNaN(fechaEvento.getTime())) {
+      mostrarAviso("La fecha del evento no es válida.");
+      setSubiendo(false);
+      return;
+    }
+
+    if (fechaEvento.getTime() < ahora.getTime()) {
+      mostrarAviso("No se puede crear un evento en una fecha que ya pasó.");
+      setSubiendo(false);
+      return;
+    }
+
+    if (fechaEvento.getTime() > maxFecha.getTime()) {
+      mostrarAviso("No se puede crear un evento en una fecha dentro de más de dos meses.");
+      setSubiendo(false);
+      return;
+    }
+
+
     if (!usuario) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
@@ -645,7 +689,11 @@ const handleImagen = (e) => {
       )}
 
       {aviso && (
-        <div className="eventos-toast" role="status">
+        <div
+          className="eventos-toast"
+          role="status"
+          style={{ zIndex: 200000 }}
+        >
           {aviso}
         </div>
       )}
@@ -701,8 +749,56 @@ const handleImagen = (e) => {
                 </div>
                 <div>
                   <dt>Organiza</dt>
-                  <dd>{detalleEvento.creador || "Anonimo"}</dd>
+                  <dd className="evento-organiza-dd" onMouseLeave={() => setHoverOrganizador(null)}>
+
+                    <button
+                      type="button"
+                      className="evento-organiza-trigger"
+                      onMouseEnter={() => setHoverOrganizador(detalleEvento)}
+                      onMouseLeave={() => setHoverOrganizador(null)}
+                      onFocus={() => setHoverOrganizador(detalleEvento)}
+                      onBlur={() => setHoverOrganizador(null)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (detalleEvento?.creador_id) {
+                          navigate(`/perfil/${detalleEvento.creador_id}`);
+                        }
+                      }}
+                      aria-label={`Ver perfil de ${detalleEvento.creador || "Anonimo"}`}
+                    >
+                      {detalleEvento.creador || "Anonimo"}
+                    </button>
+
+                    {hoverOrganizador?.id === detalleEvento?.id ? (
+                      <div className="evento-organiza-popover" role="dialog" aria-label="Perfil del organizador">
+                        <div className="evento-organiza-popover-inner">
+                          <div className="evento-organiza-popover-header">
+                            <div className="evento-organiza-avatar">
+                              {hoverOrganizador?.avatar ? (
+                                <img src={hoverOrganizador.avatar} alt="" />
+                              ) : (
+                                <span>{String(hoverOrganizador?.creador || "A").charAt(0).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div className="evento-organiza-names">
+                              <strong>{hoverOrganizador?.creador || "Anonimo"}</strong>
+                              <span className="evento-organiza-handle">Perfil</span>
+
+
+
+
+
+                            </div>
+                          </div>
+
+
+                        </div>
+                      </div>
+                    ) : null}
+                  </dd>
                 </div>
+
               </dl>
               {detalleEvento.precio !== null && detalleEvento.precio !== undefined && detalleEvento.precio !== "" ? (
                 <p>Entrada: ${Number(detalleEvento.precio).toLocaleString("es-AR")}</p>

@@ -1,0 +1,108 @@
+/* Popover de perfil del organizador (estilo tipo TikTok) */
+
+.evento-organiza-dd {
+  margin: 0;
+}
+
+.evento-organiza-trigger {
+  width: 100%;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.92);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.evento-organiza-trigger:hover {
+  color: #ffae00;
+}
+
+.evento-organiza-popover {
+  position: relative;
+  z-index: 10;
+  margin-top: 10px;
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(14px);
+  animation: eventoOrganizadorPop 0.16s ease both;
+}
+
+@keyframes eventoOrganizadorPop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.evento-organiza-popover-inner {
+  padding: 12px;
+}
+
+.evento-organiza-popover-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.evento-organiza-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 174, 0, 0.12);
+  border: 1px solid rgba(255, 174, 0, 0.35);
+}
+
+.evento-organiza-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.evento-organiza-names {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.evento-organiza-names strong {
+  color: #fff;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.evento-organiza-handle {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.evento-organiza-verperfil {
+  margin-top: 10px;
+  width: 100%;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--evento-gradiente, linear-gradient(90deg, #ffae00, #ff5e00));
+  color: #080808;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.evento-organiza-verperfil:hover {
+  filter: brightness(1.06);
+}
+

@@ -53,7 +53,7 @@ const eventoController = {
         SELECT
           e.*,
           e.img_url AS img,
-          COALESCE(u.username, u.email, 'Anonimo') AS creador
+          COALESCE(u.username, u.full_name, u.artist_name, 'Anonimo') AS creador
         FROM eventos e
         LEFT JOIN users u ON u.id = e.creador_id
         ORDER BY e.id DESC
@@ -88,6 +88,13 @@ const eventoController = {
     const { titulo, genero, ubicacion, fecha, precio, link, latitud, longitud } = req.body;
     const creadorId = req.user.id;
     let imagenSubida = null;
+
+    const creadorNombre =
+      req.user?.user_metadata?.name ||
+      req.user?.user_metadata?.username ||
+      req.user?.email?.split('@')[0] ||
+      'Anonimo';
+
 
     if (!titulo || !genero || !ubicacion || !fecha || !latitud || !longitud) {
       return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
@@ -124,7 +131,7 @@ const eventoController = {
       const result = await pool.query(query, values);
       res.status(201).json(mapearEvento({
         ...result.rows[0],
-        creador: req.user?.email || 'Anonimo'
+        creador: creadorNombre
       }));
     } catch (error) {
       if (imagenSubida?.path) {
