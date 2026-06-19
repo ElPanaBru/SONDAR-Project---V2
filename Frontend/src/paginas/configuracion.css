@@ -177,6 +177,18 @@
   box-shadow: 0 0 0 3px rgba(255, 174, 0, 0.16);
 }
 
+.config-grid input[readonly] {
+  color: rgba(255, 255, 255, 0.64);
+  cursor: not-allowed;
+}
+
+.config-grid small {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .config-actions-list {
   display: grid;
   gap: 12px;
@@ -233,6 +245,15 @@
 .config-savebar button:hover {
   filter: brightness(1.08);
   transform: translateY(-1px);
+}
+
+.config-action-row button:disabled,
+.config-savebar button:disabled,
+.config-modal button:disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: 0.52;
+  transform: none;
 }
 
 .config-switch-row {
@@ -309,6 +330,107 @@
   font-weight: 700;
 }
 
+.config-savebar .config-message.success {
+  color: #73e9a6;
+}
+
+.config-savebar .config-message.error {
+  color: #ff9b9b;
+}
+
+.config-modal-backdrop {
+  position: fixed;
+  z-index: 2000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.config-modal {
+  width: min(500px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 26px;
+  color: #ffffff;
+  background: #111111;
+  border: 1px solid rgba(255, 174, 0, 0.38);
+  border-radius: 12px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.62);
+}
+
+.config-modal h2,
+.config-modal p {
+  margin: 0;
+}
+
+.config-modal h2 {
+  font-size: 27px;
+}
+
+.config-modal p {
+  color: rgba(255, 255, 255, 0.66);
+  line-height: 1.5;
+}
+
+.config-modal label {
+  display: grid;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.config-modal input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  color: #ffffff;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  font: inherit;
+  outline: none;
+}
+
+.config-modal input:focus {
+  border-color: #ffae00;
+  box-shadow: 0 0 0 3px rgba(255, 174, 0, 0.16);
+}
+
+.config-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.config-modal-actions button {
+  min-height: 42px;
+  padding: 0 18px;
+  color: #ffffff;
+  background: #292929;
+  border: 0;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.config-modal-actions button[type="submit"] {
+  color: #050505;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+}
+
+.config-delete-modal {
+  border-color: rgba(255, 82, 82, 0.55);
+}
+
+.config-modal-actions .config-confirm-delete {
+  color: #ffffff;
+  background: #a52323;
+}
+
 @media (max-width: 900px) {
   .config-header {
     align-items: flex-start;
@@ -351,7 +473,12 @@
   }
 
   .config-action-row button,
-  .config-savebar button {
+  .config-savebar button,
+  .config-modal-actions button {
     width: 100%;
+  }
+
+  .config-modal-actions {
+    flex-direction: column-reverse;
   }
 }

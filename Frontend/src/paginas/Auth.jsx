@@ -169,7 +169,6 @@ export default function Auth() {
       <div className="auth-shell">
         <div className="auth-hero">
           <img src="/logo.png" alt="SONDAR" />
-          <span>SONDAR</span>
           <h1>Tu musica empieza aca.</h1>
           <p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>
         </div>

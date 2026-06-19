@@ -51,7 +51,7 @@ function App() {
       >
         <Routes>
           <Route path="/" element={<Eventos usuario={usuario} />} />
-          <Route path="/soporte" element={<Soporte />} />
+          <Route path="/soporte" element={<Soporte usuario={usuario} />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
           <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />

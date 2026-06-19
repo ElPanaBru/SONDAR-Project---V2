@@ -1,6 +1,10 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import emailjs from "@emailjs/browser";
 import "./soporte.css";
+
+const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_ckdohp4";
+const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_jl05slh";
+const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "zEobDbcTNOMCmcI0O";
 
 const preguntas = [
   {
@@ -36,16 +40,19 @@ const atajos = [
   "Tengo una sugerencia",
 ];
 
-export default function Soporte() {
-  const form = useRef(null);
+export default function Soporte({ usuario }) {
   const [preguntaActiva, setPreguntaActiva] = useState("mapa");
   const [estado, setEstado] = useState(null);
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
+    subject: "",
     message: "",
   });
   const [loading, setLoading] = useState(false);
+  const emailUsuario = usuario?.email?.trim() || "";
+  const nombreUsuario =
+    usuario?.user_metadata?.username ||
+    usuario?.user_metadata?.name ||
+    emailUsuario;
 
   const handleChange = (e) => {
     setFormData((actual) => ({
@@ -57,55 +64,67 @@ export default function Soporte() {
   const usarAtajo = (texto) => {
     setFormData((actual) => ({
       ...actual,
-      message: actual.message ? `${actual.message}\n\n${texto}` : texto,
+      subject: texto,
     }));
   };
 
-  const sendEmail = (e) => {
+  const sendEmail = async (e) => {
     e.preventDefault();
     setEstado(null);
 
-    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+    if (!emailUsuario) {
       setEstado({
         tipo: "error",
-        texto: "Completa nombre, email y mensaje para poder ayudarte.",
+        texto: "Inicia sesion para enviar un mensaje a soporte.",
+      });
+      return;
+    }
+
+    const subject = formData.subject.trim();
+    const message = formData.message.trim();
+
+    if (!subject || !message) {
+      setEstado({
+        tipo: "error",
+        texto: "Completa el asunto y el mensaje para poder ayudarte.",
       });
       return;
     }
 
     setLoading(true);
 
-    emailjs
-      .sendForm(
-        "service_ckdohp4",
-        "template_jl05slh",
-        form.current,
-        "EMT5mNLmtGUC83JKA"
-      )
-      .then(
-        () => {
-          setEstado({
-            tipo: "success",
-            texto: "Mensaje enviado. Te vamos a responder apenas podamos.",
-          });
-          form.current.reset();
-          setFormData({
-            name: "",
-            email: "",
-            message: "",
-          });
-        },
-        (error) => {
-          console.error(error);
-          setEstado({
-            tipo: "error",
-            texto: "No pudimos enviar el mensaje. Proba de nuevo en unos minutos.",
-          });
-        }
-      )
-      .finally(() => {
-        setLoading(false);
+    try {
+      emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+        // Campos nuevos y aliases para seguir siendo compatibles con la plantilla anterior.
+        subject,
+        title: subject,
+        name: nombreUsuario,
+        message,
+        email: emailUsuario,
+        user_email: emailUsuario,
+        from_email: emailUsuario,
+        reply_to: emailUsuario,
+        from_name: nombreUsuario,
       });
+
+      setEstado({
+        tipo: "success",
+        texto: "Mensaje enviado al equipo de soporte. Te vamos a responder apenas podamos.",
+      });
+      setFormData({ subject: "", message: "" });
+    } catch (error) {
+      console.error("EmailJS soporte:", error);
+      const detalle = error?.text || error?.message;
+      setEstado({
+        tipo: "error",
+        texto: detalle
+          ? `No pudimos enviar el mensaje: ${detalle}`
+          : "No pudimos enviar el mensaje. Proba de nuevo en unos minutos.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -164,28 +183,24 @@ export default function Soporte() {
               ))}
             </div>
 
-            <form ref={form} onSubmit={sendEmail} className="formulario-soporte">
+            <form onSubmit={sendEmail} className="formulario-soporte">
               <label>
-                Nombre
+                Asunto
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="subject"
+                  value={formData.subject}
                   onChange={handleChange}
-                  placeholder="Tu nombre"
+                  placeholder="Resumen breve de tu consulta"
+                  autoComplete="off"
                 />
               </label>
 
-              <label>
-                Email
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="tu@email.com"
-                />
-              </label>
+              <p className="soporte-email-usuario">
+                {emailUsuario
+                  ? <>Tu consulta se enviara al equipo de soporte. Cuenta asociada: <strong>{emailUsuario}</strong>.</>
+                  : "Inicia sesion para que podamos identificar tu correo."}
+              </p>
 
               <label>
                 Mensaje
@@ -198,7 +213,7 @@ export default function Soporte() {
                 />
               </label>
 
-              <button type="submit" className="btn-soporte" disabled={loading}>
+              <button type="submit" className="btn-soporte" disabled={loading || !emailUsuario}>
                 {loading ? "Enviando..." : "Enviar mensaje"}
               </button>
             </form>

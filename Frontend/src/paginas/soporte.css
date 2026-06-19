@@ -186,6 +186,18 @@
   text-transform: uppercase;
 }
 
+.soporte-email-usuario {
+  margin: -2px 0 2px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.soporte-email-usuario strong {
+  color: #ffbd3d;
+  overflow-wrap: anywhere;
+}
+
 .formulario-soporte input,
 .formulario-soporte textarea {
   width: 100%;
