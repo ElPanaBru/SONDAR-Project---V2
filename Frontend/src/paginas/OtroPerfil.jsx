@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./miperfil.css";
@@ -8,6 +9,7 @@ import "./otroperfil.css";
 const iconosPerfil = {
   grid: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-480h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-360h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-200h160v-80H200v80Zm240 0h160v-80H440v80Zm240 0h80v-80h-80v80Z",
   calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
+  share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
 };
 
 const perfilVacio = {
@@ -21,6 +23,8 @@ const perfilVacio = {
 const contenidoVacio = {
   publicaciones: [],
   eventos: [],
+  seguidores: [],
+  seguidos: [],
   stats: {
     publicaciones: 0,
     seguidores: 0,
@@ -28,9 +32,9 @@ const contenidoVacio = {
   },
 };
 
-function IconoPerfil({ nombre }) {
+function IconoPerfil({ nombre, size = 20 }) {
   return (
-    <svg aria-hidden="true" viewBox="0 -960 960 960" width="20" height="20" fill="currentColor">
+    <svg aria-hidden="true" viewBox="0 -960 960 960" width={size} height={size} fill="currentColor">
       <path d={iconosPerfil[nombre]} />
     </svg>
   );
@@ -93,6 +97,8 @@ export default function OtroPerfil({ usuarioActual }) {
   const [tabActiva, setTabActiva] = useState("publicaciones");
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [listaSocialActiva, setListaSocialActiva] = useState(null);
+  const [compartirAbierto, setCompartirAbierto] = useState(false);
 
   const opcionesPerfil = useMemo(
     () => [
@@ -147,6 +153,8 @@ export default function OtroPerfil({ usuarioActual }) {
         setContenido({
           publicaciones: dataPerfil.publicaciones || [],
           eventos: dataPerfil.eventos || [],
+          seguidores: dataPerfil.seguidores || [],
+          seguidos: dataPerfil.seguidos || [],
           stats: dataPerfil.stats || contenidoVacio.stats,
         });
         setSiguiendo(Boolean(dataPerfil.siguiendo));
@@ -194,6 +202,9 @@ export default function OtroPerfil({ usuarioActual }) {
       setSiguiendo(dataSeguimiento.siguiendo);
       setContenido((actual) => ({
         ...actual,
+        seguidores: dataSeguimiento.siguiendo
+          ? actual.seguidores
+          : actual.seguidores.filter((seguidor) => seguidor.id !== usuarioActual.id),
         stats: {
           ...actual.stats,
           seguidores: dataSeguimiento.seguidores,
@@ -204,6 +215,28 @@ export default function OtroPerfil({ usuarioActual }) {
       console.error(error);
       setAviso(error.message || "No se pudo actualizar el seguimiento.");
     }
+  };
+
+  const abrirListaSocial = (tipo) => {
+    setListaSocialActiva(tipo);
+  };
+
+  const abrirPerfilSocial = (perfilSocial) => {
+    setListaSocialActiva(null);
+    if (!perfilSocial?.id) return;
+
+    if (usuarioActual?.id && perfilSocial.id === usuarioActual.id) {
+      navigate("/perfil");
+      return;
+    }
+
+    navigate(`/perfil/${perfilSocial.id}`);
+  };
+
+  const enlacePerfil = () => {
+    const enlace = new URL(window.location.origin);
+    enlace.pathname = `/perfil/${perfil.id || identificador}`;
+    return enlace.toString();
   };
 
   const renderContenidoActivo = () => {
@@ -261,15 +294,20 @@ export default function OtroPerfil({ usuarioActual }) {
                 {siguiendo ? "Siguiendo" : "Seguir"}
               </button>
             ) : null}
-            <button className="perfil-secondary-btn" type="button">
-              Mensaje
+            <button className="perfil-secondary-btn" type="button" onClick={() => setCompartirAbierto(true)}>
+              <IconoPerfil nombre="share" size={18} />
+              Compartir
             </button>
           </div>
 
           <div className="perfil-stats">
             <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
-            <p><strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores</p>
-            <p><strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos</p>
+            <button type="button" onClick={() => abrirListaSocial("seguidores")}>
+              <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
+            </button>
+            <button type="button" onClick={() => abrirListaSocial("seguidos")}>
+              <strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos
+            </button>
           </div>
 
           <div className="perfil-description">
@@ -284,6 +322,69 @@ export default function OtroPerfil({ usuarioActual }) {
         <div className="perfil-toast" role="status">
           {aviso}
         </div>
+      ) : null}
+
+      {listaSocialActiva ? (
+        <div className="perfil-modal-overlay" role="presentation" onMouseDown={() => setListaSocialActiva(null)}>
+          <section
+            className="perfil-social-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perfil-social-titulo"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="perfil-modal-header">
+              <h2 id="perfil-social-titulo">
+                {listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
+              </h2>
+              <button
+                className="perfil-modal-close"
+                type="button"
+                onClick={() => setListaSocialActiva(null)}
+                aria-label="Cerrar lista"
+              >
+                x
+              </button>
+            </div>
+            <div className="perfil-social-lista">
+              {(contenido[listaSocialActiva] || []).length > 0 ? (
+                contenido[listaSocialActiva].map((perfilSocial) => (
+                  <button
+                    className="perfil-social-item"
+                    type="button"
+                    key={perfilSocial.id}
+                    onClick={() => abrirPerfilSocial(perfilSocial)}
+                  >
+                    <span>
+                      {perfilSocial.avatar ? (
+                        <img src={perfilSocial.avatar} alt="" />
+                      ) : (
+                        perfilSocial.nombre.charAt(0).toUpperCase()
+                      )}
+                    </span>
+                    <strong>{perfilSocial.nombre}</strong>
+                    <small>{perfilSocial.usuario}</small>
+                  </button>
+                ))
+              ) : (
+                <p className="perfil-social-vacio">
+                  {listaSocialActiva === "seguidores"
+                    ? "Todavia no hay seguidores."
+                    : "Todavia no sigue a nadie."}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {compartirAbierto ? (
+        <CompartirPerfilModal
+          perfil={perfil}
+          enlace={enlacePerfil()}
+          onClose={() => setCompartirAbierto(false)}
+          onAviso={setAviso}
+        />
       ) : null}
 
       <div

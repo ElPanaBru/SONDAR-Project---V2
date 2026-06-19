@@ -121,6 +121,8 @@ const iconos = {
     "M240-400h480v-80H240v80Zm0-120h480v-80H240v80Zm0-120h480v-80H240v80ZM80-80v-720q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H240L80-80Z",
   compartir:
     "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38.5 23.5T240-360q-50 0-85-35t-35-85q0-50 35-85t85-35q22 0 43.5 8.5T322-568l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-22 0-43.5-8.5T638-672L356-508q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38.5-23.5T720-320q50 0 85 35t35 85q0 50-35 85t-85 35Z",
+  link:
+    "M440-280H280q-83 0-141.5-58.5T80-480q0-83 58.5-141.5T280-680h160v80H280q-50 0-85 35t-35 85q0 50 35 85t85 35h160v80Zm-120-160v-80h320v80H320Zm200 160v-80h160q50 0 85-35t35-85q0-50-35-85t-85-35H520v-80h160q83 0 141.5 58.5T880-480q0 83-58.5 141.5T680-280H520Z",
   guardar: "M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Z",
   mas: "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z",
   subir: "m280-400 200-200 200 200H280Z",
@@ -331,6 +333,47 @@ function Icono({ nombre }) {
   );
 }
 
+function IconoCompartir({ tipo }) {
+  if (tipo === "copy") {
+    return (
+      <span className="compartir-icono compartir-icono-copy" aria-hidden="true">
+        <Icono nombre="link" />
+      </span>
+    );
+  }
+
+  if (tipo === "whatsapp") {
+    return (
+      <span className="compartir-icono compartir-icono-whatsapp" aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <path d="M32 7C18.7 7 8 17.2 8 29.9c0 4.5 1.4 8.8 3.8 12.4L9.3 55 22.5 51c3 1.2 6.2 1.8 9.5 1.8 13.3 0 24-10.2 24-22.9S45.3 7 32 7Z" />
+          <path d="M24.2 19.1c-.6 0-1.4.2-2 1.1-.7.9-2.4 2.4-2.4 5.7s2.4 6.5 2.8 6.9c.3.5 4.7 7.5 11.6 10.1 5.7 2.2 6.9 1.8 8.1 1.7 1.2-.1 4-1.6 4.6-3.2.6-1.6.6-2.9.4-3.2-.2-.3-.6-.5-1.3-.9s-4-2-4.6-2.2c-.6-.2-1.1-.3-1.5.3-.5.7-1.8 2.2-2.2 2.7-.4.5-.8.5-1.5.2s-3-.9-5.6-3.2c-2.1-1.8-3.5-4.1-3.9-4.8-.4-.7 0-1 .3-1.4.3-.3.7-.8 1-1.2.3-.4.5-.7.7-1.2.2-.5.1-.9-.1-1.2-.2-.3-1.5-3.8-2.1-5.2-.5-1.3-1.1-1.1-1.5-1.1h-.8Z" />
+        </svg>
+      </span>
+    );
+  }
+
+  if (tipo === "facebook") {
+    return (
+      <span className="compartir-icono compartir-icono-facebook" aria-hidden="true">
+        <svg viewBox="0 0 64 64" focusable="false">
+          <path d="M57 32C57 18.2 45.8 7 32 7S7 18.2 7 32c0 12.5 9.2 22.9 21.2 24.7V39.2h-6.3V32h6.3v-5.5c0-6.2 3.7-9.7 9.4-9.7 2.7 0 5.6.5 5.6.5v6.2H40c-3.1 0-4.1 1.9-4.1 3.9V32h7l-1.1 7.2h-5.9v17.5C47.8 54.9 57 44.5 57 32Z" />
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <span className="compartir-icono compartir-icono-instagram" aria-hidden="true">
+      <svg viewBox="0 0 64 64" focusable="false">
+        <rect x="14" y="14" width="36" height="36" rx="11" />
+        <circle cx="32" cy="32" r="9" />
+        <circle cx="43" cy="21" r="3" />
+      </svg>
+    </span>
+  );
+}
+
 function IconoPersona() {
   return (
     <svg aria-hidden="true" viewBox="0 -960 960 960" width="22" height="22" fill="currentColor">
@@ -415,6 +458,8 @@ export default function Descubrir({ usuario }) {
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
   const [nuevoReel, setNuevoReel] = useState(reelVacio);
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
+  const [compartirActivo, setCompartirActivo] = useState(null);
+  const [perfilVista, setPerfilVista] = useState(null);
   const [progresos, setProgresos] = useState({});
   const reproduciendoRef = useRef(reproduciendo);
   const comentariosAbiertosRef = useRef(comentariosAbiertos);
@@ -527,7 +572,13 @@ export default function Descubrir({ usuario }) {
           const comentariosEntries = await Promise.all(
             reelsBackend.map(async (reel) => {
               try {
-                const comentariosResponse = await fetch(apiUrl(`/api/reels/${reel.backendId}/comentarios`));
+                const comentariosResponse = await fetch(apiUrl(`/api/reels/${reel.backendId}/comentarios`), {
+                  headers: token
+                    ? {
+                        Authorization: `Bearer ${token}`,
+                      }
+                    : undefined,
+                });
                 if (!comentariosResponse.ok) return [reel.id, []];
                 const comentarios = await comentariosResponse.json();
                 return [reel.id, comentarios];
@@ -1069,36 +1120,113 @@ export default function Descubrir({ usuario }) {
     campo.remove();
   };
 
-  const compartirLanzamiento = async (lanzamiento) => {
+  const crearEnlaceLanzamiento = (lanzamiento) => {
     const enlace = new URL(window.location.href);
     enlace.pathname = "/descubrir";
     enlace.search = "";
     enlace.searchParams.set("lanzamiento", lanzamiento.id);
+    return enlace.toString();
+  };
 
+  const registrarCompartidoLanzamiento = async (lanzamiento) => {
+    if (lanzamiento.backendId) {
+      try {
+        const token = await obtenerTokenSesion();
+        if (!token) return { ok: false, nuevoCompartido: false };
+
+        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/compartir`), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error("No se pudo registrar el compartido.");
+        const data = await response.json();
+        setLanzamientos((prev) =>
+          prev.map((item) =>
+            item.id === lanzamiento.id
+              ? { ...item, compartidos: data.compartidos }
+              : item
+          )
+        );
+        return {
+          ok: true,
+          nuevoCompartido: Boolean(data.nuevoCompartido),
+        };
+      } catch (error) {
+        console.error(error);
+        return { ok: false, nuevoCompartido: false };
+      }
+    }
+
+    incrementarMetrica(lanzamiento.id, "compartidos");
+    return { ok: true, nuevoCompartido: true };
+  };
+
+  const abrirCompartirLanzamiento = (lanzamiento) => {
+    setCompartirActivo({
+      lanzamiento,
+      enlace: crearEnlaceLanzamiento(lanzamiento),
+    });
+  };
+
+  const compartirLanzamiento = async (tipo) => {
+    if (!compartirActivo) return;
+    const { lanzamiento, enlace } = compartirActivo;
     const datos = {
       title: `${lanzamiento.tema} - ${lanzamiento.artista}`,
       text: `Escucha "${lanzamiento.tema}" de ${lanzamiento.artista} en SONDAR`,
-      url: enlace.toString(),
+      url: enlace,
     };
 
-    if (navigator.share) {
-      try {
-        await navigator.share(datos);
-        mostrarAviso("Menu de compartir cerrado");
-      } catch (error) {
-        if (error?.name !== "AbortError") {
-          mostrarAviso("No se pudo compartir el lanzamiento");
-        }
-      }
+    if (tipo === "nativo" && navigator.share) {
+      await navigator.share(datos).catch(() => null);
+      await registrarCompartidoLanzamiento(lanzamiento);
       return;
     }
 
     try {
-      await copiarEnlace(datos.url);
-      incrementarMetrica(lanzamiento.id, "compartidos");
-      mostrarAviso("Link copiado para compartir");
+      await copiarEnlace(enlace);
+      const resultado = await registrarCompartidoLanzamiento(lanzamiento);
+      if (!resultado.ok) {
+        mostrarAviso("Link copiado. No se pudo guardar el compartido");
+      } else if (!resultado.nuevoCompartido) {
+        mostrarAviso("Link copiado. Ya lo habias compartido");
+      } else {
+        mostrarAviso("Link copiado");
+      }
     } catch {
       mostrarAviso("No se pudo copiar el link");
+    }
+  };
+
+  const compartirEnRed = async (red) => {
+    if (!compartirActivo) return;
+
+    const { lanzamiento, enlace } = compartirActivo;
+    const texto = `Escucha "${lanzamiento.tema}" de ${lanzamiento.artista} en SONDAR ${enlace}`;
+    const destinos = {
+      whatsapp: `https://wa.me/?text=${encodeURIComponent(texto)}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(enlace)}`,
+      instagram: "https://www.instagram.com/",
+    };
+
+    window.open(destinos[red], "_blank", "noopener,noreferrer");
+
+    if (red === "instagram") {
+      await copiarEnlace(enlace).catch(() => null);
+    }
+
+    const resultado = await registrarCompartidoLanzamiento(lanzamiento);
+    if (red === "instagram") {
+      if (!resultado.ok) {
+        mostrarAviso("Link copiado para Instagram. No se pudo guardar el compartido");
+      } else if (!resultado.nuevoCompartido) {
+        mostrarAviso("Link copiado para Instagram. Ya lo habias compartido");
+      } else {
+        mostrarAviso("Link copiado para Instagram");
+      }
     }
   };
 
@@ -1151,14 +1279,111 @@ export default function Descubrir({ usuario }) {
     );
   };
 
-  const abrirArtista = (lanzamiento) => {
-    if (usuario?.id && lanzamiento.creadorId === usuario.id) {
+  const navegarAPerfil = (userId) => {
+    if (!userId) return;
+    if (usuario?.id && userId === usuario.id) {
       navigate("/perfil");
       return;
     }
+    navigate(`/perfil/${userId}`);
+  };
 
-    const slug = lanzamiento.artista.toLowerCase().replaceAll(" ", "-");
-    navigate(`/perfil/${lanzamiento.creadorId || slug}`, { state: { artista: lanzamiento } });
+  const abrirVistaPerfil = async (perfilBase) => {
+    if (!perfilBase?.id) return;
+
+    setPerfilVista({
+      cargando: true,
+      perfil: perfilBase,
+      stats: perfilBase.stats || {},
+      siguiendo: Boolean(perfilBase.siguiendo),
+    });
+
+    if (!usuario) {
+      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
+      return;
+    }
+
+    try {
+      const token = await obtenerTokenSesion();
+      if (!token) {
+        setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
+        return;
+      }
+
+      const response = await fetch(apiUrl(`/api/usuarios/${perfilBase.id}/perfil`), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error("No se pudo cargar el perfil.");
+      const data = await response.json();
+      setPerfilVista({
+        cargando: false,
+        perfil: data.perfil || perfilBase,
+        stats: data.stats || perfilBase.stats || {},
+        siguiendo: Boolean(data.siguiendo),
+      });
+    } catch (error) {
+      console.error(error);
+      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
+    }
+  };
+
+  const abrirVistaPerfilLanzamiento = (lanzamiento) => {
+    navegarAPerfil(lanzamiento.creadorId);
+  };
+
+  const abrirVistaPerfilComentario = (comentario) => {
+    navegarAPerfil(comentario.userId);
+  };
+
+  const alternarSeguimientoVistaPerfil = async () => {
+    if (!perfilVista?.perfil?.id) return;
+
+    await ejecutarConSesion(async () => {
+      try {
+        const token = await obtenerTokenSesion();
+        if (!token) return;
+
+        const response = await fetch(apiUrl(`/api/usuarios/${perfilVista.perfil.id}/seguir`), {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "No se pudo actualizar el seguimiento.");
+        }
+
+        const data = await response.json();
+        setPerfilVista((actual) =>
+          actual
+            ? {
+                ...actual,
+                siguiendo: data.siguiendo,
+                stats: {
+                  ...actual.stats,
+                  seguidores: data.seguidores,
+                },
+              }
+            : actual
+        );
+        setLanzamientos((prev) =>
+          prev.map((item) =>
+            item.creadorId === perfilVista.perfil.id
+              ? { ...item, siguiendo: data.siguiendo }
+              : item
+          )
+        );
+        window.dispatchEvent(new CustomEvent("sondar:seguimiento-actualizado"));
+      } catch (error) {
+        console.error(error);
+        mostrarAviso(error.message || "No se pudo seguir el perfil.");
+      }
+    });
   };
 
   const usuarioPuedeEliminarLanzamiento = (lanzamiento) =>
@@ -1213,6 +1438,50 @@ export default function Descubrir({ usuario }) {
     }
   };
 
+  const eliminarComentario = async (lanzamientoId, comentarioId, respuestaId = null) => {
+    const comentarioObjetivoId = respuestaId ?? comentarioId;
+    const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+
+    try {
+      if (lanzamiento?.backendId) {
+        const token = await obtenerTokenSesion();
+        if (!token) return;
+
+        const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}`), {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || "No se pudo eliminar el comentario.");
+        }
+      }
+
+      setComentariosPorLanzamiento((prev) => ({
+        ...prev,
+        [lanzamientoId]: (prev[lanzamientoId] || [])
+          .map((comentario) => {
+            if (respuestaId !== null && comentario.id === comentarioId) {
+              return {
+                ...comentario,
+                respuestas: comentario.respuestas.filter((respuesta) => respuesta.id !== respuestaId),
+              };
+            }
+
+            return comentario;
+          })
+          .filter((comentario) => respuestaId !== null || comentario.id !== comentarioId),
+      }));
+      mostrarAviso("Comentario eliminado");
+    } catch (error) {
+      console.error(error);
+      mostrarAviso(error.message || "No se pudo eliminar el comentario.");
+    }
+  };
+
   const alternarReproduccion = (id) => {
     setReproduciendo((actual) => {
       const siguiente = actual === id ? null : id;
@@ -1239,15 +1508,6 @@ export default function Descubrir({ usuario }) {
 
   const moverReel = (id, direccion) => {
     desplazarReel(id, direccion);
-  };
-
-  const abrirPerfilComentario = (userId) => {
-    if (!userId) return;
-    if (usuario?.id && userId === usuario.id) {
-      navigate("/perfil");
-      return;
-    }
-    navigate(`/perfil/${userId}`);
   };
 
   const enviarComentario = async (event) => {
@@ -1442,8 +1702,68 @@ export default function Descubrir({ usuario }) {
     }, 520);
   };
 
+  const actualizarLikeComentarioLocal = (lanzamientoId, comentarioId, respuestaId, dataLike = null) => {
+    setComentariosPorLanzamiento((prev) => ({
+      ...prev,
+      [lanzamientoId]: (prev[lanzamientoId] || []).map((comentario) => {
+        if (comentario.id !== comentarioId) return comentario;
+
+        if (respuestaId !== null) {
+          return {
+            ...comentario,
+            respuestas: comentario.respuestas.map((respuesta) => {
+              if (respuesta.id !== respuestaId) return respuesta;
+              const liked = dataLike ? dataLike.liked : !respuesta.liked;
+              const likes = dataLike
+                ? dataLike.likes
+                : Math.max(0, respuesta.likes + (liked ? 1 : -1));
+              return { ...respuesta, liked, likes };
+            }),
+          };
+        }
+
+        const liked = dataLike ? dataLike.liked : !comentario.liked;
+        const likes = dataLike
+          ? dataLike.likes
+          : Math.max(0, comentario.likes + (liked ? 1 : -1));
+
+        return { ...comentario, liked, likes };
+      }),
+    }));
+  };
+
   const toggleLikeComentario = (lanzamientoId, comentarioId, respuestaId = null) => {
-    ejecutarConSesion(() => {
+    ejecutarConSesion(async () => {
+      const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+      const comentarioObjetivoId = respuestaId ?? comentarioId;
+
+      if (lanzamiento?.backendId) {
+        try {
+          const token = await obtenerTokenSesion();
+          if (!token) return;
+
+          const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}/like`), {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "No se pudo guardar el me gusta.");
+          }
+
+          const data = await response.json();
+          actualizarLikeComentarioLocal(lanzamientoId, comentarioId, respuestaId, data);
+          return;
+        } catch (error) {
+          console.error(error);
+          mostrarAviso(error.message || "No se pudo guardar el me gusta.");
+          return;
+        }
+      }
+
       setComentariosPorLanzamiento((prev) => ({
         ...prev,
         [lanzamientoId]: (prev[lanzamientoId] || []).map((comentario) => {
@@ -1457,7 +1777,7 @@ export default function Descubrir({ usuario }) {
                   ? {
                       ...respuesta,
                       liked: !respuesta.liked,
-                      likes: respuesta.liked ? respuesta.likes - 1 : respuesta.likes + 1,
+                      likes: Math.max(0, respuesta.likes + (respuesta.liked ? -1 : 1)),
                     }
                   : respuesta
               ),
@@ -1467,7 +1787,7 @@ export default function Descubrir({ usuario }) {
           return {
             ...comentario,
             liked: !comentario.liked,
-            likes: comentario.liked ? comentario.likes - 1 : comentario.likes + 1,
+            likes: Math.max(0, comentario.likes + (comentario.liked ? -1 : 1)),
           };
         })
       }));
@@ -1515,7 +1835,7 @@ export default function Descubrir({ usuario }) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ texto, parentId: comentarioId }),
+          body: JSON.stringify({ texto, parentId: comentarioId, respondeA: respuestaPara }),
         });
 
         if (!response.ok) {
@@ -1530,7 +1850,10 @@ export default function Descubrir({ usuario }) {
             comentario.id === comentarioId
               ? {
                   ...comentario,
-                  respuestas: [...comentario.respuestas, respuestaGuardada],
+                  respuestas: [...comentario.respuestas, {
+                    ...respuestaGuardada,
+                    respondeA: respuestaGuardada.respondeA || respuestaPara,
+                  }],
                 }
               : comentario
           ),
@@ -1646,7 +1969,7 @@ export default function Descubrir({ usuario }) {
                     <button
                       className="artista-avatar"
                       type="button"
-                      onClick={() => abrirArtista(lanzamiento)}
+                      onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
                       aria-label={`Ver perfil de ${lanzamiento.artista}`}
                     >
                       {lanzamiento.avatar ? (
@@ -1660,7 +1983,7 @@ export default function Descubrir({ usuario }) {
                         <button
                           className="artista-nombre"
                           type="button"
-                          onClick={() => abrirArtista(lanzamiento)}
+                          onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
                         >
                           {lanzamiento.usuario}
                         </button>
@@ -1742,7 +2065,7 @@ export default function Descubrir({ usuario }) {
                   className="accion-boton"
                   type="button"
                   aria-label="Compartir"
-                  onClick={() => compartirLanzamiento(lanzamiento)}
+                  onClick={() => abrirCompartirLanzamiento(lanzamiento)}
                 >
                     <Icono nombre="compartir" />
                   </button>
@@ -1810,7 +2133,7 @@ export default function Descubrir({ usuario }) {
                       <button
                         className="comentario-avatar comentario-usuario-btn"
                         type="button"
-                        onClick={() => abrirPerfilComentario(comentario.userId)}
+                        onClick={() => abrirVistaPerfilComentario(comentario)}
                         aria-label={`Ver perfil de ${comentario.usuario}`}
                       >
                         <AvatarComentario comentario={comentario} />
@@ -1820,7 +2143,7 @@ export default function Descubrir({ usuario }) {
                           <button
                             className="comentario-nombre-btn"
                             type="button"
-                            onClick={() => abrirPerfilComentario(comentario.userId)}
+                            onClick={() => abrirVistaPerfilComentario(comentario)}
                           >
                             {comentario.usuario}
                           </button>{" "}
@@ -1835,6 +2158,15 @@ export default function Descubrir({ usuario }) {
                             Responder
                           </button>
                           <small>{formatearConteo(comentario.likes)} me gusta</small>
+                          {comentario.userId === usuario?.id ? (
+                            <button
+                              className="comentario-eliminar-btn"
+                              type="button"
+                              onClick={() => eliminarComentario(lanzamiento.id, comentario.id)}
+                            >
+                              Eliminar
+                            </button>
+                          ) : null}
                         </div>
                         {comentario.respuestas.length > 0 ? (
                           <button
@@ -1854,7 +2186,7 @@ export default function Descubrir({ usuario }) {
                                 <button
                                   className="comentario-avatar comentario-usuario-btn"
                                   type="button"
-                                  onClick={() => abrirPerfilComentario(respuesta.userId)}
+                                  onClick={() => abrirVistaPerfilComentario(respuesta)}
                                   aria-label={`Ver perfil de ${respuesta.usuario}`}
                                 >
                                   <AvatarComentario comentario={respuesta} />
@@ -1864,15 +2196,15 @@ export default function Descubrir({ usuario }) {
                                     <button
                                       className="comentario-nombre-btn"
                                       type="button"
-                                      onClick={() => abrirPerfilComentario(respuesta.userId)}
+                                      onClick={() => abrirVistaPerfilComentario(respuesta)}
                                     >
                                       {respuesta.usuario}
-                                    </button>{" "}
+                                    </button>
+                                    {respuesta.respondeA ? (
+                                      <span className="respuesta-para-linea"> para {respuesta.respondeA}</span>
+                                    ) : null}{" "}
                                     <span>{respuesta.tiempo}</span>
                                   </strong>
-                                  {respuesta.respondeA ? (
-                                    <small className="respuesta-para">Para {respuesta.respondeA}</small>
-                                  ) : null}
                                   <p>{respuesta.texto}</p>
                                   <div className="comentario-acciones">
                                     <button
@@ -1884,6 +2216,17 @@ export default function Descubrir({ usuario }) {
                                       Responder
                                     </button>
                                     <small>{formatearConteo(respuesta.likes)} me gusta</small>
+                                    {respuesta.userId === usuario?.id ? (
+                                      <button
+                                        className="comentario-eliminar-btn"
+                                        type="button"
+                                        onClick={() =>
+                                          eliminarComentario(lanzamiento.id, comentario.id, respuesta.id)
+                                        }
+                                      >
+                                        Eliminar
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </div>
                                 <button
@@ -1900,7 +2243,7 @@ export default function Descubrir({ usuario }) {
                         ) : null}
                         {respuestaActiva === `${lanzamiento.id}-${comentario.id}` ? (
                           <form className="respuesta-comentario-form" onSubmit={(event) => enviarRespuesta(event, lanzamiento.id, comentario.id)}>
-                            <span className="respuesta-destino">Para {respuestaPara}</span>
+                            <span className="respuesta-destino">{usuarioComentario} para {respuestaPara}</span>
                             <input
                               type="text"
                               placeholder="Escribe una respuesta..."
@@ -1977,6 +2320,111 @@ export default function Descubrir({ usuario }) {
       {aviso ? (
         <div className="descubrir-toast" role="status">
           {aviso}
+        </div>
+      ) : null}
+
+      {compartirActivo ? (
+        <div className="compartir-overlay" role="presentation" onMouseDown={() => setCompartirActivo(null)}>
+          <section
+            className="compartir-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compartir-titulo"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="compartir-header">
+              <strong id="compartir-titulo">Compartir en</strong>
+              <button type="button" aria-label="Cerrar compartir" onClick={() => setCompartirActivo(null)}>
+                <Icono nombre="cerrar" />
+              </button>
+            </header>
+
+            <button
+              className="compartir-creador"
+              type="button"
+              onClick={() => abrirVistaPerfilLanzamiento(compartirActivo.lanzamiento)}
+            >
+              <span className="comentario-avatar">
+                {compartirActivo.lanzamiento.avatar ? (
+                  <img src={compartirActivo.lanzamiento.avatar} alt="" />
+                ) : (
+                  compartirActivo.lanzamiento.artista.charAt(0).toUpperCase()
+                )}
+              </span>
+              <span>
+                <strong>{compartirActivo.lanzamiento.artista}</strong>
+                <small>Creador del reel</small>
+              </span>
+            </button>
+
+            <div className="compartir-acciones">
+              <button type="button" onClick={() => compartirLanzamiento("copy")}>
+                <IconoCompartir tipo="copy" />
+                Copiar
+              </button>
+              <button type="button" onClick={() => compartirEnRed("whatsapp")}>
+                <IconoCompartir tipo="whatsapp" />
+                WhatsApp
+              </button>
+              <button type="button" onClick={() => compartirEnRed("facebook")}>
+                <IconoCompartir tipo="facebook" />
+                Facebook
+              </button>
+              <button type="button" onClick={() => compartirEnRed("instagram")}>
+                <IconoCompartir tipo="instagram" />
+                Instagram
+              </button>
+            </div>
+
+            <div className="compartir-link">
+              <span>{compartirActivo.enlace}</span>
+              <button type="button" onClick={() => compartirLanzamiento("copy")}>
+                Copiar enlace
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {perfilVista ? (
+        <div className="perfil-vista-overlay" role="presentation" onMouseDown={() => setPerfilVista(null)}>
+          <section
+            className="perfil-vista-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Perfil de ${perfilVista.perfil.nombre}`}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header>
+              <div className="perfil-vista-avatar">
+                {perfilVista.perfil.avatar ? (
+                  <img src={perfilVista.perfil.avatar} alt="" />
+                ) : (
+                  <span>{perfilVista.perfil.nombre?.charAt(0).toUpperCase() || "S"}</span>
+                )}
+              </div>
+              {perfilVista.perfil.id !== usuario?.id ? (
+                <button type="button" onClick={alternarSeguimientoVistaPerfil}>
+                  {perfilVista.siguiendo ? "Siguiendo" : "Seguir"}
+                </button>
+              ) : null}
+            </header>
+            <strong>{perfilVista.perfil.nombre}</strong>
+            <small>{perfilVista.perfil.usuario}</small>
+            <div className="perfil-vista-stats">
+              <span><b>{formatearNumero(perfilVista.stats.seguidores)}</b> Seguidores</span>
+              <span><b>{formatearNumero(perfilVista.stats.publicaciones)}</b> Publicaciones</span>
+            </div>
+            <p>{perfilVista.perfil.bio}</p>
+            <div className="perfil-vista-actions">
+              <button type="button" onClick={() => navegarAPerfil(perfilVista.perfil.id)}>
+                Ver perfil
+              </button>
+              <button type="button" onClick={() => setPerfilVista(null)}>
+                Cerrar
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
 

@@ -6,6 +6,9 @@ const {
   eliminarArchivoReel
 } = require('../services/storageService');
 
+let esquemaComentariosListo = null;
+let esquemaCompartidosListo = null;
+
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
@@ -37,6 +40,51 @@ async function asegurarUsuarioPublico(user) {
      RETURNING id`,
     [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
   );
+}
+
+async function asegurarEsquemaComentarios() {
+  if (!esquemaComentariosListo) {
+    esquemaComentariosListo = (async () => {
+      await pool.query('ALTER TABLE reel_comments ADD COLUMN IF NOT EXISTS responde_a text');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reel_comment_likes (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          comment_id bigint NOT NULL REFERENCES reel_comments(id) ON DELETE CASCADE,
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT reel_comment_likes_pkey PRIMARY KEY (user_id, comment_id)
+        )
+      `);
+      await pool.query(
+        'CREATE INDEX IF NOT EXISTS idx_reel_comment_likes_comment_id ON reel_comment_likes(comment_id)'
+      );
+    })().catch((error) => {
+      esquemaComentariosListo = null;
+      throw error;
+    });
+  }
+
+  return esquemaComentariosListo;
+}
+
+async function asegurarEsquemaCompartidos() {
+  if (!esquemaCompartidosListo) {
+    esquemaCompartidosListo = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reel_shares (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT reel_shares_pkey PRIMARY KEY (user_id, reel_id)
+        )
+      `);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_shares_reel_id ON reel_shares(reel_id)');
+    })().catch((error) => {
+      esquemaCompartidosListo = null;
+      throw error;
+    });
+  }
+
+  return esquemaCompartidosListo;
 }
 
 function mapearReel(reel) {
@@ -95,8 +143,9 @@ function mapearComentario(row) {
     tiempo: tiempoRelativo(row.created_at),
     texto: row.texto,
     likes: Number(row.likes || 0),
-    liked: false,
+    liked: Boolean(row.liked),
     parentId: row.parent_id,
+    respondeA: row.responde_a || '',
     respuestas: [],
   };
 }
@@ -195,17 +244,25 @@ const reelController = {
     const { id } = req.params;
 
     try {
+      await asegurarEsquemaComentarios();
+      const viewerId = await obtenerViewerId(req);
       const result = await pool.query(
         `SELECT
           rc.*,
           u.username,
           u.email,
-          u.profile_img_url
+          u.profile_img_url,
+          EXISTS (
+            SELECT 1
+            FROM reel_comment_likes rcl
+            WHERE rcl.comment_id = rc.id
+              AND rcl.user_id = $2
+          ) AS liked
         FROM reel_comments rc
         LEFT JOIN users u ON u.id = rc.user_id
         WHERE rc.reel_id = $1
         ORDER BY rc.created_at ASC, rc.id ASC`,
-        [id]
+        [id, viewerId]
       );
 
       res.json(anidarComentarios(result.rows));
@@ -221,8 +278,9 @@ const reelController = {
 
   crearComentario: async (req, res) => {
     const { id } = req.params;
-    const { texto, parentId } = req.body;
+    const { texto, parentId, respondeA } = req.body;
     const textoLimpio = texto?.trim();
+    const respondeALimpio = respondeA?.trim() || null;
 
     if (!textoLimpio) {
       return res.status(400).json({ error: 'El comentario no puede estar vacio.' });
@@ -230,12 +288,13 @@ const reelController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComentarios();
 
       const result = await pool.query(
-        `INSERT INTO reel_comments (reel_id, user_id, parent_id, texto)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO reel_comments (reel_id, user_id, parent_id, texto, responde_a)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [id, req.user.id, parentId || null, textoLimpio]
+        [id, req.user.id, parentId || null, textoLimpio, parentId ? respondeALimpio : null]
       );
 
       const usuarioResult = await pool.query(
@@ -333,6 +392,36 @@ const reelController = {
     }
   },
 
+  eliminarComentario: async (req, res) => {
+    const { comentarioId } = req.params;
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComentarios();
+
+      const result = await pool.query(
+        `DELETE FROM reel_comments
+         WHERE id = $1 AND user_id = $2
+         RETURNING id, reel_id, parent_id`,
+        [comentarioId, req.user.id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Comentario no encontrado o sin permiso para eliminarlo.' });
+      }
+
+      res.json({
+        ok: true,
+        id: Number(result.rows[0].id),
+        reelId: Number(result.rows[0].reel_id),
+        parentId: result.rows[0].parent_id ? Number(result.rows[0].parent_id) : null,
+      });
+    } catch (error) {
+      console.error('Error al eliminar comentario:', error);
+      res.status(500).json({ error: 'No se pudo eliminar el comentario.' });
+    }
+  },
+
   alternarLike: async (req, res) => {
     const { id } = req.params;
     const client = await pool.connect();
@@ -373,6 +462,112 @@ const reelController = {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar like de reel:', error);
       res.status(500).json({ error: 'No se pudo actualizar el favorito.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  alternarLikeComentario: async (req, res) => {
+    const { comentarioId } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComentarios();
+      await client.query('BEGIN');
+
+      const comentario = await client.query(
+        'SELECT id FROM reel_comments WHERE id = $1',
+        [comentarioId]
+      );
+      if (comentario.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Comentario no encontrado.' });
+      }
+
+      const existe = await client.query(
+        'SELECT 1 FROM reel_comment_likes WHERE user_id = $1 AND comment_id = $2',
+        [req.user.id, comentarioId]
+      );
+
+      let liked = false;
+      if (existe.rowCount > 0) {
+        await client.query(
+          'DELETE FROM reel_comment_likes WHERE user_id = $1 AND comment_id = $2',
+          [req.user.id, comentarioId]
+        );
+        await client.query(
+          'UPDATE reel_comments SET likes = GREATEST(0, likes - 1) WHERE id = $1',
+          [comentarioId]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO reel_comment_likes (user_id, comment_id) VALUES ($1, $2)',
+          [req.user.id, comentarioId]
+        );
+        await client.query(
+          'UPDATE reel_comments SET likes = likes + 1 WHERE id = $1',
+          [comentarioId]
+        );
+        liked = true;
+      }
+
+      const counts = await client.query('SELECT likes FROM reel_comments WHERE id = $1', [comentarioId]);
+      await client.query('COMMIT');
+
+      res.json({
+        id: Number(comentarioId),
+        liked,
+        likes: Number(counts.rows[0]?.likes || 0),
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al alternar like de comentario:', error);
+      res.status(500).json({ error: 'No se pudo actualizar el me gusta.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  registrarCompartido: async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaCompartidos();
+      await client.query('BEGIN');
+
+      const reel = await client.query('SELECT id FROM reels WHERE id = $1', [id]);
+      if (reel.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Reel no encontrado.' });
+      }
+
+      const compartido = await client.query(
+        `INSERT INTO reel_shares (user_id, reel_id)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id, reel_id) DO NOTHING
+         RETURNING reel_id`,
+        [req.user.id, id]
+      );
+
+      if (compartido.rowCount > 0) {
+        await client.query('UPDATE reels SET compartidos = compartidos + 1 WHERE id = $1', [id]);
+      }
+
+      const counts = await client.query('SELECT compartidos FROM reels WHERE id = $1', [id]);
+      await client.query('COMMIT');
+
+      res.json({
+        compartido: true,
+        nuevoCompartido: compartido.rowCount > 0,
+        compartidos: Number(counts.rows[0]?.compartidos || 0),
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al registrar compartido:', error);
+      res.status(500).json({ error: 'No se pudo registrar el compartido.' });
     } finally {
       client.release();
     }

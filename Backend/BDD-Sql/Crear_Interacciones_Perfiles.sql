@@ -23,6 +23,13 @@ CREATE TABLE IF NOT EXISTS public.reel_saves (
   CONSTRAINT reel_saves_pkey PRIMARY KEY (user_id, reel_id)
 );
 
+CREATE TABLE IF NOT EXISTS public.reel_shares (
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  reel_id bigint NOT NULL REFERENCES public.reels(id) ON DELETE CASCADE,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT reel_shares_pkey PRIMARY KEY (user_id, reel_id)
+);
+
 CREATE TABLE IF NOT EXISTS public.event_saves (
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   event_id bigint NOT NULL REFERENCES public.eventos(id) ON DELETE CASCADE,
@@ -36,23 +43,38 @@ CREATE TABLE IF NOT EXISTS public.reel_comments (
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   parent_id bigint REFERENCES public.reel_comments(id) ON DELETE CASCADE,
   texto text NOT NULL CHECK (length(trim(texto)) > 0),
+  responde_a text,
   likes integer NOT NULL DEFAULT 0,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
   CONSTRAINT reel_comments_pkey PRIMARY KEY (id)
 );
 
+ALTER TABLE public.reel_comments
+ADD COLUMN IF NOT EXISTS responde_a text;
+
+CREATE TABLE IF NOT EXISTS public.reel_comment_likes (
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  comment_id bigint NOT NULL REFERENCES public.reel_comments(id) ON DELETE CASCADE,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT reel_comment_likes_pkey PRIMARY KEY (user_id, comment_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_follows_following_id ON public.follows(following_id);
 CREATE INDEX IF NOT EXISTS idx_reel_likes_reel_id ON public.reel_likes(reel_id);
 CREATE INDEX IF NOT EXISTS idx_reel_saves_reel_id ON public.reel_saves(reel_id);
+CREATE INDEX IF NOT EXISTS idx_reel_shares_reel_id ON public.reel_shares(reel_id);
 CREATE INDEX IF NOT EXISTS idx_event_saves_event_id ON public.event_saves(event_id);
 CREATE INDEX IF NOT EXISTS idx_reel_comments_reel_id ON public.reel_comments(reel_id);
 CREATE INDEX IF NOT EXISTS idx_reel_comments_parent_id ON public.reel_comments(parent_id);
+CREATE INDEX IF NOT EXISTS idx_reel_comment_likes_comment_id ON public.reel_comment_likes(comment_id);
 
 ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_saves ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;
 
 DO $$
 BEGIN
@@ -154,6 +176,22 @@ BEGIN
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reel_shares' AND policyname = 'reel_shares_select_own'
+  ) THEN
+    CREATE POLICY reel_shares_select_own ON public.reel_shares
+      FOR SELECT USING (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reel_shares' AND policyname = 'reel_shares_insert_own'
+  ) THEN
+    CREATE POLICY reel_shares_insert_own ON public.reel_shares
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'reel_comments' AND policyname = 'reel_comments_select_public'
   ) THEN
     CREATE POLICY reel_comments_select_public ON public.reel_comments
@@ -173,6 +211,30 @@ BEGIN
     WHERE schemaname = 'public' AND tablename = 'reel_comments' AND policyname = 'reel_comments_delete_own'
   ) THEN
     CREATE POLICY reel_comments_delete_own ON public.reel_comments
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reel_comment_likes' AND policyname = 'reel_comment_likes_select_public'
+  ) THEN
+    CREATE POLICY reel_comment_likes_select_public ON public.reel_comment_likes
+      FOR SELECT USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reel_comment_likes' AND policyname = 'reel_comment_likes_insert_own'
+  ) THEN
+    CREATE POLICY reel_comment_likes_insert_own ON public.reel_comment_likes
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'reel_comment_likes' AND policyname = 'reel_comment_likes_delete_own'
+  ) THEN
+    CREATE POLICY reel_comment_likes_delete_own ON public.reel_comment_likes
       FOR DELETE USING (auth.uid() = user_id);
   END IF;
 END $$;

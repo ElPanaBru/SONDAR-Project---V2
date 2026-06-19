@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./miperfil.css";
@@ -17,6 +18,7 @@ const contenidoInicial = {
   eventos: [],
   favoritos: [],
   guardados: [],
+  seguidores: [],
   seguidos: [],
   stats: {
     publicaciones: 0,
@@ -98,6 +100,8 @@ export default function MiPerfil({ usuario }) {
   const [contenido, setContenido] = useState(contenidoInicial);
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState("");
+  const [listaSocialActiva, setListaSocialActiva] = useState(null);
+  const [compartirAbierto, setCompartirAbierto] = useState(false);
 
   const opcionesPerfil = useMemo(
     () => [
@@ -151,6 +155,7 @@ export default function MiPerfil({ usuario }) {
           eventos: dataPerfil.eventos || [],
           favoritos: dataPerfil.favoritos || [],
           guardados: dataPerfil.guardados || [],
+          seguidores: dataPerfil.seguidores || [],
           seguidos: dataPerfil.seguidos || [],
           stats: dataPerfil.stats || contenidoInicial.stats,
         });
@@ -236,19 +241,27 @@ export default function MiPerfil({ usuario }) {
     }
   };
 
-  const compartirPerfil = async () => {
-    const datos = {
-      title: `Perfil de ${perfil.nombre}`,
-      text: `Mira el perfil de ${perfil.nombre} en SONDAR`,
-      url: window.location.href,
-    };
+  const enlacePerfil = () => {
+    const enlace = new URL(window.location.origin);
+    enlace.pathname = "/perfil";
+    return enlace.toString();
+  };
 
-    if (navigator.share) {
-      await navigator.share(datos).catch(() => {});
+  const abrirCompartirPerfil = () => {
+    setCompartirAbierto(true);
+  };
+
+  const abrirListaSocial = (tipo) => {
+    setListaSocialActiva(tipo);
+  };
+
+  const abrirPerfilSocial = (perfilSocial) => {
+    setListaSocialActiva(null);
+    if (!perfilSocial?.id || perfilSocial.id === usuario?.id) {
+      navigate("/perfil");
       return;
     }
-
-    await navigator.clipboard?.writeText(window.location.href);
+    navigate(`/perfil/${perfilSocial.id}`);
   };
 
   const renderContenidoActivo = () => {
@@ -300,7 +313,7 @@ export default function MiPerfil({ usuario }) {
             <button className="perfil-primary-btn" type="button" onClick={abrirEditor}>
               Editar perfil
             </button>
-            <button className="perfil-secondary-btn" type="button" onClick={compartirPerfil}>
+            <button className="perfil-secondary-btn" type="button" onClick={abrirCompartirPerfil}>
               <IconoPerfil nombre="share" size={18} />
               Compartir
             </button>
@@ -308,8 +321,12 @@ export default function MiPerfil({ usuario }) {
 
           <div className="perfil-stats">
             <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
-            <p><strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores</p>
-            <p><strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos</p>
+            <button type="button" onClick={() => abrirListaSocial("seguidores")}>
+              <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
+            </button>
+            <button type="button" onClick={() => abrirListaSocial("seguidos")}>
+              <strong>{formatearNumero(contenido.stats.seguidos)}</strong> seguidos
+            </button>
           </div>
 
           <div className="perfil-description">
@@ -386,6 +403,69 @@ export default function MiPerfil({ usuario }) {
             </div>
           </form>
         </div>
+      ) : null}
+
+      {listaSocialActiva ? (
+        <div className="perfil-modal-overlay" role="presentation" onMouseDown={() => setListaSocialActiva(null)}>
+          <section
+            className="perfil-social-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="perfil-social-titulo"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="perfil-modal-header">
+              <h2 id="perfil-social-titulo">
+                {listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
+              </h2>
+              <button
+                className="perfil-modal-close"
+                type="button"
+                onClick={() => setListaSocialActiva(null)}
+                aria-label="Cerrar lista"
+              >
+                x
+              </button>
+            </div>
+            <div className="perfil-social-lista">
+              {(contenido[listaSocialActiva] || []).length > 0 ? (
+                contenido[listaSocialActiva].map((perfilSocial) => (
+                  <button
+                    className="perfil-social-item"
+                    type="button"
+                    key={perfilSocial.id}
+                    onClick={() => abrirPerfilSocial(perfilSocial)}
+                  >
+                    <span>
+                      {perfilSocial.avatar ? (
+                        <img src={perfilSocial.avatar} alt="" />
+                      ) : (
+                        perfilSocial.nombre.charAt(0).toUpperCase()
+                      )}
+                    </span>
+                    <strong>{perfilSocial.nombre}</strong>
+                    <small>{perfilSocial.usuario}</small>
+                  </button>
+                ))
+              ) : (
+                <p className="perfil-social-vacio">
+                  {listaSocialActiva === "seguidores"
+                    ? "Todavia no hay seguidores."
+                    : "Todavia no seguis a nadie."}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {compartirAbierto ? (
+        <CompartirPerfilModal
+          perfil={perfil}
+          enlace={enlacePerfil()}
+          onClose={() => setCompartirAbierto(false)}
+          onAviso={setAviso}
+        />
       ) : null}
 
       <div

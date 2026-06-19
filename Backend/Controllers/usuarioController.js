@@ -150,6 +150,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     seguidoresStatsResult,
     seguidosStatsResult,
     siguiendoResult,
+    seguidoresResult,
     seguidosResult,
   ] = await Promise.all([
     consultarOpcional(
@@ -193,6 +194,14 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     consultarOpcional(
       `SELECT u.*
        FROM follows f
+       JOIN users u ON u.id = f.follower_id
+       WHERE f.following_id = $1
+       ORDER BY f.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT u.*
+       FROM follows f
        JOIN users u ON u.id = f.following_id
        WHERE f.follower_id = $1
        ORDER BY f.created_at DESC`,
@@ -221,6 +230,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     eventos,
     favoritos: favoritosResult.rows.map(mapearReelPerfil),
     guardados: [...reelsGuardados, ...eventosGuardados],
+    seguidores: seguidoresResult.rows.map(mapearUsuarioPerfil),
     seguidos: seguidosResult.rows.map(mapearUsuarioPerfil),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
     stats: {
