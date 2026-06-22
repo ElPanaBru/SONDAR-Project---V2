@@ -4,6 +4,7 @@ import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./auth.css";
+import { Resend } from 'resend';
 
 const mensajesSupabase = {
   "Invalid login credentials": "Email o contraseña incorrectos",
@@ -11,6 +12,8 @@ const mensajesSupabase = {
   "User already registered": "El correo ya esta registrado",
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres"
 };
+
+
 
 export default function Auth() {
   const { t } = usePreferencias();
@@ -33,6 +36,14 @@ export default function Auth() {
     if (/[^A-Za-z0-9]/.test(password)) puntos += 1;
     return puntos;
   }, [password]);
+
+  const resend = new Resend('re_Nt9BCF6Z_3xNWtGEhj61XuzcaRC3JMhnW');
+resend.emails.send({
+  from: 'onboarding@resend.dev',
+  to: 'sonaradevteam@gmail.com',
+  subject: 'Hello World',
+  html: '<p>Congrats on sending your <strong>first email</strong>!</p>'
+});
 
   const traducirError = (error) => {
     if (!error) return "Ocurrio un error inesperado.";
@@ -127,35 +138,25 @@ export default function Auth() {
         return;
       }
 
-      const crearCuentaResponse = await fetch(apiUrl("/api/usuarios/crear-cuenta"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          email: cleanEmail,
-          password: cleanPassword,
-          username: cleanUsername
-        })
+      const { data, error } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: cleanPassword,
+        options: {
+          data: {
+            username: cleanUsername
+          },
+          emailRedirectTo: `${window.location.origin}/auth?modo=login`
+        }
       });
 
-      if (!crearCuentaResponse.ok) {
-        const data = await crearCuentaResponse.json().catch(() => ({}));
-        throw new Error(
-          data.error
-            ? `${crearCuentaResponse.status} - ${data.error}`
-            : `${crearCuentaResponse.status} - No se pudo crear la cuenta.`
-        );
+      if (error) throw error;
+
+      if (data.session) {
+        await supabase.auth.signOut();
       }
 
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword
-      });
-
-      if (loginError) throw loginError;
-
-      navigate("/");
+      setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro antes de ingresar.");
+      setPassword("");
     } catch (error) {
       setMensaje(traducirError(error));
     } finally {
