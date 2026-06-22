@@ -101,8 +101,6 @@ export default function OtroPerfil({ usuarioActual }) {
   const [contenido, setContenido] = useState(contenidoVacio);
   const [siguiendo, setSiguiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(false);
-  const [perfilPrivado, setPerfilPrivado] = useState(false);
-  const [contenidoRestringido, setContenidoRestringido] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
   const [cargando, setCargando] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -161,8 +159,6 @@ export default function OtroPerfil({ usuarioActual }) {
         });
         setSiguiendo(Boolean(dataPerfil.siguiendo));
         setSilenciado(Boolean(dataPerfil.silenciado));
-        setPerfilPrivado(Boolean(dataPerfil.privado));
-        setContenidoRestringido(Boolean(dataPerfil.contenidoRestringido));
       } catch (error) {
         console.error(error);
         if (activo) setAviso(error.message || "No se pudo cargar el perfil.");
@@ -298,16 +294,6 @@ export default function OtroPerfil({ usuarioActual }) {
       );
     }
 
-    if (contenidoRestringido) {
-      return (
-        <div className="perfil-empty-state">
-          <span aria-hidden="true">🔒</span>
-          <h3>{t("Esta cuenta es privada")}</h3>
-          <p>Solo las cuentas que este usuario sigue pueden ver su contenido y comentarlo.</p>
-        </div>
-      );
-    }
-
     return (
       <div className="perfil-empty-state">
         <span><IconoPerfil nombre={contenidoActivo?.icono || "grid"} /></span>
@@ -333,11 +319,6 @@ export default function OtroPerfil({ usuarioActual }) {
         <div className="perfil-info">
           <div className="perfil-title-row">
             <h1>{perfil.nombre}</h1>
-            {perfilPrivado ? (
-              <span className="perfil-private-badge" title="Cuenta privada" aria-label="Cuenta privada">
-                <IconoPerfil nombre="lock" size={17} />
-              </span>
-            ) : null}
             {!esPerfilPropio ? (
               <button
                 className={`perfil-primary-btn ${siguiendo ? "siguiendo" : ""}`}
@@ -436,9 +417,7 @@ export default function OtroPerfil({ usuarioActual }) {
                 ))
               ) : (
                 <p className="perfil-social-vacio">
-                  {contenidoRestringido
-                    ? "Esta lista es privada."
-                    : listaSocialActiva === "seguidores"
+                  {listaSocialActiva === "seguidores"
                     ? "Todavia no hay seguidores."
                     : "Todavia no sigue a nadie."}
                 </p>

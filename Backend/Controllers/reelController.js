@@ -29,48 +29,29 @@ async function obtenerViewerId(req) {
   return data.user.id;
 }
 
-async function buscarAccesoReel(reelId, viewerId, client = pool) {
+async function buscarAccesoReel(reelId, client = pool) {
   const result = await client.query(
     `SELECT
        r.id,
        r.creador_id,
-       r.titulo,
-       (
-         COALESCE(us.perfil_privado, false) = false
-         OR r.creador_id = $2
-         OR EXISTS (
-           SELECT 1 FROM follows f
-           WHERE f.follower_id = r.creador_id AND f.following_id = $2
-         )
-       ) AS permitido
+       r.titulo
      FROM reels r
-     LEFT JOIN user_settings us ON us.user_id = r.creador_id
      WHERE r.id = $1`,
-    [reelId, viewerId]
+    [reelId]
   );
   return result.rows[0] || null;
 }
 
-async function buscarAccesoComentario(comentarioId, viewerId, client = pool) {
+async function buscarAccesoComentario(comentarioId, client = pool) {
   const result = await client.query(
     `SELECT
        rc.id,
        rc.user_id,
        rc.reel_id,
-       rc.texto,
-       (
-         COALESCE(us.perfil_privado, false) = false
-         OR r.creador_id = $2
-         OR EXISTS (
-           SELECT 1 FROM follows f
-           WHERE f.follower_id = r.creador_id AND f.following_id = $2
-         )
-       ) AS permitido
+       rc.texto
      FROM reel_comments rc
-     JOIN reels r ON r.id = rc.reel_id
-     LEFT JOIN user_settings us ON us.user_id = r.creador_id
      WHERE rc.id = $1`,
-    [comentarioId, viewerId]
+    [comentarioId]
   );
   return result.rows[0] || null;
 }
@@ -82,7 +63,7 @@ async function asegurarUsuarioPublico(user) {
     user.user_metadata?.name ||
     email.split('@')[0] ||
     'usuario';
-  const username = `${baseUsername}`.trim().slice(0, 40) || 'usuario';
+  const username = `${baseUsername}`.trim().toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
   const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
 
   await pool.query(
@@ -144,7 +125,7 @@ function mapearReel(reel) {
   return {
     id: reel.id,
     artista: reel.creador_nombre || reel.creador_email?.split('@')[0] || 'Artista SONDAR',
-    usuario: reel.creador_email ? `@${reel.creador_email.split('@')[0]}` : '@artista',
+    usuario: reel.creador_nombre ? `@${String(reel.creador_nombre).replace(/^@/, '')}` : '@artista',
     oyentes: '0',
     tema: reel.titulo,
     album: reel.album,
@@ -167,7 +148,6 @@ function mapearReel(reel) {
     siguiendo: false,
     creadorId: reel.creador_id,
     backendId: reel.id,
-    cuentaPrivada: Boolean(reel.creador_privado),
   };
 }
 
@@ -200,7 +180,6 @@ function mapearComentario(row) {
     liked: Boolean(row.liked),
     parentId: row.parent_id,
     respondeA: row.responde_a || '',
-    cuentaPrivada: Boolean(row.autor_privado),
     respuestas: [],
   };
 }
@@ -251,20 +230,11 @@ const reelController = {
           r.*,
           COALESCE(u.username, u.email) AS creador_nombre,
           u.email AS creador_email,
-          u.profile_img_url AS creador_avatar,
-          COALESCE(us.perfil_privado, false) AS creador_privado
+          u.profile_img_url AS creador_avatar
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
-        LEFT JOIN user_settings us ON us.user_id = r.creador_id
-        WHERE
-          COALESCE(us.perfil_privado, false) = false
-          OR r.creador_id = $1
-          OR EXISTS (
-            SELECT 1 FROM follows acceso
-            WHERE acceso.follower_id = r.creador_id AND acceso.following_id = $1
-          )
         ORDER BY r.created_at DESC, r.id DESC
-      `, [viewerId]);
+      `);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows.map(mapearReel));
@@ -310,16 +280,14 @@ const reelController = {
     try {
       await asegurarEsquemaComentarios();
       const viewerId = await obtenerViewerId(req);
-      const acceso = await buscarAccesoReel(id, viewerId);
+      const acceso = await buscarAccesoReel(id);
       if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
-      if (!acceso.permitido) return res.status(403).json({ error: 'Este reel pertenece a una cuenta privada.' });
       const result = await pool.query(
         `SELECT
           rc.*,
           u.username,
           u.email,
           u.profile_img_url,
-          COALESCE(autor_settings.perfil_privado, false) AS autor_privado,
           EXISTS (
             SELECT 1
             FROM reel_comment_likes rcl
@@ -328,7 +296,6 @@ const reelController = {
           ) AS liked
         FROM reel_comments rc
         LEFT JOIN users u ON u.id = rc.user_id
-        LEFT JOIN user_settings autor_settings ON autor_settings.user_id = rc.user_id
         WHERE rc.reel_id = $1
         ORDER BY rc.created_at ASC, rc.id ASC`,
         [id, viewerId]
@@ -358,9 +325,8 @@ const reelController = {
     try {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComentarios();
-      const acceso = await buscarAccesoReel(id, req.user.id);
+      const acceso = await buscarAccesoReel(id);
       if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
-      if (!acceso.permitido) return res.status(403).json({ error: 'No tenes acceso a este reel privado.' });
 
       const result = await pool.query(
         `INSERT INTO reel_comments (reel_id, user_id, parent_id, texto, responde_a)
@@ -370,10 +336,8 @@ const reelController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email, u.profile_img_url,
-                COALESCE(us.perfil_privado, false) AS autor_privado
+        `SELECT u.username, u.email, u.profile_img_url
          FROM users u
-         LEFT JOIN user_settings us ON us.user_id = u.id
          WHERE u.id = $1`,
         [req.user.id]
       );
@@ -433,7 +397,6 @@ const reelController = {
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
         profile_img_url: usuarioResult.rows[0]?.profile_img_url,
-        autor_privado: usuarioResult.rows[0]?.autor_privado,
       }));
     } catch (error) {
       console.error('Error al crear comentario:', error);
@@ -479,9 +442,8 @@ const reelController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.profile_img_url, COALESCE(us.perfil_privado, false) AS creador_privado
+        `SELECT u.profile_img_url
          FROM users u
-         LEFT JOIN user_settings us ON us.user_id = u.id
          WHERE u.id = $1`,
         [req.user.id]
       );
@@ -511,7 +473,6 @@ const reelController = {
         creador_nombre: req.user.user_metadata?.username || req.user.email?.split('@')[0],
         creador_email: req.user.email,
         creador_avatar: usuarioResult.rows[0]?.profile_img_url || '',
-        creador_privado: usuarioResult.rows[0]?.creador_privado,
       }));
     } catch (error) {
       await eliminarArchivoReel(portadaSubida?.path).catch(() => null);
@@ -581,14 +542,10 @@ const reelController = {
       await asegurarUsuarioPublico(req.user);
       await client.query('BEGIN');
 
-      const reel = await buscarAccesoReel(id, req.user.id, client);
+      const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Reel no encontrado.' });
-      }
-      if (!reel.permitido) {
-        await client.query('ROLLBACK');
-        return res.status(403).json({ error: 'No tenes acceso a este reel privado.' });
       }
 
       const existe = await client.query(
@@ -646,14 +603,10 @@ const reelController = {
       await asegurarEsquemaComentarios();
       await client.query('BEGIN');
 
-      const comentario = await buscarAccesoComentario(comentarioId, req.user.id, client);
+      const comentario = await buscarAccesoComentario(comentarioId, client);
       if (!comentario) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Comentario no encontrado.' });
-      }
-      if (!comentario.permitido) {
-        await client.query('ROLLBACK');
-        return res.status(403).json({ error: 'No tenes acceso a este reel privado.' });
       }
 
       const existe = await client.query(
@@ -724,14 +677,10 @@ const reelController = {
       await asegurarEsquemaCompartidos();
       await client.query('BEGIN');
 
-      const reel = await buscarAccesoReel(id, req.user.id, client);
+      const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Reel no encontrado.' });
-      }
-      if (!reel.permitido) {
-        await client.query('ROLLBACK');
-        return res.status(403).json({ error: 'No tenes acceso a este reel privado.' });
       }
 
       const compartido = await client.query(
@@ -773,14 +722,10 @@ const reelController = {
       await asegurarUsuarioPublico(req.user);
       await client.query('BEGIN');
 
-      const reel = await buscarAccesoReel(id, req.user.id, client);
+      const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Reel no encontrado.' });
-      }
-      if (!reel.permitido) {
-        await client.query('ROLLBACK');
-        return res.status(403).json({ error: 'No tenes acceso a este reel privado.' });
       }
 
       const existe = await client.query(

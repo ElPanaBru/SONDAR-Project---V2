@@ -7,12 +7,6 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
   codigo_pais text NOT NULL DEFAULT '+54'
     CHECK (codigo_pais IN ('+54', '+55', '+56', '+598')),
   idioma text NOT NULL DEFAULT 'es' CHECK (idioma IN ('es', 'en', 'pt')),
-  zona_horaria text NOT NULL DEFAULT 'America/Argentina/Buenos_Aires'
-    CHECK (zona_horaria IN (
-      'America/Argentina/Buenos_Aires',
-      'America/Santiago',
-      'America/Montevideo'
-    )),
   actividad_cuenta boolean NOT NULL DEFAULT true,
   notificar_interacciones boolean NOT NULL DEFAULT true,
   notificar_comentarios boolean NOT NULL DEFAULT true,
@@ -20,7 +14,6 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
   notificar_publicaciones boolean NOT NULL DEFAULT true,
   notificar_menciones boolean NOT NULL DEFAULT true,
   reducir_movimiento boolean NOT NULL DEFAULT false,
-  perfil_privado boolean NOT NULL DEFAULT false,
   mostrar_email boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
@@ -63,10 +56,10 @@ CREATE POLICY user_settings_delete_own ON public.user_settings
 
 -- Migra preferencias que ya existan en Auth metadata, sin pisar filas guardadas.
 INSERT INTO public.user_settings (
-  user_id, telefono, codigo_pais, idioma, zona_horaria, actividad_cuenta,
+  user_id, telefono, codigo_pais, idioma, actividad_cuenta,
   notificar_interacciones, notificar_comentarios, notificar_seguidores,
   notificar_publicaciones, notificar_menciones, reducir_movimiento,
-  perfil_privado, mostrar_email
+  mostrar_email
 )
 SELECT
   u.id,
@@ -75,10 +68,6 @@ SELECT
     THEN a.raw_user_meta_data->'configuracion'->>'codigoPais' ELSE '+54' END,
   CASE WHEN a.raw_user_meta_data->'configuracion'->>'idioma' IN ('es', 'en', 'pt')
     THEN a.raw_user_meta_data->'configuracion'->>'idioma' ELSE 'es' END,
-  CASE WHEN a.raw_user_meta_data->'configuracion'->>'zonaHoraria' IN (
-    'America/Argentina/Buenos_Aires', 'America/Santiago', 'America/Montevideo'
-  ) THEN a.raw_user_meta_data->'configuracion'->>'zonaHoraria'
-    ELSE 'America/Argentina/Buenos_Aires' END,
   CASE WHEN a.raw_user_meta_data->'configuracion'->>'actividadCuenta' IN ('true', 'false')
     THEN (a.raw_user_meta_data->'configuracion'->>'actividadCuenta')::boolean ELSE true END,
   true,
@@ -87,8 +76,6 @@ SELECT
   true,
   true,
   false,
-  CASE WHEN a.raw_user_meta_data->'configuracion'->>'perfilPrivado' IN ('true', 'false')
-    THEN (a.raw_user_meta_data->'configuracion'->>'perfilPrivado')::boolean ELSE false END,
   CASE WHEN a.raw_user_meta_data->'configuracion'->>'mostrarEmail' IN ('true', 'false')
     THEN (a.raw_user_meta_data->'configuracion'->>'mostrarEmail')::boolean ELSE false END
 FROM public.users u

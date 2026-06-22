@@ -105,7 +105,7 @@ async function asegurarUsuarioPublico(user) {
     user.user_metadata?.name ||
     email.split('@')[0] ||
     'usuario';
-  const username = `${baseUsername}`.trim().slice(0, 40) || 'usuario';
+  const username = `${baseUsername}`.trim().toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
   const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
 
   await pool.query(
@@ -278,7 +278,6 @@ function mapearComentario(row) {
     liked: Boolean(row.liked),
     parentId: row.parent_id ? Number(row.parent_id) : null,
     tiempo: tiempoRelativo(row.created_at),
-    cuentaPrivada: Boolean(row.autor_privado),
     respuestas: [],
   };
 }
@@ -325,7 +324,6 @@ function mapearPublicacion(row, comentarios = []) {
     comentarios,
     comentariosTotal: Number(row.comentarios_total || comentarios.length),
     tiempo: tiempoRelativo(row.created_at),
-    cuentaPrivada: Boolean(row.autor_privado),
   };
 }
 
@@ -337,7 +335,6 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
        cc.*,
        u.username,
        u.email,
-       COALESCE(us.perfil_privado, false) AS autor_privado,
        EXISTS (
          SELECT 1
          FROM comunidad_comentario_likes ccl
@@ -346,7 +343,6 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
        ) AS liked
      FROM comunidad_comentarios cc
      LEFT JOIN users u ON u.id = cc.user_id
-     LEFT JOIN user_settings us ON us.user_id = cc.user_id
      WHERE cc.publicacion_id = ANY($1::bigint[])
      ORDER BY cc.created_at ASC, cc.id ASC`,
     [publicacionIds, viewerId]
@@ -428,7 +424,6 @@ const comunidadController = {
            c.genero,
            u.username,
            u.email,
-           COALESCE(us.perfil_privado, false) AS autor_privado,
            EXISTS (
              SELECT 1
              FROM comunidad_publicacion_likes cpl
@@ -449,7 +444,6 @@ const comunidadController = {
          FROM comunidad_publicaciones cp
          JOIN comunidades c ON c.id = cp.comunidad_id
          LEFT JOIN users u ON u.id = cp.user_id
-         LEFT JOIN user_settings us ON us.user_id = cp.user_id
          WHERE ${condiciones.join(' AND ')}
          ORDER BY ${orderBy}`,
         params
@@ -497,8 +491,8 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email, COALESCE(us.perfil_privado, false) AS autor_privado
-         FROM users u LEFT JOIN user_settings us ON us.user_id = u.id
+        `SELECT u.username, u.email
+         FROM users u
          WHERE u.id = $1`,
         [req.user.id]
       );
@@ -528,7 +522,6 @@ const comunidadController = {
         genero: comunidad.rows[0].genero,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
-        autor_privado: usuarioResult.rows[0]?.autor_privado,
         liked: false,
         guardado: false,
         comentarios_total: 0,
@@ -568,8 +561,8 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email, COALESCE(us.perfil_privado, false) AS autor_privado
-         FROM users u LEFT JOIN user_settings us ON us.user_id = u.id
+        `SELECT u.username, u.email
+         FROM users u
          WHERE u.id = $1`,
         [req.user.id]
       );
@@ -606,7 +599,6 @@ const comunidadController = {
         ...result.rows[0],
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
-        autor_privado: usuarioResult.rows[0]?.autor_privado,
         liked: false,
       }));
     } catch (error) {

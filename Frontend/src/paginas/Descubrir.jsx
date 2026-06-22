@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
 import CampoMenciones from "../componentes/CampoMenciones";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -2014,7 +2013,6 @@ export default function Descubrir({ usuario }) {
                         >
                           {lanzamiento.usuario}
                         </button>
-                        <IndicadorCuentaPrivada privada={lanzamiento.cuentaPrivada} compacto />
                         {!puedeEliminar ? (
                           <button
                             className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
@@ -2175,7 +2173,6 @@ export default function Descubrir({ usuario }) {
                           >
                             {comentario.usuario}
                           </button>{" "}
-                          <IndicadorCuentaPrivada privada={comentario.cuentaPrivada} compacto />{" "}
                           <span>{comentario.tiempo}</span>
                         </strong>
                         <p><TextoConMenciones texto={comentario.texto} /></p>
@@ -2229,7 +2226,6 @@ export default function Descubrir({ usuario }) {
                                     >
                                       {respuesta.usuario}
                                     </button>
-                                    <IndicadorCuentaPrivada privada={respuesta.cuentaPrivada} compacto />
                                     {respuesta.respondeA ? (
                                       <span className="respuesta-para-linea"> para {respuesta.respondeA}</span>
                                     ) : null}{" "}

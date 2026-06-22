@@ -10,6 +10,19 @@ const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 const AUDIO_MIME_TYPES = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4']);
 
+function extraerRutaPublica(publicUrl, bucket) {
+  if (!publicUrl) return null;
+  const marcador = `/object/public/${bucket}/`;
+  const indice = String(publicUrl).indexOf(marcador);
+  if (indice < 0) return null;
+  const ruta = String(publicUrl).slice(indice + marcador.length).split('?')[0];
+  try {
+    return decodeURIComponent(ruta);
+  } catch {
+    return ruta;
+  }
+}
+
 function validarImagen(file) {
   if (!file) return;
 
@@ -107,25 +120,28 @@ async function subirAvatarUsuario(file, userId) {
 async function eliminarImagenEvento(storagePath) {
   if (!storagePath) return;
 
-  await supabase.storage
+  const { error } = await supabase.storage
     .from(EVENTOS_BUCKET)
     .remove([storagePath]);
+  if (error) throw new Error(`No se pudo eliminar la imagen del evento: ${error.message}`);
 }
 
 async function eliminarArchivoReel(storagePath) {
   if (!storagePath) return;
 
-  await supabase.storage
+  const { error } = await supabase.storage
     .from(REELS_BUCKET)
     .remove([storagePath]);
+  if (error) throw new Error(`No se pudo eliminar el archivo del reel: ${error.message}`);
 }
 
 async function eliminarAvatarUsuario(storagePath) {
   if (!storagePath) return;
 
-  await supabase.storage
+  const { error } = await supabase.storage
     .from(PERFILES_BUCKET)
     .remove([storagePath]);
+  if (error) throw new Error(`No se pudo eliminar el avatar: ${error.message}`);
 }
 
 module.exports = {
@@ -135,5 +151,9 @@ module.exports = {
   subirAudioReel,
   eliminarArchivoReel,
   subirAvatarUsuario,
-  eliminarAvatarUsuario
+  eliminarAvatarUsuario,
+  extraerRutaPublica,
+  EVENTOS_BUCKET,
+  REELS_BUCKET,
+  PERFILES_BUCKET,
 };

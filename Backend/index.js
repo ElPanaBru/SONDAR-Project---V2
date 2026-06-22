@@ -59,7 +59,7 @@ app.get('/api/health', (req, res) => {
     dbHost: process.env.DB_HOST || null,
     dbName: process.env.DB_NAME || null,
     dbUser: process.env.DB_USER || null,
-    settingsSchema: 2
+    settingsSchema: 3
   });
 });
 

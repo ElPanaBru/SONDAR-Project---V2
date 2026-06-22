@@ -4,7 +4,8 @@
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
-    username TEXT UNIQUE NOT NULL,
+    username TEXT UNIQUE NOT NULL
+      CHECK (username ~ '^[a-z0-9._-]{3,30}$'),
     user_type TEXT NOT NULL CHECK (user_type IN ('musico', 'organizador', 'admin')),
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
@@ -23,6 +24,9 @@ CREATE TABLE IF NOT EXISTS eventos (
     longitud DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_unique
+    ON users (lower(username));
 
 CREATE TABLE IF NOT EXISTS event_organizers (
     event_id BIGINT NOT NULL REFERENCES eventos(id) ON DELETE CASCADE,

@@ -10,13 +10,16 @@ const {
   eliminarAvatarUsuario,
   eliminarImagenEvento,
   eliminarArchivoReel,
+  extraerRutaPublica,
+  EVENTOS_BUCKET,
+  REELS_BUCKET,
+  PERFILES_BUCKET,
 } = require('../services/storageService');
 
 const CONFIGURACION_INICIAL = Object.freeze({
   telefono: '',
   codigoPais: '+54',
   idioma: 'es',
-  zonaHoraria: 'America/Argentina/Buenos_Aires',
   actividadCuenta: true,
   notificarInteracciones: true,
   notificarComentarios: true,
@@ -24,24 +27,30 @@ const CONFIGURACION_INICIAL = Object.freeze({
   notificarPublicaciones: true,
   notificarMenciones: true,
   reducirMovimiento: false,
-  perfilPrivado: false,
   mostrarEmail: false,
 });
 
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
-const ZONAS_HORARIAS_VALIDAS = new Set([
-  'America/Argentina/Buenos_Aires',
-  'America/Santiago',
-  'America/Montevideo',
-]);
+const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
+
+function normalizarUsername(valor = '') {
+  return String(valor).trim().replace(/^@+/, '').toLowerCase();
+}
+
+function validarUsername(valor) {
+  const username = normalizarUsername(valor);
+  if (!PATRON_USERNAME.test(username)) {
+    return { error: 'El @ debe tener entre 3 y 30 caracteres y usar solo letras, numeros, punto, guion o guion bajo.' };
+  }
+  return { username };
+}
 
 function mapearConfiguracion(row = {}) {
   return {
     telefono: row.telefono || '',
     codigoPais: row.codigo_pais || CONFIGURACION_INICIAL.codigoPais,
     idioma: row.idioma || CONFIGURACION_INICIAL.idioma,
-    zonaHoraria: row.zona_horaria || CONFIGURACION_INICIAL.zonaHoraria,
     actividadCuenta: row.actividad_cuenta ?? CONFIGURACION_INICIAL.actividadCuenta,
     notificarInteracciones: row.notificar_interacciones ?? CONFIGURACION_INICIAL.notificarInteracciones,
     notificarComentarios: row.notificar_comentarios ?? CONFIGURACION_INICIAL.notificarComentarios,
@@ -49,7 +58,6 @@ function mapearConfiguracion(row = {}) {
     notificarPublicaciones: row.notificar_publicaciones ?? CONFIGURACION_INICIAL.notificarPublicaciones,
     notificarMenciones: row.notificar_menciones ?? CONFIGURACION_INICIAL.notificarMenciones,
     reducirMovimiento: row.reducir_movimiento ?? CONFIGURACION_INICIAL.reducirMovimiento,
-    perfilPrivado: row.perfil_privado ?? CONFIGURACION_INICIAL.perfilPrivado,
     mostrarEmail: row.mostrar_email ?? CONFIGURACION_INICIAL.mostrarEmail,
   };
 }
@@ -59,7 +67,6 @@ function validarConfiguracion(body = {}) {
     telefono: String(body.telefono || '').trim().slice(0, 30),
     codigoPais: String(body.codigoPais || ''),
     idioma: String(body.idioma || ''),
-    zonaHoraria: String(body.zonaHoraria || ''),
     actividadCuenta: body.actividadCuenta,
     notificarInteracciones: body.notificarInteracciones,
     notificarComentarios: body.notificarComentarios,
@@ -67,7 +74,6 @@ function validarConfiguracion(body = {}) {
     notificarPublicaciones: body.notificarPublicaciones,
     notificarMenciones: body.notificarMenciones,
     reducirMovimiento: body.reducirMovimiento,
-    perfilPrivado: body.perfilPrivado,
     mostrarEmail: body.mostrarEmail,
   };
 
@@ -77,14 +83,10 @@ function validarConfiguracion(body = {}) {
   if (!CODIGOS_PAIS_VALIDOS.has(configuracion.codigoPais)) {
     return { error: 'El codigo de pais seleccionado no es valido.' };
   }
-  if (!ZONAS_HORARIAS_VALIDAS.has(configuracion.zonaHoraria)) {
-    return { error: 'La zona horaria seleccionada no es valida.' };
-  }
-
   const booleanos = [
     'actividadCuenta', 'notificarInteracciones', 'notificarComentarios',
     'notificarSeguidores', 'notificarPublicaciones', 'notificarMenciones',
-    'reducirMovimiento', 'perfilPrivado', 'mostrarEmail',
+    'reducirMovimiento', 'mostrarEmail',
   ];
   if (booleanos.some((campo) => typeof configuracion[campo] !== 'boolean')) {
     return { error: 'La configuracion contiene valores invalidos.' };
@@ -183,7 +185,7 @@ async function asegurarUsuarioPublico(user) {
     user.user_metadata?.name ||
     email.split('@')[0] ||
     'usuario';
-  const username = `${baseUsername}`.trim().slice(0, 40) || 'usuario';
+  const username = normalizarUsername(baseUsername).replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
   const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
 
   await pool.query(
@@ -339,23 +341,17 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     throw error;
   });
   const esPropio = targetUserId === viewerUserId;
-  const seguidoPorTitular = Boolean(
-    viewerUserId && seguidosResult.rows.some((seguido) => seguido.id === viewerUserId)
-  );
-  const perfilRestringido = configuracion.perfilPrivado && !esPropio && !seguidoPorTitular;
 
   return {
     perfil: mapearUsuarioPerfil(usuario, configuracion, esPropio),
-    publicaciones: perfilRestringido ? [] : reels,
-    eventos: perfilRestringido ? [] : eventos,
+    publicaciones: reels,
+    eventos,
     favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
     guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
-    seguidores: perfilRestringido ? [] : seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
-    seguidos: perfilRestringido ? [] : seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
+    seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
+    seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
     silenciado: Boolean(silenciadoResult.rows[0]?.silenciado),
-    privado: configuracion.perfilPrivado,
-    contenidoRestringido: perfilRestringido,
     stats: {
       publicaciones: Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),
       reels: Number(publicacionesStats.reels || 0),
@@ -435,14 +431,16 @@ const usuariosController = {
   crearCuenta: async (req, res) => {
     const { email, password, username, user_type } = req.body;
     const cleanEmail = email?.trim().toLowerCase();
-    const cleanUsername = username?.trim();
+    const validacionUsername = validarUsername(username);
+    const cleanUsername = validacionUsername.username;
     const cleanPassword = typeof password === 'string' ? password : '';
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
 
-    if (!cleanEmail || !cleanPassword || !cleanUsername) {
+    if (!cleanEmail || !cleanPassword || !username) {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
     }
+    if (validacionUsername.error) return res.status(400).json({ error: validacionUsername.error });
 
     if (cleanPassword.length < 8) {
       return res.status(400).json({ error: 'La contrasena debe tener al menos 8 caracteres.' });
@@ -538,7 +536,11 @@ const usuariosController = {
   obtenerConfiguracionActual: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
-      res.json(await obtenerConfiguracion(req.user.id));
+      const [configuracion, usuarioResult] = await Promise.all([
+        obtenerConfiguracion(req.user.id),
+        pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]),
+      ]);
+      res.json({ ...configuracion, username: usuarioResult.rows[0]?.username || '' });
     } catch (error) {
       console.error('Error al obtener configuracion:', error);
       const mensaje = error.code === '42P01'
@@ -553,23 +555,28 @@ const usuariosController = {
     if (validacion.error) return res.status(400).json({ error: validacion.error });
 
     const c = validacion.configuracion;
+    const client = await pool.connect();
     try {
       await asegurarUsuarioPublico(req.user);
-      const result = await pool.query(
+      await client.query('BEGIN');
+      const usuarioResult = await client.query(
+        'SELECT username FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      const result = await client.query(
         `INSERT INTO user_settings (
-           user_id, telefono, codigo_pais, idioma, zona_horaria, actividad_cuenta,
+           user_id, telefono, codigo_pais, idioma, actividad_cuenta,
            notificar_interacciones, notificar_comentarios, notificar_seguidores,
            notificar_publicaciones, notificar_menciones, reducir_movimiento,
-           perfil_privado, mostrar_email, updated_at
+           mostrar_email, updated_at
          ) VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
            timezone('utc'::text, now())
          )
          ON CONFLICT (user_id) DO UPDATE SET
            telefono = EXCLUDED.telefono,
            codigo_pais = EXCLUDED.codigo_pais,
            idioma = EXCLUDED.idioma,
-           zona_horaria = EXCLUDED.zona_horaria,
            actividad_cuenta = EXCLUDED.actividad_cuenta,
            notificar_interacciones = EXCLUDED.notificar_interacciones,
            notificar_comentarios = EXCLUDED.notificar_comentarios,
@@ -577,20 +584,21 @@ const usuariosController = {
            notificar_publicaciones = EXCLUDED.notificar_publicaciones,
            notificar_menciones = EXCLUDED.notificar_menciones,
            reducir_movimiento = EXCLUDED.reducir_movimiento,
-           perfil_privado = EXCLUDED.perfil_privado,
            mostrar_email = EXCLUDED.mostrar_email,
            updated_at = EXCLUDED.updated_at
          RETURNING *`,
         [
-          req.user.id, c.telefono, c.codigoPais, c.idioma, c.zonaHoraria,
-          c.actividadCuenta, c.notificarInteracciones, c.notificarComentarios,
+          req.user.id, c.telefono, c.codigoPais, c.idioma, c.actividadCuenta,
+          c.notificarInteracciones, c.notificarComentarios,
           c.notificarSeguidores, c.notificarPublicaciones, c.notificarMenciones,
-          c.reducirMovimiento, c.perfilPrivado, c.mostrarEmail,
+          c.reducirMovimiento, c.mostrarEmail,
         ]
       );
 
-      const configuracion = mapearConfiguracion(result.rows[0]);
-      const metadata = { ...(req.user.user_metadata || {}), configuracion };
+      const username = usuarioResult.rows[0]?.username || '';
+      const configuracion = { ...mapearConfiguracion(result.rows[0]), username };
+      await client.query('COMMIT');
+      const metadata = { ...(req.user.user_metadata || {}), username, configuracion };
       const { error: authError } = await supabase.auth.admin.updateUserById(req.user.id, {
         user_metadata: metadata,
       });
@@ -598,11 +606,14 @@ const usuariosController = {
 
       res.json(configuracion);
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
       console.error('Error al actualizar configuracion:', error);
       const mensaje = error.code === '42P01'
         ? 'Falta aplicar la migracion de configuracion en la base de datos.'
         : 'No se pudo guardar la configuracion.';
       res.status(500).json({ error: mensaje });
+    } finally {
+      client.release();
     }
   },
 
@@ -684,8 +695,6 @@ const usuariosController = {
         seguidos,
         siguiendo,
         silenciado,
-        privado,
-        contenidoRestringido,
         stats,
       } = datosPerfil;
 
@@ -697,8 +706,6 @@ const usuariosController = {
         seguidos: req.user ? seguidos : [],
         siguiendo,
         silenciado,
-        privado,
-        contenidoRestringido,
         stats,
       });
     } catch (error) {
@@ -728,16 +735,14 @@ const usuariosController = {
         `UPDATE users
          SET full_name = $1,
              artist_name = $1,
-             username = $2,
-             bio = $3,
-             profile_img_url = COALESCE($4, profile_img_url),
-             profile_img_path = COALESCE($5, profile_img_path),
+             bio = $2,
+             profile_img_url = COALESCE($3, profile_img_url),
+             profile_img_path = COALESCE($4, profile_img_path),
              updated_at = timezone('utc'::text, now())
-         WHERE id = $6
+         WHERE id = $5
          RETURNING *`,
         [
           nombreLimpio,
-          nombreLimpio.toLowerCase().replace(/\s+/g, '_').slice(0, 40),
           bio || '',
           avatarUrl,
           avatarSubido?.path || null,
@@ -917,6 +922,8 @@ const usuariosController = {
     if (!username) {
       return res.status(400).json({ error: 'El nombre de usuario es obligatorio.' });
     }
+    const validacionUsername = validarUsername(username);
+    if (validacionUsername.error) return res.status(400).json({ error: validacionUsername.error });
 
     try {
       const query = `
@@ -924,14 +931,13 @@ const usuariosController = {
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (id) DO UPDATE
         SET email = EXCLUDED.email,
-            username = EXCLUDED.username,
             user_type = EXCLUDED.user_type
         RETURNING *`;
 
       const result = await pool.query(query, [
         userId,
         email,
-        username,
+        validacionUsername.username,
         tipoUsuario
       ]);
 
@@ -989,26 +995,28 @@ const usuariosController = {
 
     try {
       const [perfil, eventos, reels] = await Promise.all([
-        pool.query('SELECT profile_img_path FROM users WHERE id = $1', [userId]),
-        pool.query('SELECT img_path FROM eventos WHERE creador_id = $1', [userId]),
-        pool.query('SELECT portada_path, audio_path FROM reels WHERE creador_id = $1', [userId]),
+        pool.query('SELECT profile_img_path, profile_img_url FROM users WHERE id = $1', [userId]),
+        pool.query('SELECT img_path, img_url FROM eventos WHERE creador_id = $1', [userId]),
+        pool.query('SELECT portada_path, portada_url, audio_path, audio_url FROM reels WHERE creador_id = $1', [userId]),
       ]);
 
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
       const eliminacionesStorage = [
-        eliminarAvatarUsuario(perfil.rows[0]?.profile_img_path),
-        ...eventos.rows.map((evento) => eliminarImagenEvento(evento.img_path)),
+        eliminarAvatarUsuario(
+          perfil.rows[0]?.profile_img_path
+            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET)
+        ),
+        ...eventos.rows.map((evento) => eliminarImagenEvento(
+          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET)
+        )),
         ...reels.rows.flatMap((reel) => [
-          eliminarArchivoReel(reel.portada_path),
-          eliminarArchivoReel(reel.audio_path),
+          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET)),
+          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET)),
         ]),
       ];
-      await Promise.allSettled(eliminacionesStorage);
+      await Promise.all(eliminacionesStorage);
+
+      const { error } = await supabase.auth.admin.deleteUser(userId);
+      if (error) throw new Error(error.message);
 
       res.json({ success: true });
     } catch (error) {

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
 import CampoMenciones from "../componentes/CampoMenciones";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -692,7 +691,6 @@ export default function Comunidad({ usuario }) {
                 <div className="publicacion-contenido">
                   <div className="publicacion-meta">
                     <strong>{hilo.usuario}</strong>
-                    <IndicadorCuentaPrivada privada={hilo.cuentaPrivada} compacto />
                     <span>{hilo.op}</span>
                     <span>{hilo.tiempo || "ahora"}</span>
                     <span>{hilo.etiqueta || comunidadActiva.genero}</span>
@@ -718,7 +716,6 @@ export default function Comunidad({ usuario }) {
                           <div>
                             <div className="respuesta-meta">
                               <strong>{comentario.usuario}</strong>
-                              <IndicadorCuentaPrivada privada={comentario.cuentaPrivada} compacto />
                               <span>{comentario.autor}</span>
                               <span>{comentario.votos} votos</span>
                             </div>

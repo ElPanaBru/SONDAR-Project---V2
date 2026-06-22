@@ -121,7 +121,6 @@ export default function Configuracion({ usuario }) {
     const siguientes = {
       ...ajustes,
       idioma: "es",
-      zonaHoraria: "America/Argentina/Buenos_Aires",
       actividadCuenta: true,
       notificarInteracciones: true,
       notificarComentarios: true,
@@ -142,7 +141,6 @@ export default function Configuracion({ usuario }) {
       mostrarMensaje("error", "Inicia sesion para guardar tu configuracion.");
       return;
     }
-
     setGuardando(true);
     setMensaje(null);
 
@@ -312,6 +310,22 @@ export default function Configuracion({ usuario }) {
                 <small>{t("El correo de acceso no se modifica desde esta pantalla.")}</small>
               </label>
 
+              <label>
+                @ de usuario
+                <div className="config-handle-control">
+                  <span aria-hidden="true">@</span>
+                  <input
+                    type="text"
+                    name="username"
+                    value={ajustes.username || ""}
+                    autoComplete="username"
+                    readOnly
+                    aria-readonly="true"
+                  />
+                </div>
+                <small>Tu @ es único y no se puede modificar después de crear la cuenta.</small>
+              </label>
+
               <label className="config-phone-field">
                 {t("Teléfono")}
                 <div className="config-phone-control">
@@ -341,17 +355,11 @@ export default function Configuracion({ usuario }) {
                   <option value="en">{t("Inglés")}</option>
                   <option value="pt">{t("Portugués")}</option>
                 </select>
-                <small>{ajustes.idioma === ajustesGuardados.idioma ? "" : t("Vista previa activa. Guardá para conservar el idioma.")}</small>
+                <small>{ajustes.idioma === ajustesGuardados.idioma
+                  ? t("Elegí el idioma de la interfaz.")
+                  : t("Vista previa activa. Guardá para conservar el idioma.")}</small>
               </label>
 
-              <label>
-                {t("Zona horaria")}
-                <select name="zonaHoraria" value={ajustes.zonaHoraria} onChange={handleChange}>
-                  <option value="America/Argentina/Buenos_Aires">Buenos Aires</option>
-                  <option value="America/Santiago">Santiago</option>
-                  <option value="America/Montevideo">Montevideo</option>
-                </select>
-              </label>
             </div>
           </section>
 
@@ -445,14 +453,6 @@ export default function Configuracion({ usuario }) {
             </div>
 
             <div className="config-actions-list">
-              <label className="config-switch-row">
-                <div>
-                  <strong>{t("Cuenta privada")}</strong>
-                  <span>{t("Solo vos y las cuentas que seguís pueden ver tus reels, eventos y listas.")}</span>
-                </div>
-                <input type="checkbox" name="perfilPrivado" checked={ajustes.perfilPrivado} onChange={handleChange} />
-              </label>
-
               <label className="config-switch-row">
                 <div>
                   <strong>{t("Mostrar email")}</strong>

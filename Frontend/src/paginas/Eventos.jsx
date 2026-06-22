@@ -6,7 +6,6 @@ import "./eventos.css";
 import L from "leaflet";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
 import CampoMenciones from "../componentes/CampoMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
@@ -822,7 +821,6 @@ const handleImagen = (e) => {
                       >
                         {detalleEvento.creador || "Anonimo"}
                       </button>
-                      <IndicadorCuentaPrivada privada={detalleEvento.creador_privado} compacto />
                     </span>
 
                     {hoverOrganizador?.id === detalleEvento?.id ? (
@@ -869,7 +867,6 @@ const handleImagen = (e) => {
                               )}
                             </span>
                             <span>{organizador.nombre || organizador.username}</span>
-                            <IndicadorCuentaPrivada privada={organizador.privado} compacto />
                           </button>
                         ))}
                       </div>

@@ -85,7 +85,7 @@ export default function Auth() {
 
     const cleanEmail = email.trim();
     const cleanPassword = password;
-    const cleanUsername = username.trim();
+    const cleanUsername = username.trim().replace(/^@+/, "").toLowerCase();
 
     try {
       if (modo === "login") {
@@ -116,6 +116,10 @@ export default function Auth() {
 
       if (!cleanUsername) {
         setMensaje("El nombre de usuario es obligatorio.");
+        return;
+      }
+      if (!/^[a-z0-9._-]{3,30}$/.test(cleanUsername)) {
+        setMensaje("El @ debe tener entre 3 y 30 caracteres y usar solo letras, numeros, punto, guion o guion bajo.");
         return;
       }
       if (fuerzaPassword < 4) {
@@ -216,12 +220,16 @@ export default function Auth() {
           <form className="auth-form" onSubmit={handleSubmit}>
             {modo === "registro" && (
               <label className="auth-field">
-                Nombre de usuario
+                @ de usuario
                 <input
                   type="text"
-                  placeholder="Tu nombre artistico"
+                  placeholder="tu_usuario"
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").toLowerCase())}
+                  minLength={3}
+                  maxLength={30}
+                  pattern="[a-z0-9._-]{3,30}"
+                  autoComplete="username"
                   required
                   className="auth-input"
                 />

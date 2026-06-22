@@ -100,7 +100,6 @@ export default function MiPerfil({ usuario }) {
   const [editando, setEditando] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
   const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
-  const [perfilPrivado, setPerfilPrivado] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
   const [contenido, setContenido] = useState(contenidoInicial);
   const [cargando, setCargando] = useState(false);
@@ -162,7 +161,6 @@ export default function MiPerfil({ usuario }) {
         if (!activo) return;
 
         setPerfil(dataPerfil.perfil);
-        setPerfilPrivado(Boolean(dataPerfil.privado));
         setPerfilEditado(dataPerfil.perfil);
         setContenido({
           publicaciones: dataPerfil.publicaciones || [],
@@ -328,11 +326,6 @@ export default function MiPerfil({ usuario }) {
         <div className="perfil-info">
           <div className="perfil-title-row">
             <h1>{perfil.nombre}</h1>
-            {perfilPrivado ? (
-              <span className="perfil-private-badge" title="Cuenta privada" aria-label="Cuenta privada">
-                <IconoPerfil nombre="lock" size={17} />
-              </span>
-            ) : null}
             <button className="perfil-primary-btn" type="button" onClick={abrirEditor}>
               Editar perfil
             </button>

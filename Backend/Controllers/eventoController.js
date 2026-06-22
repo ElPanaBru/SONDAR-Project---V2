@@ -20,26 +20,10 @@ async function obtenerViewerId(req) {
   return data.user.id;
 }
 
-async function buscarAccesoEvento(eventoId, viewerId) {
+async function buscarAccesoEvento(eventoId) {
   const result = await pool.query(
-    `SELECT
-       e.id,
-       (
-         COALESCE(us.perfil_privado, false) = false
-         OR e.creador_id = $2
-         OR EXISTS (
-           SELECT 1 FROM event_organizers eo
-           WHERE eo.event_id = e.id AND eo.user_id = $2
-         )
-         OR EXISTS (
-           SELECT 1 FROM follows f
-           WHERE f.follower_id = e.creador_id AND f.following_id = $2
-         )
-       ) AS permitido
-     FROM eventos e
-     LEFT JOIN user_settings us ON us.user_id = e.creador_id
-     WHERE e.id = $1`,
-    [eventoId, viewerId]
+    'SELECT id FROM eventos WHERE id = $1',
+    [eventoId]
   );
   return result.rows[0] || null;
 }
@@ -61,7 +45,7 @@ async function asegurarUsuarioPublico(user) {
     user.user_metadata?.name ||
     email.split('@')[0] ||
     'usuario';
-  const username = `${baseUsername}`.trim().slice(0, 40) || 'usuario';
+  const username = `${baseUsername}`.trim().toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
   const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
 
   await pool.query(
@@ -84,40 +68,25 @@ const eventoController = {
           e.img_url AS img,
           COALESCE(u.username, u.full_name, u.artist_name, 'Anonimo') AS creador,
           u.profile_img_url AS avatar,
-          COALESCE(us.perfil_privado, false) AS creador_privado,
           COALESCE(org.organizadores, '[]'::jsonb) AS organizadores
         FROM eventos e
         LEFT JOIN users u ON u.id = e.creador_id
-        LEFT JOIN user_settings us ON us.user_id = e.creador_id
         LEFT JOIN LATERAL (
           SELECT jsonb_agg(
             jsonb_build_object(
               'id', co.id,
               'username', co.username,
               'nombre', COALESCE(co.artist_name, co.full_name, co.username),
-              'avatar', COALESCE(co.profile_img_url, ''),
-              'privado', COALESCE(cos.perfil_privado, false)
+              'avatar', COALESCE(co.profile_img_url, '')
             )
             ORDER BY eo.created_at
           ) AS organizadores
           FROM event_organizers eo
           JOIN users co ON co.id = eo.user_id
-          LEFT JOIN user_settings cos ON cos.user_id = co.id
           WHERE eo.event_id = e.id
         ) org ON true
-        WHERE
-          COALESCE(us.perfil_privado, false) = false
-          OR e.creador_id = $1
-          OR EXISTS (
-            SELECT 1 FROM event_organizers acceso_org
-            WHERE acceso_org.event_id = e.id AND acceso_org.user_id = $1
-          )
-          OR EXISTS (
-            SELECT 1 FROM follows acceso
-            WHERE acceso.follower_id = e.creador_id AND acceso.following_id = $1
-          )
         ORDER BY e.id DESC
-      `, [viewerId]);
+      `);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);
@@ -244,21 +213,14 @@ const eventoController = {
              u.id,
              u.username,
              COALESCE(u.artist_name, u.full_name, u.username) AS nombre,
-             COALESCE(u.profile_img_url, '') AS avatar,
-             COALESCE(us.perfil_privado, false) AS privado
+             COALESCE(u.profile_img_url, '') AS avatar
            FROM event_organizers eo
            JOIN users u ON u.id = eo.user_id
-           LEFT JOIN user_settings us ON us.user_id = u.id
            WHERE eo.event_id = $1
            ORDER BY eo.created_at`,
           [result.rows[0].id]
         )
         : { rows: [] };
-      const privacidad = await dbClient.query(
-        'SELECT COALESCE(perfil_privado, false) AS creador_privado FROM user_settings WHERE user_id = $1',
-        [creadorId]
-      );
-
       const actorName = nombreActor(req.user);
       await notificarSeguidores({
         actorId: creadorId,
@@ -289,7 +251,6 @@ const eventoController = {
       res.status(201).json(mapearEvento({
         ...result.rows[0],
         creador: creadorNombre,
-        creador_privado: Boolean(privacidad.rows[0]?.creador_privado),
         organizadores: organizadoresResult.rows,
       }));
     } catch (error) {
@@ -336,14 +297,10 @@ const eventoController = {
     try {
       await asegurarUsuarioPublico(req.user);
 
-      const evento = await buscarAccesoEvento(id, req.user.id);
+      const evento = await buscarAccesoEvento(id);
       if (!evento) {
         return res.status(404).json({ error: 'Evento no encontrado.' });
       }
-      if (!evento.permitido) {
-        return res.status(403).json({ error: 'No tenes acceso a este evento privado.' });
-      }
-
       const existe = await pool.query(
         'SELECT 1 FROM event_saves WHERE user_id = $1 AND event_id = $2',
         [req.user.id, id]
