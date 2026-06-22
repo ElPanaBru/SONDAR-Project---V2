@@ -37,14 +37,6 @@ export default function Auth() {
     return puntos;
   }, [password]);
 
-  const resend = new Resend('re_Nt9BCF6Z_3xNWtGEhj61XuzcaRC3JMhnW');
-resend.emails.send({
-  from: 'onboarding@resend.dev',
-  to: 'sonaradevteam@gmail.com',
-  subject: 'Hello World',
-  html: '<p>Congrats on sending your <strong>first email</strong>!</p>'
-});
-
   const traducirError = (error) => {
     if (!error) return "Ocurrio un error inesperado.";
     return mensajesSupabase[error.message] || error.message;
