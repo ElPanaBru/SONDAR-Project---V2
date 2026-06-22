@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
+import PerfilToast from "../componentes/PerfilToast";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./miperfil.css";
 
 const iconosPerfil = {
@@ -11,6 +13,7 @@ const iconosPerfil = {
   heart: "m480-120-58-52q-101-91-167-157T150-447q-39-51-54.5-94T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 50-15.5 93T810-447q-39 52-105 118T538-172l-58 52Z",
   bookmark: "M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Z",
   share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
+  lock: "M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm240-200q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80Z",
 };
 
 const contenidoInicial = {
@@ -93,9 +96,11 @@ function tarjetaContenido(item, onAbrir) {
 
 export default function MiPerfil({ usuario }) {
   const navigate = useNavigate();
+  const { t } = usePreferencias();
   const [editando, setEditando] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
   const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
+  const [perfilPrivado, setPerfilPrivado] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
   const [contenido, setContenido] = useState(contenidoInicial);
   const [cargando, setCargando] = useState(false);
@@ -106,12 +111,12 @@ export default function MiPerfil({ usuario }) {
 
   const opcionesPerfil = useMemo(
     () => [
-      { id: "publicaciones", label: "Publicaciones", mensaje: "Aun no hay publicaciones." },
-      { id: "eventos", label: "Eventos", mensaje: "Aun no hay eventos." },
-      { id: "favoritos", label: "Favoritos", mensaje: "Aun no hay favoritos." },
-      { id: "guardados", label: "Guardados", mensaje: "Aun no hay guardados." },
+      { id: "publicaciones", label: t("Publicaciones"), mensaje: t("Aún no hay publicaciones.") },
+      { id: "eventos", label: t("Eventos"), mensaje: t("Aún no hay eventos.") },
+      { id: "favoritos", label: t("Favoritos"), mensaje: t("Aún no hay favoritos.") },
+      { id: "guardados", label: t("Guardados"), mensaje: t("Aún no hay guardados.") },
     ],
-    []
+    [t]
   );
 
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
@@ -157,6 +162,7 @@ export default function MiPerfil({ usuario }) {
         if (!activo) return;
 
         setPerfil(dataPerfil.perfil);
+        setPerfilPrivado(Boolean(dataPerfil.privado));
         setPerfilEditado(dataPerfil.perfil);
         setContenido({
           publicaciones: dataPerfil.publicaciones || [],
@@ -283,7 +289,7 @@ export default function MiPerfil({ usuario }) {
       return (
         <div className="perfil-empty-state">
           <span><IconoPerfil nombre={iconoTab(tabActiva)} size={34} /></span>
-          <h3>Cargando perfil...</h3>
+          <h3>{t("Cargando perfil...")}</h3>
           <p>Estamos trayendo tu contenido desde Supabase.</p>
         </div>
       );
@@ -322,6 +328,11 @@ export default function MiPerfil({ usuario }) {
         <div className="perfil-info">
           <div className="perfil-title-row">
             <h1>{perfil.nombre}</h1>
+            {perfilPrivado ? (
+              <span className="perfil-private-badge" title="Cuenta privada" aria-label="Cuenta privada">
+                <IconoPerfil nombre="lock" size={17} />
+              </span>
+            ) : null}
             <button className="perfil-primary-btn" type="button" onClick={abrirEditor}>
               Editar perfil
             </button>
@@ -349,17 +360,13 @@ export default function MiPerfil({ usuario }) {
         </div>
       </header>
 
-      {aviso ? (
-        <div className="perfil-toast" role="status">
-          {aviso}
-        </div>
-      ) : null}
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} />
 
       {editando ? (
         <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
           <form className="perfil-modal" onSubmit={guardarPerfil}>
             <div className="perfil-modal-header">
-              <h2>Editar perfil</h2>
+              <h2>{t("Editar perfil")}</h2>
               <button className="perfil-modal-close" type="button" onClick={cerrarEditor} aria-label="Cerrar editor">
                 x
               </button>

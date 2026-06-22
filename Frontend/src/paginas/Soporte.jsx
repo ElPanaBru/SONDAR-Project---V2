@@ -1,5 +1,6 @@
 import { useState } from "react";
 import emailjs from "@emailjs/browser";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./soporte.css";
 
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_ckdohp4";
@@ -41,6 +42,7 @@ const atajos = [
 ];
 
 export default function Soporte({ usuario }) {
+  const { t } = usePreferencias();
   const [preguntaActiva, setPreguntaActiva] = useState("mapa");
   const [estado, setEstado] = useState(null);
   const [formData, setFormData] = useState({
@@ -133,7 +135,7 @@ export default function Soporte({ usuario }) {
         <header className="soporte-hero">
           <div>
             <span>Soporte SONDAR</span>
-            <h1>Ayuda clara para seguir sonando.</h1>
+            <h1>{t("Ayuda clara para seguir sonando.")}</h1>
             <p>
               Resolvelo rapido con las preguntas frecuentes o escribinos con el detalle del problema.
             </p>
@@ -145,7 +147,7 @@ export default function Soporte({ usuario }) {
           <section className="soporte-faq" aria-labelledby="soporte-faq-titulo">
             <div className="soporte-section-heading">
               <span>FAQ</span>
-              <h2 id="soporte-faq-titulo">Preguntas frecuentes</h2>
+              <h2 id="soporte-faq-titulo">{t("Preguntas frecuentes")}</h2>
             </div>
 
             <div className="soporte-faq-lista">
@@ -172,7 +174,7 @@ export default function Soporte({ usuario }) {
           <aside className="soporte-contacto" aria-labelledby="soporte-contacto-titulo">
             <div className="soporte-section-heading">
               <span>Contacto</span>
-              <h2 id="soporte-contacto-titulo">Contanos que paso</h2>
+              <h2 id="soporte-contacto-titulo">{t("Contanos qué pasó")}</h2>
             </div>
 
             <div className="soporte-atajos" aria-label="Motivos frecuentes">

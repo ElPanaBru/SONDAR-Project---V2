@@ -1,6 +1,11 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const { subirImagenEvento, eliminarImagenEvento } = require('../services/storageService');
+const {
+  crearNotificacion,
+  nombreActor,
+  notificarSeguidores,
+} = require('../services/notificationService');
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -13,6 +18,30 @@ async function obtenerViewerId(req) {
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
+}
+
+async function buscarAccesoEvento(eventoId, viewerId) {
+  const result = await pool.query(
+    `SELECT
+       e.id,
+       (
+         COALESCE(us.perfil_privado, false) = false
+         OR e.creador_id = $2
+         OR EXISTS (
+           SELECT 1 FROM event_organizers eo
+           WHERE eo.event_id = e.id AND eo.user_id = $2
+         )
+         OR EXISTS (
+           SELECT 1 FROM follows f
+           WHERE f.follower_id = e.creador_id AND f.following_id = $2
+         )
+       ) AS permitido
+     FROM eventos e
+     LEFT JOIN user_settings us ON us.user_id = e.creador_id
+     WHERE e.id = $1`,
+    [eventoId, viewerId]
+  );
+  return result.rows[0] || null;
 }
 
 function mapearEvento(evento) {
@@ -53,11 +82,42 @@ const eventoController = {
         SELECT
           e.*,
           e.img_url AS img,
-          COALESCE(u.username, u.full_name, u.artist_name, 'Anonimo') AS creador
+          COALESCE(u.username, u.full_name, u.artist_name, 'Anonimo') AS creador,
+          u.profile_img_url AS avatar,
+          COALESCE(us.perfil_privado, false) AS creador_privado,
+          COALESCE(org.organizadores, '[]'::jsonb) AS organizadores
         FROM eventos e
         LEFT JOIN users u ON u.id = e.creador_id
+        LEFT JOIN user_settings us ON us.user_id = e.creador_id
+        LEFT JOIN LATERAL (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id', co.id,
+              'username', co.username,
+              'nombre', COALESCE(co.artist_name, co.full_name, co.username),
+              'avatar', COALESCE(co.profile_img_url, ''),
+              'privado', COALESCE(cos.perfil_privado, false)
+            )
+            ORDER BY eo.created_at
+          ) AS organizadores
+          FROM event_organizers eo
+          JOIN users co ON co.id = eo.user_id
+          LEFT JOIN user_settings cos ON cos.user_id = co.id
+          WHERE eo.event_id = e.id
+        ) org ON true
+        WHERE
+          COALESCE(us.perfil_privado, false) = false
+          OR e.creador_id = $1
+          OR EXISTS (
+            SELECT 1 FROM event_organizers acceso_org
+            WHERE acceso_org.event_id = e.id AND acceso_org.user_id = $1
+          )
+          OR EXISTS (
+            SELECT 1 FROM follows acceso
+            WHERE acceso.follower_id = e.creador_id AND acceso.following_id = $1
+          )
         ORDER BY e.id DESC
-      `);
+      `, [viewerId]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);
@@ -85,9 +145,10 @@ const eventoController = {
   },
 
   crearEvento: async (req, res) => {
-    const { titulo, genero, ubicacion, fecha, precio, link, latitud, longitud } = req.body;
+    const { titulo, descripcion, genero, ubicacion, fecha, precio, link, latitud, longitud, organizadores } = req.body;
     const creadorId = req.user.id;
     let imagenSubida = null;
+    let dbClient = null;
 
     const creadorNombre =
       req.user?.user_metadata?.name ||
@@ -100,6 +161,30 @@ const eventoController = {
       return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
     }
 
+    if (String(descripcion || '').length > 1000) {
+      return res.status(400).json({ error: 'La descripcion no puede superar los 1000 caracteres.' });
+    }
+
+    let organizadorIds = [];
+    try {
+      const recibidos = organizadores ? JSON.parse(organizadores) : [];
+      if (!Array.isArray(recibidos)) throw new Error('Formato invalido');
+      organizadorIds = [...new Set(recibidos
+        .map((id) => String(id || '').trim())
+        .filter((id) => id && id !== creadorId))];
+    } catch {
+      return res.status(400).json({ error: 'La lista de organizadores no es valida.' });
+    }
+
+    if (organizadorIds.length > 8) {
+      return res.status(400).json({ error: 'Podes agregar hasta 8 coorganizadores.' });
+    }
+
+    const uuidValido = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (organizadorIds.some((id) => !uuidValido.test(id))) {
+      return res.status(400).json({ error: 'Hay un organizador invalido.' });
+    }
+
     const precioNormalizado = precio === '' || precio === undefined ? null : Number(precio);
 
     if (precioNormalizado !== null && (!Number.isFinite(precioNormalizado) || precioNormalizado < 0)) {
@@ -108,15 +193,29 @@ const eventoController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
+
+      if (organizadorIds.length > 0) {
+        const usuariosValidos = await pool.query(
+          'SELECT id FROM users WHERE id = ANY($1::uuid[])',
+          [organizadorIds]
+        );
+        if (usuariosValidos.rowCount !== organizadorIds.length) {
+          return res.status(400).json({ error: 'Uno de los coorganizadores ya no esta disponible.' });
+        }
+      }
+
       imagenSubida = await subirImagenEvento(req.file);
+      dbClient = await pool.connect();
+      await dbClient.query('BEGIN');
 
       const query = `
-        INSERT INTO eventos (titulo, genero, lugar, fecha, img_url, img_path, precio, link, creador_id, latitud, longitud)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO eventos (titulo, descripcion, genero, lugar, fecha, img_url, img_path, precio, link, creador_id, latitud, longitud)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *`;
 
       const values = [
         titulo,
+        String(descripcion || '').trim(),
         genero,
         ubicacion,
         fecha,
@@ -129,18 +228,80 @@ const eventoController = {
         longitud
       ];
 
-      const result = await pool.query(query, values);
+      const result = await dbClient.query(query, values);
+
+      if (organizadorIds.length > 0) {
+        await dbClient.query(
+          `INSERT INTO event_organizers (event_id, user_id, added_by)
+           SELECT $1, unnest($2::uuid[]), $3`,
+          [result.rows[0].id, organizadorIds, creadorId]
+        );
+      }
+
+      const organizadoresResult = organizadorIds.length > 0
+        ? await dbClient.query(
+          `SELECT
+             u.id,
+             u.username,
+             COALESCE(u.artist_name, u.full_name, u.username) AS nombre,
+             COALESCE(u.profile_img_url, '') AS avatar,
+             COALESCE(us.perfil_privado, false) AS privado
+           FROM event_organizers eo
+           JOIN users u ON u.id = eo.user_id
+           LEFT JOIN user_settings us ON us.user_id = u.id
+           WHERE eo.event_id = $1
+           ORDER BY eo.created_at`,
+          [result.rows[0].id]
+        )
+        : { rows: [] };
+      const privacidad = await dbClient.query(
+        'SELECT COALESCE(perfil_privado, false) AS creador_privado FROM user_settings WHERE user_id = $1',
+        [creadorId]
+      );
+
+      const actorName = nombreActor(req.user);
+      await notificarSeguidores({
+        actorId: creadorId,
+        type: 'new_event',
+        title: `${actorName} creo un nuevo evento`,
+        body: titulo,
+        targetUrl: `/?evento=${result.rows[0].id}`,
+        entityType: 'event',
+        entityId: result.rows[0].id,
+        uniquePrefix: `new-event:${result.rows[0].id}`,
+      }, dbClient);
+
+      for (const organizador of organizadoresResult.rows) {
+        await crearNotificacion({
+          userId: organizador.id,
+          actorId: creadorId,
+          type: 'event_coorganizer',
+          title: `${actorName} te agrego como coorganizador`,
+          body: titulo,
+          targetUrl: `/?evento=${result.rows[0].id}`,
+          entityType: 'event',
+          entityId: result.rows[0].id,
+          uniqueKey: `event-coorganizer:${result.rows[0].id}:${organizador.id}`,
+        }, dbClient);
+      }
+
+      await dbClient.query('COMMIT');
       res.status(201).json(mapearEvento({
         ...result.rows[0],
-        creador: creadorNombre
+        creador: creadorNombre,
+        creador_privado: Boolean(privacidad.rows[0]?.creador_privado),
+        organizadores: organizadoresResult.rows,
       }));
     } catch (error) {
+      if (dbClient) await dbClient.query('ROLLBACK').catch(() => {});
       if (imagenSubida?.path) {
         await eliminarImagenEvento(imagenSubida.path);
       }
 
       console.error('Error al crear evento:', error);
       res.status(500).json({ error: error.message || 'Error al guardar el evento.' });
+    } finally {
+      dbClient?.release();
     }
   },
 
@@ -175,9 +336,12 @@ const eventoController = {
     try {
       await asegurarUsuarioPublico(req.user);
 
-      const evento = await pool.query('SELECT id FROM eventos WHERE id = $1', [id]);
-      if (evento.rowCount === 0) {
+      const evento = await buscarAccesoEvento(id, req.user.id);
+      if (!evento) {
         return res.status(404).json({ error: 'Evento no encontrado.' });
+      }
+      if (!evento.permitido) {
+        return res.status(403).json({ error: 'No tenes acceso a este evento privado.' });
       }
 
       const existe = await pool.query(

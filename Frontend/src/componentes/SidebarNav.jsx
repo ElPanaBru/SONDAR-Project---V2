@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./sidebarNav.css";
 
 const iconos = {
@@ -28,6 +29,7 @@ const links = [
 ];
 
 export default function SidebarNav({ usuario }) {
+  const { t } = usePreferencias();
   const [open, setOpen] = useState(false);
   const [seguidos, setSeguidos] = useState([]);
 
@@ -68,7 +70,7 @@ export default function SidebarNav({ usuario }) {
   }, [usuario]);
 
   return (
-    <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegacion principal">
+    <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegación principal">
       <button
         type="button"
         className="sidebar-toggle"
@@ -85,7 +87,7 @@ export default function SidebarNav({ usuario }) {
 
       <div className="sidebar-content" role="navigation">
         <div className="sidebar-section">
-          <div className="sidebar-section-title">Ir a...</div>
+          <div className="sidebar-section-title">{t("Ir a...")}</div>
           {links.map((item) => (
             <NavLink
               key={item.to}
@@ -96,13 +98,13 @@ export default function SidebarNav({ usuario }) {
               <span className="sidebar-link-icon" aria-hidden="true">
                 <Icono nombre={item.icon} />
               </span>
-              <span className="sidebar-link-text">{item.label}</span>
+              <span className="sidebar-link-text">{t(item.label)}</span>
             </NavLink>
           ))}
         </div>
 
         <div className="sidebar-section sidebar-following-section">
-          <div className="sidebar-section-title">Siguiendo</div>
+          <div className="sidebar-section-title">{t("Siguiendo")}</div>
           {seguidos.map((perfil) => (
             <NavLink
               key={perfil.id}

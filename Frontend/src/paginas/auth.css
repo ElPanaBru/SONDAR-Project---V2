@@ -1,8 +1,10 @@
 .auth-page {
   position: relative;
-  min-height: 100vh;
-  margin: -20px;
-  overflow: hidden;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   color: #ffffff;
   background: #050505;
 }
@@ -31,14 +33,14 @@
 .auth-shell {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  min-height: 100%;
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
   align-items: center;
   gap: clamp(32px, 7vw, 92px);
-  padding: clamp(24px, 5vw, 64px) 0;
+  padding: clamp(18px, 3vh, 32px) 0;
 }
 
 .auth-hero {
@@ -184,6 +186,75 @@
   background: rgba(8, 8, 8, 0.58);
   border-color: rgba(255, 174, 0, 0.95);
   box-shadow: 0 0 0 4px rgba(255, 174, 0, 0.18);
+}
+
+.auth-password-control {
+  position: relative;
+}
+
+.auth-password-control .auth-input {
+  padding-right: 74px;
+}
+
+.auth-password-control button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  min-height: 32px;
+  padding: 0 9px;
+  color: #ffca66;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.auth-password-strength {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-top: -5px;
+}
+
+.auth-password-strength span {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 99px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.auth-password-strength span.active {
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  transform: scaleY(1.2);
+}
+
+.auth-password-help {
+  margin: -4px 0 2px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.auth-field .auth-password-match,
+.auth-field .auth-password-mismatch {
+  margin-top: 1px;
+  font-size: 11px;
+  text-transform: none;
+}
+
+.auth-field .auth-password-match {
+  color: #73e9a6;
+}
+
+.auth-field .auth-password-mismatch {
+  color: #ff9b9b;
+}
+
+.auth-input.error {
+  border-color: #d74b4b;
 }
 
 .auth-btn {

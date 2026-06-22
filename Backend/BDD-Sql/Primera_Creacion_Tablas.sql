@@ -23,3 +23,14 @@ CREATE TABLE IF NOT EXISTS eventos (
     longitud DOUBLE PRECISION,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+CREATE TABLE IF NOT EXISTS event_organizers (
+    event_id BIGINT NOT NULL REFERENCES eventos(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    added_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    PRIMARY KEY (event_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS event_organizers_user_id_idx
+    ON event_organizers(user_id);

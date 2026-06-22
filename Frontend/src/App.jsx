@@ -15,6 +15,7 @@ import MiPerfil from "./paginas/Miperfil";
 import OtroPerfil from "./paginas/OtroPerfil";
 import Configuracion from "./paginas/Configuracion";
 import SidebarNav from "./componentes/SidebarNav";
+import { PreferenciasProvider } from "./contextos/PreferenciasContext";
 
 function App() {
   const location = useLocation();
@@ -36,8 +37,10 @@ function App() {
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
   const isBuscarRoute = location.pathname === "/buscar";
+  const isAuthRoute = location.pathname === "/auth";
 
   return (
+    <PreferenciasProvider usuario={usuario}>
     <div className="app-container">
       {!shouldHideNavbar && <Navbar usuario={usuario} />}
       {!shouldHideNavbar && <SidebarNav usuario={usuario} />}
@@ -47,6 +50,8 @@ function App() {
           isDescubrirRoute ? "descubrir-content" : ""
         } ${
           isBuscarRoute ? "buscar-content" : ""
+        } ${
+          isAuthRoute ? "auth-content" : ""
         }`}
       >
         <Routes>
@@ -62,6 +67,7 @@ function App() {
         </Routes>
       </div>
     </div>
+    </PreferenciasProvider>
   );
 }
 

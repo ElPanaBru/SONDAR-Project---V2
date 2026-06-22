@@ -466,6 +466,11 @@
   grid-template-columns: 48px minmax(0, 1fr);
 }
 
+.hilo-card.notificacion-destino {
+  border-color: rgba(255, 174, 0, 0.72);
+  box-shadow: 0 0 0 3px rgba(255, 174, 0, 0.12), 0 18px 44px rgba(0, 0, 0, 0.35);
+}
+
 .hilo-votos {
   display: grid;
   align-content: start;
@@ -552,7 +557,11 @@
   resize: vertical;
 }
 
-.respuesta-form button {
+.respuesta-form > .campo-menciones {
+  min-width: 0;
+}
+
+.respuesta-form > button {
   min-height: 42px;
   color: #050505;
   background: #ff7a00;
@@ -621,6 +630,10 @@
 .comunidad-modal form {
   display: grid;
   gap: 10px;
+}
+
+.comunidad-modal .campo-menciones {
+  width: 100%;
 }
 
 .comunidad-modal input,

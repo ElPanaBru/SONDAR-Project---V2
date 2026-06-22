@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
+import CampoMenciones from "../componentes/CampoMenciones";
+import TextoConMenciones from "../componentes/TextoConMenciones";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./comunidad.css";
 
 const filtros = [
@@ -200,10 +204,12 @@ const normalizarHilo = (hilo) => ({
 });
 
 export default function Comunidad({ usuario }) {
+  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
   const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
+  const publicacionCompartida = searchParams.get("publicacion");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
   const [comunidadActivaId, setComunidadActivaId] = useState("pop");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
@@ -291,7 +297,7 @@ export default function Comunidad({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         const params = new URLSearchParams({ filtro: filtroActivo });
-        if (busqueda) params.set("q", busqueda);
+        if (busqueda && !publicacionCompartida) params.set("q", busqueda);
 
         const response = await fetch(
           apiUrl(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`),
@@ -325,7 +331,7 @@ export default function Comunidad({ usuario }) {
     return () => {
       cancelado = true;
     };
-  }, [busqueda, comunidadActiva?.id, filtroActivo]);
+  }, [busqueda, comunidadActiva?.id, filtroActivo, publicacionCompartida]);
 
   const hilosFiltrados = useMemo(() => {
     return hilos.filter((hilo) => {
@@ -338,9 +344,19 @@ export default function Comunidad({ usuario }) {
         hilo.texto,
       ].join(" ").toLowerCase();
 
-      return !busqueda || textoBusqueda.includes(busqueda);
+      return Boolean(publicacionCompartida) || !busqueda || textoBusqueda.includes(busqueda);
     });
-  }, [busqueda, hilos]);
+  }, [busqueda, hilos, publicacionCompartida]);
+
+  useEffect(() => {
+    if (!publicacionCompartida || cargandoHilos) return;
+    window.setTimeout(() => {
+      document.getElementById(`publicacion-${publicacionCompartida}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 120);
+  }, [cargandoHilos, hilos, publicacionCompartida]);
 
   const handleChange = (e) => {
     setNuevoHilo({
@@ -570,7 +586,7 @@ export default function Comunidad({ usuario }) {
       <section className="comunidad-layout reddit-layout">
         <aside className="comunidad-sidebar subreddit-list">
           <section className="comunidad-panel">
-            <h2>Generos</h2>
+            <h2>{t("Géneros")}</h2>
             <div className="comunidades-lista">
               {comunidades.map((comunidad) => (
                 <button
@@ -656,7 +672,11 @@ export default function Comunidad({ usuario }) {
             )}
 
             {!cargandoHilos && hilosFiltrados.map((hilo) => (
-              <article className="publicacion-card hilo-card" key={hilo.id}>
+              <article
+                className={`publicacion-card hilo-card ${String(hilo.id) === publicacionCompartida ? "notificacion-destino" : ""}`}
+                id={`publicacion-${hilo.id}`}
+                key={hilo.id}
+              >
                 <div className="hilo-votos">
                   <button
                     className={hilo.liked ? "activo" : ""}
@@ -672,13 +692,14 @@ export default function Comunidad({ usuario }) {
                 <div className="publicacion-contenido">
                   <div className="publicacion-meta">
                     <strong>{hilo.usuario}</strong>
+                    <IndicadorCuentaPrivada privada={hilo.cuentaPrivada} compacto />
                     <span>{hilo.op}</span>
                     <span>{hilo.tiempo || "ahora"}</span>
                     <span>{hilo.etiqueta || comunidadActiva.genero}</span>
                   </div>
 
                   <h2>{hilo.titulo}</h2>
-                  <p>{hilo.texto}</p>
+                  <p><TextoConMenciones texto={hilo.texto} /></p>
 
                   <div className="publicacion-acciones">
                     <button type="button" onClick={() => toggleRespuestas(hilo.id)}>
@@ -697,19 +718,20 @@ export default function Comunidad({ usuario }) {
                           <div>
                             <div className="respuesta-meta">
                               <strong>{comentario.usuario}</strong>
+                              <IndicadorCuentaPrivada privada={comentario.cuentaPrivada} compacto />
                               <span>{comentario.autor}</span>
                               <span>{comentario.votos} votos</span>
                             </div>
-                            <p>{comentario.texto}</p>
+                            <p><TextoConMenciones texto={comentario.texto} /></p>
                           </div>
                         </article>
                       ))}
 
                       <div className="respuesta-form">
-                        <textarea
-                          placeholder="Responder o sumarte a la charla"
+                        <CampoMenciones
+                          placeholder="Respondé o mencioná con @usuario"
                           value={respuestas[hilo.id] || ""}
-                          onChange={(e) => setRespuestas({ ...respuestas, [hilo.id]: e.target.value })}
+                          onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
                         />
                         <button type="button" onClick={() => responder(hilo.id)}>
                           Responder
@@ -746,7 +768,7 @@ export default function Comunidad({ usuario }) {
       {mostrarModal && (
         <div className="comunidad-modal-overlay">
           <div className="comunidad-modal">
-            <h2>Crear publicacion</h2>
+            <h2>{t("Crear publicación")}</h2>
             <form onSubmit={crearHilo}>
               <input
                 name="titulo"
@@ -756,11 +778,10 @@ export default function Comunidad({ usuario }) {
                 required
               />
 
-              <textarea
-                name="texto"
-                placeholder={`Escribi en la comunidad ${comunidadActiva.nombre}`}
+              <CampoMenciones
+                placeholder={`Escribí en ${comunidadActiva.nombre} o mencioná con @usuario`}
                 value={nuevoHilo.texto}
-                onChange={handleChange}
+                onChange={(texto) => setNuevoHilo((actual) => ({ ...actual, texto }))}
                 required
               />
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./buscar.css";
 
 const TABS = [
@@ -65,6 +66,7 @@ function mostrarGenero(genero) {
 }
 
 export default function Buscar({ usuario }) {
+  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get("query")?.trim() || "";
@@ -235,14 +237,14 @@ export default function Buscar({ usuario }) {
       return (
         <div className="buscar-empty">
           <IconoBuscar nombre="reel" />
-          <h2>Busca en SONDAR</h2>
+          <h2>{t("Busca en SONDAR")}</h2>
           <p>Encontra usuarios, reels y eventos desde un solo lugar.</p>
         </div>
       );
     }
 
     if (cargando) {
-      return <div className="buscar-empty">Buscando...</div>;
+      return <div className="buscar-empty">{t("Buscando...")}</div>;
     }
 
     if (error) {
@@ -306,7 +308,7 @@ export default function Buscar({ usuario }) {
         {usuarios.length > 0 ? (
           <section className="buscar-section">
             <header>
-              <h2>Usuarios</h2>
+              <h2>{t("Usuarios")}</h2>
               <button type="button" onClick={() => setTabActiva("usuarios")}>Ver mas</button>
             </header>
             {usuarios.slice(0, 4).map(renderUsuario)}
@@ -316,7 +318,7 @@ export default function Buscar({ usuario }) {
         {reels.length > 0 ? (
           <section className="buscar-section">
             <header>
-              <h2>Reels</h2>
+              <h2>{t("Reels")}</h2>
               <button type="button" onClick={() => setTabActiva("reels")}>Ver mas</button>
             </header>
             {reels.slice(0, 4).map(renderReel)}
@@ -326,7 +328,7 @@ export default function Buscar({ usuario }) {
         {eventos.length > 0 ? (
           <section className="buscar-section">
             <header>
-              <h2>Eventos</h2>
+              <h2>{t("Eventos")}</h2>
               <button type="button" onClick={() => setTabActiva("eventos")}>Ver mas</button>
             </header>
             {eventos.slice(0, 4).map(renderEvento)}
@@ -340,7 +342,7 @@ export default function Buscar({ usuario }) {
     <section className="buscar-page">
       <header className="buscar-header">
         <span>Busqueda global</span>
-        <h1>{query ? `Resultados para "${query}"` : "Buscar"}</h1>
+        <h1>{query ? `${t("Resultados para")} "${query}"` : t("Buscar")}</h1>
         <p>Usuarios, reels y eventos reunidos en una misma pantalla.</p>
       </header>
 

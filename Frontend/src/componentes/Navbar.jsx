@@ -4,6 +4,7 @@ import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 
 const iconosCrear = {
   evento:
@@ -31,8 +32,10 @@ const perfilGuardado = (usuario) => {
 };
 
 function Navbar({ usuario }) {
+  const { preferencias, t } = usePreferencias();
   const [busqueda, setBusqueda] = useState("");
   const [mostrarNotifs, setMostrarNotifs] = useState(false);
+  const [notificacionesNoLeidas, setNotificacionesNoLeidas] = useState(0);
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
@@ -58,6 +61,55 @@ function Navbar({ usuario }) {
     window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
     return () => window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
   }, [usuario]);
+
+  useEffect(() => {
+    if (!usuario) {
+      return undefined;
+    }
+    if (!preferencias.actividadCuenta) {
+      setNotificacionesNoLeidas(0);
+      return undefined;
+    }
+
+    let activo = true;
+    const cargarContador = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const response = await fetch(apiUrl("/api/notificaciones/no-leidas"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+        const dataContador = await response.json();
+        if (activo) setNotificacionesNoLeidas(Number(dataContador.noLeidas || 0));
+      } catch (error) {
+        console.error("Error al cargar contador de notificaciones:", error);
+      }
+    };
+
+    const recibirActualizacion = (event) => {
+      if (typeof event.detail?.noLeidas === "number") {
+        setNotificacionesNoLeidas(event.detail.noLeidas);
+      } else {
+        cargarContador();
+      }
+    };
+    const alVolver = () => {
+      if (document.visibilityState === "visible") cargarContador();
+    };
+
+    cargarContador();
+    const intervalo = window.setInterval(cargarContador, 30000);
+    window.addEventListener("sondar:notificaciones-actualizadas", recibirActualizacion);
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("sondar:notificaciones-actualizadas", recibirActualizacion);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [preferencias.actividadCuenta, usuario]);
 
   useEffect(() => {
     let activo = true;
@@ -144,7 +196,7 @@ function Navbar({ usuario }) {
   };
 
   const getPlaceholder = () => {
-    return "Buscar usuarios, reels o eventos...";
+    return t("Buscar usuarios, reels o eventos...");
   };
 
   const handleLogout = async () => {
@@ -260,10 +312,10 @@ function Navbar({ usuario }) {
           {!usuario ? (
             <div className="auth-actions">
               <Link className="auth-link auth-login" to="/auth?modo=login">
-                Iniciar sesion
+                {t("Iniciar sesión")}
               </Link>
               <Link className="auth-link auth-register" to="/auth?modo=registro">
-                Crear cuenta
+                {t("Crear cuenta")}
               </Link>
             </div>
           ) : (
@@ -281,35 +333,44 @@ function Navbar({ usuario }) {
                   aria-haspopup="menu"
                 >
                   <span aria-hidden="true">+</span>
-                  Crear
+                  {t("Crear")}
                 </button>
                 {mostrarCrear ? (
                   <div className="navbar-create-menu" role="menu" aria-label="Opciones para crear">
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />Evento</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />{t("Evento")}</button>
                     <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Reel</button>
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("comunidad")}><IconoCrear nombre="comunidad" />Comunidad</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("comunidad")}><IconoCrear nombre="comunidad" />{t("Comunidad")}</button>
                   </div>
                 ) : null}
               </div>
 
               <div className="navbar-notifications-wrap" ref={notificacionesRef}>
                 <button
-                  className={`inbox-button inbox-button--notifs ${mostrarNotifs ? "active" : ""}`}
+                  className={`inbox-button inbox-button--notifs ${mostrarNotifs ? "active" : ""} ${!preferencias.actividadCuenta ? "notifications-paused" : ""}`}
                   type="button"
                   onClick={() => {
                     setMostrarCrear(false);
                     setMostrarPerfil(false);
                     setMostrarNotifs((value) => !value);
                   }}
-                  aria-label="Notificaciones"
+                  aria-label={`${t("Notificaciones")}${!preferencias.actividadCuenta ? ": pausadas" : notificacionesNoLeidas ? `, ${notificacionesNoLeidas} sin leer` : ""}`}
                   aria-expanded={mostrarNotifs}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                     <path d="M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z" />
                   </svg>
+                  {notificacionesNoLeidas > 0 ? (
+                    <span className="navbar-notification-badge" aria-hidden="true">
+                      {notificacionesNoLeidas > 99 ? "99+" : notificacionesNoLeidas}
+                    </span>
+                  ) : null}
                 </button>
                 {mostrarNotifs ? (
-                  <NotificationPanel usuario={usuario} onClose={() => setMostrarNotifs(false)} />
+                  <NotificationPanel
+                    usuario={usuario}
+                    onClose={() => setMostrarNotifs(false)}
+                    onCountChange={setNotificacionesNoLeidas}
+                  />
                 ) : null}
               </div>
 
@@ -333,17 +394,17 @@ function Navbar({ usuario }) {
                   <ul className="profile-dropdown" role="menu">
                     <li>
                       <Link className="dropdown-item" to="/perfil" onClick={() => setMostrarPerfil(false)}>
-                        Mi perfil
+                        {t("Mi perfil")}
                       </Link>
                     </li>
                     <li>
                       <Link className="dropdown-item" to="/soporte" onClick={() => setMostrarPerfil(false)}>
-                        Soporte
+                        {t("Soporte")}
                       </Link>
                     </li>
                     <li>
                       <Link className="dropdown-item" to="/configuracion" onClick={() => setMostrarPerfil(false)}>
-                        Configuracion
+                        {t("Configuración")}
                       </Link>
                     </li>
                     <li>
@@ -351,7 +412,7 @@ function Navbar({ usuario }) {
                     </li>
                     <li>
                       <button className="dropdown-item" type="button" onClick={handleLogout}>
-                        Cerrar sesion
+                        {t("Cerrar sesión")}
                       </button>
                     </li>
                   </ul>

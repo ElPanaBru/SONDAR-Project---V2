@@ -6,6 +6,9 @@ import "./eventos.css";
 import L from "leaflet";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
+import CampoMenciones from "../componentes/CampoMenciones";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
 
@@ -29,6 +32,9 @@ const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
 
 const crearEventoVacio = () => ({
   titulo: "",
+  descripcion: "",
+  organizadorBusqueda: "",
+  organizadores: [],
   genero: "",
   lugar: "",
   fecha: "",
@@ -93,6 +99,7 @@ const formatearFechaVisible = (fecha) => {
 };
 
 export default function Eventos({ usuario }) {
+  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
   const eventoCompartido = searchParams.get("evento");
   const crearEventoParam = searchParams.get("crear");
@@ -125,6 +132,7 @@ export default function Eventos({ usuario }) {
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
+  const [mostrarBuscadorOrganizador, setMostrarBuscadorOrganizador] = useState(false);
 
   // Estado del nuevo evento
   const [nuevoEvento, setNuevoEvento] = useState(crearEventoVacio);
@@ -531,6 +539,36 @@ export default function Eventos({ usuario }) {
     setNuevoEvento((actual) => ({ ...actual, [name]: value }));
   };
 
+  const agregarCoorganizador = (persona) => {
+    if (!persona?.id || persona.id === usuario?.id) {
+      mostrarAviso("Vos ya sos el creador principal del evento.");
+      setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
+      return;
+    }
+    if (nuevoEvento.organizadores.some((organizador) => organizador.id === persona.id)) {
+      mostrarAviso("Esa persona ya esta agregada como organizadora.");
+      setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
+      return;
+    }
+    if (nuevoEvento.organizadores.length >= 8) {
+      mostrarAviso("Podes agregar hasta 8 coorganizadores.");
+      setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
+      return;
+    }
+    setNuevoEvento((actual) => ({
+      ...actual,
+      organizadorBusqueda: "",
+      organizadores: [...actual.organizadores, persona],
+    }));
+  };
+
+  const quitarCoorganizador = (id) => {
+    setNuevoEvento((actual) => ({
+      ...actual,
+      organizadores: actual.organizadores.filter((organizador) => organizador.id !== id),
+    }));
+  };
+
 const handleImagen = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -599,6 +637,11 @@ const handleImagen = (e) => {
 
     const formData = new FormData();
     formData.append("titulo", nuevoEvento.titulo);
+    formData.append("descripcion", nuevoEvento.descripcion);
+    formData.append(
+      "organizadores",
+      JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id))
+    );
     formData.append("genero", normalizarGenero(nuevoEvento.genero));
     formData.append("ubicacion", nuevoEvento.lugar);
     formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
@@ -645,6 +688,7 @@ const handleImagen = (e) => {
       if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
 
       setNuevoEvento(crearEventoVacio());
+      setMostrarBuscadorOrganizador(false);
 
       mostrarAviso("¡Evento creado con éxito!");
 
@@ -662,7 +706,7 @@ const handleImagen = (e) => {
       <div className="eventos-panel">
         <div className="eventos-header">
           <div className="eventos-titulo">
-            <h2>Eventos cerca tuyo</h2>
+            <h2>{t("Eventos cerca tuyo")}</h2>
             <label className="eventos-genero">
               <span>Genero</span>
               <select
@@ -688,7 +732,7 @@ const handleImagen = (e) => {
 
       {!loading && eventosFiltrados.length === 0 && (
         <div className="eventos-vacio">
-          No hay eventos de este genero
+          {t("No hay eventos de este género")}
         </div>
       )}
 
@@ -742,6 +786,11 @@ const handleImagen = (e) => {
             <div className="evento-detalle-info">
               <span className="eventos-eyebrow">Evento seleccionado</span>
               <h3>{detalleEvento.titulo}</h3>
+              {detalleEvento.descripcion ? (
+                <p className="evento-detalle-descripcion">
+                  {detalleEvento.descripcion}
+                </p>
+              ) : null}
               <dl className="evento-detalle-datos">
                 <div>
                   <dt>Lugar</dt>
@@ -754,25 +803,27 @@ const handleImagen = (e) => {
                 <div>
                   <dt>Organiza</dt>
                   <dd className="evento-organiza-dd" onMouseLeave={() => setHoverOrganizador(null)}>
-
-                    <button
-                      type="button"
-                      className="evento-organiza-trigger"
-                      onMouseEnter={() => setHoverOrganizador(detalleEvento)}
-                      onMouseLeave={() => setHoverOrganizador(null)}
-                      onFocus={() => setHoverOrganizador(detalleEvento)}
-                      onBlur={() => setHoverOrganizador(null)}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (detalleEvento?.creador_id) {
-                          navigate(`/perfil/${detalleEvento.creador_id}`);
-                        }
-                      }}
-                      aria-label={`Ver perfil de ${detalleEvento.creador || "Anonimo"}`}
-                    >
-                      {detalleEvento.creador || "Anonimo"}
-                    </button>
+                    <span className="evento-organiza-identidad">
+                      <button
+                        type="button"
+                        className="evento-organiza-trigger"
+                        onMouseEnter={() => setHoverOrganizador(detalleEvento)}
+                        onMouseLeave={() => setHoverOrganizador(null)}
+                        onFocus={() => setHoverOrganizador(detalleEvento)}
+                        onBlur={() => setHoverOrganizador(null)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (detalleEvento?.creador_id) {
+                            navigate(`/perfil/${detalleEvento.creador_id}`);
+                          }
+                        }}
+                        aria-label={`Ver perfil de ${detalleEvento.creador || "Anonimo"}`}
+                      >
+                        {detalleEvento.creador || "Anonimo"}
+                      </button>
+                      <IndicadorCuentaPrivada privada={detalleEvento.creador_privado} compacto />
+                    </span>
 
                     {hoverOrganizador?.id === detalleEvento?.id ? (
                       <div className="evento-organiza-popover" role="dialog" aria-label="Perfil del organizador">
@@ -800,6 +851,31 @@ const handleImagen = (e) => {
                         </div>
                       </div>
                     ) : null}
+                    {Array.isArray(detalleEvento.organizadores) && detalleEvento.organizadores.length > 0 ? (
+                      <div className="evento-coorganizadores-lista" aria-label="Coorganizadores del evento">
+                        {detalleEvento.organizadores.map((organizador) => (
+                          <button
+                            className="evento-coorganizador-chip"
+                            type="button"
+                            key={organizador.id}
+                            onClick={() => navigate(`/perfil/${organizador.id}`)}
+                            aria-label={`Ver perfil de ${organizador.nombre || organizador.username}`}
+                          >
+                            <span className="evento-coorganizador-avatar">
+                              {organizador.avatar ? (
+                                <img src={organizador.avatar} alt="" />
+                              ) : (
+                                String(organizador.nombre || organizador.username || "O").charAt(0).toUpperCase()
+                              )}
+                            </span>
+                            <span>{organizador.nombre || organizador.username}</span>
+                            <IndicadorCuentaPrivada privada={organizador.privado} compacto />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <small className="evento-organizador-principal">Creador principal</small>
+                    )}
                   </dd>
                 </div>
 
@@ -839,7 +915,7 @@ const handleImagen = (e) => {
             <header className="evento-modal-header">
               <div>
                 <span>EVENTOS</span>
-                <h2 id="crear-evento-titulo">Crear nuevo evento</h2>
+                <h2 id="crear-evento-titulo">{t("Crear nuevo evento")}</h2>
               </div>
               <button className="evento-modal-volver" type="button" onClick={() => setMostrarModal(false)} disabled={subiendo} aria-label="Cerrar creador de evento">
                 <svg aria-hidden="true" viewBox="0 -960 960 960" fill="currentColor">
@@ -850,6 +926,64 @@ const handleImagen = (e) => {
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
               <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
+
+              <textarea
+                className="evento-descripcion"
+                value={nuevoEvento.descripcion}
+                onChange={(event) => setNuevoEvento((actual) => ({ ...actual, descripcion: event.target.value }))}
+                maxLength={1000}
+                rows={3}
+                placeholder="Descripcion del evento (opcional)"
+                aria-label="Descripcion del evento"
+              />
+
+              <section className="evento-organizadores-selector" aria-label="Organizadores del evento">
+                <div className="evento-organizadores-encabezado">
+                  <span>Organizadores</span>
+                  <small>Vos sos el creador principal</small>
+                </div>
+
+                {nuevoEvento.organizadores.length > 0 ? (
+                  <div className="evento-organizadores-elegidos">
+                    {nuevoEvento.organizadores.map((organizador) => (
+                      <span className="evento-organizador-elegido" key={organizador.id}>
+                        {organizador.nombre || organizador.username}
+                        <button
+                          type="button"
+                          onClick={() => quitarCoorganizador(organizador.id)}
+                          aria-label={`Quitar a ${organizador.nombre || organizador.username}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <button
+                  className="evento-agregar-organizador"
+                  type="button"
+                  onClick={() => setMostrarBuscadorOrganizador((actual) => !actual)}
+                  aria-expanded={mostrarBuscadorOrganizador}
+                >
+                  <span aria-hidden="true">+</span>
+                  Agregar organizador
+                </button>
+
+                {mostrarBuscadorOrganizador ? (
+                  <CampoMenciones
+                    className="evento-organizador-buscador"
+                    multiline={false}
+                    type="text"
+                    value={nuevoEvento.organizadorBusqueda}
+                    onChange={(organizadorBusqueda) => setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda }))}
+                    onMentionSelect={agregarCoorganizador}
+                    placeholder="Escribi @ y busca a la persona"
+                    aria-label="Buscar coorganizador"
+                    autoFocus
+                  />
+                ) : null}
+              </section>
 
             <select
               name="genero"

@@ -1,11 +1,105 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const {
+  crearNotificacion,
+  eliminarNotificacion,
+  nombreActor,
+} = require('../services/notificationService');
+const {
   subirAvatarUsuario,
   eliminarAvatarUsuario,
   eliminarImagenEvento,
   eliminarArchivoReel,
 } = require('../services/storageService');
+
+const CONFIGURACION_INICIAL = Object.freeze({
+  telefono: '',
+  codigoPais: '+54',
+  idioma: 'es',
+  zonaHoraria: 'America/Argentina/Buenos_Aires',
+  actividadCuenta: true,
+  notificarInteracciones: true,
+  notificarComentarios: true,
+  notificarSeguidores: true,
+  notificarPublicaciones: true,
+  notificarMenciones: true,
+  reducirMovimiento: false,
+  perfilPrivado: false,
+  mostrarEmail: false,
+});
+
+const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
+const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
+const ZONAS_HORARIAS_VALIDAS = new Set([
+  'America/Argentina/Buenos_Aires',
+  'America/Santiago',
+  'America/Montevideo',
+]);
+
+function mapearConfiguracion(row = {}) {
+  return {
+    telefono: row.telefono || '',
+    codigoPais: row.codigo_pais || CONFIGURACION_INICIAL.codigoPais,
+    idioma: row.idioma || CONFIGURACION_INICIAL.idioma,
+    zonaHoraria: row.zona_horaria || CONFIGURACION_INICIAL.zonaHoraria,
+    actividadCuenta: row.actividad_cuenta ?? CONFIGURACION_INICIAL.actividadCuenta,
+    notificarInteracciones: row.notificar_interacciones ?? CONFIGURACION_INICIAL.notificarInteracciones,
+    notificarComentarios: row.notificar_comentarios ?? CONFIGURACION_INICIAL.notificarComentarios,
+    notificarSeguidores: row.notificar_seguidores ?? CONFIGURACION_INICIAL.notificarSeguidores,
+    notificarPublicaciones: row.notificar_publicaciones ?? CONFIGURACION_INICIAL.notificarPublicaciones,
+    notificarMenciones: row.notificar_menciones ?? CONFIGURACION_INICIAL.notificarMenciones,
+    reducirMovimiento: row.reducir_movimiento ?? CONFIGURACION_INICIAL.reducirMovimiento,
+    perfilPrivado: row.perfil_privado ?? CONFIGURACION_INICIAL.perfilPrivado,
+    mostrarEmail: row.mostrar_email ?? CONFIGURACION_INICIAL.mostrarEmail,
+  };
+}
+
+function validarConfiguracion(body = {}) {
+  const configuracion = {
+    telefono: String(body.telefono || '').trim().slice(0, 30),
+    codigoPais: String(body.codigoPais || ''),
+    idioma: String(body.idioma || ''),
+    zonaHoraria: String(body.zonaHoraria || ''),
+    actividadCuenta: body.actividadCuenta,
+    notificarInteracciones: body.notificarInteracciones,
+    notificarComentarios: body.notificarComentarios,
+    notificarSeguidores: body.notificarSeguidores,
+    notificarPublicaciones: body.notificarPublicaciones,
+    notificarMenciones: body.notificarMenciones,
+    reducirMovimiento: body.reducirMovimiento,
+    perfilPrivado: body.perfilPrivado,
+    mostrarEmail: body.mostrarEmail,
+  };
+
+  if (!IDIOMAS_VALIDOS.has(configuracion.idioma)) {
+    return { error: 'El idioma seleccionado no es valido.' };
+  }
+  if (!CODIGOS_PAIS_VALIDOS.has(configuracion.codigoPais)) {
+    return { error: 'El codigo de pais seleccionado no es valido.' };
+  }
+  if (!ZONAS_HORARIAS_VALIDAS.has(configuracion.zonaHoraria)) {
+    return { error: 'La zona horaria seleccionada no es valida.' };
+  }
+
+  const booleanos = [
+    'actividadCuenta', 'notificarInteracciones', 'notificarComentarios',
+    'notificarSeguidores', 'notificarPublicaciones', 'notificarMenciones',
+    'reducirMovimiento', 'perfilPrivado', 'mostrarEmail',
+  ];
+  if (booleanos.some((campo) => typeof configuracion[campo] !== 'boolean')) {
+    return { error: 'La configuracion contiene valores invalidos.' };
+  }
+
+  return { configuracion };
+}
+
+async function obtenerConfiguracion(userId, client = pool) {
+  const result = await client.query(
+    'SELECT * FROM user_settings WHERE user_id = $1',
+    [userId]
+  );
+  return mapearConfiguracion(result.rows[0]);
+}
 
 function nombreVisible(usuario) {
   return (
@@ -23,10 +117,10 @@ function usuarioVisible(usuario) {
   return '@usuario';
 }
 
-function mapearUsuarioPerfil(usuario) {
+function mapearUsuarioPerfil(usuario, configuracion = CONFIGURACION_INICIAL, esPropio = false) {
   return {
     id: usuario.id,
-    email: usuario.email,
+    email: esPropio || configuracion.mostrarEmail ? usuario.email : null,
     username: usuario.username,
     user_type: usuario.user_type,
     nombre: nombreVisible(usuario),
@@ -157,6 +251,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     seguidosStatsResult,
     siguiendoResult,
     seguidoresResult,
+    silenciadoResult,
     seguidosResult,
   ] = await Promise.all([
     consultarOpcional(
@@ -205,6 +300,15 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
        ORDER BY f.created_at DESC`,
       [targetUserId]
     ),
+    viewerUserId
+      ? consultarOpcional(
+          `SELECT EXISTS(
+             SELECT 1 FROM notification_mutes
+             WHERE user_id = $1 AND muted_user_id = $2
+           ) AS silenciado`,
+          [viewerUserId, targetUserId]
+        )
+      : Promise.resolve({ rows: [{ silenciado: false }] }),
     consultarOpcional(
       `SELECT u.*
        FROM follows f
@@ -230,15 +334,28 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     guardadoTipo: 'evento',
   }));
 
+  const configuracion = await obtenerConfiguracion(targetUserId).catch((error) => {
+    if (error.code === '42P01') return CONFIGURACION_INICIAL;
+    throw error;
+  });
+  const esPropio = targetUserId === viewerUserId;
+  const seguidoPorTitular = Boolean(
+    viewerUserId && seguidosResult.rows.some((seguido) => seguido.id === viewerUserId)
+  );
+  const perfilRestringido = configuracion.perfilPrivado && !esPropio && !seguidoPorTitular;
+
   return {
-    perfil: mapearUsuarioPerfil(usuario),
-    publicaciones: reels,
-    eventos,
-    favoritos: favoritosResult.rows.map(mapearReelPerfil),
-    guardados: [...reelsGuardados, ...eventosGuardados],
-    seguidores: seguidoresResult.rows.map(mapearUsuarioPerfil),
-    seguidos: seguidosResult.rows.map(mapearUsuarioPerfil),
+    perfil: mapearUsuarioPerfil(usuario, configuracion, esPropio),
+    publicaciones: perfilRestringido ? [] : reels,
+    eventos: perfilRestringido ? [] : eventos,
+    favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
+    guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
+    seguidores: perfilRestringido ? [] : seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
+    seguidos: perfilRestringido ? [] : seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
+    silenciado: Boolean(silenciadoResult.rows[0]?.silenciado),
+    privado: configuracion.perfilPrivado,
+    contenidoRestringido: perfilRestringido,
     stats: {
       publicaciones: Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),
       reels: Number(publicacionesStats.reels || 0),
@@ -319,7 +436,7 @@ const usuariosController = {
     const { email, password, username, user_type } = req.body;
     const cleanEmail = email?.trim().toLowerCase();
     const cleanUsername = username?.trim();
-    const cleanPassword = password?.trim();
+    const cleanPassword = typeof password === 'string' ? password : '';
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
 
@@ -327,8 +444,14 @@ const usuariosController = {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
     }
 
-    if (cleanPassword.length < 6) {
-      return res.status(400).json({ error: 'La contrasena debe tener al menos 6 caracteres.' });
+    if (cleanPassword.length < 8) {
+      return res.status(400).json({ error: 'La contrasena debe tener al menos 8 caracteres.' });
+    }
+
+    if (!/[a-z]/.test(cleanPassword) || !/[A-Z]/.test(cleanPassword) || !/\d/.test(cleanPassword) || !/[^A-Za-z0-9]/.test(cleanPassword)) {
+      return res.status(400).json({
+        error: 'La contrasena debe incluir mayuscula, minuscula, numero y simbolo.',
+      });
     }
 
     try {
@@ -358,6 +481,16 @@ const usuariosController = {
         cleanUsername,
         tipoUsuario
       ]);
+
+      await crearNotificacion({
+        userId: authUserId,
+        actorId: null,
+        type: 'welcome',
+        title: 'Bienvenido a SONDAR',
+        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
+        targetUrl: '/descubrir',
+        uniqueKey: `welcome:${authUserId}`,
+      });
 
       res.status(201).json(result.rows[0]);
     } catch (error) {
@@ -402,6 +535,122 @@ const usuariosController = {
     }
   },
 
+  obtenerConfiguracionActual: async (req, res) => {
+    try {
+      await asegurarUsuarioPublico(req.user);
+      res.json(await obtenerConfiguracion(req.user.id));
+    } catch (error) {
+      console.error('Error al obtener configuracion:', error);
+      const mensaje = error.code === '42P01'
+        ? 'Falta aplicar la migracion de configuracion en la base de datos.'
+        : 'No se pudo cargar la configuracion.';
+      res.status(500).json({ error: mensaje });
+    }
+  },
+
+  actualizarConfiguracionActual: async (req, res) => {
+    const validacion = validarConfiguracion(req.body);
+    if (validacion.error) return res.status(400).json({ error: validacion.error });
+
+    const c = validacion.configuracion;
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const result = await pool.query(
+        `INSERT INTO user_settings (
+           user_id, telefono, codigo_pais, idioma, zona_horaria, actividad_cuenta,
+           notificar_interacciones, notificar_comentarios, notificar_seguidores,
+           notificar_publicaciones, notificar_menciones, reducir_movimiento,
+           perfil_privado, mostrar_email, updated_at
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+           timezone('utc'::text, now())
+         )
+         ON CONFLICT (user_id) DO UPDATE SET
+           telefono = EXCLUDED.telefono,
+           codigo_pais = EXCLUDED.codigo_pais,
+           idioma = EXCLUDED.idioma,
+           zona_horaria = EXCLUDED.zona_horaria,
+           actividad_cuenta = EXCLUDED.actividad_cuenta,
+           notificar_interacciones = EXCLUDED.notificar_interacciones,
+           notificar_comentarios = EXCLUDED.notificar_comentarios,
+           notificar_seguidores = EXCLUDED.notificar_seguidores,
+           notificar_publicaciones = EXCLUDED.notificar_publicaciones,
+           notificar_menciones = EXCLUDED.notificar_menciones,
+           reducir_movimiento = EXCLUDED.reducir_movimiento,
+           perfil_privado = EXCLUDED.perfil_privado,
+           mostrar_email = EXCLUDED.mostrar_email,
+           updated_at = EXCLUDED.updated_at
+         RETURNING *`,
+        [
+          req.user.id, c.telefono, c.codigoPais, c.idioma, c.zonaHoraria,
+          c.actividadCuenta, c.notificarInteracciones, c.notificarComentarios,
+          c.notificarSeguidores, c.notificarPublicaciones, c.notificarMenciones,
+          c.reducirMovimiento, c.perfilPrivado, c.mostrarEmail,
+        ]
+      );
+
+      const configuracion = mapearConfiguracion(result.rows[0]);
+      const metadata = { ...(req.user.user_metadata || {}), configuracion };
+      const { error: authError } = await supabase.auth.admin.updateUserById(req.user.id, {
+        user_metadata: metadata,
+      });
+      if (authError) console.error('No se pudo sincronizar metadata de configuracion:', authError);
+
+      res.json(configuracion);
+    } catch (error) {
+      console.error('Error al actualizar configuracion:', error);
+      const mensaje = error.code === '42P01'
+        ? 'Falta aplicar la migracion de configuracion en la base de datos.'
+        : 'No se pudo guardar la configuracion.';
+      res.status(500).json({ error: mensaje });
+    }
+  },
+
+  exportarDatosActuales: async (req, res) => {
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const consultas = {
+        cuenta: ['SELECT * FROM users WHERE id = $1', [req.user.id]],
+        configuracion: ['SELECT * FROM user_settings WHERE user_id = $1', [req.user.id]],
+        reels: ['SELECT * FROM reels WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        eventos: ['SELECT * FROM eventos WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        seguimientos: ['SELECT * FROM follows WHERE follower_id = $1 OR following_id = $1', [req.user.id]],
+        reels_que_gustan: ['SELECT * FROM reel_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        reels_guardados: ['SELECT * FROM reel_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        reels_compartidos: ['SELECT * FROM reel_shares WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        eventos_guardados: ['SELECT * FROM event_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        comentarios_reels: ['SELECT * FROM reel_comments WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        publicaciones_comunidad: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        comentarios_comunidad: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        likes_comunidad: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        guardados_comunidad: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        notificaciones: ['SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        usuarios_silenciados: ['SELECT * FROM notification_mutes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+      };
+      const datos = {};
+      await Promise.all(Object.entries(consultas).map(async ([clave, [query, params]]) => {
+        const result = await consultarOpcional(query, params);
+        datos[clave] = clave === 'cuenta' ? (result.rows[0] || null) : result.rows;
+      }));
+      datos.configuracion = mapearConfiguracion(datos.configuracion[0]);
+
+      res.json({
+        exportado_en: new Date().toISOString(),
+        autenticacion: {
+          id: req.user.id,
+          email: req.user.email,
+          telefono: req.user.phone || null,
+          creada_en: req.user.created_at,
+          ultimo_acceso: req.user.last_sign_in_at,
+        },
+        ...datos,
+      });
+    } catch (error) {
+      console.error('Error al exportar datos:', error);
+      res.status(500).json({ error: 'No se pudieron preparar tus datos.' });
+    }
+  },
+
   obtenerPerfilActual: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
@@ -434,6 +683,9 @@ const usuariosController = {
         seguidores,
         seguidos,
         siguiendo,
+        silenciado,
+        privado,
+        contenidoRestringido,
         stats,
       } = datosPerfil;
 
@@ -444,6 +696,9 @@ const usuariosController = {
         seguidores: req.user ? seguidores : [],
         seguidos: req.user ? seguidos : [],
         siguiendo,
+        silenciado,
+        privado,
+        contenidoRestringido,
         stats,
       });
     } catch (error) {
@@ -541,12 +796,24 @@ const usuariosController = {
           'DELETE FROM follows WHERE follower_id = $1 AND following_id = $2',
           [req.user.id, usuarioEncontrado.id]
         );
+        await eliminarNotificacion(`follow:${req.user.id}:${usuarioEncontrado.id}`, client);
       } else {
         await client.query(
           'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)',
           [req.user.id, usuarioEncontrado.id]
         );
         siguiendo = true;
+        await crearNotificacion({
+          userId: usuarioEncontrado.id,
+          actorId: req.user.id,
+          type: 'follow',
+          title: 'Tenes un nuevo seguidor',
+          body: `${nombreActor(req.user)} empezo a seguirte.`,
+          targetUrl: `/perfil/${req.user.id}`,
+          entityType: 'profile',
+          entityId: req.user.id,
+          uniqueKey: `follow:${req.user.id}:${usuarioEncontrado.id}`,
+        }, client);
       }
 
       const counts = await client.query(
@@ -567,6 +834,56 @@ const usuariosController = {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar seguimiento:', error);
       res.status(500).json({ error: 'No se pudo actualizar el seguimiento.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  alternarSilencioNotificaciones: async (req, res) => {
+    const { identificador } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
+      if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
+      if (usuarioEncontrado.id === req.user.id) {
+        return res.status(400).json({ error: 'No podes silenciar tu propio perfil.' });
+      }
+
+      await client.query('BEGIN');
+      const seguimiento = await client.query(
+        'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',
+        [req.user.id, usuarioEncontrado.id]
+      );
+      if (seguimiento.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Solo podes silenciar usuarios que seguis.' });
+      }
+
+      const existe = await client.query(
+        'SELECT 1 FROM notification_mutes WHERE user_id = $1 AND muted_user_id = $2',
+        [req.user.id, usuarioEncontrado.id]
+      );
+      const silenciado = existe.rowCount === 0;
+      if (silenciado) {
+        await client.query(
+          'INSERT INTO notification_mutes (user_id, muted_user_id) VALUES ($1, $2)',
+          [req.user.id, usuarioEncontrado.id]
+        );
+      } else {
+        await client.query(
+          'DELETE FROM notification_mutes WHERE user_id = $1 AND muted_user_id = $2',
+          [req.user.id, usuarioEncontrado.id]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ silenciado });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al alternar silencio:', error);
+      res.status(500).json({ error: 'No se pudo actualizar el silencio de notificaciones.' });
     } finally {
       client.release();
     }
@@ -617,6 +934,16 @@ const usuariosController = {
         username,
         tipoUsuario
       ]);
+
+      await crearNotificacion({
+        userId,
+        actorId: null,
+        type: 'welcome',
+        title: 'Bienvenido a SONDAR',
+        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
+        targetUrl: '/descubrir',
+        uniqueKey: `welcome:${userId}`,
+      });
 
       res.status(201).json(result.rows[0]);
     } catch (error) {

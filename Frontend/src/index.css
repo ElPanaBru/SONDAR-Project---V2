@@ -9,6 +9,8 @@
 
 body {
   /* Universal: dejamos el body sin desplazamientos para no romper layouts */
+  min-height: 100vh;
+  margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -46,5 +48,15 @@ body {
 
 #root {
   width: 100%;
+  min-height: 100vh;
   min-width: 0;
+}
+
+body.sondar-reducir-movimiento *,
+body.sondar-reducir-movimiento *::before,
+body.sondar-reducir-movimiento *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }

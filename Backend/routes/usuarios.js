@@ -11,6 +11,9 @@ const upload = multer({
 
 router.post('/crear-cuenta', usuariosController.crearCuenta);
 router.get('/me', authMiddleware, usuariosController.verificarUsuario);
+router.get('/me/configuracion', authMiddleware, usuariosController.obtenerConfiguracionActual);
+router.put('/me/configuracion', authMiddleware, usuariosController.actualizarConfiguracionActual);
+router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActuales);
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, upload.single('avatar'), usuariosController.actualizarPerfilActual);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
@@ -20,5 +23,6 @@ router.post('/convertir-a-musico', authMiddleware, usuariosController.convertirA
 router.delete('/me', authMiddleware, usuariosController.eliminarCuentaActual);
 router.get('/:identificador/perfil', authMiddleware.opcional, usuariosController.obtenerPerfilPublico);
 router.post('/:identificador/seguir', authMiddleware, usuariosController.alternarSeguimiento);
+router.post('/:identificador/silenciar-notificaciones', authMiddleware, usuariosController.alternarSilencioNotificaciones);
 
 module.exports = router;

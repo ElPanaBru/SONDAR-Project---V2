@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
+import IndicadorCuentaPrivada from "../componentes/IndicadorCuentaPrivada";
+import CampoMenciones from "../componentes/CampoMenciones";
+import TextoConMenciones from "../componentes/TextoConMenciones";
+import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./descubrir.css";
 
 const lanzamientosIniciales = [
@@ -439,9 +443,11 @@ const reelVacio = {
 };
 
 export default function Descubrir({ usuario }) {
+  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const lanzamientoCompartido = searchParams.get("lanzamiento");
+  const comentarioCompartido = searchParams.get("comentario");
   const crearReelParam = searchParams.get("crear");
   const [lanzamientos, setLanzamientos] = useState([]);
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
@@ -525,6 +531,20 @@ export default function Descubrir({ usuario }) {
 
     destino.scrollIntoView({ block: "start" });
   }, [lanzamientoCompartido, idsLanzamientosFiltrados]);
+
+  useEffect(() => {
+    if (!lanzamientoCompartido || !comentarioCompartido) return;
+    if (!comentariosPorLanzamiento[lanzamientoCompartido]) return;
+    setReproduciendo(lanzamientoCompartido);
+    setComentariosAbiertos(lanzamientoCompartido);
+    comentariosAbiertosRef.current = lanzamientoCompartido;
+    window.setTimeout(() => {
+      document.getElementById(`comentario-${comentarioCompartido}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 280);
+  }, [comentarioCompartido, comentariosPorLanzamiento, lanzamientoCompartido]);
 
   useEffect(() => {
     return () => {
@@ -1908,7 +1928,14 @@ export default function Descubrir({ usuario }) {
       }`}
       aria-label="Descubrir musica"
     >
-      <div className="feed-pista">
+      <div className={`feed-pista ${lanzamientosFiltrados.length === 0 ? "sin-resultados" : ""}`}>
+        {lanzamientosFiltrados.length === 0 ? (
+          <div className="descubrir-vacio" role="status">
+            <span aria-hidden="true">♫</span>
+            <strong>{query ? t("No encontramos música") : t("No hay nada que descubrir")}</strong>
+            <p>{query ? "Probá con otra búsqueda." : "Cuando haya nuevos reels van a aparecer acá."}</p>
+          </div>
+        ) : null}
         {lanzamientosFiltrados.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
@@ -1987,6 +2014,7 @@ export default function Descubrir({ usuario }) {
                         >
                           {lanzamiento.usuario}
                         </button>
+                        <IndicadorCuentaPrivada privada={lanzamiento.cuentaPrivada} compacto />
                         {!puedeEliminar ? (
                           <button
                             className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
@@ -1999,7 +2027,7 @@ export default function Descubrir({ usuario }) {
                           </button>
                         ) : null}
                       </div>
-                      <p>{lanzamiento.descripcion}</p>
+                      <p><TextoConMenciones texto={lanzamiento.descripcion} /></p>
                     </div>
                   </div>
                 </div>
@@ -2129,7 +2157,7 @@ export default function Descubrir({ usuario }) {
                 </header>
                 <div className="comentarios-lista">
                   {comentariosDelLanzamiento.map((comentario) => (
-                    <article className="comentario" key={comentario.id}>
+                    <article className="comentario" id={`comentario-${comentario.id}`} key={comentario.id}>
                       <button
                         className="comentario-avatar comentario-usuario-btn"
                         type="button"
@@ -2147,9 +2175,10 @@ export default function Descubrir({ usuario }) {
                           >
                             {comentario.usuario}
                           </button>{" "}
+                          <IndicadorCuentaPrivada privada={comentario.cuentaPrivada} compacto />{" "}
                           <span>{comentario.tiempo}</span>
                         </strong>
-                        <p>{comentario.texto}</p>
+                        <p><TextoConMenciones texto={comentario.texto} /></p>
                         <div className="comentario-acciones">
                           <button
                             type="button"
@@ -2182,7 +2211,7 @@ export default function Descubrir({ usuario }) {
                         {respuestasAbiertas.includes(`${lanzamiento.id}-${comentario.id}`) ? (
                           <div className="comentario-respuestas">
                             {comentario.respuestas.map((respuesta) => (
-                              <article className="comentario comentario-respuesta" key={respuesta.id}>
+                              <article className="comentario comentario-respuesta" id={`comentario-${respuesta.id}`} key={respuesta.id}>
                                 <button
                                   className="comentario-avatar comentario-usuario-btn"
                                   type="button"
@@ -2200,12 +2229,13 @@ export default function Descubrir({ usuario }) {
                                     >
                                       {respuesta.usuario}
                                     </button>
+                                    <IndicadorCuentaPrivada privada={respuesta.cuentaPrivada} compacto />
                                     {respuesta.respondeA ? (
                                       <span className="respuesta-para-linea"> para {respuesta.respondeA}</span>
                                     ) : null}{" "}
                                     <span>{respuesta.tiempo}</span>
                                   </strong>
-                                  <p>{respuesta.texto}</p>
+                                  <p><TextoConMenciones texto={respuesta.texto} /></p>
                                   <div className="comentario-acciones">
                                     <button
                                       type="button"
@@ -2244,11 +2274,13 @@ export default function Descubrir({ usuario }) {
                         {respuestaActiva === `${lanzamiento.id}-${comentario.id}` ? (
                           <form className="respuesta-comentario-form" onSubmit={(event) => enviarRespuesta(event, lanzamiento.id, comentario.id)}>
                             <span className="respuesta-destino">{usuarioComentario} para {respuestaPara}</span>
-                            <input
+                            <CampoMenciones
+                              multiline={false}
+                              className="menciones-arriba"
                               type="text"
-                              placeholder="Escribe una respuesta..."
+                              placeholder="Escribí una respuesta o @mencioná a alguien..."
                               value={respuestaTexto}
-                              onChange={(event) => setRespuestaTexto(event.target.value)}
+                              onChange={setRespuestaTexto}
                               autoFocus
                             />
                             <button type="submit" aria-label="Enviar respuesta">
@@ -2276,11 +2308,13 @@ export default function Descubrir({ usuario }) {
                       inicialUsuario
                     )}
                   </div>
-                  <input
+                  <CampoMenciones
+                    multiline={false}
+                    className="menciones-arriba"
                     type="text"
-                    placeholder="Agrega un comentario..."
+                    placeholder="Comentá o mencioná con @usuario..."
                     value={comentarioTexto}
-                    onChange={(event) => setComentarioTexto(event.target.value)}
+                    onChange={setComentarioTexto}
                   />
                   <button type="submit" aria-label="Enviar comentario">
                     <Icono nombre="enviar" />
@@ -2312,11 +2346,6 @@ export default function Descubrir({ usuario }) {
         })}
       </div>
 
-      {lanzamientosFiltrados.length === 0 ? (
-        <p className="descubrir-vacio">
-          {query ? "No encontramos musica para esa busqueda." : "No hay nada que descubrir."}
-        </p>
-      ) : null}
       {aviso ? (
         <div className="descubrir-toast" role="status">
           {aviso}
@@ -2441,7 +2470,7 @@ export default function Descubrir({ usuario }) {
             <header className="crear-reel-header">
               <div>
                 <span>DESCUBRIR</span>
-                <h2 id="crear-reel-titulo">Crear nuevo reel</h2>
+                <h2 id="crear-reel-titulo">{t("Crear nuevo reel")}</h2>
               </div>
               <button type="button" onClick={cerrarCreadorReel} aria-label="Cerrar">
                 <Icono nombre="cerrar" />
@@ -2507,14 +2536,14 @@ export default function Descubrir({ usuario }) {
                 </label>
                 <label>
                   Descripcion
-                  <textarea
+                  <CampoMenciones
                     value={nuevoReel.descripcion}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, descripcion: event.target.value }))
+                    onChange={(descripcion) =>
+                      setNuevoReel((actual) => ({ ...actual, descripcion }))
                     }
                     maxLength="180"
                     rows="3"
-                    placeholder="Conta algo sobre esta cancion..."
+                    placeholder="Contá algo y mencioná personas con @usuario..."
                   />
                 </label>
 

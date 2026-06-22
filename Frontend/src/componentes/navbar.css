@@ -58,6 +58,7 @@
 
 /* Inbox/Chat buttons (NO pertenecen al navbar amarillo) */
 .inbox-button {
+  position: relative;
   min-height: 52px;
   width: 52px;
   display: inline-flex;
@@ -295,7 +296,7 @@
   width: min(390px, calc(100vw - 24px));
   max-height: min(520px, calc(100vh - 96px));
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   color: #ffffff;
   background: #111111;
@@ -317,6 +318,42 @@
   margin: 0;
   font-size: 22px;
   font-weight: 900;
+}
+
+.panel-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.panel-header > div > span {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notifications-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notifications-toolbar button {
+  min-height: 30px;
+  padding: 0 10px;
+  color: #ffbd37;
+  background: rgba(255, 174, 0, 0.08);
+  border: 1px solid rgba(255, 174, 0, 0.25);
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.notifications-toolbar button:disabled {
+  cursor: default;
+  opacity: 0.38;
 }
 
 .panel-close {
@@ -345,6 +382,8 @@
 .notif-item {
   width: 100%;
   display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 8px;
+  align-items: center;
   gap: 5px;
   padding: 13px 14px;
   color: #ffffff;
@@ -353,6 +392,74 @@
   border-radius: 8px;
   text-align: left;
   cursor: pointer;
+}
+
+.notif-avatar {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #080808;
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  border-radius: 50%;
+  font-weight: 900;
+}
+
+.notif-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.notif-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.notif-dot {
+  width: 8px;
+  height: 8px;
+  background: #ffae00;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(255, 174, 0, 0.12);
+}
+
+.panel-error {
+  color: #ff9a9a;
+}
+
+.navbar-notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0 5px;
+  color: #080808;
+  background: linear-gradient(135deg, #ffcf45, #ff6500);
+  border: 2px solid #0b0b0b;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.inbox-button.notifications-paused {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.inbox-button.notifications-paused::after {
+  content: "";
+  position: absolute;
+  width: 26px;
+  height: 2px;
+  background: #ff6969;
+  transform: rotate(-45deg);
+  border-radius: 999px;
 }
 
 .notif-item + .notif-item {

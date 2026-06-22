@@ -1,5 +1,12 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const {
+  crearNotificacion,
+  eliminarNotificacion,
+  nombreActor,
+  notificarMenciones,
+  notificarSeguidores,
+} = require('../services/notificationService');
 
 const COMUNIDADES_GENERO = [
   {
@@ -271,6 +278,7 @@ function mapearComentario(row) {
     liked: Boolean(row.liked),
     parentId: row.parent_id ? Number(row.parent_id) : null,
     tiempo: tiempoRelativo(row.created_at),
+    cuentaPrivada: Boolean(row.autor_privado),
     respuestas: [],
   };
 }
@@ -317,6 +325,7 @@ function mapearPublicacion(row, comentarios = []) {
     comentarios,
     comentariosTotal: Number(row.comentarios_total || comentarios.length),
     tiempo: tiempoRelativo(row.created_at),
+    cuentaPrivada: Boolean(row.autor_privado),
   };
 }
 
@@ -328,6 +337,7 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
        cc.*,
        u.username,
        u.email,
+       COALESCE(us.perfil_privado, false) AS autor_privado,
        EXISTS (
          SELECT 1
          FROM comunidad_comentario_likes ccl
@@ -336,6 +346,7 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
        ) AS liked
      FROM comunidad_comentarios cc
      LEFT JOIN users u ON u.id = cc.user_id
+     LEFT JOIN user_settings us ON us.user_id = cc.user_id
      WHERE cc.publicacion_id = ANY($1::bigint[])
      ORDER BY cc.created_at ASC, cc.id ASC`,
     [publicacionIds, viewerId]
@@ -417,6 +428,7 @@ const comunidadController = {
            c.genero,
            u.username,
            u.email,
+           COALESCE(us.perfil_privado, false) AS autor_privado,
            EXISTS (
              SELECT 1
              FROM comunidad_publicacion_likes cpl
@@ -437,6 +449,7 @@ const comunidadController = {
          FROM comunidad_publicaciones cp
          JOIN comunidades c ON c.id = cp.comunidad_id
          LEFT JOIN users u ON u.id = cp.user_id
+         LEFT JOIN user_settings us ON us.user_id = cp.user_id
          WHERE ${condiciones.join(' AND ')}
          ORDER BY ${orderBy}`,
         params
@@ -484,15 +497,38 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        'SELECT username, email FROM users WHERE id = $1',
+        `SELECT u.username, u.email, COALESCE(us.perfil_privado, false) AS autor_privado
+         FROM users u LEFT JOIN user_settings us ON us.user_id = u.id
+         WHERE u.id = $1`,
         [req.user.id]
       );
+
+      const actorName = nombreActor(req.user);
+      await notificarSeguidores({
+        actorId: req.user.id,
+        type: 'new_community_post',
+        title: `${actorName} publico en una comunidad`,
+        body: titulo,
+        targetUrl: `/comunidad?comunidad=${comunidadId}&publicacion=${result.rows[0].id}`,
+        entityType: 'community_post',
+        entityId: result.rows[0].id,
+        uniquePrefix: `new-community-post:${result.rows[0].id}`,
+      });
+      await notificarMenciones({
+        texto,
+        actorId: req.user.id,
+        actorName,
+        targetUrl: `/comunidad?comunidad=${comunidadId}&publicacion=${result.rows[0].id}`,
+        entityType: 'community_post',
+        entityId: result.rows[0].id,
+      });
 
       res.status(201).json(mapearPublicacion({
         ...result.rows[0],
         genero: comunidad.rows[0].genero,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
+        autor_privado: usuarioResult.rows[0]?.autor_privado,
         liked: false,
         guardado: false,
         comentarios_total: 0,
@@ -516,7 +552,10 @@ const comunidadController = {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
 
-      const publicacion = await pool.query('SELECT id FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const publicacion = await pool.query(
+        'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',
+        [publicacionId]
+      );
       if (publicacion.rowCount === 0) {
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
       }
@@ -529,14 +568,45 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        'SELECT username, email FROM users WHERE id = $1',
+        `SELECT u.username, u.email, COALESCE(us.perfil_privado, false) AS autor_privado
+         FROM users u LEFT JOIN user_settings us ON us.user_id = u.id
+         WHERE u.id = $1`,
         [req.user.id]
       );
+
+      const parentResult = parentId
+        ? await pool.query('SELECT user_id FROM comunidad_comentarios WHERE id = $1', [parentId])
+        : { rows: [] };
+      const receptorId = parentId
+        ? parentResult.rows[0]?.user_id
+        : publicacion.rows[0].user_id;
+      const actorName = nombreActor(req.user);
+      const targetUrl = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`;
+      await crearNotificacion({
+        userId: receptorId,
+        actorId: req.user.id,
+        type: parentId ? 'community_reply' : 'community_comment',
+        title: parentId ? `${actorName} respondio tu comentario` : `${actorName} comento tu publicacion`,
+        body: texto,
+        targetUrl,
+        entityType: 'community_comment',
+        entityId: result.rows[0].id,
+        uniqueKey: `community-comment:${result.rows[0].id}:${receptorId}`,
+      });
+      await notificarMenciones({
+        texto,
+        actorId: req.user.id,
+        actorName,
+        targetUrl,
+        entityType: 'community_comment',
+        entityId: result.rows[0].id,
+      });
 
       res.status(201).json(mapearComentario({
         ...result.rows[0],
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
+        autor_privado: usuarioResult.rows[0]?.autor_privado,
         liked: false,
       }));
     } catch (error) {
@@ -554,7 +624,10 @@ const comunidadController = {
       await asegurarEsquemaComunidades();
       await client.query('BEGIN');
 
-      const publicacion = await client.query('SELECT id FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const publicacion = await client.query(
+        'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',
+        [publicacionId]
+      );
       if (publicacion.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
@@ -579,6 +652,21 @@ const comunidadController = {
         );
         await client.query('UPDATE comunidad_publicaciones SET likes = likes + 1 WHERE id = $1', [publicacionId]);
         liked = true;
+        await crearNotificacion({
+          userId: publicacion.rows[0].user_id,
+          actorId: req.user.id,
+          type: 'community_like',
+          title: `${nombreActor(req.user)} indico que le gusta tu publicacion`,
+          body: publicacion.rows[0].titulo || '',
+          targetUrl: `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`,
+          entityType: 'community_post',
+          entityId: publicacionId,
+          uniqueKey: `community-like:${req.user.id}:${publicacionId}`,
+        }, client);
+      }
+
+      if (!liked) {
+        await eliminarNotificacion(`community-like:${req.user.id}:${publicacionId}`, client);
       }
 
       const counts = await client.query('SELECT likes FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
@@ -661,7 +749,13 @@ const comunidadController = {
       await asegurarEsquemaComunidades();
       await client.query('BEGIN');
 
-      const comentario = await client.query('SELECT id FROM comunidad_comentarios WHERE id = $1', [comentarioId]);
+      const comentario = await client.query(
+        `SELECT cc.id, cc.user_id, cc.texto, cc.publicacion_id, cp.comunidad_id
+         FROM comunidad_comentarios cc
+         JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
+         WHERE cc.id = $1`,
+        [comentarioId]
+      );
       if (comentario.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Comentario no encontrado.' });
@@ -686,6 +780,21 @@ const comunidadController = {
         );
         await client.query('UPDATE comunidad_comentarios SET likes = likes + 1 WHERE id = $1', [comentarioId]);
         liked = true;
+        await crearNotificacion({
+          userId: comentario.rows[0].user_id,
+          actorId: req.user.id,
+          type: 'community_comment_like',
+          title: `${nombreActor(req.user)} indico que le gusta tu comentario`,
+          body: comentario.rows[0].texto || '',
+          targetUrl: `/comunidad?comunidad=${comentario.rows[0].comunidad_id}&publicacion=${comentario.rows[0].publicacion_id}`,
+          entityType: 'community_comment',
+          entityId: comentarioId,
+          uniqueKey: `community-comment-like:${req.user.id}:${comentarioId}`,
+        }, client);
+      }
+
+      if (!liked) {
+        await eliminarNotificacion(`community-comment-like:${req.user.id}:${comentarioId}`, client);
       }
 
       const counts = await client.query('SELECT likes FROM comunidad_comentarios WHERE id = $1', [comentarioId]);

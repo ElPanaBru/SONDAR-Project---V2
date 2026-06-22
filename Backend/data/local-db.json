@@ -30,34 +30,6 @@
       "updated_at": "2026-06-05T16:15:57.107Z"
     }
   },
-  "settings": {
-    "vY92GtenV8Vj4bbXqY8LYYVJ9n92": {
-      "user_id": "vY92GtenV8Vj4bbXqY8LYYVJ9n92",
-      "email": "jorge@gmail.com",
-      "telefono": "",
-      "idioma": "es",
-      "zonaHoraria": "America/Argentina/Buenos_Aires",
-      "loginAlertas": true,
-      "newsletter": false,
-      "actividadCuenta": true,
-      "perfilPrivado": false,
-      "mostrarEmail": false,
-      "permitirMensajes": true,
-      "updated_at": "2026-06-05T12:47:24.696Z"
-    },
-    "undefined": {
-      "telefono": "",
-      "idioma": "es",
-      "zonaHoraria": "America/Argentina/Buenos_Aires",
-      "loginAlertas": true,
-      "newsletter": false,
-      "actividadCuenta": true,
-      "perfilPrivado": false,
-      "mostrarEmail": false,
-      "permitirMensajes": true,
-      "updated_at": "2026-06-05T16:15:57.107Z"
-    }
-  },
   "savedItems": [],
   "interactions": [],
   "publications": [],

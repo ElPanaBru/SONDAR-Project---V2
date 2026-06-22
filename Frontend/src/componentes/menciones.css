@@ -1,0 +1,102 @@
+.campo-menciones {
+  position: relative;
+  min-width: 0;
+}
+
+.campo-menciones > input,
+.campo-menciones > textarea {
+  width: 100%;
+}
+
+.menciones-sugerencias {
+  position: absolute;
+  z-index: 3400;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+  color: #fff;
+  background: rgba(14, 14, 14, 0.98);
+  border: 1px solid rgba(255, 174, 0, 0.35);
+  border-radius: 10px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.58);
+}
+
+.campo-menciones.menciones-arriba .menciones-sugerencias {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.menciones-estado {
+  padding: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.menciones-sugerencias > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  color: #fff;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menciones-sugerencias > button:hover,
+.menciones-sugerencias > button.activo {
+  color: #080808;
+  background: linear-gradient(90deg, #ffae00, #ff7200);
+}
+
+.mencion-avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #090909;
+  background: #fff;
+  border-radius: 50%;
+  font-weight: 900;
+}
+
+.mencion-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.menciones-sugerencias strong,
+.menciones-sugerencias small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menciones-sugerencias small {
+  margin-top: 2px;
+  color: currentColor;
+  opacity: 0.68;
+}
+
+.mencion-enlace {
+  color: #ffbd37;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.mencion-enlace:hover {
+  color: #ffd576;
+  text-decoration: underline;
+}

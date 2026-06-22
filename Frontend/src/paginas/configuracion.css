@@ -189,6 +189,22 @@
   line-height: 1.35;
 }
 
+.config-phone-control {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.config-phone-control select,
+.config-phone-control input {
+  min-width: 0;
+}
+
+.config-phone-control select {
+  padding: 0 10px;
+  cursor: pointer;
+}
+
 .config-actions-list {
   display: grid;
   gap: 12px;
@@ -239,6 +255,10 @@
   font-weight: 800;
   cursor: pointer;
   transition: transform 0.2s ease, filter 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
 }
 
 .config-action-row button:hover,
@@ -294,6 +314,34 @@
   transform: translateX(22px);
 }
 
+.config-switch-master {
+  border-color: rgba(255, 174, 0, 0.34);
+}
+
+.config-switch-child {
+  margin-left: 18px;
+}
+
+.config-switch-row:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.config-switch-row input:disabled {
+  cursor: not-allowed;
+}
+
+.config-disabled-notice {
+  margin: 0 !important;
+  padding: 12px 15px;
+  color: #ffd27b !important;
+  background: rgba(255, 174, 0, 0.08);
+  border: 1px solid rgba(255, 174, 0, 0.24);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .config-danger {
   border-color: rgba(255, 94, 0, 0.34);
 }
@@ -328,6 +376,108 @@
 .config-savebar p {
   color: #ffca66;
   font-weight: 700;
+}
+
+.config-savebar .config-unsaved {
+  color: #ffca66;
+}
+
+.config-savebar .config-unsaved span {
+  color: #ffae00;
+  animation: config-pulse 1.4s ease-in-out infinite;
+}
+
+.config-savebar .config-saved {
+  color: #73e9a6;
+}
+
+.config-spinner {
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: config-spin 0.7s linear infinite;
+}
+
+@keyframes config-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes config-pulse {
+  50% { opacity: 0.35; }
+}
+
+.config-toast {
+  position: fixed;
+  z-index: 2200;
+  right: 24px;
+  bottom: 24px;
+  width: min(430px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 16px;
+  color: #ffffff;
+  background: #151515;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-left: 4px solid #ffae00;
+  border-radius: 10px;
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.58);
+  animation: config-toast-in 0.28s ease-out;
+}
+
+.config-toast.success {
+  border-left-color: #37d77f;
+}
+
+.config-toast.error {
+  border-left-color: #ff6262;
+}
+
+.config-toast-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  color: #07150d;
+  background: #37d77f;
+  border-radius: 50%;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.config-toast.error .config-toast-icon {
+  color: #ffffff;
+  background: #b52d2d;
+}
+
+.config-toast strong,
+.config-toast p {
+  display: block;
+  margin: 0;
+}
+
+.config-toast p {
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.config-toast > button {
+  padding: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  border: 0;
+  font-size: 26px;
+  cursor: pointer;
+}
+
+@keyframes config-toast-in {
+  from { opacity: 0; transform: translateY(14px); }
 }
 
 .config-savebar .config-message.success {
@@ -400,6 +550,93 @@
   box-shadow: 0 0 0 3px rgba(255, 174, 0, 0.16);
 }
 
+.config-password-control {
+  position: relative;
+}
+
+.config-password-control input {
+  padding-right: 76px;
+}
+
+.config-password-control button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  min-height: 32px;
+  padding: 0 10px;
+  color: #ffca66;
+  background: transparent;
+  border: 0;
+  font-weight: 800;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.config-password-strength {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+  margin-top: -8px;
+}
+
+.config-password-strength span {
+  height: 5px;
+  background: #333333;
+  border-radius: 99px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.config-password-strength span.active {
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  transform: scaleY(1.2);
+}
+
+.config-password-help,
+.config-modal .password-match,
+.config-modal .password-mismatch {
+  margin-top: -10px;
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.config-modal .password-match {
+  margin-top: 0;
+  color: #73e9a6;
+}
+
+.config-modal .password-mismatch {
+  margin-top: 0;
+  color: #ff9b9b;
+}
+
+.config-modal input.input-error {
+  border-color: #d74b4b;
+}
+
+.config-password-success {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px 0;
+  text-align: center;
+}
+
+.config-password-success > span {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  color: #07150d;
+  background: #37d77f;
+  border-radius: 50%;
+  font-size: 34px;
+  font-weight: 900;
+  animation: config-success-pop 0.3s ease-out;
+}
+
+@keyframes config-success-pop {
+  from { opacity: 0; transform: scale(0.65); }
+}
+
 .config-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -453,6 +690,9 @@
 }
 
 @media (max-width: 640px) {
+  .config-switch-child {
+    margin-left: 0;
+  }
   .config-page {
     padding: 22px 16px 54px;
   }
@@ -480,5 +720,14 @@
 
   .config-modal-actions {
     flex-direction: column-reverse;
+  }
+
+  .config-phone-control {
+    grid-template-columns: 106px minmax(0, 1fr);
+  }
+
+  .config-toast {
+    right: 16px;
+    bottom: 16px;
   }
 }
