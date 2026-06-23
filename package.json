@@ -4,12 +4,13 @@
   "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
   "main": "eslint.config.js",
   "scripts": {
-    "start:all": "cd Backend && npm run start_server & cd ../frontend && npm run start_front",
-   "start_server": "npm run start_server --prefix backend",
-   "install_all": "npm install -i && cd Backend && npm install -i && cd ../frontend && npm install -i",
-    "start_front": "npm run dev --prefix frontend",
+    "start:all": "cd Backend && npm run start_server & cd ../Frontend && npm run start_front",
+   "start_server": "npm run start_server --prefix Backend",
+   "install_all": "npm install -i && cd Backend && npm install -i && cd ../Frontend && npm install -i",
+    "start_front": "npm run dev --prefix Frontend",
     "dev": "concurrently --kill-others-on-fail \"npm run start_server\" \"npm run dev --prefix Frontend -- --host localhost --port 3001 --strictPort\"",
-    "dev:all:lan": "concurrently \"npm run start_server\" \"npm run dev --prefix Frontend -- --host 0.0.0.0\""
+    "dev:all:lan": "concurrently \"npm run start_server\" \"npm run dev --prefix Frontend -- --host 0.0.0.0\"",
+    "build": "vite build && npm run build --prefix Frontend"
   },
   "keywords": [],
   "author": "",
