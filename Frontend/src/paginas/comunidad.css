@@ -443,15 +443,14 @@
   transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
-.comunidad-mini-card:hover,
-.comunidad-mini-card.activa {
+.comunidad-mini-card:hover {
   background: #1b1b1b;
   transform: translateX(2px);
 }
 
 .comunidad-mini-card.activa {
+  background: #1b1b1b;
   border-color: rgba(255, 154, 0, 0.64);
-  box-shadow: inset 3px 0 #ff8a00;
 }
 
 .comunidad-mini-icon {
