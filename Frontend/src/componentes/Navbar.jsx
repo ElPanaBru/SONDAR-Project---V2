@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { backendFetch, backendFetchJson } from "../lib/backendClient";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
@@ -67,21 +67,14 @@ function Navbar({ usuario }) {
       return undefined;
     }
     if (!preferencias.actividadCuenta) {
-      setNotificacionesNoLeidas(0);
+      queueMicrotask(() => setNotificacionesNoLeidas(0));
       return undefined;
     }
 
     let activo = true;
     const cargarContador = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) return;
-        const response = await fetch(apiUrl("/api/notificaciones/no-leidas"), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) return;
-        const dataContador = await response.json();
+        const dataContador = await backendFetchJson("/api/notificaciones/no-leidas");
         if (activo) setNotificacionesNoLeidas(Number(dataContador.noLeidas || 0));
       } catch (error) {
         console.error("Error al cargar contador de notificaciones:", error);
@@ -128,19 +121,12 @@ function Navbar({ usuario }) {
           return;
         }
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
+        try {
+          const dataPerfil = await backendFetchJson("/api/usuarios/me/perfil");
+          if (activo) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
+        } catch {
           if (activo) setPerfilEditado(perfilGuardado(usuario));
-          return;
         }
-
-        const dataPerfil = await response.json();
-        if (activo) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
       } catch (error) {
         console.error("Error al cargar perfil en navbar:", error);
         if (activo) setPerfilEditado(perfilGuardado(usuario));
@@ -179,7 +165,7 @@ function Navbar({ usuario }) {
   useEffect(() => {
     if (location.pathname !== "/buscar") return;
     const queryActual = new URLSearchParams(location.search).get("query") || "";
-    setBusqueda(queryActual);
+    queueMicrotask(() => setBusqueda(queryActual));
   }, [location.pathname, location.search]);
 
   const handleSearch = (e) => {
@@ -231,20 +217,13 @@ function Navbar({ usuario }) {
     e.preventDefault();
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) return;
-
       const formData = new FormData();
       formData.append("nombre", perfilEditado.nombre);
       formData.append("bio", perfilEditado.bio || "");
       if (avatarArchivo) formData.append("avatar", avatarArchivo);
 
-      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+      const response = await backendFetch("/api/usuarios/me/perfil", {
         method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 

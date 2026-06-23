@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import { backendFetchJson } from "../lib/backendClient";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denunciaMotivos";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./descubrir.css";
 
-const lanzamientosIniciales = [
+const LANZAMIENTOS_INICIALES = [
   {
     id: 1,
     artista: "Luna Norte",
@@ -201,7 +203,7 @@ const comentariosIniciales = [
   },
 ];
 
-const comentariosPorLanzamientoIniciales = {
+const COMENTARIOS_POR_LANZAMIENTO_INICIALES = {
   1: comentariosIniciales,
   2: [
     {
@@ -604,6 +606,7 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     if (crearReelParam !== "reel") return;
     ejecutarConSesion(() => setMostrarCrearReel(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [crearReelParam, usuario]);
 
   useEffect(() => {
@@ -611,18 +614,7 @@ export default function Descubrir({ usuario }) {
 
     const cargarReels = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
-        const response = await fetch(apiUrl("/api/reels"), {
-          headers: token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : undefined,
-        });
-        if (!response.ok) throw new Error("No se pudieron cargar los reels.");
-
-        const data = await response.json();
+        const data = await backendFetchJson("/api/reels");
         const reelsBackend = data.map((reel) => ({
           ...reel,
           id: `db-${reel.id}`,
@@ -634,15 +626,7 @@ export default function Descubrir({ usuario }) {
           const comentariosEntries = await Promise.all(
             reelsBackend.map(async (reel) => {
               try {
-                const comentariosResponse = await fetch(apiUrl(`/api/reels/${reel.backendId}/comentarios`), {
-                  headers: token
-                    ? {
-                        Authorization: `Bearer ${token}`,
-                      }
-                    : undefined,
-                });
-                if (!comentariosResponse.ok) return [reel.id, []];
-                const comentarios = await comentariosResponse.json();
+                const comentarios = await backendFetchJson(`/api/reels/${reel.backendId}/comentarios`);
                 return [reel.id, comentarios];
               } catch {
                 return [reel.id, []];
@@ -658,36 +642,30 @@ export default function Descubrir({ usuario }) {
               buscarAvatarEnComentarios(comentariosPorReel[reel.id], reel.creadorId),
           }));
 
-          if (token) {
-            const creadoresSinAvatar = [
-              ...new Set(
-                reelsConAvatar
-                  .filter((reel) => !reel.avatar && reel.creadorId)
-                  .map((reel) => reel.creadorId)
-              ),
-            ];
+          const creadoresSinAvatar = [
+            ...new Set(
+              reelsConAvatar
+                .filter((reel) => !reel.avatar && reel.creadorId)
+                .map((reel) => reel.creadorId)
+            ),
+          ];
 
-            const avatarEntries = await Promise.all(
-              creadoresSinAvatar.map(async (creadorId) => {
-                try {
-                  const perfilResponse = await fetch(apiUrl(`/api/usuarios/${creadorId}/perfil`), {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  if (!perfilResponse.ok) return [creadorId, ""];
-                  const perfilData = await perfilResponse.json();
-                  return [creadorId, perfilData.perfil?.avatar || ""];
-                } catch {
-                  return [creadorId, ""];
-                }
-              })
-            );
-            const avatarPorCreador = Object.fromEntries(avatarEntries);
+          const avatarEntries = await Promise.all(
+            creadoresSinAvatar.map(async (creadorId) => {
+              try {
+                const perfilData = await backendFetchJson(`/api/usuarios/${creadorId}/perfil`);
+                return [creadorId, perfilData.perfil?.avatar || ""];
+              } catch {
+                return [creadorId, ""];
+              }
+            })
+          );
+          const avatarPorCreador = Object.fromEntries(avatarEntries);
 
-            reelsConAvatar = reelsConAvatar.map((reel) => ({
-              ...reel,
-              avatar: reel.avatar || avatarPorCreador[reel.creadorId] || "",
-            }));
-          }
+          reelsConAvatar = reelsConAvatar.map((reel) => ({
+            ...reel,
+            avatar: reel.avatar || avatarPorCreador[reel.creadorId] || "",
+          }));
 
           if (activo) {
             setLanzamientos(reelsConAvatar);
@@ -1120,20 +1098,10 @@ export default function Descubrir({ usuario }) {
         formData.append("portada", nuevoReel.portadaFile);
       }
 
-      const response = await fetch(apiUrl("/api/reels/crear"), {
+      const reelGuardado = await backendFetchJson("/api/reels/crear", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo guardar el reel.");
-      }
-
-      const reelGuardado = await response.json();
       let reel = {
         ...reelGuardado,
         id: `db-${reelGuardado.id}`,
@@ -1141,12 +1109,11 @@ export default function Descubrir({ usuario }) {
       };
 
       if (!reel.avatar) {
-        const perfilResponse = await fetch(apiUrl("/api/usuarios/me/perfil"), {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null);
-        if (perfilResponse?.ok) {
-          const perfilData = await perfilResponse.json();
+        try {
+          const perfilData = await backendFetchJson("/api/usuarios/me/perfil");
           reel = { ...reel, avatar: perfilData.perfil?.avatar || "" };
+        } catch {
+          // El reel se publica igual aunque no se pueda completar el avatar.
         }
       }
 
@@ -1196,15 +1163,9 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return { ok: false, nuevoCompartido: false };
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/compartir`), {
+        const data = await backendFetchJson(`/api/reels/${lanzamiento.backendId}/compartir`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
-
-        if (!response.ok) throw new Error("No se pudo registrar el compartido.");
-        const data = await response.json();
         setLanzamientos((prev) =>
           prev.map((item) =>
             item.id === lanzamiento.id
@@ -1303,19 +1264,9 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${lanzamiento.creadorId}/seguir`), {
+        const data = await backendFetchJson(`/api/usuarios/${lanzamiento.creadorId}/seguir`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo actualizar el seguimiento.");
-        }
-
-        const data = await response.json();
         setLanzamientos((prev) =>
           prev.map((item) =>
             item.creadorId === lanzamiento.creadorId
@@ -1350,48 +1301,6 @@ export default function Descubrir({ usuario }) {
     navigate(`/perfil/${userId}`);
   };
 
-  const abrirVistaPerfil = async (perfilBase) => {
-    if (!perfilBase?.id) return;
-
-    setPerfilVista({
-      cargando: true,
-      perfil: perfilBase,
-      stats: perfilBase.stats || {},
-      siguiendo: Boolean(perfilBase.siguiendo),
-    });
-
-    if (!usuario) {
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-      return;
-    }
-
-    try {
-      const token = await obtenerTokenSesion();
-      if (!token) {
-        setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-        return;
-      }
-
-      const response = await fetch(apiUrl(`/api/usuarios/${perfilBase.id}/perfil`), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("No se pudo cargar el perfil.");
-      const data = await response.json();
-      setPerfilVista({
-        cargando: false,
-        perfil: data.perfil || perfilBase,
-        stats: data.stats || perfilBase.stats || {},
-        siguiendo: Boolean(data.siguiendo),
-      });
-    } catch (error) {
-      console.error(error);
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-    }
-  };
-
   const abrirVistaPerfilLanzamiento = (lanzamiento) => {
     navegarAPerfil(lanzamiento.creadorId);
   };
@@ -1408,19 +1317,9 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${perfilVista.perfil.id}/seguir`), {
+        const data = await backendFetchJson(`/api/usuarios/${perfilVista.perfil.id}/seguir`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo actualizar el seguimiento.");
-        }
-
-        const data = await response.json();
         setPerfilVista((actual) =>
           actual
             ? {
@@ -1511,17 +1410,7 @@ export default function Descubrir({ usuario }) {
           return;
         }
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}`), {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo eliminar el reel.");
-        }
+        await backendFetchJson(`/api/reels/${lanzamiento.backendId}`, { method: "DELETE" });
       }
 
       setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
@@ -1554,17 +1443,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}`), {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo eliminar el comentario.");
-        }
+        await backendFetchJson(`/api/reels/comentarios/${comentarioObjetivoId}`, { method: "DELETE" });
       }
 
       setComentariosPorLanzamiento((prev) => ({
@@ -1637,21 +1516,10 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const comentarioGuardado = await backendFetchJson(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({ texto }),
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo guardar el comentario.");
-        }
-
-        const comentarioGuardado = await response.json();
         setComentariosPorLanzamiento((prev) => ({
           ...prev,
           [lanzamientoId]: [comentarioGuardado, ...(prev[lanzamientoId] || [])],
@@ -1700,19 +1568,9 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`), {
+        const data = await backendFetchJson(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo guardar el reel.");
-        }
-
-        const data = await response.json();
         setLanzamientos((prev) =>
           prev.map((lanzamiento) =>
             lanzamiento.id === lanzamientoSeleccionado.id
@@ -1752,19 +1610,9 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/like`), {
+        const data = await backendFetchJson(`/api/reels/${lanzamiento.backendId}/like`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo actualizar el favorito.");
-        }
-
-        const data = await response.json();
         setLanzamientos((prev) =>
           prev.map((actual) =>
             actual.id === lanzamiento.id
@@ -1849,19 +1697,9 @@ export default function Descubrir({ usuario }) {
           const token = await obtenerTokenSesion();
           if (!token) return;
 
-          const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}/like`), {
+          const data = await backendFetchJson(`/api/reels/comentarios/${comentarioObjetivoId}/like`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
           });
-
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            throw new Error(data.error || "No se pudo guardar el me gusta.");
-          }
-
-          const data = await response.json();
           actualizarLikeComentarioLocal(lanzamientoId, comentarioId, respuestaId, data);
           return;
         } catch (error) {
@@ -1936,21 +1774,10 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const respuestaGuardada = await backendFetchJson(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({ texto, parentId: comentarioId, respondeA: respuestaPara }),
         });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo guardar la respuesta.");
-        }
-
-        const respuestaGuardada = await response.json();
         setComentariosPorLanzamiento((prev) => ({
           ...prev,
           [lanzamientoId]: (prev[lanzamientoId] || []).map((comentario) =>

@@ -1,29 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { MOTIVOS_DENUNCIA } from "../lib/denunciaMotivos";
 import "./denunciaModal.css";
-
-export const MOTIVOS_DENUNCIA = [
-  { id: "contenido_explicito", label: "Contenido sexual o explicito" },
-  { id: "violencia", label: "Violencia o contenido peligroso" },
-  { id: "odio_acoso", label: "Odio, discriminacion o acoso" },
-  { id: "spam_estafa", label: "Spam, engaño o estafa" },
-  { id: "derechos_autor", label: "Infraccion de derechos de autor" },
-  { id: "informacion_falsa", label: "Informacion falsa" },
-  { id: "otro", label: "Otro motivo" },
-];
-
-export function etiquetaMotivoDenuncia(id) {
-  return MOTIVOS_DENUNCIA.find((motivo) => motivo.id === id)?.label || id;
-}
 
 export default function DenunciaModal({ abierto, titulo, enviando = false, onClose, onConfirm }) {
   const [motivo, setMotivo] = useState("");
   const [detalle, setDetalle] = useState("");
 
-  useEffect(() => {
-    if (!abierto) return;
+  const cerrar = () => {
+    if (enviando) return;
     setMotivo("");
     setDetalle("");
-  }, [abierto]);
+    onClose();
+  };
 
   if (!abierto) return null;
 
@@ -34,7 +22,7 @@ export default function DenunciaModal({ abierto, titulo, enviando = false, onClo
   };
 
   return (
-    <div className="denuncia-overlay" role="presentation" onMouseDown={() => !enviando && onClose()}>
+    <div className="denuncia-overlay" role="presentation" onMouseDown={cerrar}>
       <form
         className="denuncia-modal"
         role="dialog"
@@ -49,7 +37,7 @@ export default function DenunciaModal({ abierto, titulo, enviando = false, onClo
             <h2 id="denuncia-titulo">¿Que problema tiene este contenido?</h2>
             {titulo ? <p>{titulo}</p> : null}
           </div>
-          <button type="button" onClick={onClose} disabled={enviando} aria-label="Cerrar denuncia">×</button>
+          <button type="button" onClick={cerrar} disabled={enviando} aria-label="Cerrar denuncia">×</button>
         </header>
 
         <div className="denuncia-motivos">
@@ -80,7 +68,7 @@ export default function DenunciaModal({ abierto, titulo, enviando = false, onClo
         </label>
 
         <div className="denuncia-acciones">
-          <button type="button" onClick={onClose} disabled={enviando}>Cancelar</button>
+          <button type="button" onClick={cerrar} disabled={enviando}>Cancelar</button>
           <button className="enviar" type="submit" disabled={!motivo || enviando}>
             {enviando ? "Enviando..." : "Enviar denuncia"}
           </button>

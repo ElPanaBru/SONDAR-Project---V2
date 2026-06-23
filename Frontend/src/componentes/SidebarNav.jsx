@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { apiUrl } from "../lib/api";
-import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./sidebarNav.css";
 
@@ -43,18 +42,7 @@ export default function SidebarNav({ usuario }) {
       }
 
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) return;
-
-        const response = await fetch(apiUrl("/api/usuarios/me/seguidos"), {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) return;
-        const dataSeguidos = await response.json();
+        const dataSeguidos = await backendFetchJson("/api/usuarios/me/seguidos");
         if (activo) setSeguidos(dataSeguidos);
       } catch (error) {
         console.error("No se pudieron cargar los seguidos:", error);

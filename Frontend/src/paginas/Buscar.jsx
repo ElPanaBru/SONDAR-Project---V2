@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
-import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./buscar.css";
 
@@ -97,15 +96,12 @@ export default function Buscar({ usuario }) {
       setError("");
 
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
-        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
         const encodedQuery = encodeURIComponent(query);
 
         const [usuariosResult, reelsResult, eventosResult] = await Promise.allSettled([
-          fetch(apiUrl(`/api/usuarios?query=${encodedQuery}`), { headers }),
-          fetch(apiUrl("/api/reels"), { headers }),
-          fetch(apiUrl("/api/eventos"), { headers }),
+          backendFetchJson(`/api/usuarios?query=${encodedQuery}`),
+          backendFetchJson("/api/reels"),
+          backendFetchJson("/api/eventos"),
         ]);
 
         const usuariosData =

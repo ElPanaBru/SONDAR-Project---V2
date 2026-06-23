@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
-import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -180,11 +179,6 @@ const hilosIniciales = [
   },
 ];
 
-const crearHeadersJson = (token) => ({
-  "Content-Type": "application/json",
-  ...(token ? { Authorization: `Bearer ${token}` } : {}),
-});
-
 const mostrarGenero = (genero) => {
   if (!genero) return "";
   return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
@@ -241,15 +235,7 @@ export default function Comunidad({ usuario }) {
 
     async function cargarComunidades() {
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        const response = await fetch(apiUrl("/api/comunidades"), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
-        if (!response.ok) throw new Error("No se pudieron cargar las comunidades.");
-
-        const dataComunidades = await response.json();
+        const dataComunidades = await backendFetchJson("/api/comunidades");
         if (!cancelado && dataComunidades.length > 0) {
           setComunidades(dataComunidades);
           setComunidadActivaId((actual) =>
@@ -293,19 +279,12 @@ export default function Comunidad({ usuario }) {
       setCargandoHilos(true);
 
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
         const params = new URLSearchParams({ filtro: filtroActivo });
         if (busqueda && !publicacionCompartida) params.set("q", busqueda);
 
-        const response = await fetch(
-          apiUrl(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`),
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        const dataHilos = await backendFetchJson(
+          `/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`
         );
-
-        if (!response.ok) throw new Error("No se pudieron cargar las publicaciones.");
-
-        const dataHilos = await response.json();
         if (!cancelado) {
           setHilos(dataHilos.map(normalizarHilo));
           setRespuestasAbiertas((abiertas) =>
@@ -407,25 +386,17 @@ export default function Comunidad({ usuario }) {
     }
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/${comunidadActivaId}/publicaciones`), {
-        method: "POST",
-        headers: crearHeadersJson(token),
-        body: JSON.stringify({
-          titulo,
-          texto,
-          tipo: nuevoHilo.tipo,
-          etiqueta: nuevoHilo.etiqueta || comunidadActiva.genero,
-        }),
-      });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo publicar en la comunidad.");
-      }
-
-      const hiloGuardado = normalizarHilo(await response.json());
+      const hiloGuardado = normalizarHilo(
+        await backendFetchJson(`/api/comunidades/${comunidadActivaId}/publicaciones`, {
+          method: "POST",
+          body: JSON.stringify({
+            titulo,
+            texto,
+            tipo: nuevoHilo.tipo,
+            etiqueta: nuevoHilo.etiqueta || comunidadActiva.genero,
+          }),
+        })
+      );
       setHilos((actuales) => [hiloGuardado, ...actuales]);
       setRespuestasAbiertas((abiertas) => [hiloGuardado.id, ...abiertas]);
       setMostrarModal(false);
@@ -454,19 +425,9 @@ export default function Comunidad({ usuario }) {
     });
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/like`), {
+      const dataLike = await backendFetchJson(`/api/comunidades/publicaciones/${id}/like`, {
         method: "POST",
-        headers: crearHeadersJson(token),
       });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo actualizar el me gusta.");
-      }
-
-      const dataLike = await response.json();
       actualizarHilo(id, (hilo) => ({
         ...hilo,
         liked: dataLike.liked,
@@ -491,19 +452,9 @@ export default function Comunidad({ usuario }) {
     actualizarHilo(id, (hilo) => ({ ...hilo, guardado: !hilo.guardado }));
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/guardar`), {
+      const dataGuardado = await backendFetchJson(`/api/comunidades/publicaciones/${id}/guardar`, {
         method: "POST",
-        headers: crearHeadersJson(token),
       });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo guardar la publicacion.");
-      }
-
-      const dataGuardado = await response.json();
       actualizarHilo(id, (hilo) => ({ ...hilo, guardado: dataGuardado.guardado }));
     } catch (error) {
       if (hiloAnterior) {
@@ -531,20 +482,10 @@ export default function Comunidad({ usuario }) {
     if (!texto) return;
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${hiloId}/comentarios`), {
+      const comentarioGuardado = await backendFetchJson(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {
         method: "POST",
-        headers: crearHeadersJson(token),
         body: JSON.stringify({ texto }),
       });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo guardar el comentario.");
-      }
-
-      const comentarioGuardado = await response.json();
       setHilos((actuales) =>
         actuales.map((hilo) =>
           hilo.id === hiloId

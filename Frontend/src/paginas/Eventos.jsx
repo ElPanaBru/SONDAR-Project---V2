@@ -6,9 +6,11 @@ import "./eventos.css";
 import L from "leaflet";
 import { apiUrl } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
+import { backendFetchJson } from "../lib/backendClient";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denunciaMotivos";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
@@ -157,26 +159,11 @@ export default function Eventos({ usuario }) {
     let isMounted = true;
     const cargarEventos = async () => {
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
-        const res = await fetch(apiUrl("/api/eventos"), {
-          headers: token
-            ? {
-                Authorization: `Bearer ${token}`
-              }
-            : undefined
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const eventosMapeados = data.map(mapearEvento);
-          
-          if (isMounted) {
-            setEventos(eventosMapeados);
-            setLoading(false);
-          }
-        } else {
-          console.error("Error al traer eventos del servidor");
-          if (isMounted) setLoading(false);
+        const data = await backendFetchJson("/api/eventos");
+        const eventosMapeados = data.map(mapearEvento);
+        if (isMounted) {
+          setEventos(eventosMapeados);
+          setLoading(false);
         }
       } catch (error) {
         console.error("Error de red:", error);
@@ -224,8 +211,9 @@ export default function Eventos({ usuario }) {
       maxBoundsViscosity: 1
     }).setView([-34.6037, -58.3816], 12);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
       maxZoom: 19,
+      crossOrigin: true,
       noWrap: true,
       bounds: [[-85, -180], [85, 180]]
     }).addTo(map);
@@ -293,7 +281,8 @@ export default function Eventos({ usuario }) {
 
     // Capas claras de OpenStreetMap para máxima lectura de calles y plazas
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19
+      maxZoom: 19,
+      crossOrigin: true
     }).addTo(miniMap);
 
     L.control.zoom({ position: "bottomleft" }).addTo(miniMap);
@@ -445,19 +434,7 @@ export default function Eventos({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/eventos/${id}/guardar`), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo guardar el evento.");
-      }
-
-      const dataGuardado = await response.json();
+      const dataGuardado = await backendFetchJson(`/api/eventos/${id}/guardar`, { method: "POST" });
       setEventos((actuales) => actuales.map((evento) =>
         evento.id === id ? { ...evento, guardado: dataGuardado.guardado } : evento
       ));
@@ -539,17 +516,7 @@ export default function Eventos({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/eventos/${evento.id}`), {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo eliminar el evento.");
-      }
+      await backendFetchJson(`/api/eventos/${evento.id}`, { method: "DELETE" });
 
       setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
       setEventoActivo(null);
@@ -715,20 +682,10 @@ const handleImagen = (e) => {
         return;
       }
 
-      const response = await fetch(apiUrl("/api/eventos/crear"), {
+      const eventoGuardado = await backendFetchJson("/api/eventos/crear", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`
-        },
-        body: formData
+        body: formData,
       });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo guardar el evento en el servidor.");
-      }
-
-      const eventoGuardado = await response.json();
       
       const eventoParaMapa = mapearEvento(eventoGuardado);
 

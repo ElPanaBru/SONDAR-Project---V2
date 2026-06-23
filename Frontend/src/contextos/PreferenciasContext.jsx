@@ -1,6 +1,6 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { apiUrl } from "../lib/api";
-import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 
 export const PREFERENCIAS_INICIALES = Object.freeze({
   telefono: "",
@@ -277,20 +277,15 @@ export function PreferenciasProvider({ usuario, children }) {
 
   useEffect(() => {
     const guardadas = usuario?.user_metadata?.configuracion;
-    if (guardadas && typeof guardadas === "object") actualizarPreferencias(guardadas);
+    if (guardadas && typeof guardadas === "object") {
+      queueMicrotask(() => actualizarPreferencias(guardadas));
+    }
     if (!usuario) return undefined;
 
     let activo = true;
     const cargar = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-        if (!token) return;
-        const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!response.ok) return;
-        const datos = await response.json();
+        const datos = await backendFetchJson("/api/usuarios/me/configuracion");
         if (activo) actualizarPreferencias(datos);
       } catch {
         // La metadata y el almacenamiento local mantienen la interfaz utilizable.

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilToast from "../componentes/PerfilToast";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denunciaMotivos";
 import { apiUrl } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./miperfil.css";
 import "./otroperfil.css";
@@ -148,19 +150,7 @@ export default function OtroPerfil({ usuarioActual }) {
       setAviso("");
 
       try {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
-
-        const response = await fetch(apiUrl(`/api/usuarios/${identificador}/perfil`), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
-        if (!response.ok) {
-          const dataError = await response.json().catch(() => ({}));
-          throw new Error(dataError.error || "No se pudo cargar el perfil.");
-        }
-
-        const dataPerfil = await response.json();
+        const dataPerfil = await backendFetchJson(`/api/usuarios/${identificador}/perfil`);
         if (!activo) return;
 
         setPerfil(dataPerfil.perfil);
@@ -194,26 +184,9 @@ export default function OtroPerfil({ usuarioActual }) {
     }
 
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) {
-        setAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-
-      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/seguir`), {
+      const dataSeguimiento = await backendFetchJson(`/api/usuarios/${perfil.id || identificador}/seguir`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo actualizar el seguimiento.");
-      }
-
-      const dataSeguimiento = await response.json();
       setSiguiendo(dataSeguimiento.siguiendo);
       if (!dataSeguimiento.siguiendo) setSilenciado(false);
       setContenido((actual) => ({
@@ -236,24 +209,9 @@ export default function OtroPerfil({ usuarioActual }) {
   const alternarSilencio = async () => {
     if (!usuarioActual || !siguiendo) return;
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-      if (!token) {
-        setAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-      const response = await fetch(
-        apiUrl(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`),
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo actualizar la campana.");
-      }
-      const dataSilencio = await response.json();
+      const dataSilencio = await backendFetchJson(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`, {
+        method: "POST",
+      });
       setSilenciado(Boolean(dataSilencio.silenciado));
       setAviso(dataSilencio.silenciado
         ? `Silenciaste las notificaciones de ${perfil.nombre}.`

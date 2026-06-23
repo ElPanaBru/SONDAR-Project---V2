@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { backendFetchJson } from "../lib/backendClient";
 import "./menciones.css";
 
 function detectarMencion(texto, cursor) {
@@ -33,11 +33,7 @@ export default function CampoMenciones({
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       try {
-        const response = await fetch(apiUrl(`/api/usuarios?query=${encodeURIComponent(mencion.query)}`), {
-          signal: controller.signal,
-        });
-        if (!response.ok) return;
-        const data = await response.json();
+        const data = await backendFetchJson(`/api/usuarios?query=${encodeURIComponent(mencion.query)}`);
         setResultados(Array.isArray(data) ? data.slice(0, 6) : []);
         setActivo(0);
       } catch (error) {
