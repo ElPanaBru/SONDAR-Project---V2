@@ -12,9 +12,11 @@ const {
   notificarMenciones,
   notificarSeguidores,
 } = require('../services/notificationService');
+const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
 let esquemaComentariosListo = null;
 let esquemaCompartidosListo = null;
+let esquemaVisitasListo = null;
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -121,6 +123,34 @@ async function asegurarEsquemaCompartidos() {
   return esquemaCompartidosListo;
 }
 
+async function asegurarEsquemaVisitas() {
+  if (!esquemaVisitasListo) {
+    esquemaVisitasListo = (async () => {
+      await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS visitas integer NOT NULL DEFAULT 0');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reel_views (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+          created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT reel_views_pkey PRIMARY KEY (user_id, reel_id)
+        )
+      `);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id ON reel_views(reel_id)');
+      await pool.query(`
+        UPDATE reels r
+        SET visitas = (
+          SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id
+        )
+      `);
+    })().catch((error) => {
+        esquemaVisitasListo = null;
+        throw error;
+      });
+  }
+
+  return esquemaVisitasListo;
+}
+
 function mapearReel(reel) {
   return {
     id: reel.id,
@@ -137,6 +167,7 @@ function mapearReel(reel) {
     comentarios: '0',
     compartidos: Number(reel.compartidos || 0),
     guardados: Number(reel.guardados || 0),
+    visitas: Number(reel.visitas || 0),
     colorA: '#ffae00',
     colorB: '#ff5e00',
     colorC: '#111111',
@@ -224,6 +255,8 @@ async function consultarSetInteraccion(query, params, campo) {
 const reelController = {
   listarReels: async (req, res) => {
     try {
+      await asegurarEsquemaVisitas();
+      await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
       const result = await pool.query(`
         SELECT
@@ -233,8 +266,13 @@ const reelController = {
           u.profile_img_url AS creador_avatar
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
+        WHERE $1::uuid IS NULL OR NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
+             OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
+        )
         ORDER BY r.created_at DESC, r.id DESC
-      `);
+      `, [viewerId]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows.map(mapearReel));
@@ -271,6 +309,67 @@ const reelController = {
     } catch (error) {
       console.error('Error al listar reels:', error);
       res.status(500).json({ error: 'Error al obtener los reels.' });
+    }
+  },
+
+  registrarVisita: async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaVisitas();
+      await client.query('BEGIN');
+      const reel = await buscarAccesoReel(id, client);
+      if (!reel) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Reel no encontrado.' });
+      }
+      const visita = await client.query(
+        `INSERT INTO reel_views (user_id, reel_id)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id, reel_id) DO NOTHING
+         RETURNING reel_id`,
+        [req.user.id, id]
+      );
+      const result = await client.query(
+        `UPDATE reels
+         SET visitas = (SELECT COUNT(*)::int FROM reel_views WHERE reel_id = $1)
+         WHERE id = $1
+         RETURNING visitas`,
+        [id]
+      );
+      await client.query('COMMIT');
+      res.json({
+        visitas: Number(result.rows[0]?.visitas || 0),
+        nuevaVisita: visita.rowCount > 0,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al registrar visita de reel:', error);
+      res.status(500).json({ error: 'No se pudo registrar la visita.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  denunciarReel: async (req, res) => {
+    const { id } = req.params;
+    try {
+      const reel = await buscarAccesoReel(id);
+      if (!reel) return res.status(404).json({ error: 'Reel no encontrado.' });
+      const resultado = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: reel.creador_id,
+        contentType: 'reel',
+        contentId: id,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      res.json(resultado);
+    } catch (error) {
+      console.error('Error al denunciar reel:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el reel.' });
     }
   },
 

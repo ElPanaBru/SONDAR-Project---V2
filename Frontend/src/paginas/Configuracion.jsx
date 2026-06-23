@@ -25,6 +25,8 @@ export default function Configuracion({ usuario }) {
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
   const [confirmacionEliminar, setConfirmacionEliminar] = useState("");
   const [eliminando, setEliminando] = useState(false);
+  const [bloqueados, setBloqueados] = useState([]);
+  const [cargandoBloqueados, setCargandoBloqueados] = useState(false);
 
   useEffect(() => {
     const configuracionGuardada = usuario?.user_metadata?.configuracion;
@@ -81,6 +83,38 @@ export default function Configuracion({ usuario }) {
     return () => window.clearTimeout(timeout);
   }, [mensaje]);
 
+  useEffect(() => {
+    if (!usuario) {
+      setBloqueados([]);
+      return undefined;
+    }
+    let vigente = true;
+    const cargarBloqueados = async () => {
+      setCargandoBloqueados(true);
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const response = await fetch(apiUrl("/api/usuarios/me/bloqueados"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(body.error || "No se pudieron cargar las cuentas bloqueadas.");
+        if (vigente) setBloqueados(Array.isArray(body) ? body : []);
+      } catch (error) {
+        if (vigente) mostrarMensaje("error", error.message || "No se pudieron cargar las cuentas bloqueadas.");
+      } finally {
+        if (vigente) setCargandoBloqueados(false);
+      }
+    };
+    cargarBloqueados();
+    window.addEventListener("sondar:bloqueos-actualizados", cargarBloqueados);
+    return () => {
+      vigente = false;
+      window.removeEventListener("sondar:bloqueos-actualizados", cargarBloqueados);
+    };
+  }, [usuario]);
+
   const nombreCuenta = useMemo(() => {
     if (usuario?.user_metadata?.username) return usuario.user_metadata.username;
     if (usuario?.user_metadata?.name) return usuario.user_metadata.name;
@@ -103,6 +137,25 @@ export default function Configuracion({ usuario }) {
   }, [password]);
 
   const mostrarMensaje = (tipo, texto) => setMensaje({ tipo, texto });
+
+  const desbloquearCuenta = async (cuenta) => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
+      const response = await fetch(apiUrl(`/api/usuarios/${cuenta.id}/bloquear`), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo desbloquear la cuenta.");
+      setBloqueados((actuales) => actuales.filter((item) => item.id !== cuenta.id));
+      window.dispatchEvent(new CustomEvent("sondar:bloqueos-actualizados"));
+      mostrarMensaje("success", `${cuenta.nombre} fue desbloqueado.`);
+    } catch (error) {
+      mostrarMensaje("error", error.message || "No se pudo desbloquear la cuenta.");
+    }
+  };
 
   const handleChange = (e) => {
     const { name, type, checked, value } = e.target;
@@ -460,6 +513,29 @@ export default function Configuracion({ usuario }) {
                 </div>
                 <input type="checkbox" name="mostrarEmail" checked={ajustes.mostrarEmail} onChange={handleChange} />
               </label>
+
+              <div className="config-bloqueados">
+                <div className="config-bloqueados-heading">
+                  <strong>Cuentas bloqueadas</strong>
+                  <span>Sus reels y eventos no aparecen en tu cuenta.</span>
+                </div>
+                {cargandoBloqueados ? <p>Cargando cuentas bloqueadas...</p> : null}
+                {!cargandoBloqueados && bloqueados.length === 0 ? (
+                  <p>No tenes cuentas bloqueadas.</p>
+                ) : null}
+                {bloqueados.map((cuenta) => (
+                  <div className="config-bloqueado-item" key={cuenta.id}>
+                    <span className="config-bloqueado-avatar">
+                      {cuenta.avatar ? <img src={cuenta.avatar} alt="" /> : cuenta.nombre?.charAt(0).toUpperCase()}
+                    </span>
+                    <div>
+                      <strong>{cuenta.nombre}</strong>
+                      <small>{cuenta.usuario}</small>
+                    </div>
+                    <button type="button" onClick={() => desbloquearCuenta(cuenta)}>Desbloquear</button>
+                  </div>
+                ))}
+              </div>
 
             </div>
           </section>

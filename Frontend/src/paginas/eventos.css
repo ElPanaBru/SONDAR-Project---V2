@@ -1972,3 +1972,14 @@
     min-height: 210px;
   }
 }
+.evento-denunciar-publicacion {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 10px;
+  color: #ff8b8b;
+  background: #292929;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}

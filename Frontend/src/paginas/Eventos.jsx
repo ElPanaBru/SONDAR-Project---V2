@@ -5,8 +5,10 @@ import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
 import { apiUrl } from "../lib/api";
+import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
@@ -122,6 +124,8 @@ export default function Eventos({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
+  const [denunciaPendiente, setDenunciaPendiente] = useState(null);
+  const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [hoverOrganizador, setHoverOrganizador] = useState(null);
   
   const navigate = useNavigate();
@@ -381,7 +385,7 @@ export default function Eventos({ usuario }) {
       const evento = grupo.eventos[0];
       const posicionFinal = evento.coords;
       const activo = eventoActivo === evento.id;
-      const imagenEvento = evento.img || evento.img_url || "/logo.png";
+      const imagenEvento = evento.img || evento.img_url || "/sondar-icon.png";
       const compacto = zoomMapa <= 11;
 
       const marker = L.marker(posicionFinal, {
@@ -473,6 +477,55 @@ export default function Eventos({ usuario }) {
         evento?.creadorId === usuario.id ||
         (usuario?.email && evento?.creador === usuario.email))
     );
+
+  const denunciarEvento = async (evento, { motivo, detalle }) => {
+    if (!evento?.id || usuarioPuedeEliminarEvento(evento)) return;
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para denunciar publicaciones.");
+      return;
+    }
+    setEnviandoDenuncia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+      const response = await fetch(apiUrl(`/api/eventos/${evento.id}/denunciar`), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: motivo, detail: detalle }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo denunciar el evento.");
+      setMenuEventoAbierto(false);
+      setDenunciaPendiente(null);
+      if (body.nuevaDenuncia === false) {
+        mostrarAviso("Ya habias denunciado este evento.");
+        return;
+      }
+      try {
+        await avisarDenunciaASoporte({
+          usuario,
+          tipo: "evento",
+          contenidoId: evento.id,
+          titulo: evento.titulo,
+          autor: evento.creador,
+          motivo: etiquetaMotivoDenuncia(motivo),
+          detalle,
+        });
+        mostrarAviso("Evento denunciado. Soporte fue notificado.");
+      } catch (emailError) {
+        console.error("Email de denuncia:", emailError);
+        mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email a soporte.");
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo denunciar el evento.");
+    } finally {
+      setEnviandoDenuncia(false);
+    }
+  };
 
   const eliminarEvento = async (evento) => {
     if (!usuarioPuedeEliminarEvento(evento)) return;
@@ -752,7 +805,7 @@ const handleImagen = (e) => {
               Cerrar
             </button>
 
-            {usuarioPuedeEliminarEvento(detalleEvento) ? (
+            {detalleEvento ? (
               <div className="evento-detalle-menu">
                 <button
                   className="evento-detalle-menu-btn"
@@ -767,9 +820,25 @@ const handleImagen = (e) => {
                 </button>
                 {menuEventoAbierto ? (
                   <div className="evento-detalle-menu-popover">
-                    <button type="button" onClick={() => eliminarEvento(detalleEvento)}>
-                      Eliminar
-                    </button>
+                    {usuarioPuedeEliminarEvento(detalleEvento) ? (
+                      <button type="button" onClick={() => eliminarEvento(detalleEvento)}>
+                        Eliminar
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuEventoAbierto(false);
+                          if (!usuario) {
+                            mostrarAviso("Tenes que iniciar sesion para denunciar publicaciones.");
+                            return;
+                          }
+                          setDenunciaPendiente(detalleEvento);
+                        }}
+                      >
+                        Denunciar publicacion
+                      </button>
+                    )}
                   </div>
                 ) : null}
               </div>
@@ -777,7 +846,7 @@ const handleImagen = (e) => {
 
             <div
               className="evento-detalle-imagen"
-              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/logo.png"})` }}
+              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/sondar-icon.png"})` }}
             >
               <span>{mostrarGenero(detalleEvento.genero)}</span>
             </div>
@@ -905,6 +974,14 @@ const handleImagen = (e) => {
           </>
         )}
       </aside>
+
+      <DenunciaModal
+        abierto={Boolean(denunciaPendiente)}
+        titulo={denunciaPendiente?.titulo}
+        enviando={enviandoDenuncia}
+        onClose={() => setDenunciaPendiente(null)}
+        onConfirm={(datos) => denunciarEvento(denunciaPendiente, datos)}
+      />
 
       {mostrarModal && (
         <div className="evento-modal-overlay">

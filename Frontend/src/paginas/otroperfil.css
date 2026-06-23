@@ -22,6 +22,132 @@
   background: #292929;
 }
 
+.otroperfil-page .perfil-title-row {
+  align-items: flex-start;
+}
+
+.otroperfil-page .perfil-title-row h1 {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.otroperfil-acciones {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.otroperfil-accion-texto,
+.otroperfil-accion-icono {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  color: #ffffff;
+  background: #242424;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: background 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+}
+
+.otroperfil-accion-texto {
+  gap: 9px;
+  min-width: 124px;
+  padding: 0 22px;
+  border-radius: 999px;
+}
+
+.otroperfil-seguir:not(.siguiendo) {
+  color: #080808;
+  background: linear-gradient(90deg, var(--perfil-a), var(--perfil-b));
+}
+
+.otroperfil-accion-icono {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.otroperfil-accion-icono.silenciado {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.otroperfil-accion-texto:hover,
+.otroperfil-accion-icono:hover,
+.otroperfil-accion-icono.activo {
+  background: #343434;
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.otroperfil-seguir:not(.siguiendo):hover {
+  background: linear-gradient(90deg, var(--perfil-a), var(--perfil-b));
+}
+
+.otroperfil-mas-wrap {
+  position: relative;
+}
+
+.otroperfil-mas-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 9px);
+  right: 0;
+  width: 180px;
+  overflow: hidden;
+  padding: 6px;
+  background: #242424;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+}
+
+.otroperfil-mas-menu button {
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: #ffffff;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
+
+.otroperfil-mas-menu button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.otroperfil-mas-menu button.denunciar {
+  color: #ff7777;
+}
+
+@media (max-width: 560px) {
+  .otroperfil-acciones {
+    gap: 7px;
+  }
+
+  .otroperfil-accion-texto {
+    min-width: 0;
+    min-height: 42px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  .otroperfil-accion-icono {
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+  }
+}
+
 .otroperfil-page .perfil-tabs::before {
   background: linear-gradient(90deg, var(--perfil-a), var(--perfil-b));
 }

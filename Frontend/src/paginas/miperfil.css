@@ -321,6 +321,29 @@
   font-weight: 800;
 }
 
+.perfil-publicacion-visitas {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 4px 8px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.66);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  backdrop-filter: blur(5px);
+}
+
+.perfil-publicacion-visitas svg {
+  flex: 0 0 auto;
+}
+
 .perfil-publicacion-card h3,
 .perfil-publicacion-card p {
   position: absolute;

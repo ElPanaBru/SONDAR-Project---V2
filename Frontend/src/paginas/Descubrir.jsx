@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
+import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./descubrir.css";
@@ -408,6 +410,10 @@ function inicialComentario(comentario) {
   return comentario?.usuario?.replace(/^@/, "").charAt(0).toUpperCase() || "S";
 }
 
+function inicialAvatar(valor) {
+  return String(valor || "S").replace(/^@+/, "").trim().charAt(0).toUpperCase() || "S";
+}
+
 function AvatarComentario({ comentario }) {
   if (comentario?.avatar) {
     return <img src={comentario.avatar} alt="" />;
@@ -463,6 +469,8 @@ export default function Descubrir({ usuario }) {
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
   const [nuevoReel, setNuevoReel] = useState(reelVacio);
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
+  const [denunciaPendiente, setDenunciaPendiente] = useState(null);
+  const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [compartirActivo, setCompartirActivo] = useState(null);
   const [perfilVista, setPerfilVista] = useState(null);
   const [progresos, setProgresos] = useState({});
@@ -478,6 +486,7 @@ export default function Descubrir({ usuario }) {
   const audioReelActivoIdRef = useRef(null);
   const tiemposReelRef = useRef({});
   const reelPausadoPorUsuarioRef = useRef(null);
+  const visitasRegistradasRef = useRef(new Set());
   const portadaReelInputRef = useRef(null);
   const audioReelInputRef = useRef(null);
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
@@ -513,6 +522,40 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     reproduciendoRef.current = reproduciendo;
   }, [reproduciendo]);
+
+  useEffect(() => {
+    const lanzamiento = lanzamientos.find((item) => item.id === reproduciendo);
+    if (!lanzamiento?.backendId || !usuario) return;
+
+    const clave = String(lanzamiento.backendId);
+    if (visitasRegistradasRef.current.has(clave)) return;
+
+    visitasRegistradasRef.current.add(clave);
+
+    const registrarVisita = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) throw new Error("Sesion no disponible para registrar la visita.");
+        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/visita`), {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("No se pudo registrar la visita.");
+        const visitaData = await response.json();
+        setLanzamientos((actuales) =>
+          actuales.map((item) =>
+            item.id === lanzamiento.id ? { ...item, visitas: visitaData.visitas } : item
+          )
+        );
+      } catch (error) {
+        visitasRegistradasRef.current.delete(clave);
+        console.error(error);
+      }
+    };
+
+    registrarVisita();
+  }, [lanzamientos, reproduciendo, usuario]);
 
   useEffect(() => {
     comentariosAbiertosRef.current = comentariosAbiertos;
@@ -1412,6 +1455,51 @@ export default function Descubrir({ usuario }) {
         (usuario?.id && lanzamiento.creadorId === usuario.id))
     );
 
+  const denunciarLanzamiento = async (lanzamiento, { motivo, detalle }) => {
+    if (!lanzamiento?.backendId || usuarioPuedeEliminarLanzamiento(lanzamiento)) return;
+    setEnviandoDenuncia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tenes que iniciar sesion para denunciar publicaciones.");
+      const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/denunciar`), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: motivo, detail: detalle }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo denunciar el reel.");
+      setMenuLanzamientoAbierto(null);
+      setDenunciaPendiente(null);
+      if (body.nuevaDenuncia === false) {
+        mostrarAviso("Ya habias denunciado este reel.");
+        return;
+      }
+      try {
+        await avisarDenunciaASoporte({
+          usuario,
+          tipo: "reel",
+          contenidoId: lanzamiento.backendId,
+          titulo: lanzamiento.tema,
+          autor: lanzamiento.usuario || lanzamiento.artista,
+          motivo: etiquetaMotivoDenuncia(motivo),
+          detalle,
+        });
+        mostrarAviso("Reel denunciado. Soporte fue notificado.");
+      } catch (emailError) {
+        console.error("Email de denuncia:", emailError);
+        mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email a soporte.");
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo denunciar el reel.");
+    } finally {
+      setEnviandoDenuncia(false);
+    }
+  };
+
   const eliminarLanzamiento = async (lanzamiento) => {
     try {
       if (lanzamiento.backendId) {
@@ -2001,7 +2089,7 @@ export default function Descubrir({ usuario }) {
                       {lanzamiento.avatar ? (
                         <img src={lanzamiento.avatar} alt="" />
                       ) : (
-                        lanzamiento.artista.charAt(0)
+                        inicialAvatar(lanzamiento.artista || lanzamiento.usuario)
                       )}
                     </button>
                     <div className="album-copy">
@@ -2110,8 +2198,7 @@ export default function Descubrir({ usuario }) {
                   </button>
                   <span>{formatearConteo(lanzamiento.guardados)}</span>
                 </div>
-                {puedeEliminar ? (
-                  <div className="accion-item accion-menu-item">
+                <div className="accion-item accion-menu-item">
                     <button
                       className={`accion-boton accion-boton-menu ${menuLanzamientoAbierto === lanzamiento.id ? "activo" : ""}`}
                       type="button"
@@ -2127,13 +2214,26 @@ export default function Descubrir({ usuario }) {
                     </button>
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
-                        <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
-                          Eliminar
-                        </button>
+                        {puedeEliminar ? (
+                          <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
+                            Eliminar
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              ejecutarConSesion(() => {
+                                setMenuLanzamientoAbierto(null);
+                                setDenunciaPendiente(lanzamiento);
+                              })
+                            }
+                          >
+                            Denunciar publicacion
+                          </button>
+                        )}
                       </div>
                     ) : null}
                   </div>
-                ) : null}
               </div>
 
               <aside
@@ -2373,7 +2473,7 @@ export default function Descubrir({ usuario }) {
                 {compartirActivo.lanzamiento.avatar ? (
                   <img src={compartirActivo.lanzamiento.avatar} alt="" />
                 ) : (
-                  compartirActivo.lanzamiento.artista.charAt(0).toUpperCase()
+                  inicialAvatar(compartirActivo.lanzamiento.artista || compartirActivo.lanzamiento.usuario)
                 )}
               </span>
               <span>
@@ -2452,6 +2552,14 @@ export default function Descubrir({ usuario }) {
           </section>
         </div>
       ) : null}
+
+      <DenunciaModal
+        abierto={Boolean(denunciaPendiente)}
+        titulo={denunciaPendiente?.tema}
+        enviando={enviandoDenuncia}
+        onClose={() => setDenunciaPendiente(null)}
+        onConfirm={(datos) => denunciarLanzamiento(denunciaPendiente, datos)}
+      />
 
       {mostrarCrearReel ? (
         <div className="crear-reel-overlay" role="presentation">

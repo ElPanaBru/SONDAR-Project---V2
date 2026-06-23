@@ -12,6 +12,7 @@ const upload = multer({
 });
 
 router.get('/', reelController.listarReels);
+router.post('/:id/visita', authMiddleware, reelController.registrarVisita);
 router.get('/:id/comentarios', reelController.listarComentarios);
 router.post('/comentarios/:comentarioId/like', authMiddleware, reelController.alternarLikeComentario);
 router.delete('/comentarios/:comentarioId', authMiddleware, reelController.eliminarComentario);
@@ -26,6 +27,7 @@ router.post(
 );
 router.post('/:id/comentarios', authMiddleware, reelController.crearComentario);
 router.post('/:id/compartir', authMiddleware, reelController.registrarCompartido);
+router.post('/:id/denunciar', authMiddleware, reelController.denunciarReel);
 router.post('/:id/like', authMiddleware, reelController.alternarLike);
 router.post('/:id/guardar', authMiddleware, reelController.alternarGuardado);
 router.delete('/:id', authMiddleware, reelController.eliminarReel);

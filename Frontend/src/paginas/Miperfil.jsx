@@ -88,6 +88,14 @@ function tarjetaContenido(item, onAbrir) {
           <span>{item.nombre?.charAt(0).toUpperCase() || "S"}</span>
         )}
       </div>
+      {item.tipo === "reel" ? (
+        <span className="perfil-publicacion-visitas" aria-label={`${formatearNumero(item.visitas)} visitas`}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M8 5.4v13.2L18.5 12 8 5.4Z" />
+          </svg>
+          {formatearNumero(item.visitas)}
+        </span>
+      ) : null}
       <h3>{item.nombre}</h3>
       <p>{item.detalle || item.genero || item.tipo}</p>
     </article>

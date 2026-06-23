@@ -7,6 +7,9 @@ ALTER TABLE public.users
 ALTER TABLE public.eventos
   ADD COLUMN IF NOT EXISTS img_path text;
 
+ALTER TABLE public.reels
+  ADD COLUMN IF NOT EXISTS visitas integer NOT NULL DEFAULT 0;
+
 -- Recupera la ruta de imagen de eventos antiguos cuando la URL publica conserva
 -- el formato estandar de Supabase Storage.
 UPDATE public.eventos

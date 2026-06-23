@@ -49,9 +49,10 @@
   line-height: 1.45;
 }
 
-.soporte-hero img {
-  width: clamp(74px, 12vw, 128px);
-  height: clamp(74px, 12vw, 128px);
+.soporte-brand {
+  width: clamp(210px, 24vw, 340px);
+  height: auto;
+  display: block;
   object-fit: contain;
   filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.48));
 }
@@ -305,10 +306,9 @@
     padding-top: 18px;
   }
 
-  .soporte-hero img {
+  .soporte-brand {
     order: -1;
-    width: 64px;
-    height: 64px;
+    width: min(260px, 78vw);
   }
 
   .soporte-faq,

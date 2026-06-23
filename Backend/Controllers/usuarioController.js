@@ -15,6 +15,7 @@ const {
   REELS_BUCKET,
   PERFILES_BUCKET,
 } = require('../services/storageService');
+const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
 const CONFIGURACION_INICIAL = Object.freeze({
   telefono: '',
@@ -162,6 +163,7 @@ function mapearReelPerfil(reel) {
     genero: reel.genero || '',
     descripcion: reel.descripcion || '',
     creadorId: reel.creador_id,
+    visitas: Number(reel.visitas || 0),
   };
 }
 
@@ -223,6 +225,16 @@ async function consultarOpcional(query, params = [], fallbackRows = []) {
 }
 
 async function obtenerDatosPerfil(targetUserId, viewerUserId) {
+  await asegurarEsquemaModeracion();
+  const bloqueoResult = viewerUserId && targetUserId !== viewerUserId
+    ? await pool.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)`,
+        [viewerUserId, targetUserId]
+      )
+    : { rowCount: 0 };
+  const contenidoBloqueado = bloqueoResult.rowCount > 0;
   const [usuarioResult, reelsResult, eventosResult, publicacionesStatsResult] = await Promise.all([
     pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]),
     pool.query(
@@ -325,8 +337,8 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const publicacionesStats = publicacionesStatsResult.rows[0] || {};
   const seguidoresStats = seguidoresStatsResult.rows[0] || {};
   const seguidosStats = seguidosStatsResult.rows[0] || {};
-  const reels = reelsResult.rows.map(mapearReelPerfil);
-  const eventos = eventosResult.rows.map(mapearEventoPerfil);
+  const reels = contenidoBloqueado ? [] : reelsResult.rows.map(mapearReelPerfil);
+  const eventos = contenidoBloqueado ? [] : eventosResult.rows.map(mapearEventoPerfil);
   const reelsGuardados = reelsGuardadosResult.rows.map((reel) => ({
     ...mapearReelPerfil(reel),
     guardadoTipo: 'reel',
@@ -353,9 +365,9 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
     silenciado: Boolean(silenciadoResult.rows[0]?.silenciado),
     stats: {
-      publicaciones: Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),
-      reels: Number(publicacionesStats.reels || 0),
-      eventos: Number(publicacionesStats.eventos || 0),
+      publicaciones: contenidoBloqueado ? 0 : Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),
+      reels: contenidoBloqueado ? 0 : Number(publicacionesStats.reels || 0),
+      eventos: contenidoBloqueado ? 0 : Number(publicacionesStats.eventos || 0),
       seguidores: Number(seguidoresStats.seguidores || 0),
       seguidos: Number(seguidosStats.seguidos || 0),
     },
@@ -788,6 +800,17 @@ const usuariosController = {
         return res.status(400).json({ error: 'No podes seguir tu propio perfil.' });
       }
 
+      await asegurarEsquemaModeracion();
+      const bloqueo = await client.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)`,
+        [req.user.id, usuarioEncontrado.id]
+      );
+      if (bloqueo.rowCount > 0) {
+        return res.status(400).json({ error: 'No podes seguir una cuenta bloqueada.' });
+      }
+
       await client.query('BEGIN');
       const existe = await client.query(
         'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',
@@ -841,6 +864,105 @@ const usuariosController = {
       res.status(500).json({ error: 'No se pudo actualizar el seguimiento.' });
     } finally {
       client.release();
+    }
+  },
+
+  listarBloqueadosActuales: async (req, res) => {
+    try {
+      await asegurarEsquemaModeracion();
+      const result = await pool.query(
+        `SELECT u.*
+         FROM user_blocks ub
+         JOIN users u ON u.id = ub.blocked_id
+         WHERE ub.blocker_id = $1
+         ORDER BY ub.created_at DESC`,
+        [req.user.id]
+      );
+      res.json(result.rows.map((usuario) => mapearUsuarioPerfil(usuario)));
+    } catch (error) {
+      console.error('Error al listar cuentas bloqueadas:', error);
+      res.status(500).json({ error: 'No se pudieron cargar las cuentas bloqueadas.' });
+    }
+  },
+
+  bloquearUsuario: async (req, res) => {
+    const { identificador } = req.params;
+    const client = await pool.connect();
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaModeracion();
+      const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
+      if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
+      if (usuarioEncontrado.id === req.user.id) {
+        return res.status(400).json({ error: 'No podes bloquear tu propia cuenta.' });
+      }
+
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO user_blocks (blocker_id, blocked_id)
+         VALUES ($1, $2)
+         ON CONFLICT (blocker_id, blocked_id) DO NOTHING`,
+        [req.user.id, usuarioEncontrado.id]
+      );
+      await client.query(
+        `DELETE FROM follows
+         WHERE (follower_id = $1 AND following_id = $2)
+            OR (follower_id = $2 AND following_id = $1)`,
+        [req.user.id, usuarioEncontrado.id]
+      );
+      await eliminarNotificacion(`follow:${req.user.id}:${usuarioEncontrado.id}`, client);
+      await eliminarNotificacion(`follow:${usuarioEncontrado.id}:${req.user.id}`, client);
+      await client.query(
+        `DELETE FROM notification_mutes
+         WHERE (user_id = $1 AND muted_user_id = $2)
+            OR (user_id = $2 AND muted_user_id = $1)`,
+        [req.user.id, usuarioEncontrado.id]
+      );
+      await client.query('COMMIT');
+      res.json({ bloqueado: true, usuario: mapearUsuarioPerfil(usuarioEncontrado) });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al bloquear usuario:', error);
+      res.status(500).json({ error: 'No se pudo bloquear la cuenta.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  desbloquearUsuario: async (req, res) => {
+    const { identificador } = req.params;
+    try {
+      await asegurarEsquemaModeracion();
+      const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
+      if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
+      await pool.query(
+        'DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',
+        [req.user.id, usuarioEncontrado.id]
+      );
+      res.json({ bloqueado: false });
+    } catch (error) {
+      console.error('Error al desbloquear usuario:', error);
+      res.status(500).json({ error: 'No se pudo desbloquear la cuenta.' });
+    }
+  },
+
+  denunciarPerfil: async (req, res) => {
+    const { identificador } = req.params;
+    try {
+      const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
+      if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
+      const resultado = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: usuarioEncontrado.id,
+        contentType: 'perfil',
+        contentId: usuarioEncontrado.id,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      res.json(resultado);
+    } catch (error) {
+      console.error('Error al denunciar perfil:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el perfil.' });
     }
   },
 

@@ -19,12 +19,22 @@ CREATE TABLE IF NOT EXISTS reels (
     likes INTEGER NOT NULL DEFAULT 0,
     compartidos INTEGER NOT NULL DEFAULT 0,
     guardados INTEGER NOT NULL DEFAULT 0,
+    visitas INTEGER NOT NULL DEFAULT 0,
     creador_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
 CREATE INDEX IF NOT EXISTS reels_creador_id_idx ON reels (creador_id);
 CREATE INDEX IF NOT EXISTS reels_created_at_idx ON reels (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS reel_views (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reel_id BIGINT NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
+    CONSTRAINT reel_views_pkey PRIMARY KEY (user_id, reel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id ON reel_views (reel_id);
 
 -- Storage requerido:
 -- 1. Bucket publico llamado "eventos"

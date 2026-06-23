@@ -631,6 +631,7 @@ export default function Comunidad({ usuario }) {
                 </div>
               </div>
               <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
+                <span aria-hidden="true">+</span>
                 Crear publicacion
               </button>
             </div>
@@ -700,10 +701,18 @@ export default function Comunidad({ usuario }) {
                   <p><TextoConMenciones texto={hilo.texto} /></p>
 
                   <div className="publicacion-acciones">
-                    <button type="button" onClick={() => toggleRespuestas(hilo.id)}>
+                    <button
+                      className={respuestasAbiertas.includes(hilo.id) ? "activo" : ""}
+                      type="button"
+                      onClick={() => toggleRespuestas(hilo.id)}
+                    >
                       {hilo.comentarios.length} respuestas
                     </button>
-                    <button type="button" onClick={() => guardar(hilo.id)}>
+                    <button
+                      className={hilo.guardado ? "activo" : ""}
+                      type="button"
+                      onClick={() => guardar(hilo.id)}
+                    >
                       {hilo.guardado ? "Guardado" : "Guardar"}
                     </button>
                   </div>

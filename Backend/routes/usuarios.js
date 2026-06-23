@@ -17,12 +17,16 @@ router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActua
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, upload.single('avatar'), usuariosController.actualizarPerfilActual);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
+router.get('/me/bloqueados', authMiddleware, usuariosController.listarBloqueadosActuales);
 router.get('/', usuariosController.buscarUsuarios);
 router.post('/registrar', authMiddleware, usuariosController.registrarUsuario);
 router.post('/convertir-a-musico', authMiddleware, usuariosController.convertirAMusico);
 router.delete('/me', authMiddleware, usuariosController.eliminarCuentaActual);
 router.get('/:identificador/perfil', authMiddleware.opcional, usuariosController.obtenerPerfilPublico);
 router.post('/:identificador/seguir', authMiddleware, usuariosController.alternarSeguimiento);
+router.post('/:identificador/bloquear', authMiddleware, usuariosController.bloquearUsuario);
+router.delete('/:identificador/bloquear', authMiddleware, usuariosController.desbloquearUsuario);
+router.post('/:identificador/denunciar', authMiddleware, usuariosController.denunciarPerfil);
 router.post('/:identificador/silenciar-notificaciones', authMiddleware, usuariosController.alternarSilencioNotificaciones);
 
 module.exports = router;

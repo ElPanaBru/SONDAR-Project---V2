@@ -51,7 +51,7 @@
   overflow: hidden;
   background: #101010;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  border-radius: 18px;
 }
 
 .comunidad-cover {
@@ -76,9 +76,9 @@
   align-items: center;
   justify-content: center;
   color: #080808;
-  background: #ff7a00;
+  background: linear-gradient(145deg, #ffae00, #ff5e00);
   border: 4px solid #101010;
-  border-radius: 8px;
+  border-radius: 18px;
   font-size: 48px;
   font-weight: 900;
 }
@@ -163,20 +163,37 @@
   align-items: center;
   justify-content: center;
   color: #070707;
-  background: #ff7a00;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   border: 0;
-  border-radius: 8px;
-  padding: 0 16px;
-  font-weight: 800;
+  border-radius: 999px;
+  padding: 0 19px;
+  font-weight: 900;
   cursor: pointer;
   white-space: nowrap;
-  transition: filter 0.2s ease, transform 0.2s ease;
+  box-shadow: 0 8px 22px rgba(255, 112, 0, 0.2);
+  transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.comunidad-crear {
+  gap: 8px;
+}
+
+.comunidad-crear span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.14);
+  font-size: 19px;
+  line-height: 1;
 }
 
 .comunidad-crear:hover,
 .comunidad-modal-botones button:hover {
-  filter: brightness(1.08);
-  transform: translateY(-1px);
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 11px 28px rgba(255, 112, 0, 0.3);
 }
 
 .comunidad-filtros {
@@ -184,28 +201,31 @@
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 12px 0 0;
+  border-bottom: 0;
+  padding: 12px 2px 4px;
   margin-bottom: 10px;
 }
 
 .comunidad-filtros button {
-  min-height: 46px;
+  min-height: 38px;
   color: rgba(255, 255, 255, 0.72);
-  background: transparent;
-  border: 0;
-  border-bottom: 4px solid transparent;
-  padding: 0 16px;
-  font-size: 16px;
+  background: #1d1d1d;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  padding: 0 17px;
+  font-size: 14px;
   font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 .comunidad-filtros button:hover,
 .comunidad-filtros button.activo {
-  color: #fff;
-  border-bottom-color: #ff7a00;
+  color: #090909;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  border-color: transparent;
+  transform: translateY(-1px);
 }
 
 .comunidad-feed {
@@ -221,7 +241,7 @@
 .publicacion-card {
   background: #101010;
   border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
+  border-radius: 16px;
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
 }
 
@@ -244,7 +264,7 @@
   text-align: left;
   background: #050505;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 8px;
+  border-radius: 999px;
   padding: 0 14px;
   font: inherit;
   cursor: pointer;
@@ -259,6 +279,11 @@
 
 .composer-acciones span {
   color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -287,7 +312,7 @@
   align-items: center;
   justify-content: center;
   color: #080808;
-  background: #ff7a00;
+  background: linear-gradient(145deg, #ffae00, #ff5e00);
   border-radius: 999px;
   font-size: 20px;
   font-weight: 900;
@@ -352,20 +377,28 @@
 }
 
 .publicacion-acciones button {
-  min-height: 36px;
+  min-height: 38px;
   color: #fff;
-  background: #050505;
+  background: #202020;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  padding: 0 12px;
-  font-weight: 700;
+  border-radius: 999px;
+  padding: 0 15px;
+  font-weight: 800;
   white-space: nowrap;
   cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 .publicacion-acciones button:hover {
-  color: #ff9a2a;
+  color: #ffae00;
   border-color: rgba(255, 122, 0, 0.72);
+  transform: translateY(-1px);
+}
+
+.publicacion-acciones button.activo {
+  color: #090909;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  border-color: transparent;
 }
 
 .comunidad-sidebar {
@@ -379,7 +412,7 @@
 .comunidad-panel {
   background: #101010;
   border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: 8px;
+  border-radius: 16px;
   padding: 14px;
 }
 
@@ -403,18 +436,22 @@
   text-align: left;
   background: transparent;
   border: 0;
-  border-radius: 8px;
-  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  padding: 10px;
   cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
 
 .comunidad-mini-card:hover,
 .comunidad-mini-card.activa {
-  background: #181818;
+  background: #1b1b1b;
+  transform: translateX(2px);
 }
 
 .comunidad-mini-card.activa {
-  outline: 1px solid rgba(255, 122, 0, 0.55);
+  border-color: rgba(255, 154, 0, 0.64);
+  box-shadow: inset 3px 0 #ff8a00;
 }
 
 .comunidad-mini-icon {
@@ -425,7 +462,7 @@
   justify-content: center;
   color: #fff;
   background: #0f5132;
-  border-radius: 8px;
+  border-radius: 13px;
   font-weight: 900;
 }
 
@@ -479,15 +516,15 @@
 }
 
 .hilo-votos button {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   background: #050505;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
+  border-radius: 50%;
   font-size: 22px;
   font-weight: 900;
   cursor: pointer;
@@ -495,7 +532,15 @@
 
 .hilo-votos button:hover {
   color: #050505;
-  background: #ff7a00;
+  background: linear-gradient(145deg, #ffae00, #ff5e00);
+  border-color: transparent;
+}
+
+.hilo-votos button.activo {
+  color: #050505;
+  background: linear-gradient(145deg, #ffae00, #ff5e00);
+  border-color: transparent;
+  box-shadow: 0 0 0 4px rgba(255, 132, 0, 0.13);
 }
 
 .hilo-votos strong {
@@ -564,11 +609,11 @@
 .respuesta-form > button {
   min-height: 42px;
   color: #050505;
-  background: #ff7a00;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   border: 0;
-  border-radius: 8px;
-  padding: 0 14px;
-  font-weight: 800;
+  border-radius: 999px;
+  padding: 0 17px;
+  font-weight: 900;
   cursor: pointer;
 }
 
@@ -615,7 +660,7 @@
   color: #fff;
   background: #141414;
   border: 1px solid rgba(255, 174, 0, 0.28);
-  border-radius: 8px;
+  border-radius: 20px;
   padding: 22px;
   box-shadow: 0 20px 54px rgba(0, 0, 0, 0.62);
   animation: comunidadAparecer 0.24s ease;
@@ -644,7 +689,7 @@
   color: #fff;
   background: #222;
   border: 1px solid #333;
-  border-radius: 8px;
+  border-radius: 12px;
   outline: none;
   padding: 0 11px;
   font: inherit;
@@ -677,6 +722,7 @@
 .comunidad-modal-botones button[type="button"] {
   color: #fff;
   background: #333;
+  box-shadow: none;
 }
 
 @keyframes comunidadAparecer {

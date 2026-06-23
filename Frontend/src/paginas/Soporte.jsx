@@ -140,7 +140,7 @@ export default function Soporte({ usuario }) {
               Resolvelo rapido con las preguntas frecuentes o escribinos con el detalle del problema.
             </p>
           </div>
-          <img src="/logo.png" alt="SONDAR" />
+          <img className="soporte-brand" src="/sondar-logo.png" alt="SONDAR" />
         </header>
 
         <div className="soporte-grid">

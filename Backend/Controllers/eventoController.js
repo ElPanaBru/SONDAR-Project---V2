@@ -6,6 +6,7 @@ const {
   nombreActor,
   notificarSeguidores,
 } = require('../services/notificationService');
+const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -61,6 +62,7 @@ async function asegurarUsuarioPublico(user) {
 const eventoController = {
   listarEventos: async (req, res) => {
     try {
+      await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
       const result = await pool.query(`
         SELECT
@@ -85,8 +87,13 @@ const eventoController = {
           JOIN users co ON co.id = eo.user_id
           WHERE eo.event_id = e.id
         ) org ON true
+        WHERE $1::uuid IS NULL OR NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
+             OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
+        )
         ORDER BY e.id DESC
-      `);
+      `, [viewerId]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);
@@ -110,6 +117,27 @@ const eventoController = {
     } catch (error) {
       console.error('Error al listar eventos:', error);
       res.status(500).json({ error: 'Error al obtener los eventos.' });
+    }
+  },
+
+  denunciarEvento: async (req, res) => {
+    const { id } = req.params;
+    try {
+      const result = await pool.query('SELECT id, creador_id FROM eventos WHERE id = $1', [id]);
+      const evento = result.rows[0];
+      if (!evento) return res.status(404).json({ error: 'Evento no encontrado.' });
+      const resultado = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: evento.creador_id,
+        contentType: 'evento',
+        contentId: id,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      res.json(resultado);
+    } catch (error) {
+      console.error('Error al denunciar evento:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el evento.' });
     }
   },
 

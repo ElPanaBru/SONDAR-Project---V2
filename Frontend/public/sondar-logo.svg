@@ -1,0 +1,68 @@
+<svg width="1477" height="512" viewBox="0 0 1477 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sondar-stroke-logo" x1="80" y1="430" x2="1390" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff5a00"/>
+      <stop offset="0.18" stop-color="#ff2d3d"/>
+      <stop offset="0.38" stop-color="#9b2bdd"/>
+      <stop offset="0.58" stop-color="#d42cc9"/>
+      <stop offset="0.78" stop-color="#ff6a00"/>
+      <stop offset="1" stop-color="#b62fe2"/>
+    </linearGradient>
+    <linearGradient id="sondar-warm-logo" x1="82" y1="100" x2="410" y2="418" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb31a"/>
+      <stop offset="0.42" stop-color="#ff5a00"/>
+      <stop offset="0.74" stop-color="#b531dc"/>
+      <stop offset="1" stop-color="#ff6b00"/>
+    </linearGradient>
+    <radialGradient id="sondar-core-logo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(206 256) rotate(90) scale(58)">
+      <stop offset="0" stop-color="#ffb31a"/>
+      <stop offset="0.35" stop-color="#ff4d00"/>
+      <stop offset="0.72" stop-color="#c62bd7"/>
+      <stop offset="1" stop-color="#4a155e"/>
+    </radialGradient>
+    <filter id="logo-glow" x="-12%" y="-20%" width="124%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 1 0 0.35 0 0 0.32 0 0 1 0 0.9 0 0 0 0.45 0"/>
+      <feBlend in="SourceGraphic" mode="screen"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#logo-glow)">
+    <circle cx="206" cy="256" r="188" fill="#040404" stroke="url(#sondar-stroke-logo)" stroke-width="12"/>
+
+    <g stroke-linecap="round" stroke-linejoin="round">
+      <path d="M116 151C143 119 184 101 234 106" stroke="url(#sondar-warm-logo)" stroke-width="14"/>
+      <path d="M153 178C176 154 210 145 247 153" stroke="url(#sondar-warm-logo)" stroke-width="11"/>
+      <path d="M111 229C98 274 106 319 135 356" stroke="url(#sondar-stroke-logo)" stroke-width="12"/>
+      <path d="M73 231C62 300 90 368 145 407" stroke="url(#sondar-stroke-logo)" stroke-width="12"/>
+
+      <path d="M266 151C309 174 337 215 342 266" stroke="url(#sondar-stroke-logo)" stroke-width="13"/>
+      <path d="M249 188C277 205 294 232 299 264" stroke="url(#sondar-stroke-logo)" stroke-width="11"/>
+      <path d="M293 283C273 327 235 357 187 363" stroke="url(#sondar-warm-logo)" stroke-width="12"/>
+      <path d="M354 286C339 357 283 410 210 419" stroke="url(#sondar-warm-logo)" stroke-width="12"/>
+    </g>
+
+    <circle cx="206" cy="256" r="53" fill="url(#sondar-core-logo)"/>
+    <circle cx="206" cy="256" r="17" fill="#141414"/>
+    <circle cx="206" cy="256" r="6" fill="#a9a9a9"/>
+
+    <text x="405" y="356"
+      font-family="Impact, 'Arial Black', 'Montserrat', sans-serif"
+      font-size="292"
+      font-weight="900"
+      letter-spacing="4"
+      fill="rgba(10,10,10,0.15)"
+      stroke="#070707"
+      stroke-width="29"
+      paint-order="stroke fill">ONDAR</text>
+    <text x="405" y="356"
+      font-family="Impact, 'Arial Black', 'Montserrat', sans-serif"
+      font-size="292"
+      font-weight="900"
+      letter-spacing="4"
+      fill="rgba(160,35,190,0.08)"
+      stroke="url(#sondar-stroke-logo)"
+      stroke-width="15"
+      paint-order="stroke fill">ONDAR</text>
+  </g>
+</svg>

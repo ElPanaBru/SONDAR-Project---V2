@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilToast from "../componentes/PerfilToast";
+import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import { apiUrl } from "../lib/api";
+import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./miperfil.css";
@@ -15,6 +17,7 @@ const iconosPerfil = {
   lock: "M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm240-200q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80Z",
   bell: "M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z",
   bellOff: "m792-56-96-96H160v-80h80v-280q0-22 3-43t10-41L56-792l56-56 736 736-56 56ZM320-232h296L320-528v296Zm400-40-80-80v-160q0-66-47-113t-113-47q-17 0-32.5 3T417-660l-62-62q16-10 32-17.5t33-12.5v-20q0-25 17.5-42.5T480-832q25 0 42.5 17.5T540-772v20q80 20 130 84.5T720-512v240ZM480-32q-33 0-56.5-23.5T400-112h160q0 33-23.5 56.5T480-32Z",
+  more: "M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z",
 };
 
 const perfilVacio = {
@@ -85,6 +88,14 @@ function tarjetaContenido(item, onAbrir) {
           <span>{item.nombre?.charAt(0).toUpperCase() || "S"}</span>
         )}
       </div>
+      {item.tipo === "reel" ? (
+        <span className="perfil-publicacion-visitas" aria-label={`${formatearNumero(item.visitas)} visitas`}>
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+            <path d="M8 5.4v13.2L18.5 12 8 5.4Z" />
+          </svg>
+          {formatearNumero(item.visitas)}
+        </span>
+      ) : null}
       <h3>{item.nombre}</h3>
       <p>{item.detalle || item.genero || item.tipo}</p>
     </article>
@@ -106,6 +117,9 @@ export default function OtroPerfil({ usuarioActual }) {
   const [aviso, setAviso] = useState("");
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
+  const [menuAccionesAbierto, setMenuAccionesAbierto] = useState(false);
+  const [denunciaPendiente, setDenunciaPendiente] = useState(false);
+  const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
 
   const opcionesPerfil = useMemo(
     () => [
@@ -273,6 +287,83 @@ export default function OtroPerfil({ usuarioActual }) {
     return enlace.toString();
   };
 
+  const bloquearPerfil = async () => {
+    setMenuAccionesAbierto(false);
+    if (!usuarioActual) {
+      setAviso("Tenes que iniciar sesion para bloquear usuarios.");
+      return;
+    }
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+      const response = await fetch(
+        apiUrl(`/api/usuarios/${perfil.id || identificador}/bloquear`),
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo bloquear la cuenta.");
+      window.dispatchEvent(new CustomEvent("sondar:bloqueos-actualizados"));
+      navigate("/", { replace: true });
+    } catch (error) {
+      setAviso(error.message || "No se pudo bloquear la cuenta.");
+    }
+  };
+
+  const denunciarPerfil = async ({ motivo, detalle }) => {
+    if (!usuarioActual) {
+      setAviso("Tenes que iniciar sesion para denunciar usuarios.");
+      return;
+    }
+    setEnviandoDenuncia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/denunciar`), {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason: motivo, detail: detalle }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo denunciar la cuenta.");
+      setDenunciaPendiente(false);
+      if (body.nuevaDenuncia === false) {
+        setAviso("Ya habias denunciado este perfil.");
+        return;
+      }
+      try {
+        await avisarDenunciaASoporte({
+          usuario: usuarioActual,
+          tipo: "perfil",
+          contenidoId: perfil.id || identificador,
+          titulo: perfil.nombre,
+          autor: perfil.usuario,
+          motivo: etiquetaMotivoDenuncia(motivo),
+          detalle,
+        });
+        setAviso("Perfil denunciado. Soporte fue notificado.");
+      } catch (emailError) {
+        console.error("Email de denuncia:", emailError);
+        setAviso("La denuncia fue registrada, pero no se pudo enviar el email a soporte.");
+      }
+    } catch (error) {
+      setAviso(error.message || "No se pudo denunciar la cuenta.");
+    } finally {
+      setEnviandoDenuncia(false);
+    }
+  };
+
   const renderContenidoActivo = () => {
     const items = contenido[tabActiva] || [];
 
@@ -320,29 +411,74 @@ export default function OtroPerfil({ usuarioActual }) {
           <div className="perfil-title-row">
             <h1>{perfil.nombre}</h1>
             {!esPerfilPropio ? (
-              <button
-                className={`perfil-primary-btn ${siguiendo ? "siguiendo" : ""}`}
-                type="button"
-                onClick={alternarSeguimiento}
-              >
-                {siguiendo ? "Siguiendo" : "Seguir"}
-              </button>
+              <div className="otroperfil-acciones">
+                <button
+                  className={`otroperfil-accion-texto otroperfil-seguir ${siguiendo ? "siguiendo" : ""}`}
+                  type="button"
+                  onClick={alternarSeguimiento}
+                >
+                  {siguiendo ? "Siguiendo" : "Seguir"}
+                </button>
+                {siguiendo ? (
+                  <button
+                    className={`otroperfil-accion-icono ${silenciado ? "silenciado" : ""}`}
+                    type="button"
+                    onClick={alternarSilencio}
+                    aria-label={silenciado ? "Activar notificaciones de este usuario" : "Silenciar notificaciones de este usuario"}
+                    title={silenciado ? "Notificaciones silenciadas" : "Notificaciones activas"}
+                  >
+                    <IconoPerfil nombre={silenciado ? "bellOff" : "bell"} size={22} />
+                  </button>
+                ) : null}
+                <button
+                  className="otroperfil-accion-icono"
+                  type="button"
+                  onClick={() => setCompartirAbierto(true)}
+                  aria-label="Compartir perfil"
+                  title="Compartir perfil"
+                >
+                  <IconoPerfil nombre="share" size={21} />
+                </button>
+                <div className="otroperfil-mas-wrap">
+                  <button
+                    className={`otroperfil-accion-icono ${menuAccionesAbierto ? "activo" : ""}`}
+                    type="button"
+                    onClick={() => setMenuAccionesAbierto((abierto) => !abierto)}
+                    aria-label="Mas opciones"
+                    aria-expanded={menuAccionesAbierto}
+                    aria-haspopup="menu"
+                  >
+                    <IconoPerfil nombre="more" size={23} />
+                  </button>
+                  {menuAccionesAbierto ? (
+                    <div className="otroperfil-mas-menu" role="menu">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={bloquearPerfil}
+                      >
+                        Bloquear
+                      </button>
+                      <button
+                        className="denunciar"
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setMenuAccionesAbierto(false);
+                          if (!usuarioActual) {
+                            setAviso("Tenes que iniciar sesion para denunciar usuarios.");
+                            return;
+                          }
+                          setDenunciaPendiente(true);
+                        }}
+                      >
+                        Denunciar
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
-            {!esPerfilPropio && siguiendo ? (
-              <button
-                className={`perfil-notification-btn ${silenciado ? "silenciado" : ""}`}
-                type="button"
-                onClick={alternarSilencio}
-                aria-label={silenciado ? "Activar notificaciones de este usuario" : "Silenciar notificaciones de este usuario"}
-                title={silenciado ? "Notificaciones silenciadas" : "Notificaciones activas"}
-              >
-                <IconoPerfil nombre={silenciado ? "bellOff" : "bell"} size={20} />
-              </button>
-            ) : null}
-            <button className="perfil-secondary-btn" type="button" onClick={() => setCompartirAbierto(true)}>
-              <IconoPerfil nombre="share" size={18} />
-              Compartir
-            </button>
           </div>
 
           <div className="perfil-stats">
@@ -426,6 +562,14 @@ export default function OtroPerfil({ usuarioActual }) {
           </section>
         </div>
       ) : null}
+
+      <DenunciaModal
+        abierto={denunciaPendiente}
+        titulo={perfil.nombre}
+        enviando={enviandoDenuncia}
+        onClose={() => setDenunciaPendiente(false)}
+        onConfirm={denunciarPerfil}
+      />
 
       {compartirAbierto ? (
         <CompartirPerfilModal
