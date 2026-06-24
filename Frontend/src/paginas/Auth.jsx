@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { asegurarPerfilSupabase } from "../lib/userProfile";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./auth.css";
 
@@ -11,9 +11,6 @@ const mensajesSupabase = {
   "User already registered": "El correo ya esta registrado",
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres"
 };
-
-const CALLBACK_URL = "https://sondar-project.pages.dev/auth/callback";
-const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Te enviamos un correo para confirmar el registro.";
 
 export default function Auth() {
   const { t } = usePreferencias();
@@ -42,24 +39,43 @@ export default function Auth() {
     return mensajesSupabase[error.message] || error.message;
   };
 
-  const handleGoogleSignIn = async () => {
-    setMensaje("");
-    setLoading(true);
+  const crearPerfilBackend = async (accessToken, cleanUsername) => {
+    const response = await fetch(apiUrl("/api/usuarios/registrar"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ username: cleanUsername })
+    });
 
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: CALLBACK_URL
-        }
-      });
-
-      if (error) throw error;
-    } catch (error) {
-      setMensaje(traducirError(error));
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "No se pudo crear el perfil en el servidor.");
     }
+  };
+
+  const verificarPerfilBackend = async (accessToken) => {
+    const response = await fetch(apiUrl("/api/usuarios/me"), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (response.status === 404) {
+      return { existe: false };
+    }
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(
+        data.error
+          ? `${response.status} - ${data.error}`
+          : `${response.status} - No se pudo verificar el perfil en el servidor.`
+      );
+    }
+
+    return response.json();
   };
 
   const handleSubmit = async (e) => {
@@ -80,7 +96,19 @@ export default function Auth() {
 
         if (error) throw error;
 
-        await asegurarPerfilSupabase(data.user);
+        const perfil = await verificarPerfilBackend(data.session.access_token);
+
+        if (!perfil.existe) {
+          const pendingUsername = data.user?.user_metadata?.username;
+
+          if (!pendingUsername) {
+            await supabase.auth.signOut();
+            setMensaje("Error: usuario no registrado en la base de datos.");
+            return;
+          }
+
+          await crearPerfilBackend(data.session.access_token, pendingUsername);
+        }
 
         navigate("/");
         return;
@@ -103,33 +131,35 @@ export default function Auth() {
         return;
       }
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: cleanPassword,
-        options: {
-          emailRedirectTo: CALLBACK_URL,
-          data: {
-            username: cleanUsername
-          }
-        }
+      const crearCuentaResponse = await fetch(apiUrl("/api/usuarios/crear-cuenta"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPassword,
+          username: cleanUsername
+        })
       });
 
-      if (signUpError) {
-        throw signUpError;
+      if (!crearCuentaResponse.ok) {
+        const data = await crearCuentaResponse.json().catch(() => ({}));
+        throw new Error(
+          data.error
+            ? `${crearCuentaResponse.status} - ${data.error}`
+            : `${crearCuentaResponse.status} - No se pudo crear la cuenta.`
+        );
       }
 
-      if (signUpData) {
-        if (signUpData.session) {
-          await supabase.auth.signOut({ scope: "local" });
-        }
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
+      });
 
-        setMensaje(REGISTRO_CONFIRMACION_MSG);
-        setEmail("");
-        setPassword("");
-        setPasswordRepetida("");
-        setUsername("");
-        return;
-      }
+      if (loginError) throw loginError;
+
+      navigate("/");
     } catch (error) {
       setMensaje(traducirError(error));
     } finally {
@@ -198,7 +228,7 @@ export default function Auth() {
                   onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").toLowerCase())}
                   minLength={3}
                   maxLength={30}
-                  pattern="[a-z0-9._\-]{3,30}"
+                  pattern="[a-z0-9._-]{3,30}"
                   autoComplete="username"
                   required
                   className="auth-input"
@@ -266,17 +296,6 @@ export default function Auth() {
                 ? (modo === "login" ? "Ingresando..." : "Registrando...")
                 : (modo === "login" ? "Ingresar" : "Registrarse")}
             </button>
-
-            {modo === "login" && (
-              <button
-                type="button"
-                disabled={loading}
-                className="auth-btn auth-google"
-                onClick={handleGoogleSignIn}
-              >
-                {loading ? "Redirigiendo..." : "Ingresar con Google"}
-              </button>
-            )}
           </form>
 
           {mensaje && <p className="auth-msg">{mensaje}</p>}

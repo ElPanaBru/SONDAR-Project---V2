@@ -72,12 +72,12 @@ app.use('/api/comunidades', comunidadesRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 
 async function iniciarServidor() {
-  app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
-
   try {
     await asegurarEsquemaConfiguracion();
+    app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
   } catch (error) {
     console.error('No se pudo preparar el esquema de configuracion:', error);
+    process.exitCode = 1;
   }
 }
 

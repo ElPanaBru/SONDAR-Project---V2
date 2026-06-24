@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-const CALLBACK_URL = "https://sondar-project.pages.dev/auth/callback";
-const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Te enviamos un correo para confirmar el registro.";
-
 export default function Register({ onSwitch }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,21 +13,14 @@ export default function Register({ onSwitch }) {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: email.trim(),
-        password: password.trim(),
-        options: {
-          emailRedirectTo: CALLBACK_URL
-        }
+        password: password.trim()
       });
 
       if (error) throw error;
 
-      if (data.session) {
-        await supabase.auth.signOut({ scope: "local" });
-      }
-
-      setMensaje(REGISTRO_CONFIRMACION_MSG);
+      setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
       setEmail("");
       setPassword("");
     } catch (error) {

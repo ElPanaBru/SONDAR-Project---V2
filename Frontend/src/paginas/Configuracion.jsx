@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiUrl } from "../lib/api";
-import { backendFetchJson } from "../lib/backendClient";
 import { supabase } from "../lib/supabaseClient";
 import { PREFERENCIAS_INICIALES, usePreferencias } from "../contextos/PreferenciasContext";
 import "./configuracion.css";
@@ -50,7 +49,15 @@ export default function Configuracion({ usuario }) {
     const cargarConfiguracion = async () => {
       setCargando(true);
       try {
-        const body = await backendFetchJson("/api/usuarios/me/configuracion");
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
+
+        const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error || "No se pudo cargar la configuracion.");
         if (vigente) {
           const ajustesCargados = { ...AJUSTES_INICIALES, ...body };
           setAjustes(ajustesCargados);
@@ -191,10 +198,20 @@ export default function Configuracion({ usuario }) {
     setMensaje(null);
 
     try {
-      const body = await backendFetchJson("/api/usuarios/me/configuracion", {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
+
+      const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
         method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(ajustes),
       });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No pudimos guardar los cambios.");
       const ajustesActualizados = { ...AJUSTES_INICIALES, ...body };
       setAjustes(ajustesActualizados);
       setAjustesGuardados(ajustesActualizados);
@@ -249,7 +266,14 @@ export default function Configuracion({ usuario }) {
     setDescargando(true);
     setMensaje(null);
     try {
-      const datos = await backendFetchJson("/api/usuarios/me/exportar");
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
+      const response = await fetch(apiUrl("/api/usuarios/me/exportar"), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const datos = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(datos.error || "No se pudieron preparar tus datos.");
 
       const archivo = new Blob([JSON.stringify(datos, null, 2)], {
         type: "application/json;charset=utf-8",
@@ -278,7 +302,16 @@ export default function Configuracion({ usuario }) {
     setMensaje(null);
 
     try {
-      await backendFetchJson("/api/usuarios/me", { method: "DELETE" });
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
+
+      const response = await fetch(apiUrl("/api/usuarios/me"), {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo eliminar la cuenta.");
 
       await supabase.auth.signOut({ scope: "local" });
       navigate("/auth", { replace: true });

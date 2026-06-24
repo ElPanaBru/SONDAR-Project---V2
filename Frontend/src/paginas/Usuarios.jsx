@@ -1,41 +1,19 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-
-function mapearUsuario(row) {
-  return {
-    id: row.id,
-    nombre: row.artist_name || row.full_name || row.username || row.email?.split("@")[0] || "Usuario SONDAR"
-  };
-}
 
 function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
-    async function cargarUsuarioActual() {
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-
-      const userId = sessionData.session?.user?.id;
-      if (!userId) {
-        setUsuarios([]);
-        return;
+    // Endpoint real del backend: /api/usuarios (ajustar cuando exista ruta para listar)
+    fetch("http://localhost:3000/api/usuarios/me", {
+      method: "GET",
+      headers: {
+        // Si se quiere hacer público, se puede exponer un endpoint/listado. Por ahora requiere auth.
+        // token se obtiene desde Supabase en Auth/Evento, aquí lo dejamos sin implementar.
       }
-
-      const { data, error } = await supabase
-        .from("users")
-        .select("id,email,username,full_name,artist_name")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (error) throw error;
-      setUsuarios(data ? [mapearUsuario(data)] : []);
-    }
-
-    cargarUsuarioActual().catch((error) => {
-      console.error("No se pudieron cargar los usuarios:", error);
-      setUsuarios([]);
-    });
+    })
+      .then((res) => res.json())
+      .then((data) => setUsuarios(Array.isArray(data) ? data : [data]));
   }, []);
 
   return (

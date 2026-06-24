@@ -6,7 +6,6 @@ import "./paginas/otroperfil.css";
 
 import Navbar from "./componentes/Navbar";
 import Auth from "./paginas/Auth";
-import AuthCallback from "./paginas/AuthCallback";
 import Soporte from "./paginas/Soporte";
 import Eventos from "./paginas/Eventos";
 import Descubrir from "./paginas/Descubrir";
@@ -34,7 +33,7 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  const hideNavbarRoutes = ["/auth", "/auth/callback"];
+  const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
   const isBuscarRoute = location.pathname === "/buscar";
@@ -59,7 +58,6 @@ function App() {
           <Route path="/" element={<Eventos usuario={usuario} />} />
           <Route path="/soporte" element={<Soporte usuario={usuario} />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
           <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />
           <Route path="/buscar" element={<Buscar usuario={usuario} />} />

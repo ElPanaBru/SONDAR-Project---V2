@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilToast from "../componentes/PerfilToast";
-import { backendFetchJson } from "../lib/backendClient";
+import { apiUrl } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./miperfil.css";
@@ -154,7 +154,18 @@ export default function MiPerfil({ usuario }) {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const dataPerfil = await backendFetchJson("/api/usuarios/me/perfil");
+        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          const dataError = await response.json().catch(() => ({}));
+          throw new Error(dataError.error || "No se pudo cargar el perfil.");
+        }
+
+        const dataPerfil = await response.json();
         if (!activo) return;
 
         setPerfil(dataPerfil.perfil);
@@ -228,10 +239,20 @@ export default function MiPerfil({ usuario }) {
       formData.append("bio", perfilEditado.bio || "");
       if (avatarArchivo) formData.append("avatar", avatarArchivo);
 
-      const perfilGuardado = await backendFetchJson("/api/usuarios/me/perfil", {
+      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
         method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo guardar el perfil.");
+      }
+
+      const perfilGuardado = await response.json();
       setPerfil(perfilGuardado);
       setPerfilEditado(perfilGuardado);
       setAvatarArchivo(null);

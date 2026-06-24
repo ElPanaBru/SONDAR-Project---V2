@@ -465,14 +465,12 @@ const usuariosController = {
     }
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.admin.createUser({
         email: cleanEmail,
         password: cleanPassword,
-        options: {
-          emailRedirectTo: process.env.AUTH_CALLBACK_URL || 'https://sondar-project.pages.dev/auth/callback',
-          data: {
-            username: cleanUsername
-          }
+        email_confirm: true,
+        user_metadata: {
+          username: cleanUsername
         }
       });
 
