@@ -686,12 +686,15 @@ const handleImagen = (e) => {
         method: "POST",
         body: formData,
       });
-      
-      const eventoParaMapa = mapearEvento(eventoGuardado);
 
-      setEventos((actuales) => [eventoParaMapa, ...actuales]);
-      setUltimoEventoDetalle(eventoParaMapa);
-      setEventoActivo(eventoParaMapa.id);
+      const eventoParaMapa = mapearEvento(eventoGuardado);
+      const eventosConfirmados = await backendFetchJson("/api/eventos");
+      const eventosMapeados = eventosConfirmados.map(mapearEvento);
+      const eventoConfirmado = eventosMapeados.find((evento) => String(evento.id) === String(eventoParaMapa.id));
+
+      setEventos(eventosMapeados);
+      setUltimoEventoDetalle(eventoConfirmado || eventoParaMapa);
+      setEventoActivo((eventoConfirmado || eventoParaMapa).id);
       
       setMostrarModal(false);
       if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
@@ -699,7 +702,7 @@ const handleImagen = (e) => {
       setNuevoEvento(crearEventoVacio());
       setMostrarBuscadorOrganizador(false);
 
-      mostrarAviso("¡Evento creado con éxito!");
+      mostrarAviso(eventoConfirmado ? "Evento creado con exito." : "Evento creado, pero no aparecio en el listado.");
 
     } catch (error) {
       console.error(error);

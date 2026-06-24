@@ -35,6 +35,13 @@ CREATE TABLE IF NOT EXISTS public.comunidad_publicacion_likes (
   CONSTRAINT comunidad_publicacion_likes_pkey PRIMARY KEY (user_id, publicacion_id)
 );
 
+CREATE TABLE IF NOT EXISTS public.comunidad_miembros (
+  comunidad_id text NOT NULL REFERENCES public.comunidades(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT comunidad_miembros_pkey PRIMARY KEY (comunidad_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS public.comunidad_publicacion_guardados (
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   publicacion_id bigint NOT NULL REFERENCES public.comunidad_publicaciones(id) ON DELETE CASCADE,
@@ -61,8 +68,12 @@ CREATE TABLE IF NOT EXISTS public.comunidad_comentario_likes (
 
 CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_comunidad
   ON public.comunidad_publicaciones(comunidad_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_popular
+  ON public.comunidad_publicaciones(comunidad_id, likes DESC, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_user
   ON public.comunidad_publicaciones(user_id);
+CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user
+  ON public.comunidad_miembros(user_id);
 CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_likes_publicacion
   ON public.comunidad_publicacion_likes(publicacion_id);
 CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_guardados_publicacion
@@ -93,8 +104,14 @@ SET nombre = EXCLUDED.nombre,
     portada_url = EXCLUDED.portada_url,
     activa = true;
 
+INSERT INTO public.comunidad_miembros (comunidad_id, user_id)
+SELECT DISTINCT comunidad_id, user_id
+FROM public.comunidad_publicaciones
+ON CONFLICT DO NOTHING;
+
 ALTER TABLE public.comunidades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_miembros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_guardados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_comentarios ENABLE ROW LEVEL SECURITY;
@@ -139,6 +156,30 @@ BEGIN
     WHERE schemaname = 'public' AND tablename = 'comunidad_publicaciones' AND policyname = 'comunidad_publicaciones_delete_own'
   ) THEN
     CREATE POLICY comunidad_publicaciones_delete_own ON public.comunidad_publicaciones
+      FOR DELETE USING (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'comunidad_miembros' AND policyname = 'comunidad_miembros_select_public'
+  ) THEN
+    CREATE POLICY comunidad_miembros_select_public ON public.comunidad_miembros
+      FOR SELECT USING (true);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'comunidad_miembros' AND policyname = 'comunidad_miembros_insert_own'
+  ) THEN
+    CREATE POLICY comunidad_miembros_insert_own ON public.comunidad_miembros
+      FOR INSERT WITH CHECK (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'comunidad_miembros' AND policyname = 'comunidad_miembros_delete_own'
+  ) THEN
+    CREATE POLICY comunidad_miembros_delete_own ON public.comunidad_miembros
       FOR DELETE USING (auth.uid() = user_id);
   END IF;
 

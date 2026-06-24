@@ -155,7 +155,16 @@
   margin-left: -10px;
 }
 
+.comunidad-header-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .comunidad-crear,
+.comunidad-unirse,
 .comunidad-modal-botones button,
 .composer-acciones strong {
   min-height: 42px;
@@ -176,6 +185,18 @@
 
 .comunidad-crear {
   gap: 8px;
+}
+
+.comunidad-unirse {
+  color: #fff;
+  background: #202020;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+
+.comunidad-unirse.activo {
+  color: #080808;
+  background: #e6eef8;
 }
 
 .comunidad-crear span {
@@ -560,6 +581,11 @@
   gap: 10px;
 }
 
+.respuesta-card-anidada {
+  margin-top: 10px;
+  margin-left: 16px;
+}
+
 .respuesta-linea {
   width: 2px;
   min-height: 100%;
@@ -581,6 +607,36 @@
 .respuesta-meta span {
   color: rgba(255, 255, 255, 0.56);
   font-size: 13px;
+}
+
+.respuesta-cuerpo {
+  min-width: 0;
+}
+
+.respuesta-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.respuesta-acciones button {
+  min-height: 30px;
+  color: rgba(255, 255, 255, 0.78);
+  background: #202020;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.respuesta-acciones button:hover,
+.respuesta-acciones button.activo {
+  color: #090909;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  border-color: transparent;
 }
 
 .respuesta-form {
@@ -614,6 +670,10 @@
   padding: 0 17px;
   font-weight: 900;
   cursor: pointer;
+}
+
+.respuesta-form-anidada {
+  margin: 10px 0 0;
 }
 
 .subreddit-stats {
@@ -776,6 +836,14 @@
   .comunidad-crear {
     grid-column: 1 / -1;
     width: 100%;
+  }
+
+  .comunidad-header-acciones {
+    grid-column: 1 / -1;
+  }
+
+  .comunidad-unirse {
+    flex: 1;
   }
 
   .comunidad-miembros {

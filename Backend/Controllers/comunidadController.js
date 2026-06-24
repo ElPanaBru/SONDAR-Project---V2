@@ -1,5 +1,4 @@
 const pool = require('../Pool_DB');
-const supabase = require('../services/supabaseClient');
 const {
   crearNotificacion,
   eliminarNotificacion,
@@ -7,6 +6,12 @@ const {
   notificarMenciones,
   notificarSeguidores,
 } = require('../services/notificationService');
+
+const TIPOS_PUBLICACION = new Set(['destacado', 'reciente', 'popular', 'preguntas']);
+const MAX_TITULO = 120;
+const MAX_TEXTO = 2000;
+const MAX_ETIQUETA = 40;
+const MAX_PUBLICACIONES = 50;
 
 const COMUNIDADES_GENERO = [
   {
@@ -85,19 +90,6 @@ const COMUNIDADES_GENERO = [
 
 let esquemaComunidadesListo = null;
 
-async function obtenerViewerId(req) {
-  const authorization = req.headers.authorization || '';
-  const token = authorization.startsWith('Bearer ')
-    ? authorization.slice('Bearer '.length)
-    : '';
-
-  if (!token) return null;
-
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user.id;
-}
-
 async function asegurarUsuarioPublico(user) {
   const email = user.email || `${user.id}@sin-email.local`;
   const baseUsername =
@@ -162,6 +154,15 @@ async function asegurarEsquemaComunidades() {
       `);
 
       await pool.query(`
+        CREATE TABLE IF NOT EXISTS comunidad_miembros (
+          comunidad_id text NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT comunidad_miembros_pkey PRIMARY KEY (comunidad_id, user_id)
+        )
+      `);
+
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS comunidad_publicacion_guardados (
           user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           publicacion_id bigint NOT NULL REFERENCES comunidad_publicaciones(id) ON DELETE CASCADE,
@@ -193,6 +194,7 @@ async function asegurarEsquemaComunidades() {
 
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_comunidad ON comunidad_publicaciones(comunidad_id, created_at DESC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_user ON comunidad_publicaciones(user_id)');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user ON comunidad_miembros(user_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_likes_publicacion ON comunidad_publicacion_likes(publicacion_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_guardados_publicacion ON comunidad_publicacion_guardados(publicacion_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_publicacion ON comunidad_comentarios(publicacion_id, created_at ASC)');
@@ -220,6 +222,13 @@ async function asegurarEsquemaComunidades() {
           ]
         );
       }
+
+      await pool.query(`
+        INSERT INTO comunidad_miembros (comunidad_id, user_id)
+        SELECT DISTINCT comunidad_id, user_id
+        FROM comunidad_publicaciones
+        ON CONFLICT DO NOTHING
+      `);
     })().catch((error) => {
       esquemaComunidadesListo = null;
       throw error;
@@ -258,11 +267,26 @@ function mapearComunidad(row) {
     categoria: row.genero,
     miembros: Number(row.miembros || 0),
     publicaciones: Number(row.publicaciones || 0),
+    unido: Boolean(row.unido),
     actividad: Number(row.publicaciones || 0) > 0
       ? `${Number(row.publicaciones)} publicaciones`
       : 'Sin publicaciones todavia',
     portada: row.portada_url,
   };
+}
+
+function limpiarTexto(valor, maximo) {
+  return typeof valor === 'string' ? valor.trim().slice(0, maximo) : '';
+}
+
+function validarIdEntero(valor, nombreCampo) {
+  const normalizado = Number(valor);
+  if (!Number.isSafeInteger(normalizado) || normalizado <= 0) {
+    const error = new Error(`${nombreCampo} invalido.`);
+    error.status = 400;
+    throw error;
+  }
+  return normalizado;
 }
 
 function mapearComentario(row) {
@@ -368,18 +392,26 @@ const comunidadController = {
   listarComunidades: async (req, res) => {
     try {
       await asegurarEsquemaComunidades();
+      const viewerId = req.user?.id || null;
 
       const result = await pool.query(`
         SELECT
           c.*,
           COUNT(DISTINCT cp.id) AS publicaciones,
-          COUNT(DISTINCT cp.user_id) AS miembros
+          COUNT(DISTINCT cm.user_id) AS miembros,
+          EXISTS (
+            SELECT 1
+            FROM comunidad_miembros cmi
+            WHERE cmi.comunidad_id = c.id
+              AND cmi.user_id = $2
+          ) AS unido
         FROM comunidades c
         LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id
+        LEFT JOIN comunidad_miembros cm ON cm.comunidad_id = c.id
         WHERE c.activa = true
         GROUP BY c.id
         ORDER BY array_position($1::text[], c.id)
-      `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id)]);
+      `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id), viewerId]);
 
       res.json(result.rows.map(mapearComunidad));
     } catch (error) {
@@ -388,14 +420,146 @@ const comunidadController = {
     }
   },
 
-  listarPublicaciones: async (req, res) => {
-    const { comunidadId } = req.params;
-    const filtro = req.query.filtro || 'destacado';
-    const busqueda = `${req.query.q || ''}`.trim().toLowerCase();
+  buscarPublicaciones: async (req, res) => {
+    const busqueda = `${req.query.q || req.query.query || ''}`.trim().toLowerCase().slice(0, 80);
+    const limite = Math.min(30, Math.max(1, Number.parseInt(req.query.limit, 10) || 20));
+
+    if (!busqueda) {
+      return res.json([]);
+    }
 
     try {
       await asegurarEsquemaComunidades();
-      const viewerId = await obtenerViewerId(req);
+      const patron = `%${busqueda}%`;
+      const result = await pool.query(
+        `SELECT
+           cp.id,
+           cp.comunidad_id,
+           cp.titulo,
+           cp.texto,
+           cp.etiqueta,
+           cp.likes,
+           cp.created_at,
+           c.nombre AS comunidad_nombre,
+           c.titulo AS comunidad_titulo,
+           c.genero,
+           u.username,
+           u.email,
+           (
+             SELECT COUNT(*)::int
+             FROM comunidad_comentarios cc
+             WHERE cc.publicacion_id = cp.id
+           ) AS comentarios_total
+         FROM comunidad_publicaciones cp
+         JOIN comunidades c ON c.id = cp.comunidad_id
+         LEFT JOIN users u ON u.id = cp.user_id
+         WHERE c.activa = true
+           AND (
+             lower(cp.titulo) LIKE $1
+             OR lower(cp.texto) LIKE $1
+             OR lower(COALESCE(cp.etiqueta, '')) LIKE $1
+             OR lower(COALESCE(c.nombre, '')) LIKE $1
+             OR lower(COALESCE(c.titulo, '')) LIKE $1
+             OR lower(COALESCE(c.genero, '')) LIKE $1
+             OR lower(COALESCE(u.username, '')) LIKE $1
+           )
+         ORDER BY cp.created_at DESC, cp.id DESC
+         LIMIT $2`,
+        [patron, limite]
+      );
+
+      res.json(result.rows.map((row) => ({
+        id: Number(row.id),
+        comunidadId: row.comunidad_id,
+        comunidad: row.comunidad_nombre,
+        comunidadTitulo: row.comunidad_titulo,
+        genero: row.genero,
+        titulo: row.titulo,
+        texto: row.texto,
+        etiqueta: row.etiqueta || row.genero,
+        usuario: usuarioVisible(row),
+        autor: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
+        likes: Number(row.likes || 0),
+        comentariosTotal: Number(row.comentarios_total || 0),
+        tiempo: tiempoRelativo(row.created_at),
+      })));
+    } catch (error) {
+      console.error('Error al buscar publicaciones de comunidad:', error);
+      res.status(500).json({ error: 'No se pudieron buscar publicaciones.' });
+    }
+  },
+
+  alternarMembresia: async (req, res) => {
+    const { comunidadId } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await client.query('BEGIN');
+
+      const comunidad = await client.query(
+        'SELECT id FROM comunidades WHERE id = $1 AND activa = true',
+        [comunidadId]
+      );
+      if (comunidad.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Comunidad no encontrada.' });
+      }
+
+      const insertado = await client.query(
+        `INSERT INTO comunidad_miembros (comunidad_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING
+         RETURNING 1`,
+        [comunidadId, req.user.id]
+      );
+
+      let unido = insertado.rowCount > 0;
+      if (!unido) {
+        await client.query(
+          'DELETE FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',
+          [comunidadId, req.user.id]
+        );
+      }
+
+      const stats = await client.query(
+        `SELECT
+           (SELECT COUNT(*)::int FROM comunidad_miembros WHERE comunidad_id = $1) AS miembros,
+           (SELECT COUNT(*)::int FROM comunidad_publicaciones WHERE comunidad_id = $1) AS publicaciones`,
+        [comunidadId]
+      );
+
+      await client.query('COMMIT');
+
+      res.json({
+        id: comunidadId,
+        unido,
+        miembros: Number(stats.rows[0]?.miembros || 0),
+        publicaciones: Number(stats.rows[0]?.publicaciones || 0),
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al alternar membresia de comunidad:', error);
+      res.status(500).json({ error: 'No se pudo actualizar la comunidad.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  listarPublicaciones: async (req, res) => {
+    const { comunidadId } = req.params;
+    const filtroSolicitado = `${req.query.filtro || 'destacado'}`;
+    const filtro = TIPOS_PUBLICACION.has(filtroSolicitado) ? filtroSolicitado : 'destacado';
+    const busqueda = `${req.query.q || ''}`.trim().toLowerCase().slice(0, 80);
+    const limite = Math.min(
+      MAX_PUBLICACIONES,
+      Math.max(1, Number.parseInt(req.query.limit, 10) || MAX_PUBLICACIONES)
+    );
+
+    try {
+      await asegurarEsquemaComunidades();
+      const viewerId = req.user?.id || null;
       const params = [comunidadId, viewerId];
       const condiciones = ['cp.comunidad_id = $1'];
 
@@ -445,8 +609,9 @@ const comunidadController = {
          JOIN comunidades c ON c.id = cp.comunidad_id
          LEFT JOIN users u ON u.id = cp.user_id
          WHERE ${condiciones.join(' AND ')}
-         ORDER BY ${orderBy}`,
-        params
+         ORDER BY ${orderBy}
+         LIMIT $${params.length + 1}`,
+        [...params, limite]
       );
 
       const ids = result.rows.map((row) => row.id);
@@ -464,10 +629,10 @@ const comunidadController = {
 
   crearPublicacion: async (req, res) => {
     const { comunidadId } = req.params;
-    const titulo = req.body.titulo?.trim();
-    const texto = req.body.texto?.trim();
+    const titulo = limpiarTexto(req.body.titulo, MAX_TITULO);
+    const texto = limpiarTexto(req.body.texto, MAX_TEXTO);
     const tipo = req.body.tipo || 'reciente';
-    const etiqueta = req.body.etiqueta?.trim() || null;
+    const etiqueta = limpiarTexto(req.body.etiqueta, MAX_ETIQUETA) || null;
 
     if (!titulo || !texto) {
       return res.status(400).json({ error: 'Completa titulo y texto para publicar.' });
@@ -482,7 +647,14 @@ const comunidadController = {
         return res.status(404).json({ error: 'Comunidad no encontrada.' });
       }
 
-      const tipoSeguro = ['destacado', 'reciente', 'popular', 'preguntas'].includes(tipo) ? tipo : 'reciente';
+      const tipoSeguro = TIPOS_PUBLICACION.has(tipo) ? tipo : 'reciente';
+      await pool.query(
+        `INSERT INTO comunidad_miembros (comunidad_id, user_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [comunidadId, req.user.id]
+      );
+
       const result = await pool.query(
         `INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -534,30 +706,43 @@ const comunidadController = {
 
   crearComentario: async (req, res) => {
     const { publicacionId } = req.params;
-    const texto = req.body.texto?.trim();
-    const parentId = req.body.parentId || null;
+    const texto = limpiarTexto(req.body.texto, MAX_TEXTO);
+    const parentIdRaw = req.body.parentId || null;
 
     if (!texto) {
       return res.status(400).json({ error: 'El comentario no puede estar vacio.' });
     }
 
     try {
+      const publicacionIdSeguro = validarIdEntero(publicacionId, 'Publicacion');
+      const parentId = parentIdRaw ? validarIdEntero(parentIdRaw, 'Comentario padre') : null;
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
 
       const publicacion = await pool.query(
         'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',
-        [publicacionId]
+        [publicacionIdSeguro]
       );
       if (publicacion.rowCount === 0) {
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
+      }
+
+      let parentResult = { rows: [] };
+      if (parentId) {
+        parentResult = await pool.query(
+          'SELECT id, user_id FROM comunidad_comentarios WHERE id = $1 AND publicacion_id = $2',
+          [parentId, publicacionIdSeguro]
+        );
+        if (parentResult.rowCount === 0) {
+          return res.status(400).json({ error: 'El comentario padre no pertenece a esta publicacion.' });
+        }
       }
 
       const result = await pool.query(
         `INSERT INTO comunidad_comentarios (publicacion_id, user_id, parent_id, texto)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [publicacionId, req.user.id, parentId, texto]
+        [publicacionIdSeguro, req.user.id, parentId, texto]
       );
 
       const usuarioResult = await pool.query(
@@ -567,14 +752,11 @@ const comunidadController = {
         [req.user.id]
       );
 
-      const parentResult = parentId
-        ? await pool.query('SELECT user_id FROM comunidad_comentarios WHERE id = $1', [parentId])
-        : { rows: [] };
       const receptorId = parentId
         ? parentResult.rows[0]?.user_id
         : publicacion.rows[0].user_id;
       const actorName = nombreActor(req.user);
-      const targetUrl = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`;
+      const targetUrl = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionIdSeguro}`;
       await crearNotificacion({
         userId: receptorId,
         actorId: req.user.id,
@@ -603,7 +785,7 @@ const comunidadController = {
       }));
     } catch (error) {
       console.error('Error al comentar publicacion de comunidad:', error);
-      res.status(500).json({ error: 'No se pudo guardar el comentario.' });
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo guardar el comentario.' });
     }
   },
 
@@ -612,37 +794,31 @@ const comunidadController = {
     const client = await pool.connect();
 
     try {
+      const publicacionIdSeguro = validarIdEntero(publicacionId, 'Publicacion');
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
       await client.query('BEGIN');
 
       const publicacion = await client.query(
         'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',
-        [publicacionId]
+        [publicacionIdSeguro]
       );
       if (publicacion.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
       }
 
-      const existe = await client.query(
-        'SELECT 1 FROM comunidad_publicacion_likes WHERE user_id = $1 AND publicacion_id = $2',
-        [req.user.id, publicacionId]
+      let liked = false;
+      const insertado = await client.query(
+        `INSERT INTO comunidad_publicacion_likes (user_id, publicacion_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING
+         RETURNING 1`,
+        [req.user.id, publicacionIdSeguro]
       );
 
-      let liked = false;
-      if (existe.rowCount > 0) {
-        await client.query(
-          'DELETE FROM comunidad_publicacion_likes WHERE user_id = $1 AND publicacion_id = $2',
-          [req.user.id, publicacionId]
-        );
-        await client.query('UPDATE comunidad_publicaciones SET likes = GREATEST(0, likes - 1) WHERE id = $1', [publicacionId]);
-      } else {
-        await client.query(
-          'INSERT INTO comunidad_publicacion_likes (user_id, publicacion_id) VALUES ($1, $2)',
-          [req.user.id, publicacionId]
-        );
-        await client.query('UPDATE comunidad_publicaciones SET likes = likes + 1 WHERE id = $1', [publicacionId]);
+      if (insertado.rowCount > 0) {
+        await client.query('UPDATE comunidad_publicaciones SET likes = likes + 1 WHERE id = $1', [publicacionIdSeguro]);
         liked = true;
         await crearNotificacion({
           userId: publicacion.rows[0].user_id,
@@ -650,22 +826,32 @@ const comunidadController = {
           type: 'community_like',
           title: `${nombreActor(req.user)} indico que le gusta tu publicacion`,
           body: publicacion.rows[0].titulo || '',
-          targetUrl: `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`,
+          targetUrl: `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionIdSeguro}`,
           entityType: 'community_post',
-          entityId: publicacionId,
-          uniqueKey: `community-like:${req.user.id}:${publicacionId}`,
+          entityId: publicacionIdSeguro,
+          uniqueKey: `community-like:${req.user.id}:${publicacionIdSeguro}`,
         }, client);
+      } else {
+        const eliminado = await client.query(
+          `DELETE FROM comunidad_publicacion_likes
+           WHERE user_id = $1 AND publicacion_id = $2
+           RETURNING 1`,
+          [req.user.id, publicacionIdSeguro]
+        );
+        if (eliminado.rowCount > 0) {
+          await client.query('UPDATE comunidad_publicaciones SET likes = GREATEST(0, likes - 1) WHERE id = $1', [publicacionIdSeguro]);
+        }
       }
 
       if (!liked) {
-        await eliminarNotificacion(`community-like:${req.user.id}:${publicacionId}`, client);
+        await eliminarNotificacion(`community-like:${req.user.id}:${publicacionIdSeguro}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const counts = await client.query('SELECT likes FROM comunidad_publicaciones WHERE id = $1', [publicacionIdSeguro]);
       await client.query('COMMIT');
 
       res.json({
-        id: Number(publicacionId),
+        id: publicacionIdSeguro,
         liked,
         likes: Number(counts.rows[0]?.likes || 0),
         votos: Number(counts.rows[0]?.likes || 0),
@@ -673,7 +859,7 @@ const comunidadController = {
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar like de publicacion:', error);
-      res.status(500).json({ error: 'No se pudo actualizar el me gusta.' });
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo actualizar el me gusta.' });
     } finally {
       client.release();
     }
@@ -684,49 +870,53 @@ const comunidadController = {
     const client = await pool.connect();
 
     try {
+      const publicacionIdSeguro = validarIdEntero(publicacionId, 'Publicacion');
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
       await client.query('BEGIN');
 
-      const publicacion = await client.query('SELECT id FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const publicacion = await client.query('SELECT id FROM comunidad_publicaciones WHERE id = $1', [publicacionIdSeguro]);
       if (publicacion.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
       }
 
-      const existe = await client.query(
-        'SELECT 1 FROM comunidad_publicacion_guardados WHERE user_id = $1 AND publicacion_id = $2',
-        [req.user.id, publicacionId]
+      let guardado = false;
+      const insertado = await client.query(
+        `INSERT INTO comunidad_publicacion_guardados (user_id, publicacion_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING
+         RETURNING 1`,
+        [req.user.id, publicacionIdSeguro]
       );
 
-      let guardado = false;
-      if (existe.rowCount > 0) {
-        await client.query(
-          'DELETE FROM comunidad_publicacion_guardados WHERE user_id = $1 AND publicacion_id = $2',
-          [req.user.id, publicacionId]
-        );
-        await client.query('UPDATE comunidad_publicaciones SET guardados = GREATEST(0, guardados - 1) WHERE id = $1', [publicacionId]);
-      } else {
-        await client.query(
-          'INSERT INTO comunidad_publicacion_guardados (user_id, publicacion_id) VALUES ($1, $2)',
-          [req.user.id, publicacionId]
-        );
-        await client.query('UPDATE comunidad_publicaciones SET guardados = guardados + 1 WHERE id = $1', [publicacionId]);
+      if (insertado.rowCount > 0) {
+        await client.query('UPDATE comunidad_publicaciones SET guardados = guardados + 1 WHERE id = $1', [publicacionIdSeguro]);
         guardado = true;
+      } else {
+        const eliminado = await client.query(
+          `DELETE FROM comunidad_publicacion_guardados
+           WHERE user_id = $1 AND publicacion_id = $2
+           RETURNING 1`,
+          [req.user.id, publicacionIdSeguro]
+        );
+        if (eliminado.rowCount > 0) {
+          await client.query('UPDATE comunidad_publicaciones SET guardados = GREATEST(0, guardados - 1) WHERE id = $1', [publicacionIdSeguro]);
+        }
       }
 
-      const counts = await client.query('SELECT guardados FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const counts = await client.query('SELECT guardados FROM comunidad_publicaciones WHERE id = $1', [publicacionIdSeguro]);
       await client.query('COMMIT');
 
       res.json({
-        id: Number(publicacionId),
+        id: publicacionIdSeguro,
         guardado,
         guardados: Number(counts.rows[0]?.guardados || 0),
       });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar guardado de publicacion:', error);
-      res.status(500).json({ error: 'No se pudo actualizar el guardado.' });
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo actualizar el guardado.' });
     } finally {
       client.release();
     }
@@ -737,6 +927,7 @@ const comunidadController = {
     const client = await pool.connect();
 
     try {
+      const comentarioIdSeguro = validarIdEntero(comentarioId, 'Comentario');
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
       await client.query('BEGIN');
@@ -746,31 +937,24 @@ const comunidadController = {
          FROM comunidad_comentarios cc
          JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
          WHERE cc.id = $1`,
-        [comentarioId]
+        [comentarioIdSeguro]
       );
       if (comentario.rowCount === 0) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Comentario no encontrado.' });
       }
 
-      const existe = await client.query(
-        'SELECT 1 FROM comunidad_comentario_likes WHERE user_id = $1 AND comentario_id = $2',
-        [req.user.id, comentarioId]
+      let liked = false;
+      const insertado = await client.query(
+        `INSERT INTO comunidad_comentario_likes (user_id, comentario_id)
+         VALUES ($1, $2)
+         ON CONFLICT DO NOTHING
+         RETURNING 1`,
+        [req.user.id, comentarioIdSeguro]
       );
 
-      let liked = false;
-      if (existe.rowCount > 0) {
-        await client.query(
-          'DELETE FROM comunidad_comentario_likes WHERE user_id = $1 AND comentario_id = $2',
-          [req.user.id, comentarioId]
-        );
-        await client.query('UPDATE comunidad_comentarios SET likes = GREATEST(0, likes - 1) WHERE id = $1', [comentarioId]);
-      } else {
-        await client.query(
-          'INSERT INTO comunidad_comentario_likes (user_id, comentario_id) VALUES ($1, $2)',
-          [req.user.id, comentarioId]
-        );
-        await client.query('UPDATE comunidad_comentarios SET likes = likes + 1 WHERE id = $1', [comentarioId]);
+      if (insertado.rowCount > 0) {
+        await client.query('UPDATE comunidad_comentarios SET likes = likes + 1 WHERE id = $1', [comentarioIdSeguro]);
         liked = true;
         await crearNotificacion({
           userId: comentario.rows[0].user_id,
@@ -780,20 +964,30 @@ const comunidadController = {
           body: comentario.rows[0].texto || '',
           targetUrl: `/comunidad?comunidad=${comentario.rows[0].comunidad_id}&publicacion=${comentario.rows[0].publicacion_id}`,
           entityType: 'community_comment',
-          entityId: comentarioId,
-          uniqueKey: `community-comment-like:${req.user.id}:${comentarioId}`,
+          entityId: comentarioIdSeguro,
+          uniqueKey: `community-comment-like:${req.user.id}:${comentarioIdSeguro}`,
         }, client);
+      } else {
+        const eliminado = await client.query(
+          `DELETE FROM comunidad_comentario_likes
+           WHERE user_id = $1 AND comentario_id = $2
+           RETURNING 1`,
+          [req.user.id, comentarioIdSeguro]
+        );
+        if (eliminado.rowCount > 0) {
+          await client.query('UPDATE comunidad_comentarios SET likes = GREATEST(0, likes - 1) WHERE id = $1', [comentarioIdSeguro]);
+        }
       }
 
       if (!liked) {
-        await eliminarNotificacion(`community-comment-like:${req.user.id}:${comentarioId}`, client);
+        await eliminarNotificacion(`community-comment-like:${req.user.id}:${comentarioIdSeguro}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM comunidad_comentarios WHERE id = $1', [comentarioId]);
+      const counts = await client.query('SELECT likes FROM comunidad_comentarios WHERE id = $1', [comentarioIdSeguro]);
       await client.query('COMMIT');
 
       res.json({
-        id: Number(comentarioId),
+        id: comentarioIdSeguro,
         liked,
         likes: Number(counts.rows[0]?.likes || 0),
         votos: Number(counts.rows[0]?.likes || 0),
@@ -801,7 +995,7 @@ const comunidadController = {
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar like de comentario de comunidad:', error);
-      res.status(500).json({ error: 'No se pudo actualizar el me gusta.' });
+      res.status(error.status || 500).json({ error: error.status ? error.message : 'No se pudo actualizar el me gusta.' });
     } finally {
       client.release();
     }

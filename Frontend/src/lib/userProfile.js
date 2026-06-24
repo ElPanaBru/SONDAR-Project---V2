@@ -1,4 +1,4 @@
-import { supabase } from "./supabaseClient";
+import { backendFetchJson } from "./backendClient";
 
 function normalizarUsername(valor = "") {
   return String(valor).trim().replace(/^@+/, "").toLowerCase();
@@ -25,42 +25,11 @@ export async function asegurarPerfilSupabase(user) {
     throw new Error("No se obtuvo el usuario de Supabase.");
   }
 
-  const email = user.email || `${user.id}@sin-email.local`;
-  const { data: perfil, error: perfilError } = await supabase
-    .from("users")
-    .select("id")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (perfilError) {
-    throw perfilError;
-  }
-
-  if (perfil) {
-    const { error } = await supabase
-      .from("users")
-      .update({ email })
-      .eq("id", user.id);
-
-    if (error) {
-      throw error;
-    }
-
-    return { existe: true };
-  }
-
-  const { error } = await supabase.from("users").insert([
-    {
-      id: user.id,
-      email,
+  return backendFetchJson("/api/usuarios/registrar", {
+    method: "POST",
+    body: JSON.stringify({
       username: generarUsernameSeguro(user),
       user_type: "musico"
-    }
-  ]);
-
-  if (error) {
-    throw error;
-  }
-
-  return { existe: false };
+    })
+  });
 }

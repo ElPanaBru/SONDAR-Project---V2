@@ -9,6 +9,7 @@ const TABS = [
   { id: "usuarios", label: "Usuarios" },
   { id: "reels", label: "Reels" },
   { id: "eventos", label: "Eventos" },
+  { id: "publicaciones", label: "Comunidad" },
 ];
 
 const iconosBuscar = {
@@ -17,6 +18,8 @@ const iconosBuscar = {
   reel: "m380-300 280-180-280-180v360Zm100 220q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z",
   evento:
     "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
+  publicacion:
+    "M160-120v-640q0-33 23.5-56.5T240-840h480q33 0 56.5 23.5T800-760v360q0 33-23.5 56.5T720-320H320L160-120Z",
 };
 
 function IconoBuscar({ nombre }) {
@@ -73,6 +76,7 @@ export default function Buscar({ usuario }) {
   const [usuarios, setUsuarios] = useState([]);
   const [reels, setReels] = useState([]);
   const [eventos, setEventos] = useState([]);
+  const [publicaciones, setPublicaciones] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
 
@@ -88,6 +92,7 @@ export default function Buscar({ usuario }) {
         setUsuarios([]);
         setReels([]);
         setEventos([]);
+        setPublicaciones([]);
         setError("");
         return;
       }
@@ -98,23 +103,28 @@ export default function Buscar({ usuario }) {
       try {
         const encodedQuery = encodeURIComponent(query);
 
-        const [usuariosResult, reelsResult, eventosResult] = await Promise.allSettled([
+        const [usuariosResult, reelsResult, eventosResult, publicacionesResult] = await Promise.allSettled([
           backendFetchJson(`/api/usuarios?query=${encodedQuery}`),
           backendFetchJson("/api/reels"),
           backendFetchJson("/api/eventos"),
+          backendFetchJson(`/api/comunidades/publicaciones?q=${encodedQuery}`),
         ]);
 
         const usuariosData =
-          usuariosResult.status === "fulfilled" && usuariosResult.value.ok
-            ? await usuariosResult.value.json()
+          usuariosResult.status === "fulfilled"
+            ? usuariosResult.value
             : [];
         const reelsData =
-          reelsResult.status === "fulfilled" && reelsResult.value.ok
-            ? await reelsResult.value.json()
+          reelsResult.status === "fulfilled"
+            ? reelsResult.value
             : [];
         const eventosData =
-          eventosResult.status === "fulfilled" && eventosResult.value.ok
-            ? await eventosResult.value.json()
+          eventosResult.status === "fulfilled"
+            ? eventosResult.value
+            : [];
+        const publicacionesData =
+          publicacionesResult.status === "fulfilled"
+            ? publicacionesResult.value
             : [];
 
         if (!activo) return;
@@ -135,6 +145,7 @@ export default function Buscar({ usuario }) {
               coincide(evento, ["titulo", "genero", "lugar", "ubicacion", "creador"], query)
             )
         );
+        setPublicaciones(publicacionesData);
       } catch (err) {
         console.error(err);
         if (activo) setError("No se pudo completar la busqueda.");
@@ -149,13 +160,14 @@ export default function Buscar({ usuario }) {
     };
   }, [query, usuario?.id]);
 
-  const totalResultados = usuarios.length + reels.length + eventos.length;
+  const totalResultados = usuarios.length + reels.length + eventos.length + publicaciones.length;
   const resultadoDestacado = useMemo(() => {
     if (reels[0]) return { tipo: "reel", item: reels[0] };
     if (usuarios[0]) return { tipo: "usuario", item: usuarios[0] };
     if (eventos[0]) return { tipo: "evento", item: eventos[0] };
+    if (publicaciones[0]) return { tipo: "publicacion", item: publicaciones[0] };
     return null;
-  }, [usuarios, reels, eventos]);
+  }, [usuarios, reels, eventos, publicaciones]);
 
   const abrirUsuario = (item) => navigate(`/perfil/${item.id || item.username}`);
   const abrirReel = (item) => {
@@ -163,12 +175,14 @@ export default function Buscar({ usuario }) {
     navigate(`/descubrir?lanzamiento=db-${id}`);
   };
   const abrirEvento = (item) => navigate(`/?evento=${item.id}`);
+  const abrirPublicacion = (item) => navigate(`/comunidad?comunidad=${item.comunidadId}&publicacion=${item.id}`);
 
   const abrirResultado = (resultado) => {
     if (!resultado) return;
     if (resultado.tipo === "usuario") abrirUsuario(resultado.item);
     if (resultado.tipo === "reel") abrirReel(resultado.item);
     if (resultado.tipo === "evento") abrirEvento(resultado.item);
+    if (resultado.tipo === "publicacion") abrirPublicacion(resultado.item);
   };
 
   const renderImagen = (src, texto, clase = "") => (
@@ -228,13 +242,30 @@ export default function Buscar({ usuario }) {
     </article>
   );
 
+  const renderPublicacion = (item) => (
+    <article className="buscar-row" key={`publicacion-${item.id}`}>
+      <button className="buscar-row-main" type="button" onClick={() => abrirPublicacion(item)}>
+        {renderImagen(null, item.comunidadTitulo || item.comunidad)}
+        <span>
+          <strong>{item.titulo}</strong>
+          <small>{item.comunidad || item.comunidadTitulo} - {item.usuario}</small>
+        </span>
+      </button>
+      <span className="buscar-tag">Comunidad</span>
+      <small className="buscar-meta">{formatearNumero(item.likes)} me gusta</small>
+      <button className="buscar-icon-action" type="button" onClick={() => abrirPublicacion(item)} aria-label={`Abrir ${item.titulo}`}>
+        <IconoBuscar nombre="publicacion" />
+      </button>
+    </article>
+  );
+
   const renderLista = () => {
     if (!query) {
       return (
         <div className="buscar-empty">
           <IconoBuscar nombre="reel" />
           <h2>{t("Busca en SONDAR")}</h2>
-          <p>Encontra usuarios, reels y eventos desde un solo lugar.</p>
+          <p>Encontra usuarios, reels, eventos y publicaciones desde un solo lugar.</p>
         </div>
       );
     }
@@ -251,7 +282,7 @@ export default function Buscar({ usuario }) {
       return (
         <div className="buscar-empty">
           <h2>No hay resultados para "{query}"</h2>
-          <p>Proba con otro artista, genero, evento o cancion.</p>
+          <p>Proba con otro artista, genero, evento, publicacion o cancion.</p>
         </div>
       );
     }
@@ -271,6 +302,12 @@ export default function Buscar({ usuario }) {
     if (tabActiva === "eventos") {
       return eventos.length > 0 ? eventos.map(renderEvento) : (
         <div className="buscar-empty">No encontramos eventos para "{query}".</div>
+      );
+    }
+
+    if (tabActiva === "publicaciones") {
+      return publicaciones.length > 0 ? publicaciones.map(renderPublicacion) : (
+        <div className="buscar-empty">No encontramos publicaciones para "{query}".</div>
       );
     }
 
@@ -295,7 +332,9 @@ export default function Buscar({ usuario }) {
                   ? `Reel - ${resultadoDestacado.item.artista}`
                   : resultadoDestacado.tipo === "usuario"
                     ? `Usuario - ${resultadoDestacado.item.usuario}`
-                    : `Evento - ${formatearFecha(resultadoDestacado.item.fecha)}`}
+                    : resultadoDestacado.tipo === "evento"
+                      ? `Evento - ${formatearFecha(resultadoDestacado.item.fecha)}`
+                      : `Comunidad - ${resultadoDestacado.item.comunidad}`}
               </em>
             </span>
           </button>
@@ -330,6 +369,16 @@ export default function Buscar({ usuario }) {
             {eventos.slice(0, 4).map(renderEvento)}
           </section>
         ) : null}
+
+        {publicaciones.length > 0 ? (
+          <section className="buscar-section">
+            <header>
+              <h2>Comunidad</h2>
+              <button type="button" onClick={() => setTabActiva("publicaciones")}>Ver mas</button>
+            </header>
+            {publicaciones.slice(0, 4).map(renderPublicacion)}
+          </section>
+        ) : null}
       </>
     );
   };
@@ -339,7 +388,7 @@ export default function Buscar({ usuario }) {
       <header className="buscar-header">
         <span>Busqueda global</span>
         <h1>{query ? `${t("Resultados para")} "${query}"` : t("Buscar")}</h1>
-        <p>Usuarios, reels y eventos reunidos en una misma pantalla.</p>
+        <p>Usuarios, reels, eventos y comunidad reunidos en una misma pantalla.</p>
       </header>
 
       <div className="buscar-tabs" aria-label="Filtros de busqueda">
@@ -348,6 +397,7 @@ export default function Buscar({ usuario }) {
             tab.id === "usuarios" ? usuarios.length :
             tab.id === "reels" ? reels.length :
             tab.id === "eventos" ? eventos.length :
+            tab.id === "publicaciones" ? publicaciones.length :
             totalResultados;
 
           return (

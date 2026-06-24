@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { asegurarPerfilSupabase } from "../lib/userProfile";
+import { backendFetchJson } from "../lib/backendClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./auth.css";
 
@@ -12,8 +13,9 @@ const mensajesSupabase = {
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres"
 };
 
-const CALLBACK_URL = "https://sondar-project.pages.dev/auth/callback";
-const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Te enviamos un correo para confirmar el registro.";
+const CALLBACK_URL = import.meta.env.VITE_AUTH_CALLBACK_URL
+  || `${window.location.origin}/auth/callback`;
+const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Ya podes iniciar sesion.";
 
 export default function Auth() {
   const { t } = usePreferencias();
@@ -103,33 +105,22 @@ export default function Auth() {
         return;
       }
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password: cleanPassword,
-        options: {
-          emailRedirectTo: CALLBACK_URL,
-          data: {
-            username: cleanUsername
-          }
-        }
+      await backendFetchJson("/api/usuarios/crear-cuenta", {
+        method: "POST",
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPassword,
+          username: cleanUsername,
+          user_type: "musico"
+        })
       });
 
-      if (signUpError) {
-        throw signUpError;
-      }
-
-      if (signUpData) {
-        if (signUpData.session) {
-          await supabase.auth.signOut({ scope: "local" });
-        }
-
-        setMensaje(REGISTRO_CONFIRMACION_MSG);
-        setEmail("");
-        setPassword("");
-        setPasswordRepetida("");
-        setUsername("");
-        return;
-      }
+      setMensaje(REGISTRO_CONFIRMACION_MSG);
+      setEmail("");
+      setPassword("");
+      setPasswordRepetida("");
+      setUsername("");
+      return;
     } catch (error) {
       setMensaje(traducirError(error));
     } finally {

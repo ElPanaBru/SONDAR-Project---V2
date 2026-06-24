@@ -13,171 +13,7 @@ const filtros = [
   { id: "preguntas", label: "Preguntas" },
 ];
 
-const comunidadesPorGenero = [
-  {
-    id: "pop",
-    nombre: "@pop",
-    titulo: "Pop",
-    genero: "pop",
-    descripcion: "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
-    categoria: "pop",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "rock",
-    nombre: "@rock",
-    titulo: "Rock",
-    genero: "rock",
-    descripcion: "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
-    categoria: "rock",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "edm",
-    nombre: "@edm",
-    titulo: "EDM",
-    genero: "edm",
-    descripcion: "Sets, drops, produccion, festivales y novedades de la comunidad EDM.",
-    categoria: "edm",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "jazz",
-    nombre: "@jazz",
-    titulo: "Jazz",
-    genero: "jazz",
-    descripcion: "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
-    categoria: "jazz",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "blues",
-    nombre: "@blues",
-    titulo: "Blues",
-    genero: "blues",
-    descripcion: "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
-    categoria: "blues",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "cumbia",
-    nombre: "@cumbia",
-    titulo: "Cumbia",
-    genero: "cumbia",
-    descripcion: "Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.",
-    categoria: "cumbia",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "trap",
-    nombre: "@trap",
-    titulo: "Trap",
-    genero: "trap",
-    descripcion: "Beats, barras, productores, lanzamientos y debates de la escena trap.",
-    categoria: "trap",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "metal",
-    nombre: "@metal",
-    titulo: "Metal",
-    genero: "metal",
-    descripcion: "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
-    categoria: "metal",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "folklore",
-    nombre: "@folklore",
-    titulo: "Folklore",
-    genero: "folklore",
-    descripcion: "Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
-    categoria: "folklore",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
-  },
-];
-
 const miembrosActivos = ["S", "O", "N", "D", "R"];
-
-const hilosIniciales = [
-  {
-    id: 1,
-    comunidadId: "rock",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "destacado",
-    titulo: "Que bandas nuevas de rock estan siguiendo?",
-    texto: "Armen una lista con artistas para descubrir esta semana.",
-    etiqueta: "rock",
-    votos: 24,
-    likes: 24,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 2 h",
-    comentarios: [
-      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Marea Gris viene sonando fuerte.", votos: 8, likes: 8, respuestas: [] },
-    ],
-  },
-  {
-    id: 2,
-    comunidadId: "trap",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "preguntas",
-    titulo: "Productores de trap para colaborar",
-    texto: "Dejen beats, referencias o busquedas de feats para conectar con otros usuarios.",
-    etiqueta: "trap",
-    votos: 18,
-    likes: 18,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 4 h",
-    comentarios: [],
-  },
-  {
-    id: 3,
-    comunidadId: "edm",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "popular",
-    titulo: "Sets favoritos para estudiar produccion",
-    texto: "Compartan sets o tracks que sirvan para analizar transiciones, drops y mezcla.",
-    etiqueta: "edm",
-    votos: 31,
-    likes: 31,
-    liked: false,
-    guardado: true,
-    tiempo: "hace 1 d",
-    comentarios: [],
-  },
-];
 
 const mostrarGenero = (genero) => {
   if (!genero) return "";
@@ -188,28 +24,61 @@ const normalizarHilo = (hilo) => ({
   ...hilo,
   votos: Number(hilo.votos ?? hilo.likes ?? 0),
   likes: Number(hilo.likes ?? hilo.votos ?? 0),
-  comentarios: (hilo.comentarios || []).map((comentario) => ({
+  comentarios: (hilo.comentarios || []).map(normalizarComentario),
+});
+
+function normalizarComentario(comentario) {
+  return {
     ...comentario,
     votos: Number(comentario.votos ?? comentario.likes ?? 0),
     likes: Number(comentario.likes ?? comentario.votos ?? 0),
-    respuestas: comentario.respuestas || [],
-  })),
-});
+    respuestas: (comentario.respuestas || []).map(normalizarComentario),
+  };
+}
+
+function actualizarComentario(comentarios, comentarioId, actualizar) {
+  return comentarios.map((comentario) => {
+    if (comentario.id === comentarioId) return actualizar(comentario);
+    return {
+      ...comentario,
+      respuestas: actualizarComentario(comentario.respuestas || [], comentarioId, actualizar),
+    };
+  });
+}
+
+function agregarComentario(comentarios, parentId, comentarioNuevo) {
+  if (!parentId) return [...comentarios, comentarioNuevo];
+
+  return comentarios.map((comentario) => {
+    if (comentario.id === parentId) {
+      return {
+        ...comentario,
+        respuestas: [...(comentario.respuestas || []), comentarioNuevo],
+      };
+    }
+
+    return {
+      ...comentario,
+      respuestas: agregarComentario(comentario.respuestas || [], parentId, comentarioNuevo),
+    };
+  });
+}
 
 export default function Comunidad({ usuario }) {
   const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
-  const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
-  const [comunidades, setComunidades] = useState(comunidadesPorGenero);
-  const [comunidadActivaId, setComunidadActivaId] = useState("pop");
+  const [comunidades, setComunidades] = useState([]);
+  const [comunidadActivaId, setComunidadActivaId] = useState("");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [hilos, setHilos] = useState(hilosIniciales.map(normalizarHilo));
+  const [hilos, setHilos] = useState([]);
+  const [cargandoComunidades, setCargandoComunidades] = useState(true);
   const [cargandoHilos, setCargandoHilos] = useState(false);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
+  const [respuestaActiva, setRespuestaActiva] = useState(null);
   const [respuestas, setRespuestas] = useState({});
   const [aviso, setAviso] = useState("");
   const [nuevoHilo, setNuevoHilo] = useState({
@@ -243,11 +112,18 @@ export default function Comunidad({ usuario }) {
               ? actual
               : dataComunidades[0].id
           );
+        } else if (!cancelado) {
+          setComunidades([]);
+          setComunidadActivaId("");
         }
       } catch (error) {
         if (!cancelado) {
-          mostrarAviso(error.message || "Usando comunidades locales por ahora.");
+          setComunidades([]);
+          setComunidadActivaId("");
+          mostrarAviso(error.message || "No se pudieron cargar las comunidades.");
         }
+      } finally {
+        if (!cancelado) setCargandoComunidades(false);
       }
     }
 
@@ -279,7 +155,10 @@ export default function Comunidad({ usuario }) {
       setCargandoHilos(true);
 
       try {
-        const params = new URLSearchParams({ filtro: filtroActivo });
+        const params = new URLSearchParams({
+          filtro: publicacionCompartida ? "destacado" : filtroActivo,
+          limit: "50",
+        });
         if (busqueda && !publicacionCompartida) params.set("q", busqueda);
 
         const dataHilos = await backendFetchJson(
@@ -293,10 +172,7 @@ export default function Comunidad({ usuario }) {
         }
       } catch (error) {
         if (!cancelado) {
-          const locales = hilosIniciales
-            .map(normalizarHilo)
-            .filter((hilo) => hilo.comunidadId === comunidadActiva.id);
-          setHilos(locales);
+          setHilos([]);
           mostrarAviso(error.message || "No se pudieron cargar las publicaciones.");
         }
       } finally {
@@ -361,6 +237,11 @@ export default function Comunidad({ usuario }) {
       return;
     }
 
+    if (!comunidadActiva) {
+      mostrarAviso("No hay una comunidad disponible para publicar.");
+      return;
+    }
+
     setMostrarModal(true);
   };
 
@@ -370,11 +251,46 @@ export default function Comunidad({ usuario }) {
     );
   };
 
+  const actualizarComunidad = (id, actualizar) => {
+    setComunidades((actuales) =>
+      actuales.map((comunidad) => (comunidad.id === id ? actualizar(comunidad) : comunidad))
+    );
+  };
+
+  const alternarUnion = async () => {
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para unirte a una comunidad");
+      return;
+    }
+
+    try {
+      const dataUnion = await backendFetchJson(`/api/comunidades/${comunidadActiva.id}/unirse`, {
+        method: "POST",
+      });
+
+      actualizarComunidad(comunidadActiva.id, (comunidad) => ({
+        ...comunidad,
+        unido: dataUnion.unido,
+        miembros: dataUnion.miembros,
+        publicaciones: dataUnion.publicaciones,
+      }));
+
+      mostrarAviso(dataUnion.unido ? `Te uniste a ${comunidadActiva.nombre}` : `Saliste de ${comunidadActiva.nombre}`);
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo actualizar la comunidad.");
+    }
+  };
+
   const crearHilo = async (e) => {
     e.preventDefault();
 
     if (!usuario) {
       pedirLogin();
+      return;
+    }
+
+    if (!comunidadActiva) {
+      mostrarAviso("No hay una comunidad disponible para publicar.");
       return;
     }
 
@@ -398,6 +314,19 @@ export default function Comunidad({ usuario }) {
         })
       );
       setHilos((actuales) => [hiloGuardado, ...actuales]);
+      actualizarComunidad(comunidadActivaId, (comunidad) => {
+        const publicaciones = Number(comunidad.publicaciones || 0) + 1;
+        const miembros = comunidad.unido
+          ? Number(comunidad.miembros || 0)
+          : Number(comunidad.miembros || 0) + 1;
+        return {
+          ...comunidad,
+          unido: true,
+          miembros,
+          publicaciones,
+          actividad: `${publicaciones} publicaciones`,
+        };
+      });
       setRespuestasAbiertas((abiertas) => [hiloGuardado.id, ...abiertas]);
       setMostrarModal(false);
       setNuevoHilo({
@@ -472,54 +401,152 @@ export default function Comunidad({ usuario }) {
     );
   };
 
-  const responder = async (hiloId) => {
+  const votarComentario = async (hiloId, comentarioId) => {
     if (!usuario) {
       pedirLogin();
       return;
     }
 
-    const texto = respuestas[hiloId]?.trim();
+    const hilosAnteriores = hilos;
+    actualizarHilo(hiloId, (hilo) => ({
+      ...hilo,
+      comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => {
+        const liked = !comentario.liked;
+        const likes = Math.max(0, comentario.likes + (liked ? 1 : -1));
+        return { ...comentario, liked, likes, votos: likes };
+      }),
+    }));
+
+    try {
+      const dataLike = await backendFetchJson(`/api/comunidades/comentarios/${comentarioId}/like`, {
+        method: "POST",
+      });
+      actualizarHilo(hiloId, (hilo) => ({
+        ...hilo,
+        comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+          ...comentario,
+          liked: dataLike.liked,
+          likes: dataLike.likes,
+          votos: dataLike.votos ?? dataLike.likes,
+        })),
+      }));
+    } catch (error) {
+      setHilos(hilosAnteriores);
+      mostrarAviso(error.message || "No se pudo actualizar el me gusta.");
+    }
+  };
+
+  const responder = async (hiloId, parentId = null) => {
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const respuestaKey = parentId ? `${hiloId}:${parentId}` : String(hiloId);
+    const texto = respuestas[respuestaKey]?.trim();
     if (!texto) return;
 
     try {
       const comentarioGuardado = await backendFetchJson(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {
         method: "POST",
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({ texto, parentId }),
       });
+      const comentarioNormalizado = normalizarComentario(comentarioGuardado);
       setHilos((actuales) =>
         actuales.map((hilo) =>
           hilo.id === hiloId
             ? {
                 ...hilo,
-                comentarios: [...hilo.comentarios, normalizarHilo({ comentarios: [comentarioGuardado] }).comentarios[0]],
+                comentarios: agregarComentario(hilo.comentarios, parentId, comentarioNormalizado),
+                comentariosTotal: Number(hilo.comentariosTotal || hilo.comentarios.length) + 1,
               }
-            : hilo
+          : hilo
         )
       );
     } catch (error) {
-      const comentarioLocal = {
-        id: siguienteComentarioId.current,
-        autor: usuario?.user_metadata?.username || usuario?.email?.split("@")[0] || "Usuario SONDAR",
-        usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
-        texto,
-        votos: 0,
-        likes: 0,
-        respuestas: [],
-      };
-      siguienteComentarioId.current += 1;
-      setHilos((actuales) =>
-        actuales.map((hilo) =>
-          hilo.id === hiloId
-            ? { ...hilo, comentarios: [...hilo.comentarios, comentarioLocal] }
-            : hilo
-        )
-      );
-      mostrarAviso(error.message || "Comentario local hasta reconectar.");
+      mostrarAviso(error.message || "No se pudo guardar el comentario.");
+      return;
     }
 
-    setRespuestas({ ...respuestas, [hiloId]: "" });
+    setRespuestas({ ...respuestas, [respuestaKey]: "" });
+    if (parentId) setRespuestaActiva(null);
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
+
+  const renderComentario = (hilo, comentario, nivel = 0) => {
+    const respuestaKey = `${hilo.id}:${comentario.id}`;
+
+    return (
+      <article
+        className={`respuesta-card ${nivel > 0 ? "respuesta-card-anidada" : ""}`}
+        key={comentario.id}
+      >
+        <div className="respuesta-linea"></div>
+        <div className="respuesta-cuerpo">
+          <div className="respuesta-meta">
+            <strong>{comentario.usuario}</strong>
+            <span>{comentario.autor}</span>
+            <span>{comentario.tiempo || "ahora"}</span>
+          </div>
+          <p><TextoConMenciones texto={comentario.texto} /></p>
+          <div className="respuesta-acciones">
+            <button
+              className={comentario.liked ? "activo" : ""}
+              type="button"
+              onClick={() => votarComentario(hilo.id, comentario.id)}
+            >
+              {comentario.liked ? "Te gusta" : "Me gusta"} - {comentario.votos}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRespuestaActiva(respuestaActiva === respuestaKey ? null : respuestaKey)}
+            >
+              Responder
+            </button>
+          </div>
+
+          {respuestaActiva === respuestaKey ? (
+            <div className="respuesta-form respuesta-form-anidada">
+              <CampoMenciones
+                placeholder={`Responder a ${comentario.usuario}`}
+                value={respuestas[respuestaKey] || ""}
+                onChange={(texto) => setRespuestas({ ...respuestas, [respuestaKey]: texto })}
+              />
+              <button type="button" onClick={() => responder(hilo.id, comentario.id)}>
+                Responder
+              </button>
+            </div>
+          ) : null}
+
+          {(comentario.respuestas || []).map((respuesta) =>
+            renderComentario(hilo, respuesta, nivel + 1)
+          )}
+        </div>
+      </article>
+    );
+  };
+
+  if (!comunidadActiva) {
+    return (
+      <main className="comunidad-container">
+        <section className="comunidad-layout reddit-layout">
+          <div className="comunidad-main">
+            <div className="comunidad-vacio">
+              {cargandoComunidades
+                ? "Cargando comunidades..."
+                : "No hay comunidades disponibles. Revisa la conexion con la base de datos."}
+            </div>
+          </div>
+        </section>
+
+        {aviso && (
+          <div className="comunidad-toast" role="status">
+            {aviso}
+          </div>
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="comunidad-container">
@@ -540,7 +567,7 @@ export default function Comunidad({ usuario }) {
                   </div>
                   <div>
                     <strong>{comunidad.nombre}</strong>
-                    <span>{comunidad.publicaciones || 0} publicaciones</span>
+                    <span>{comunidad.miembros || 0} miembros</span>
                     <p>{comunidad.actividad}</p>
                   </div>
                 </button>
@@ -567,14 +594,23 @@ export default function Comunidad({ usuario }) {
                       <span key={miembro}>{miembro}</span>
                     ))}
                   </div>
-                  <strong>{comunidadActiva.publicaciones || 0}</strong>
-                  <span>publicaciones - Comunidad por genero</span>
+                  <strong>{comunidadActiva.miembros || 0}</strong>
+                  <span>miembros - {comunidadActiva.publicaciones || 0} publicaciones</span>
                 </div>
               </div>
-              <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
-                <span aria-hidden="true">+</span>
-                Crear publicacion
-              </button>
+              <div className="comunidad-header-acciones">
+                <button
+                  className={`comunidad-unirse ${comunidadActiva.unido ? "activo" : ""}`}
+                  type="button"
+                  onClick={alternarUnion}
+                >
+                  {comunidadActiva.unido ? "Unido" : "Unirse"}
+                </button>
+                <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
+                  <span aria-hidden="true">+</span>
+                  Crear publicacion
+                </button>
+              </div>
             </div>
           </header>
 
@@ -647,7 +683,7 @@ export default function Comunidad({ usuario }) {
                       type="button"
                       onClick={() => toggleRespuestas(hilo.id)}
                     >
-                      {hilo.comentarios.length} respuestas
+                      {hilo.comentariosTotal ?? hilo.comentarios.length} respuestas
                     </button>
                     <button
                       className={hilo.guardado ? "activo" : ""}
@@ -660,25 +696,13 @@ export default function Comunidad({ usuario }) {
 
                   {respuestasAbiertas.includes(hilo.id) && (
                     <section className="hilo-respuestas">
-                      {hilo.comentarios.map((comentario) => (
-                        <article className="respuesta-card" key={comentario.id}>
-                          <div className="respuesta-linea"></div>
-                          <div>
-                            <div className="respuesta-meta">
-                              <strong>{comentario.usuario}</strong>
-                              <span>{comentario.autor}</span>
-                              <span>{comentario.votos} votos</span>
-                            </div>
-                            <p><TextoConMenciones texto={comentario.texto} /></p>
-                          </div>
-                        </article>
-                      ))}
+                      {hilo.comentarios.map((comentario) => renderComentario(hilo, comentario))}
 
                       <div className="respuesta-form">
                         <CampoMenciones
                           placeholder="Respondé o mencioná con @usuario"
-                          value={respuestas[hilo.id] || ""}
-                          onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
+                          value={respuestas[String(hilo.id)] || ""}
+                          onChange={(texto) => setRespuestas({ ...respuestas, [String(hilo.id)]: texto })}
                         />
                         <button type="button" onClick={() => responder(hilo.id)}>
                           Responder
@@ -705,6 +729,8 @@ export default function Comunidad({ usuario }) {
             <div className="subreddit-stats">
               <strong>{comunidadActiva.publicaciones || 0}</strong>
               <span>publicaciones</span>
+              <strong>{comunidadActiva.miembros || 0}</strong>
+              <span>miembros</span>
               <strong>{mostrarGenero(comunidadActiva.genero)}</strong>
               <span>genero</span>
             </div>

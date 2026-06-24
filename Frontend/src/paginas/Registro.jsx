@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { backendFetchJson } from "../lib/backendClient";
 
-const CALLBACK_URL = "https://sondar-project.pages.dev/auth/callback";
-const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Te enviamos un correo para confirmar el registro.";
+const REGISTRO_CONFIRMACION_MSG = "Cuenta creada. Ya podes iniciar sesion.";
 
 export default function Register({ onSwitch }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -16,23 +16,20 @@ export default function Register({ onSwitch }) {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim(),
-        options: {
-          emailRedirectTo: CALLBACK_URL
-        }
+      await backendFetchJson("/api/usuarios/crear-cuenta", {
+        method: "POST",
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          username: username.trim().replace(/^@+/, "").toLowerCase(),
+          user_type: "musico"
+        })
       });
-
-      if (error) throw error;
-
-      if (data.session) {
-        await supabase.auth.signOut({ scope: "local" });
-      }
 
       setMensaje(REGISTRO_CONFIRMACION_MSG);
       setEmail("");
       setPassword("");
+      setUsername("");
     } catch (error) {
       setMensaje(error.message || "Error al crear la cuenta.");
     } finally {
@@ -45,6 +42,15 @@ export default function Register({ onSwitch }) {
       <h2>Registro</h2>
 
       <form onSubmit={handleRegister}>
+        <input
+          type="text"
+          placeholder="@ de usuario"
+          value={username}
+          onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").toLowerCase())}
+          required
+          style={styles.input}
+        />
+
         <input
           type="email"
           placeholder="Correo"

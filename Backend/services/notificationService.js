@@ -119,7 +119,7 @@ async function notificarSeguidores({
          WHERE nm.user_id = f.follower_id AND nm.muted_user_id = $1
        )
      ON CONFLICT (unique_key) DO NOTHING`,
-    [actorId, type, title, body, targetUrl, entityType, String(entityId), uniquePrefix]
+    [actorId, type, title, body, targetUrl, entityType, entityId === null || entityId === undefined ? null : String(entityId), String(uniquePrefix || '')]
     );
   } catch (error) {
     console.error('No se pudo notificar a los seguidores:', error);
