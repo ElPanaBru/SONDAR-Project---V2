@@ -102,23 +102,23 @@ async function notificarSeguidores({
   try {
     await client.query(
     `INSERT INTO notifications (
-       user_id, actor_id, type, title, body, target_url,
-       entity_type, entity_id, unique_key
-     )
-     SELECT
-       f.follower_id, $1, $2, $3, $4, $5, $6, $7,
-       concat($8, ':', f.follower_id::text)
-     FROM follows f
-     LEFT JOIN user_settings us ON us.user_id = f.follower_id
-     WHERE f.following_id = $1
-       AND f.follower_id <> $1
-       AND COALESCE(us.actividad_cuenta, true)
-       AND COALESCE(us.notificar_publicaciones, true)
-       AND NOT EXISTS (
-         SELECT 1 FROM notification_mutes nm
-         WHERE nm.user_id = f.follower_id AND nm.muted_user_id = $1
-       )
-     ON CONFLICT (unique_key) DO NOTHING`,
+        user_id, actor_id, type, title, body, target_url,
+        entity_type, entity_id, unique_key
+      )
+      SELECT
+        f.follower_id, $1, $2, $3, $4, $5, $6, $7,
+        concat($8::text, ':', f.follower_id::text) -- <--- AQUÍ: Añadido ::text a $8
+      FROM follows f
+      LEFT JOIN user_settings us ON us.user_id = f.follower_id
+      WHERE f.following_id = $1
+        AND f.follower_id <> $1
+        AND COALESCE(us.actividad_cuenta, true)
+        AND COALESCE(us.notificar_publicaciones, true)
+        AND NOT EXISTS (
+          SELECT 1 FROM notification_mutes nm
+          WHERE nm.user_id = f.follower_id AND nm.muted_user_id = $1
+        )
+      ON CONFLICT (unique_key) DO NOTHING`,
     [actorId, type, title, body, targetUrl, entityType, entityId === null || entityId === undefined ? null : String(entityId), String(uniquePrefix || '')]
     );
   } catch (error) {
