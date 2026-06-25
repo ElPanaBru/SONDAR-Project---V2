@@ -467,6 +467,7 @@ export default function Descubrir({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [animacionesLike, setAnimacionesLike] = useState({});
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
+  const [subiendoReel, setSubiendoReel] = useState(false);
   const [nuevoReel, setNuevoReel] = useState(reelVacio);
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
@@ -489,6 +490,7 @@ export default function Descubrir({ usuario }) {
   const visitasRegistradasRef = useRef(new Set());
   const portadaReelInputRef = useRef(null);
   const audioReelInputRef = useRef(null);
+  const subiendoReelRef = useRef(false);
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
   const usuarioComentario = obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
@@ -1090,6 +1092,8 @@ export default function Descubrir({ usuario }) {
 
   const publicarReel = async (event) => {
     event.preventDefault();
+    if (subiendoReelRef.current) return;
+
     if (
       !nuevoReel.tema.trim() ||
       !nuevoReel.album.trim() ||
@@ -1099,6 +1103,9 @@ export default function Descubrir({ usuario }) {
       mostrarAviso("Completa el titulo, el nombre, el genero y selecciona un audio");
       return;
     }
+
+    subiendoReelRef.current = true;
+    setSubiendoReel(true);
 
     try {
       const { data } = await supabase.auth.getSession();
@@ -1162,6 +1169,9 @@ export default function Descubrir({ usuario }) {
     } catch (error) {
       console.error(error);
       mostrarAviso(error.message || "No se pudo guardar el reel.");
+    } finally {
+      subiendoReelRef.current = false;
+      setSubiendoReel(false);
     }
   };
 
@@ -2576,7 +2586,7 @@ export default function Descubrir({ usuario }) {
                 <span>DESCUBRIR</span>
                 <h2 id="crear-reel-titulo">{t("Crear nuevo reel")}</h2>
               </div>
-              <button type="button" onClick={cerrarCreadorReel} aria-label="Cerrar">
+              <button type="button" onClick={cerrarCreadorReel} aria-label="Cerrar" disabled={subiendoReel}>
                 <Icono nombre="cerrar" />
               </button>
             </header>
@@ -2682,8 +2692,8 @@ export default function Descubrir({ usuario }) {
                   <audio className="crear-reel-audio" src={nuevoReel.audio} controls />
                 ) : null}
 
-                <button className="crear-reel-publicar" type="submit">
-                  Publicar reel
+                <button className="crear-reel-publicar" type="submit" disabled={subiendoReel}>
+                  {subiendoReel ? "Creando..." : "Publicar reel"}
                 </button>
               </div>
             </div>

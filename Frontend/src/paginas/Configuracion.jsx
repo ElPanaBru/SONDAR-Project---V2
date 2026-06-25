@@ -27,6 +27,7 @@ export default function Configuracion({ usuario }) {
   const [eliminando, setEliminando] = useState(false);
   const [bloqueados, setBloqueados] = useState([]);
   const [cargandoBloqueados, setCargandoBloqueados] = useState(false);
+  const [perfilCuenta, setPerfilCuenta] = useState(null);
 
   useEffect(() => {
     const configuracionGuardada = usuario?.user_metadata?.configuracion;
@@ -115,12 +116,46 @@ export default function Configuracion({ usuario }) {
     };
   }, [usuario]);
 
+  useEffect(() => {
+    if (!usuario) {
+      setPerfilCuenta(null);
+      return undefined;
+    }
+
+    let vigente = true;
+    const cargarPerfilCuenta = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+
+        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) return;
+        if (vigente) setPerfilCuenta(body.perfil || null);
+      } catch {
+        if (vigente) setPerfilCuenta(null);
+      }
+    };
+
+    cargarPerfilCuenta();
+    const actualizarPerfil = (event) => setPerfilCuenta(event.detail || null);
+    window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
+    return () => {
+      vigente = false;
+      window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
+    };
+  }, [usuario]);
+
   const nombreCuenta = useMemo(() => {
+    if (perfilCuenta?.nombre) return perfilCuenta.nombre;
     if (usuario?.user_metadata?.username) return usuario.user_metadata.username;
     if (usuario?.user_metadata?.name) return usuario.user_metadata.name;
     if (usuario?.email) return usuario.email.split("@")[0];
     return "Cuenta SONDAR";
-  }, [usuario]);
+  }, [perfilCuenta?.nombre, usuario]);
 
   const inicial = nombreCuenta.trim().charAt(0).toUpperCase() || "S";
   const hayCambios = useMemo(
@@ -331,7 +366,9 @@ export default function Configuracion({ usuario }) {
         </div>
 
         <div className="config-account">
-          <div className="config-avatar" aria-hidden="true">{inicial}</div>
+          <div className="config-avatar" aria-hidden="true">
+            {perfilCuenta?.avatar ? <img src={perfilCuenta.avatar} alt="" /> : inicial}
+          </div>
           <div>
             <strong>{nombreCuenta}</strong>
             <span>{usuario?.email || t("Sin email conectado")}</span>

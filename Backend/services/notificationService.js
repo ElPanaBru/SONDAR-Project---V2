@@ -100,29 +100,36 @@ async function notificarSeguidores({
   uniquePrefix,
 }, client = pool) {
   try {
-    await client.query(
-    `INSERT INTO notifications (
-       user_id, actor_id, type, title, body, target_url,
-       entity_type, entity_id, unique_key
-     )
-     SELECT
-       f.follower_id, $1, $2, $3, $4, $5, $6, $7,
-       concat($8, ':', f.follower_id::text)
+    if (!actorId || !uniquePrefix) return 0;
+
+    const seguidores = await client.query(
+    `SELECT f.follower_id
      FROM follows f
-     LEFT JOIN user_settings us ON us.user_id = f.follower_id
      WHERE f.following_id = $1
        AND f.follower_id <> $1
-       AND COALESCE(us.actividad_cuenta, true)
-       AND COALESCE(us.notificar_publicaciones, true)
        AND NOT EXISTS (
          SELECT 1 FROM notification_mutes nm
          WHERE nm.user_id = f.follower_id AND nm.muted_user_id = $1
-       )
-     ON CONFLICT (unique_key) DO NOTHING`,
-    [actorId, type, title, body, targetUrl, entityType, String(entityId), uniquePrefix]
+       )`,
+    [actorId]
     );
+
+    const creadas = await Promise.all(seguidores.rows.map((seguidor) => crearNotificacion({
+      userId: seguidor.follower_id,
+      actorId,
+      type,
+      title,
+      body,
+      targetUrl,
+      entityType,
+      entityId,
+      uniqueKey: `${uniquePrefix}:${seguidor.follower_id}`,
+    }, client)));
+
+    return creadas.filter(Boolean).length;
   } catch (error) {
     console.error('No se pudo notificar a los seguidores:', error);
+    return 0;
   }
 }
 

@@ -146,6 +146,7 @@ const eventoController = {
     const creadorId = req.user.id;
     let imagenSubida = null;
     let dbClient = null;
+    let transaccionActiva = false;
 
     const creadorNombre =
       req.user?.user_metadata?.name ||
@@ -204,6 +205,7 @@ const eventoController = {
       imagenSubida = await subirImagenEvento(req.file);
       dbClient = await pool.connect();
       await dbClient.query('BEGIN');
+      transaccionActiva = true;
 
       const query = `
         INSERT INTO eventos (titulo, descripcion, genero, lugar, fecha, img_url, img_path, precio, link, creador_id, latitud, longitud)
@@ -249,6 +251,9 @@ const eventoController = {
           [result.rows[0].id]
         )
         : { rows: [] };
+      await dbClient.query('COMMIT');
+      transaccionActiva = false;
+
       const actorName = nombreActor(req.user);
       await notificarSeguidores({
         actorId: creadorId,
@@ -259,7 +264,7 @@ const eventoController = {
         entityType: 'event',
         entityId: result.rows[0].id,
         uniquePrefix: `new-event:${result.rows[0].id}`,
-      }, dbClient);
+      });
 
       for (const organizador of organizadoresResult.rows) {
         await crearNotificacion({
@@ -272,17 +277,16 @@ const eventoController = {
           entityType: 'event',
           entityId: result.rows[0].id,
           uniqueKey: `event-coorganizer:${result.rows[0].id}:${organizador.id}`,
-        }, dbClient);
+        });
       }
 
-      await dbClient.query('COMMIT');
       res.status(201).json(mapearEvento({
         ...result.rows[0],
         creador: creadorNombre,
         organizadores: organizadoresResult.rows,
       }));
     } catch (error) {
-      if (dbClient) await dbClient.query('ROLLBACK').catch(() => {});
+      if (dbClient && transaccionActiva) await dbClient.query('ROLLBACK').catch(() => {});
       if (imagenSubida?.path) {
         await eliminarImagenEvento(imagenSubida.path);
       }

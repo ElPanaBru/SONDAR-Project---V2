@@ -141,6 +141,7 @@ export default function Eventos({ usuario }) {
   const [nuevoEvento, setNuevoEvento] = useState(crearEventoVacio);
 
   const coordsInicialesRef = useRef(COORDENADAS_INICIALES);
+  const subiendoRef = useRef(false);
 
   const mostrarAviso = useCallback((mensaje) => {
     clearTimeout(avisoTimer.current);
@@ -643,6 +644,7 @@ const handleImagen = (e) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (subiendoRef.current) return;
 
     // Validaciones de fecha: no permitir en el pasado ni demasiado futuro.
     // - Pasado: fecha+hora debe ser >= ahora
@@ -686,6 +688,7 @@ const handleImagen = (e) => {
     }
 
     setSubiendo(true);
+    subiendoRef.current = true;
 
     const formData = new FormData();
     formData.append("titulo", nuevoEvento.titulo);
@@ -748,6 +751,7 @@ const handleImagen = (e) => {
       console.error(error);
       mostrarAviso(error.message || "Hubo un error al guardar el evento.");
     } finally {
+      subiendoRef.current = false;
       setSubiendo(false);
     }
   };
