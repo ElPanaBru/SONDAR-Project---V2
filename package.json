@@ -5,8 +5,8 @@
   "main": "eslint.config.js",
   "scripts": {
     "start:all": "cd Backend && npm run start_server & cd ../Frontend && npm run start_front",
-   "start_server": "npm run start_server --prefix Backend",
-   "install_all": "npm install -i && cd Backend && npm install -i && cd ../Frontend && npm install -i",
+    "start_server": "npm run start_server --prefix Backend",
+    "install_all": "npm install -i && cd Backend && npm install -i && cd ../Frontend && npm install -i",
     "start_front": "npm run dev --prefix Frontend",
     "dev": "concurrently --kill-others-on-fail \"npm run start_server\" \"npm run dev --prefix Frontend -- --host localhost --port 3001 --strictPort\"",
     "dev:all:lan": "concurrently \"npm run start_server\" \"npm run dev --prefix Frontend -- --host 0.0.0.0\"",
@@ -21,6 +21,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "supabase": "^2.109.0"
   }
 }
