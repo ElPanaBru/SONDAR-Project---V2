@@ -1,22 +1,32 @@
 {
   "expo": {
-    "name": "sondar-mobile",
+    "name": "SONDAR",
     "slug": "sondar-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "sondarmobile",
-    "userInterfaceStyle": "automatic",
+    "scheme": "sondar",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "app.sondar.mobile",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SONDAR usa tu ubicación para mostrar y crear eventos cerca tuyo.",
+        "NSPhotoLibraryUsageDescription": "SONDAR accede a tus fotos para elegir portadas y tu avatar."
+      }
     },
     "android": {
+      "package": "app.sondar.mobile",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_AUDIO"
+      ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#08090C",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -28,6 +38,19 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "SONDAR accede a tus fotos para elegir portadas y tu avatar.",
+          "cameraPermission": "SONDAR puede usar la cámara para crear imágenes de perfil."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SONDAR usa tu ubicación para mostrar y crear eventos cerca tuyo."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
@@ -38,10 +61,11 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-video",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
-      "typedRoutes": true,
       "reactCompiler": true
     }
   }

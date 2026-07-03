@@ -7,7 +7,10 @@
     "start:all": "cd Backend && npm run start_server & cd ../Frontend && npm run start_front",
    "start_server": "npm run start_server --prefix Backend",
    "install_all": "npm install -i && cd Backend && npm install -i && cd ../Frontend && npm install -i",
-    "start_front": "npm run dev --prefix Frontend",
+   "start_front": "npm run dev --prefix Frontend",
+   "start_mobile": "npm start --prefix sondar-mobile",
+   "dev:mobile": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1",
+   "dev:mobile:clear": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1 -Clear",
     "dev": "concurrently --kill-others-on-fail \"npm run start_server\" \"npm run dev --prefix Frontend -- --host localhost --port 3001 --strictPort\"",
     "dev:all:lan": "concurrently \"npm run start_server\" \"npm run dev --prefix Frontend -- --host 0.0.0.0\"",
     "build": "vite build && npm run build --prefix Frontend"
