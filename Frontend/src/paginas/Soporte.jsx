@@ -1,11 +1,7 @@
 import { useState } from "react";
-import emailjs from "@emailjs/browser";
+import { apiJson } from "../lib/api";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./soporte.css";
-
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_ckdohp4";
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_jl05slh";
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "zEobDbcTNOMCmcI0O";
 
 const preguntas = [
   {
@@ -51,10 +47,6 @@ export default function Soporte({ usuario }) {
   });
   const [loading, setLoading] = useState(false);
   const emailUsuario = usuario?.email?.trim() || "";
-  const nombreUsuario =
-    usuario?.user_metadata?.username ||
-    usuario?.user_metadata?.name ||
-    emailUsuario;
 
   const handleChange = (e) => {
     setFormData((actual) => ({
@@ -96,18 +88,13 @@ export default function Soporte({ usuario }) {
     setLoading(true);
 
     try {
-      emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-        // Campos nuevos y aliases para seguir siendo compatibles con la plantilla anterior.
-        subject,
-        title: subject,
-        name: nombreUsuario,
-        message,
-        email: emailUsuario,
-        user_email: emailUsuario,
-        from_email: emailUsuario,
-        reply_to: emailUsuario,
-        from_name: nombreUsuario,
+      await apiJson("/api/soporte/mensaje", {
+        method: "POST",
+        body: {
+          tipo: "contacto",
+          subject,
+          message,
+        },
       });
 
       setEstado({
@@ -116,8 +103,8 @@ export default function Soporte({ usuario }) {
       });
       setFormData({ subject: "", message: "" });
     } catch (error) {
-      console.error("EmailJS soporte:", error);
-      const detalle = error?.text || error?.message;
+      console.error("Soporte:", error);
+      const detalle = error?.message;
       setEstado({
         tipo: "error",
         texto: detalle

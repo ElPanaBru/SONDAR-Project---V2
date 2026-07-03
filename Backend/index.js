@@ -8,6 +8,7 @@ const postsRoutes = require('./routes/posts');
 const reelsRoutes = require('./routes/reels');
 const comunidadesRoutes = require('./routes/comunidades');
 const notificacionesRoutes = require('./routes/notificaciones');
+const soporteRoutes = require('./routes/soporte');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
 
 const app = express();
@@ -71,6 +72,7 @@ app.use('/api/posts', postsRoutes);
 app.use('/api/reels', reelsRoutes);
 app.use('/api/comunidades', comunidadesRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/soporte', soporteRoutes);
 
 async function iniciarServidor() {
   try {

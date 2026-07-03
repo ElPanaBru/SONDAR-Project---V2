@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./auth.css";
@@ -40,7 +40,7 @@ export default function Auth() {
   };
 
   const crearPerfilBackend = async (accessToken, cleanUsername) => {
-    const response = await fetch(apiUrl("/api/usuarios/registrar"), {
+    const response = await apiRequest("/api/usuarios/registrar", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -56,7 +56,7 @@ export default function Auth() {
   };
 
   const verificarPerfilBackend = async (accessToken) => {
-    const response = await fetch(apiUrl("/api/usuarios/me"), {
+    const response = await apiRequest("/api/usuarios/me", {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
@@ -131,7 +131,7 @@ export default function Auth() {
         return;
       }
 
-      const crearCuentaResponse = await fetch(apiUrl("/api/usuarios/crear-cuenta"), {
+      const crearCuentaResponse = await apiRequest("/api/usuarios/crear-cuenta", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -152,13 +152,13 @@ export default function Auth() {
         );
       }
 
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: cleanPassword
       });
 
       if (loginError) throw loginError;
-
+      window.localStorage.setItem("sondar:onboarding-pending", "true");
       navigate("/");
     } catch (error) {
       setMensaje(traducirError(error));

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiUrl } from "../lib/api";
-import { supabase } from "../lib/supabaseClient";
+import { apiRequest } from "../lib/api";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 
 function tiempoRelativo(fecha, idioma, locale, t) {
@@ -24,16 +23,7 @@ function NotificationPanel({ usuario, onClose, onCountChange }) {
   const { preferencias, locale, t } = usePreferencias();
 
   const pedir = useCallback(async (ruta, options = {}) => {
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
-    if (!token) throw new Error("Tu sesion expiro.");
-    const response = await fetch(apiUrl(ruta), {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(options.headers || {}),
-      },
-    });
+    const response = await apiRequest(ruta, options);
     if (!response.ok) {
       const dataError = await response.json().catch(() => ({}));
       throw new Error(dataError.error || "No se pudo actualizar las notificaciones.");

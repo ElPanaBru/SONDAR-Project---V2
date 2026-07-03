@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import { apiRequest } from "../lib/api";
 
 function Usuarios() {
   const [usuarios, setUsuarios] = useState([]);
 
   useEffect(() => {
     // Endpoint real del backend: /api/usuarios (ajustar cuando exista ruta para listar)
-    fetch("http://localhost:3000/api/usuarios/me", {
+    apiRequest("/api/usuarios/me", {
       method: "GET",
       headers: {
         // Si se quiere hacer público, se puede exponer un endpoint/listado. Por ahora requiere auth.

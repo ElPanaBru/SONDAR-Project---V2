@@ -8,7 +8,7 @@ const notificacionController = {
         pool.query(
           `SELECT
              n.*,
-             COALESCE(a.artist_name, a.full_name, a.username, 'SONDAR') AS actor_name,
+             COALESCE(a.display_name, a.username, 'SONDAR') AS actor_name,
              COALESCE(a.profile_img_url, '') AS actor_avatar
            FROM notifications n
            LEFT JOIN users a ON a.id = n.actor_id

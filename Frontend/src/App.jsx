@@ -15,23 +15,43 @@ import MiPerfil from "./paginas/Miperfil";
 import OtroPerfil from "./paginas/OtroPerfil";
 import Configuracion from "./paginas/Configuracion";
 import SidebarNav from "./componentes/SidebarNav";
+import OnboardingPerfilModal from "./componentes/OnboardingPerfilModal";
 import { PreferenciasProvider } from "./contextos/PreferenciasContext";
 
 function App() {
   const location = useLocation();
   const [usuario, setUsuario] = useState(null);
+  const [onboardingToken, setOnboardingToken] = useState(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUsuario(data.session?.user || null);
+      if (data.session && window.localStorage.getItem("sondar:onboarding-pending") === "true") {
+        setOnboardingToken(data.session.access_token);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUsuario(session?.user || null);
+      if (!session) setOnboardingToken(null);
+      if (session && window.localStorage.getItem("sondar:onboarding-pending") === "true") {
+        setOnboardingToken(session.access_token);
+      }
     });
 
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (location.pathname === "/auth") return;
+    if (window.localStorage.getItem("sondar:onboarding-pending") !== "true") return;
+
+    let activo = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (activo && data.session) setOnboardingToken(data.session.access_token);
+    });
+    return () => { activo = false; };
+  }, [location.pathname]);
 
   const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
@@ -66,6 +86,17 @@ function App() {
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
         </Routes>
       </div>
+
+      {usuario && onboardingToken && location.pathname !== "/auth" ? (
+        <OnboardingPerfilModal
+          token={onboardingToken}
+          username={usuario.user_metadata?.username || usuario.email?.split("@")[0]}
+          onComplete={() => {
+            window.localStorage.removeItem("sondar:onboarding-pending");
+            setOnboardingToken(null);
+          }}
+        />
+      ) : null}
     </div>
     </PreferenciasProvider>
   );

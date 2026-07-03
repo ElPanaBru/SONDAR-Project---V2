@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import "leaflet/dist/leaflet.css";
 import "./eventos.css";
 import L from "leaflet";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
@@ -160,7 +160,7 @@ export default function Eventos({ usuario }) {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
-        const res = await fetch(apiUrl("/api/eventos"), {
+        const res = await apiRequest("/api/eventos", {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`
@@ -446,7 +446,7 @@ export default function Eventos({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/eventos/${id}/guardar`), {
+      const response = await apiRequest(`/api/eventos/${id}/guardar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`
@@ -490,7 +490,7 @@ export default function Eventos({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(apiUrl(`/api/eventos/${evento.id}/denunciar`), {
+      const response = await apiRequest(`/api/eventos/${evento.id}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -540,7 +540,7 @@ export default function Eventos({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/eventos/${evento.id}`), {
+      const response = await apiRequest(`/api/eventos/${evento.id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`
@@ -718,7 +718,7 @@ const handleImagen = (e) => {
         return;
       }
 
-      const response = await fetch(apiUrl("/api/eventos/crear"), {
+      const response = await apiRequest("/api/eventos/crear", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`

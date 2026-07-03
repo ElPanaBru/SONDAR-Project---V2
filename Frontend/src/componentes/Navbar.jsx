@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
@@ -77,7 +77,7 @@ function Navbar({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const response = await fetch(apiUrl("/api/notificaciones/no-leidas"), {
+        const response = await apiRequest("/api/notificaciones/no-leidas", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) return;
@@ -128,7 +128,7 @@ function Navbar({ usuario }) {
           return;
         }
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -240,7 +240,7 @@ function Navbar({ usuario }) {
       formData.append("bio", perfilEditado.bio || "");
       if (avatarArchivo) formData.append("avatar", avatarArchivo);
 
-      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+      const response = await apiRequest("/api/usuarios/me/perfil", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,

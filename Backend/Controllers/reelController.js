@@ -126,7 +126,6 @@ async function asegurarEsquemaCompartidos() {
 async function asegurarEsquemaVisitas() {
   if (!esquemaVisitasListo) {
     esquemaVisitasListo = (async () => {
-      await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS visitas integer NOT NULL DEFAULT 0');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS reel_views (
           user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -136,12 +135,6 @@ async function asegurarEsquemaVisitas() {
         )
       `);
       await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id ON reel_views(reel_id)');
-      await pool.query(`
-        UPDATE reels r
-        SET visitas = (
-          SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id
-        )
-      `);
     })().catch((error) => {
         esquemaVisitasListo = null;
         throw error;
@@ -163,11 +156,11 @@ function mapearReel(reel) {
     descripcion: reel.descripcion,
     duracion: reel.duracion || '0:30',
     progreso: 0,
-    likes: Number(reel.likes || 0),
+    likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
     comentarios: '0',
-    compartidos: Number(reel.compartidos || 0),
-    guardados: Number(reel.guardados || 0),
-    visitas: Number(reel.visitas || 0),
+    compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
+    guardados: Number(reel.guardados_calculados ?? reel.guardados ?? 0),
+    visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
     colorA: '#ffae00',
     colorB: '#ff5e00',
     colorC: '#111111',
@@ -177,9 +170,34 @@ function mapearReel(reel) {
     liked: false,
     guardado: false,
     siguiendo: false,
+    recomendado: Boolean(reel.afinidad_score > 0 || reel.sigue_creador),
+    recomendacion: reel.motivo_recomendacion || '',
     creadorId: reel.creador_id,
     backendId: reel.id,
   };
+}
+
+function diversificarReels(rows) {
+  const pendientes = [...rows];
+  const resultado = [];
+  let ultimoGenero = null;
+  let repetidos = 0;
+
+  while (pendientes.length > 0) {
+    let indice = 0;
+    if (repetidos >= 2) {
+      const alternativo = pendientes.findIndex((reel) => String(reel.genero || '').toLowerCase() !== ultimoGenero);
+      if (alternativo >= 0) indice = alternativo;
+    }
+
+    const [siguiente] = pendientes.splice(indice, 1);
+    const genero = String(siguiente.genero || '').toLowerCase();
+    repetidos = genero && genero === ultimoGenero ? repetidos + 1 : 1;
+    ultimoGenero = genero;
+    resultado.push(siguiente);
+  }
+
+  return resultado;
 }
 
 function tiempoRelativo(fecha) {
@@ -207,7 +225,7 @@ function mapearComentario(row) {
     avatar: row.profile_img_url || '',
     tiempo: tiempoRelativo(row.created_at),
     texto: row.texto,
-    likes: Number(row.likes || 0),
+    likes: Number(row.likes_calculados ?? row.likes ?? 0),
     liked: Boolean(row.liked),
     parentId: row.parent_id,
     respondeA: row.responde_a || '',
@@ -259,27 +277,96 @@ const reelController = {
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
       const result = await pool.query(`
+        WITH senales_afinidad AS (
+          SELECT ui.genre, 30::numeric AS peso
+          FROM user_interests ui
+          WHERE ui.user_id = $1
+
+          UNION ALL
+          SELECT lower(r.genero), 6::numeric
+          FROM reel_likes rl
+          JOIN reels r ON r.id = rl.reel_id
+          WHERE rl.user_id = $1
+
+          UNION ALL
+          SELECT lower(r.genero), 8::numeric
+          FROM reel_saves rs
+          JOIN reels r ON r.id = rs.reel_id
+          WHERE rs.user_id = $1
+
+          UNION ALL
+          SELECT lower(r.genero), 4::numeric
+          FROM reel_comments rc
+          JOIN reels r ON r.id = rc.reel_id
+          WHERE rc.user_id = $1
+
+          UNION ALL
+          SELECT lower(r.genero), 1::numeric
+          FROM reel_views rv
+          JOIN reels r ON r.id = rv.reel_id
+          WHERE rv.user_id = $1
+        ), afinidad_generos AS (
+          SELECT genre, LEAST(45::numeric, SUM(peso)) AS puntaje
+          FROM senales_afinidad
+          WHERE genre IS NOT NULL AND genre <> ''
+          GROUP BY genre
+        )
         SELECT
           r.*,
+          (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
+          (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
+          (SELECT COUNT(*)::int FROM reel_saves rg WHERE rg.reel_id = r.id) AS guardados_calculados,
+          (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
+          COALESCE(ag.puntaje, 0)::float AS afinidad_score,
+          (f.follower_id IS NOT NULL) AS sigue_creador,
+          (visto.user_id IS NOT NULL) AS ya_visto,
+          ROUND((
+            COALESCE(ag.puntaje, 0)
+            + CASE WHEN f.follower_id IS NOT NULL THEN 22 ELSE 0 END
+            + LEAST(
+                18,
+                LN(1 + (SELECT COUNT(*) FROM reel_likes rl WHERE rl.reel_id = r.id)) * 5
+                + LN(1 + (SELECT COUNT(*) FROM reel_saves rs WHERE rs.reel_id = r.id)) * 6
+                + LN(1 + (SELECT COUNT(*) FROM reel_views rv WHERE rv.reel_id = r.id)) * 2
+              )
+            + GREATEST(0, 18 - EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400)
+            - CASE WHEN visto.user_id IS NOT NULL THEN 10 ELSE 0 END
+            - CASE WHEN r.creador_id = $1 THEN 12 ELSE 0 END
+          )::numeric, 2)::float AS recomendacion_score,
+          CASE
+            WHEN f.follower_id IS NOT NULL THEN 'De un artista que seguis'
+            WHEN EXISTS (
+              SELECT 1 FROM user_interests ui
+              WHERE ui.user_id = $1 AND ui.genre = lower(r.genero)
+            ) THEN 'Porque elegiste ' || r.genero
+            WHEN COALESCE(ag.puntaje, 0) > 0 THEN 'Basado en tu actividad'
+            WHEN r.created_at >= NOW() - INTERVAL '7 days' THEN 'Nuevo en SONDAR'
+            ELSE 'Popular en SONDAR'
+          END AS motivo_recomendacion,
           COALESCE(u.username, u.email) AS creador_nombre,
           u.email AS creador_email,
           u.profile_img_url AS creador_avatar
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
+        LEFT JOIN afinidad_generos ag ON ag.genre = lower(r.genero)
+        LEFT JOIN follows f ON f.follower_id = $1 AND f.following_id = r.creador_id
+        LEFT JOIN reel_views visto ON visto.user_id = $1 AND visto.reel_id = r.id
         WHERE $1::uuid IS NULL OR NOT EXISTS (
           SELECT 1 FROM user_blocks ub
           WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
              OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
         )
-        ORDER BY r.created_at DESC, r.id DESC
+        ORDER BY recomendacion_score DESC, r.created_at DESC, r.id DESC
       `, [viewerId]);
 
-      if (!viewerId || result.rows.length === 0) {
-        return res.json(result.rows.map(mapearReel));
+      const reelsOrdenados = diversificarReels(result.rows);
+
+      if (!viewerId || reelsOrdenados.length === 0) {
+        return res.json(reelsOrdenados.map(mapearReel));
       }
 
-      const reelIds = result.rows.map((reel) => reel.id);
-      const creadorIds = [...new Set(result.rows.map((reel) => reel.creador_id).filter(Boolean))];
+      const reelIds = reelsOrdenados.map((reel) => reel.id);
+      const creadorIds = [...new Set(reelsOrdenados.map((reel) => reel.creador_id).filter(Boolean))];
       const [likedSet, guardadoSet, siguiendoSet] = await Promise.all([
         consultarSetInteraccion(
           'SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',
@@ -300,7 +387,7 @@ const reelController = {
           : Promise.resolve(new Set()),
       ]);
 
-      res.json(result.rows.map((reel) => ({
+      res.json(reelsOrdenados.map((reel) => ({
         ...mapearReel(reel),
         liked: likedSet.has(String(reel.id)),
         guardado: guardadoSet.has(String(reel.id)),
@@ -333,10 +420,7 @@ const reelController = {
         [req.user.id, id]
       );
       const result = await client.query(
-        `UPDATE reels
-         SET visitas = (SELECT COUNT(*)::int FROM reel_views WHERE reel_id = $1)
-         WHERE id = $1
-         RETURNING visitas`,
+        'SELECT COUNT(*)::int AS visitas FROM reel_views WHERE reel_id = $1',
         [id]
       );
       await client.query('COMMIT');
@@ -384,6 +468,7 @@ const reelController = {
       const result = await pool.query(
         `SELECT
           rc.*,
+          (SELECT COUNT(*)::int FROM reel_comment_likes rcl_count WHERE rcl_count.comment_id = rc.id) AS likes_calculados,
           u.username,
           u.email,
           u.profile_img_url,
@@ -655,10 +740,8 @@ const reelController = {
       let liked = false;
       if (existe.rowCount > 0) {
         await client.query('DELETE FROM reel_likes WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);
-        await client.query('UPDATE reels SET likes = GREATEST(0, likes - 1) WHERE id = $1', [id]);
       } else {
         await client.query('INSERT INTO reel_likes (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);
-        await client.query('UPDATE reels SET likes = likes + 1 WHERE id = $1', [id]);
         liked = true;
         await crearNotificacion({
           userId: reel.creador_id,
@@ -677,7 +760,7 @@ const reelController = {
         await eliminarNotificacion(`reel-like:${req.user.id}:${id}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM reels WHERE id = $1', [id]);
+      const counts = await client.query('SELECT COUNT(*)::int AS likes FROM reel_likes WHERE reel_id = $1', [id]);
       await client.query('COMMIT');
 
       res.json({
@@ -719,18 +802,10 @@ const reelController = {
           'DELETE FROM reel_comment_likes WHERE user_id = $1 AND comment_id = $2',
           [req.user.id, comentarioId]
         );
-        await client.query(
-          'UPDATE reel_comments SET likes = GREATEST(0, likes - 1) WHERE id = $1',
-          [comentarioId]
-        );
       } else {
         await client.query(
           'INSERT INTO reel_comment_likes (user_id, comment_id) VALUES ($1, $2)',
           [req.user.id, comentarioId]
-        );
-        await client.query(
-          'UPDATE reel_comments SET likes = likes + 1 WHERE id = $1',
-          [comentarioId]
         );
         liked = true;
         await crearNotificacion({
@@ -750,7 +825,10 @@ const reelController = {
         await eliminarNotificacion(`reel-comment-like:${req.user.id}:${comentarioId}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM reel_comments WHERE id = $1', [comentarioId]);
+      const counts = await client.query(
+        'SELECT COUNT(*)::int AS likes FROM reel_comment_likes WHERE comment_id = $1',
+        [comentarioId]
+      );
       await client.query('COMMIT');
 
       res.json({
@@ -785,16 +863,12 @@ const reelController = {
       const compartido = await client.query(
         `INSERT INTO reel_shares (user_id, reel_id)
          VALUES ($1, $2)
-         ON CONFLICT (user_id, reel_id) DO NOTHING
-         RETURNING reel_id`,
+         ON CONFLICT (user_id, reel_id) DO NOTHING`,
         [req.user.id, id]
       );
 
       const counts = await client.query(
-        `UPDATE reels
-         SET compartidos = (SELECT COUNT(*)::int FROM reel_shares WHERE reel_id = $1)
-         WHERE id = $1
-         RETURNING compartidos`,
+        'SELECT COUNT(*)::int AS compartidos FROM reel_shares WHERE reel_id = $1',
         [id]
       );
       await client.query('COMMIT');
@@ -835,14 +909,12 @@ const reelController = {
       let guardado = false;
       if (existe.rowCount > 0) {
         await client.query('DELETE FROM reel_saves WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);
-        await client.query('UPDATE reels SET guardados = GREATEST(0, guardados - 1) WHERE id = $1', [id]);
       } else {
         await client.query('INSERT INTO reel_saves (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);
-        await client.query('UPDATE reels SET guardados = guardados + 1 WHERE id = $1', [id]);
         guardado = true;
       }
 
-      const counts = await client.query('SELECT guardados FROM reels WHERE id = $1', [id]);
+      const counts = await client.query('SELECT COUNT(*)::int AS guardados FROM reel_saves WHERE reel_id = $1', [id]);
       await client.query('COMMIT');
 
       res.json({

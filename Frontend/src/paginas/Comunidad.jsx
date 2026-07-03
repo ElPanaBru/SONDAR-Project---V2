@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import TextoConMenciones from "../componentes/TextoConMenciones";
@@ -207,6 +207,8 @@ export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
   const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
+  const publicandoRef = useRef(false);
+  const comentariosEnviandoRef = useRef(new Set());
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
@@ -218,6 +220,8 @@ export default function Comunidad({ usuario }) {
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestas, setRespuestas] = useState({});
   const [aviso, setAviso] = useState("");
+  const [publicando, setPublicando] = useState(false);
+  const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
@@ -243,7 +247,7 @@ export default function Comunidad({ usuario }) {
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        const response = await fetch(apiUrl("/api/comunidades"), {
+        const response = await apiRequest("/api/comunidades", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -298,8 +302,7 @@ export default function Comunidad({ usuario }) {
         const params = new URLSearchParams({ filtro: filtroActivo });
         if (busqueda && !publicacionCompartida) params.set("q", busqueda);
 
-        const response = await fetch(
-          apiUrl(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`),
+        const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`,
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
         );
 
@@ -393,6 +396,7 @@ export default function Comunidad({ usuario }) {
 
   const crearHilo = async (e) => {
     e.preventDefault();
+    if (publicandoRef.current) return;
 
     if (!usuario) {
       pedirLogin();
@@ -406,10 +410,12 @@ export default function Comunidad({ usuario }) {
       return;
     }
 
+    publicandoRef.current = true;
+    setPublicando(true);
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/${comunidadActivaId}/publicaciones`), {
+      const response = await apiRequest(`/api/comunidades/${comunidadActivaId}/publicaciones`, {
         method: "POST",
         headers: crearHeadersJson(token),
         body: JSON.stringify({
@@ -437,6 +443,9 @@ export default function Comunidad({ usuario }) {
       });
     } catch (error) {
       mostrarAviso(error.message || "No se pudo publicar en la comunidad.");
+    } finally {
+      publicandoRef.current = false;
+      setPublicando(false);
     }
   };
 
@@ -456,7 +465,7 @@ export default function Comunidad({ usuario }) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/like`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${id}/like`, {
         method: "POST",
         headers: crearHeadersJson(token),
       });
@@ -493,7 +502,7 @@ export default function Comunidad({ usuario }) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/guardar`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${id}/guardar`, {
         method: "POST",
         headers: crearHeadersJson(token),
       });
@@ -522,6 +531,8 @@ export default function Comunidad({ usuario }) {
   };
 
   const responder = async (hiloId) => {
+    const claveEnvio = String(hiloId);
+    if (comentariosEnviandoRef.current.has(claveEnvio)) return;
     if (!usuario) {
       pedirLogin();
       return;
@@ -530,10 +541,12 @@ export default function Comunidad({ usuario }) {
     const texto = respuestas[hiloId]?.trim();
     if (!texto) return;
 
+    comentariosEnviandoRef.current.add(claveEnvio);
+    setComentariosEnviando(new Set(comentariosEnviandoRef.current));
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${hiloId}/comentarios`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {
         method: "POST",
         headers: crearHeadersJson(token),
         body: JSON.stringify({ texto }),
@@ -574,6 +587,9 @@ export default function Comunidad({ usuario }) {
         )
       );
       mostrarAviso(error.message || "Comentario local hasta reconectar.");
+    } finally {
+      comentariosEnviandoRef.current.delete(claveEnvio);
+      setComentariosEnviando(new Set(comentariosEnviandoRef.current));
     }
 
     setRespuestas({ ...respuestas, [hiloId]: "" });
@@ -739,8 +755,8 @@ export default function Comunidad({ usuario }) {
                           value={respuestas[hilo.id] || ""}
                           onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
                         />
-                        <button type="button" onClick={() => responder(hilo.id)}>
-                          Responder
+                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosEnviando.has(String(hilo.id))}>
+                          {comentariosEnviando.has(String(hilo.id)) ? "Enviando..." : "Responder"}
                         </button>
                       </div>
                     </section>
@@ -806,7 +822,7 @@ export default function Comunidad({ usuario }) {
               </div>
 
               <div className="comunidad-modal-botones">
-                <button type="submit">Publicar</button>
+                <button type="submit" disabled={publicando}>{publicando ? "Publicando..." : "Publicar"}</button>
                 <button type="button" onClick={() => setMostrarModal(false)}>Cancelar</button>
               </div>
             </form>

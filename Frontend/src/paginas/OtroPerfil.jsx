@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilToast from "../componentes/PerfilToast";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -151,7 +151,7 @@ export default function OtroPerfil({ usuarioActual }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${identificador}/perfil`), {
+        const response = await apiRequest(`/api/usuarios/${identificador}/perfil`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -201,7 +201,7 @@ export default function OtroPerfil({ usuarioActual }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/seguir`), {
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/seguir`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -242,8 +242,7 @@ export default function OtroPerfil({ usuarioActual }) {
         setAviso("Tu sesion expiro. Volve a iniciar sesion.");
         return;
       }
-      const response = await fetch(
-        apiUrl(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`),
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -298,8 +297,7 @@ export default function OtroPerfil({ usuarioActual }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(
-        apiUrl(`/api/usuarios/${perfil.id || identificador}/bloquear`),
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/bloquear`,
         {
           method: "POST",
           headers: {
@@ -327,7 +325,7 @@ export default function OtroPerfil({ usuarioActual }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/denunciar`), {
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

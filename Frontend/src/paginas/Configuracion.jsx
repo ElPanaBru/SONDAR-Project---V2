@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { PREFERENCIAS_INICIALES, usePreferencias } from "../contextos/PreferenciasContext";
 import "./configuracion.css";
@@ -23,7 +23,7 @@ export default function Configuracion({ usuario }) {
   const [passwordActualizada, setPasswordActualizada] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
-  const [confirmacionEliminar, setConfirmacionEliminar] = useState("");
+  const [passwordEliminar, setPasswordEliminar] = useState("");
   const [eliminando, setEliminando] = useState(false);
   const [bloqueados, setBloqueados] = useState([]);
   const [cargandoBloqueados, setCargandoBloqueados] = useState(false);
@@ -54,7 +54,7 @@ export default function Configuracion({ usuario }) {
         const token = data.session?.access_token;
         if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-        const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+        const response = await apiRequest("/api/usuarios/me/configuracion", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => ({}));
@@ -96,7 +96,7 @@ export default function Configuracion({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const response = await fetch(apiUrl("/api/usuarios/me/bloqueados"), {
+        const response = await apiRequest("/api/usuarios/me/bloqueados", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => []);
@@ -129,7 +129,7 @@ export default function Configuracion({ usuario }) {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => ({}));
@@ -178,7 +178,7 @@ export default function Configuracion({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
-      const response = await fetch(apiUrl(`/api/usuarios/${cuenta.id}/bloquear`), {
+      const response = await apiRequest(`/api/usuarios/${cuenta.id}/bloquear`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -237,7 +237,7 @@ export default function Configuracion({ usuario }) {
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-      const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+      const response = await apiRequest("/api/usuarios/me/configuracion", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -304,7 +304,7 @@ export default function Configuracion({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
-      const response = await fetch(apiUrl("/api/usuarios/me/exportar"), {
+      const response = await apiRequest("/api/usuarios/me/exportar", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const datos = await response.json().catch(() => ({}));
@@ -331,7 +331,7 @@ export default function Configuracion({ usuario }) {
 
   const eliminarCuenta = async (e) => {
     e.preventDefault();
-    if (!usuario?.email || confirmacionEliminar.trim() !== usuario.email) return;
+    if (!usuario?.email || !passwordEliminar) return;
 
     setEliminando(true);
     setMensaje(null);
@@ -341,9 +341,13 @@ export default function Configuracion({ usuario }) {
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-      const response = await fetch(apiUrl("/api/usuarios/me"), {
+      const response = await apiRequest("/api/usuarios/me", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: passwordEliminar }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "No se pudo eliminar la cuenta.");
@@ -352,6 +356,7 @@ export default function Configuracion({ usuario }) {
       navigate("/auth", { replace: true });
     } catch (error) {
       setEliminando(false);
+      setPasswordEliminar("");
       mostrarMensaje("error", error.message || "No se pudo eliminar la cuenta.");
     }
   };
@@ -624,7 +629,7 @@ export default function Configuracion({ usuario }) {
                   <strong>{t("Eliminar cuenta")}</strong>
                   <span>{t("Elimina permanentemente tu perfil, publicaciones, eventos e interacciones.")}</span>
                 </div>
-                <button className="config-danger-button" type="button" onClick={() => setMostrarEliminar(true)}>
+                <button className="config-danger-button" type="button" onClick={() => { setPasswordEliminar(""); setMostrarEliminar(true); }}>
                   {t("Eliminar")}
                 </button>
               </div>
@@ -701,18 +706,18 @@ export default function Configuracion({ usuario }) {
       )}
 
       {mostrarEliminar && (
-        <div className="config-modal-backdrop" role="presentation" onMouseDown={() => !eliminando && setMostrarEliminar(false)}>
+        <div className="config-modal-backdrop" role="presentation" onMouseDown={() => { if (!eliminando) { setPasswordEliminar(""); setMostrarEliminar(false); } }}>
           <form className="config-modal config-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onSubmit={eliminarCuenta} onMouseDown={(e) => e.stopPropagation()}>
             <h2 id="delete-title">Eliminar cuenta permanentemente</h2>
             <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, reels, eventos, comentarios, guardados y archivos publicados.</p>
             <label>
-              Escribi <strong>{usuario?.email}</strong> para confirmar
-              <input type="email" value={confirmacionEliminar} onChange={(e) => setConfirmacionEliminar(e.target.value)} placeholder={usuario?.email || "tu@email.com"} autoComplete="off" autoFocus />
+              Ingresa tu contrasena para confirmar
+              <input type="password" value={passwordEliminar} onChange={(e) => setPasswordEliminar(e.target.value)} placeholder="Contrasena actual" autoComplete="current-password" autoFocus required />
             </label>
             <div className="config-modal-actions">
-              <button type="button" onClick={() => setMostrarEliminar(false)} disabled={eliminando}>Cancelar</button>
-              <button className="config-confirm-delete" type="submit" disabled={eliminando || confirmacionEliminar.trim() !== usuario?.email}>
-                {eliminando ? "Eliminando..." : "Eliminar definitivamente"}
+              <button type="button" onClick={() => { setPasswordEliminar(""); setMostrarEliminar(false); }} disabled={eliminando}>Cancelar</button>
+              <button className="config-confirm-delete" type="submit" disabled={eliminando || !passwordEliminar}>
+                {eliminando ? "Verificando y eliminando..." : "Eliminar definitivamente"}
               </button>
             </div>
           </form>

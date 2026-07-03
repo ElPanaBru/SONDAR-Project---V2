@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./sidebarNav.css";
@@ -47,7 +47,7 @@ export default function SidebarNav({ usuario }) {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const response = await fetch(apiUrl("/api/usuarios/me/seguidos"), {
+        const response = await apiRequest("/api/usuarios/me/seguidos", {
           headers: {
             Authorization: `Bearer ${token}`,
           },

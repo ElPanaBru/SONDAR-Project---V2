@@ -34,6 +34,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
+const GENEROS_ONBOARDING = new Set(['pop', 'rock', 'trap', 'cumbia', 'edm', 'jazz', 'blues', 'metal', 'folklore']);
 
 function normalizarUsername(valor = '') {
   return String(valor).trim().replace(/^@+/, '').toLowerCase();
@@ -96,6 +97,44 @@ function validarConfiguracion(body = {}) {
   return { configuracion };
 }
 
+function validarFechaNacimiento(valor) {
+  const texto = String(valor || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return { error: 'La fecha de nacimiento no es valida.' };
+  }
+
+  const fecha = new Date(`${texto}T00:00:00.000Z`);
+  if (Number.isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== texto) {
+    return { error: 'La fecha de nacimiento no es valida.' };
+  }
+
+  const hoy = new Date();
+  let edad = hoy.getUTCFullYear() - fecha.getUTCFullYear();
+  const todaviaNoCumplio = hoy.getUTCMonth() < fecha.getUTCMonth()
+    || (hoy.getUTCMonth() === fecha.getUTCMonth() && hoy.getUTCDate() < fecha.getUTCDate());
+  if (todaviaNoCumplio) edad -= 1;
+
+  if (edad < 13) return { error: 'Debes tener al menos 13 años para crear una cuenta.' };
+  if (edad > 120) return { error: 'La fecha de nacimiento no es valida.' };
+  return { birthDate: texto };
+}
+
+function validarGenerosOnboarding(valor) {
+  let recibidos;
+  try {
+    recibidos = typeof valor === 'string' ? JSON.parse(valor) : valor;
+  } catch {
+    return { error: 'La selección de géneros no es válida.' };
+  }
+  if (!Array.isArray(recibidos)) return { error: 'La selección de géneros no es válida.' };
+  const generos = [...new Set(recibidos.map((item) => String(item || '').toLowerCase().trim()))];
+  if (generos.length < 3) return { error: 'Elegí al menos 3 géneros para continuar.' };
+  if (generos.length > 9 || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
+    return { error: 'La selección de géneros no es válida.' };
+  }
+  return { generos };
+}
+
 async function obtenerConfiguracion(userId, client = pool) {
   const result = await client.query(
     'SELECT * FROM user_settings WHERE user_id = $1',
@@ -106,8 +145,7 @@ async function obtenerConfiguracion(userId, client = pool) {
 
 function nombreVisible(usuario) {
   return (
-    usuario?.artist_name ||
-    usuario?.full_name ||
+    usuario?.display_name ||
     usuario?.username ||
     usuario?.email?.split('@')[0] ||
     'Usuario SONDAR'
@@ -128,11 +166,8 @@ function mapearUsuarioPerfil(usuario, configuracion = CONFIGURACION_INICIAL, esP
     user_type: usuario.user_type,
     nombre: nombreVisible(usuario),
     usuario: usuarioVisible(usuario),
-    bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
+    bio: usuario.bio || 'Artista en SONDAR.',
     avatar: usuario.profile_img_url || '',
-    banner: usuario.banner_url || '',
-    instagram: usuario.instagram_url || '',
-    verificado: Boolean(usuario.verified),
   };
 }
 
@@ -143,10 +178,8 @@ function mapearUsuarioBusqueda(usuario, stats = {}) {
     user_type: usuario.user_type,
     nombre: nombreVisible(usuario),
     usuario: usuarioVisible(usuario),
-    bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
+    bio: usuario.bio || 'Artista en SONDAR.',
     avatar: usuario.profile_img_url || '',
-    banner: usuario.banner_url || '',
-    verificado: Boolean(usuario.verified),
     seguidores: Number(stats.seguidores || 0),
     publicaciones: Number(stats.publicaciones || 0),
   };
@@ -163,7 +196,7 @@ function mapearReelPerfil(reel) {
     genero: reel.genero || '',
     descripcion: reel.descripcion || '',
     creadorId: reel.creador_id,
-    visitas: Number(reel.visitas || 0),
+    visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
   };
 }
 
@@ -238,7 +271,9 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const [usuarioResult, reelsResult, eventosResult, publicacionesStatsResult] = await Promise.all([
     pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]),
     pool.query(
-      `SELECT * FROM reels
+      `SELECT r.*,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
+       FROM reels r
        WHERE creador_id = $1
        ORDER BY created_at DESC, id DESC`,
       [targetUserId]
@@ -269,7 +304,8 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     seguidosResult,
   ] = await Promise.all([
     consultarOpcional(
-      `SELECT r.*
+      `SELECT r.*,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reel_likes rl
        JOIN reels r ON r.id = rl.reel_id
        WHERE rl.user_id = $1
@@ -277,7 +313,8 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
       [targetUserId]
     ),
     consultarOpcional(
-      `SELECT r.*
+      `SELECT r.*,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reel_saves rs
        JOIN reels r ON r.id = rs.reel_id
        WHERE rs.user_id = $1
@@ -390,14 +427,12 @@ const usuariosController = {
          WHERE
           username ILIKE $1 OR
           email ILIKE $1 OR
-          COALESCE(full_name, '') ILIKE $1 OR
-          COALESCE(artist_name, '') ILIKE $1 OR
-          COALESCE(bio, '') ILIKE $1 OR
-          COALESCE(artist_bio, '') ILIKE $1
+          COALESCE(display_name, '') ILIKE $1 OR
+          COALESCE(bio, '') ILIKE $1
          ORDER BY
           CASE
             WHEN lower(username) = lower($2) THEN 0
-            WHEN lower(COALESCE(artist_name, full_name, username)) = lower($2) THEN 1
+            WHEN lower(COALESCE(display_name, username)) = lower($2) THEN 1
             ELSE 2
           END,
           created_at DESC
@@ -483,6 +518,10 @@ const usuariosController = {
       const query = `
         INSERT INTO users (id, email, username, user_type)
         VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id) DO UPDATE
+        SET email = EXCLUDED.email,
+            username = EXCLUDED.username,
+            user_type = EXCLUDED.user_type
         RETURNING *`;
 
       const result = await pool.query(query, [
@@ -685,6 +724,73 @@ const usuariosController = {
     }
   },
 
+  completarOnboarding: async (req, res) => {
+    const validacion = validarFechaNacimiento(req.body?.birthDate);
+    if (validacion.error) return res.status(400).json({ error: validacion.error });
+    const validacionGeneros = validarGenerosOnboarding(req.body?.genres);
+    if (validacionGeneros.error) return res.status(400).json({ error: validacionGeneros.error });
+
+    let avatarSubido = null;
+    const client = await pool.connect();
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const perfilAnterior = await client.query(
+        'SELECT profile_img_path FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+
+      await client.query('BEGIN');
+      const result = await client.query(
+        `UPDATE users
+         SET birth_date = $1,
+             profile_img_url = COALESCE($2, profile_img_url),
+             profile_img_path = COALESCE($3, profile_img_path),
+             updated_at = timezone('utc'::text, now())
+         WHERE id = $4
+         RETURNING id, username, display_name, bio, profile_img_url, birth_date`,
+        [
+          validacion.birthDate,
+          avatarSubido?.publicUrl || null,
+          avatarSubido?.path || null,
+          req.user.id,
+        ]
+      );
+      await client.query('DELETE FROM user_interests WHERE user_id = $1', [req.user.id]);
+      await client.query(
+        `INSERT INTO user_interests (user_id, genre)
+         SELECT $1, unnest($2::text[])`,
+        [req.user.id, validacionGeneros.generos]
+      );
+      await client.query('COMMIT');
+
+      const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
+      if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
+        await eliminarAvatarUsuario(avatarAnteriorPath).catch(() => null);
+      }
+
+      res.json({
+        ok: true,
+        perfil: {
+          id: result.rows[0].id,
+          username: result.rows[0].username,
+          nombre: result.rows[0].display_name || result.rows[0].username,
+          bio: result.rows[0].bio || '',
+          avatar: result.rows[0].profile_img_url || '',
+        },
+        birthDate: result.rows[0].birth_date,
+        genres: validacionGeneros.generos,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      console.error('Error al completar onboarding:', error);
+      res.status(500).json({ error: 'No se pudo completar el perfil.' });
+    } finally {
+      client.release();
+    }
+  },
+
   obtenerPerfilPublico: async (req, res) => {
     const { identificador } = req.params;
 
@@ -745,8 +851,7 @@ const usuariosController = {
       const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
       const result = await pool.query(
         `UPDATE users
-         SET full_name = $1,
-             artist_name = $1,
+         SET display_name = $1,
              bio = $2,
              profile_img_url = COALESCE($3, profile_img_url),
              profile_img_path = COALESCE($4, profile_img_path),
@@ -1114,8 +1219,26 @@ const usuariosController = {
 
   eliminarCuentaActual: async (req, res) => {
     const userId = req.user.id;
+    const password = String(req.body?.password || '');
+
+    if (!password) {
+      return res.status(400).json({ error: 'Ingresa tu contrasena para eliminar la cuenta.' });
+    }
 
     try {
+      const verificacion = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: req.user.email, password }),
+      });
+      const acceso = await verificacion.json().catch(() => ({}));
+      if (!verificacion.ok || acceso.user?.id !== userId) {
+        return res.status(401).json({ error: 'La contrasena es incorrecta.' });
+      }
+
       const [perfil, eventos, reels] = await Promise.all([
         pool.query('SELECT profile_img_path, profile_img_url FROM users WHERE id = $1', [userId]),
         pool.query('SELECT img_path, img_url FROM eventos WHERE creador_id = $1', [userId]),

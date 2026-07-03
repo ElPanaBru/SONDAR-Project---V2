@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./buscar.css";
@@ -103,9 +103,9 @@ export default function Buscar({ usuario }) {
         const encodedQuery = encodeURIComponent(query);
 
         const [usuariosResult, reelsResult, eventosResult] = await Promise.allSettled([
-          fetch(apiUrl(`/api/usuarios?query=${encodedQuery}`), { headers }),
-          fetch(apiUrl("/api/reels"), { headers }),
-          fetch(apiUrl("/api/eventos"), { headers }),
+          apiRequest(`/api/usuarios?query=${encodedQuery}`, { headers }),
+          apiRequest("/api/reels", { headers }),
+          apiRequest("/api/eventos", { headers }),
         ]);
 
         const usuariosData =

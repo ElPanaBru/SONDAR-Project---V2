@@ -16,6 +16,7 @@ router.put('/me/configuracion', authMiddleware, usuariosController.actualizarCon
 router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActuales);
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, upload.single('avatar'), usuariosController.actualizarPerfilActual);
+router.put('/me/onboarding', authMiddleware, upload.single('avatar'), usuariosController.completarOnboarding);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
 router.get('/me/bloqueados', authMiddleware, usuariosController.listarBloqueadosActuales);
 router.get('/', usuariosController.buscarUsuarios);

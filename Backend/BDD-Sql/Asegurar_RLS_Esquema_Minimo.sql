@@ -1,0 +1,29 @@
+-- Completa la proteccion RLS del esquema minimo sin modificar datos.
+BEGIN;
+
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_interests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notification_mutes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_blocks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.eventos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_organizers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.event_saves ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_views ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_saves ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_publicaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_publicacion_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_publicacion_guardados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_comentarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_comentario_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
+
+COMMIT;

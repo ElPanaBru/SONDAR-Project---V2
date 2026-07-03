@@ -31,9 +31,6 @@ async function crearNotificacion({
   title,
   body = '',
   targetUrl = '',
-  entityType = null,
-  entityId = null,
-  metadata = {},
   uniqueKey = null,
 }, client = pool) {
   if (!userId || userId === actorId) return null;
@@ -44,10 +41,9 @@ async function crearNotificacion({
       : '';
     const result = await client.query(
     `INSERT INTO notifications (
-       user_id, actor_id, type, title, body, target_url,
-       entity_type, entity_id, metadata, unique_key
+       user_id, actor_id, type, title, body, target_url, unique_key
      )
-     SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10
+     SELECT $1, $2, $3, $4, $5, $6, $7
      WHERE COALESCE(
        (SELECT actividad_cuenta FROM user_settings WHERE user_id = $1),
        true
@@ -66,9 +62,6 @@ async function crearNotificacion({
       String(title || '').slice(0, 120),
       String(body || '').slice(0, 500),
       targetUrl,
-      entityType,
-      entityId === null || entityId === undefined ? null : String(entityId),
-      JSON.stringify(metadata || {}),
       uniqueKey,
     ]
   );
@@ -95,8 +88,6 @@ async function notificarSeguidores({
   title,
   body = '',
   targetUrl = '',
-  entityType = null,
-  entityId = null,
   uniquePrefix,
 }, client = pool) {
   try {
@@ -121,8 +112,6 @@ async function notificarSeguidores({
       title,
       body,
       targetUrl,
-      entityType,
-      entityId,
       uniqueKey: `${uniquePrefix}:${seguidor.follower_id}`,
     }, client)));
 
@@ -160,8 +149,6 @@ async function notificarMenciones({
       title: `${actorName} te menciono`,
       body: 'Toca para ver la conversacion.',
       targetUrl,
-      entityType,
-      entityId,
       uniqueKey: `mention:${entityType}:${entityId}:${usuario.id}`,
     }, client)));
   } catch (error) {

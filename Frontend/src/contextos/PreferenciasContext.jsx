@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 
 export const PREFERENCIAS_INICIALES = Object.freeze({
@@ -286,7 +286,7 @@ export function PreferenciasProvider({ usuario, children }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+        const response = await apiRequest("/api/usuarios/me/configuracion", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) return;

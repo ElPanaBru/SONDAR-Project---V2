@@ -11,13 +11,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
+    "@supabase/supabase-js": "^2.45.4",
     "bootstrap": "^5.3.8",
     "bootswatch": "^5.3.8",
     "cors": "^2.8.6",
-    "emailjs-com": "^3.2.0",
     "express": "^5.2.1",
-    "@supabase/supabase-js": "^2.45.4",
     "leaflet": "^1.9.4",
     "pg": "^8.20.0",
     "react": "^19.2.4",

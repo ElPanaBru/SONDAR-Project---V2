@@ -144,11 +144,8 @@ async function asegurarEsquemaComunidades() {
           titulo text NOT NULL CHECK (length(trim(titulo)) > 0),
           texto text NOT NULL CHECK (length(trim(texto)) > 0),
           etiqueta text,
-          likes integer NOT NULL DEFAULT 0,
-          guardados integer NOT NULL DEFAULT 0,
           fijada boolean NOT NULL DEFAULT false,
-          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-          updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
 
@@ -177,7 +174,6 @@ async function asegurarEsquemaComunidades() {
           user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
           parent_id bigint REFERENCES comunidad_comentarios(id) ON DELETE CASCADE,
           texto text NOT NULL CHECK (length(trim(texto)) > 0),
-          likes integer NOT NULL DEFAULT 0,
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
@@ -273,8 +269,8 @@ function mapearComentario(row) {
     autor: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
     usuario: usuarioVisible(row),
     texto: row.texto,
-    votos: Number(row.likes || 0),
-    likes: Number(row.likes || 0),
+    votos: Number(row.likes_calculados ?? row.likes ?? 0),
+    likes: Number(row.likes_calculados ?? row.likes ?? 0),
     liked: Boolean(row.liked),
     parentId: row.parent_id ? Number(row.parent_id) : null,
     tiempo: tiempoRelativo(row.created_at),
@@ -317,8 +313,8 @@ function mapearPublicacion(row, comentarios = []) {
     titulo: row.titulo,
     texto: row.texto,
     etiqueta: row.etiqueta || row.genero,
-    votos: Number(row.likes || 0),
-    likes: Number(row.likes || 0),
+    votos: Number(row.likes_calculados ?? row.likes ?? 0),
+    likes: Number(row.likes_calculados ?? row.likes ?? 0),
     liked: Boolean(row.liked),
     guardado: Boolean(row.guardado),
     comentarios,
@@ -333,6 +329,7 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
   const result = await pool.query(
     `SELECT
        cc.*,
+       (SELECT COUNT(*)::int FROM comunidad_comentario_likes ccl_count WHERE ccl_count.comentario_id = cc.id) AS likes_calculados,
        u.username,
        u.email,
        EXISTS (
@@ -415,7 +412,7 @@ const comunidadController = {
       }
 
       const orderBy = filtro === 'popular'
-        ? 'cp.likes DESC, cp.created_at DESC, cp.id DESC'
+        ? 'likes_calculados DESC, cp.created_at DESC, cp.id DESC'
         : 'cp.fijada DESC, cp.created_at DESC, cp.id DESC';
 
       const result = await pool.query(
@@ -424,6 +421,8 @@ const comunidadController = {
            c.genero,
            u.username,
            u.email,
+           (SELECT COUNT(*)::int FROM comunidad_publicacion_likes cpl_count WHERE cpl_count.publicacion_id = cp.id) AS likes_calculados,
+           (SELECT COUNT(*)::int FROM comunidad_publicacion_guardados cpg_count WHERE cpg_count.publicacion_id = cp.id) AS guardados_calculados,
            EXISTS (
              SELECT 1
              FROM comunidad_publicacion_likes cpl
@@ -636,13 +635,11 @@ const comunidadController = {
           'DELETE FROM comunidad_publicacion_likes WHERE user_id = $1 AND publicacion_id = $2',
           [req.user.id, publicacionId]
         );
-        await client.query('UPDATE comunidad_publicaciones SET likes = GREATEST(0, likes - 1) WHERE id = $1', [publicacionId]);
       } else {
         await client.query(
           'INSERT INTO comunidad_publicacion_likes (user_id, publicacion_id) VALUES ($1, $2)',
           [req.user.id, publicacionId]
         );
-        await client.query('UPDATE comunidad_publicaciones SET likes = likes + 1 WHERE id = $1', [publicacionId]);
         liked = true;
         await crearNotificacion({
           userId: publicacion.rows[0].user_id,
@@ -661,7 +658,10 @@ const comunidadController = {
         await eliminarNotificacion(`community-like:${req.user.id}:${publicacionId}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const counts = await client.query(
+        'SELECT COUNT(*)::int AS likes FROM comunidad_publicacion_likes WHERE publicacion_id = $1',
+        [publicacionId]
+      );
       await client.query('COMMIT');
 
       res.json({
@@ -705,17 +705,18 @@ const comunidadController = {
           'DELETE FROM comunidad_publicacion_guardados WHERE user_id = $1 AND publicacion_id = $2',
           [req.user.id, publicacionId]
         );
-        await client.query('UPDATE comunidad_publicaciones SET guardados = GREATEST(0, guardados - 1) WHERE id = $1', [publicacionId]);
       } else {
         await client.query(
           'INSERT INTO comunidad_publicacion_guardados (user_id, publicacion_id) VALUES ($1, $2)',
           [req.user.id, publicacionId]
         );
-        await client.query('UPDATE comunidad_publicaciones SET guardados = guardados + 1 WHERE id = $1', [publicacionId]);
         guardado = true;
       }
 
-      const counts = await client.query('SELECT guardados FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      const counts = await client.query(
+        'SELECT COUNT(*)::int AS guardados FROM comunidad_publicacion_guardados WHERE publicacion_id = $1',
+        [publicacionId]
+      );
       await client.query('COMMIT');
 
       res.json({
@@ -764,13 +765,11 @@ const comunidadController = {
           'DELETE FROM comunidad_comentario_likes WHERE user_id = $1 AND comentario_id = $2',
           [req.user.id, comentarioId]
         );
-        await client.query('UPDATE comunidad_comentarios SET likes = GREATEST(0, likes - 1) WHERE id = $1', [comentarioId]);
       } else {
         await client.query(
           'INSERT INTO comunidad_comentario_likes (user_id, comentario_id) VALUES ($1, $2)',
           [req.user.id, comentarioId]
         );
-        await client.query('UPDATE comunidad_comentarios SET likes = likes + 1 WHERE id = $1', [comentarioId]);
         liked = true;
         await crearNotificacion({
           userId: comentario.rows[0].user_id,
@@ -789,7 +788,10 @@ const comunidadController = {
         await eliminarNotificacion(`community-comment-like:${req.user.id}:${comentarioId}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM comunidad_comentarios WHERE id = $1', [comentarioId]);
+      const counts = await client.query(
+        'SELECT COUNT(*)::int AS likes FROM comunidad_comentario_likes WHERE comentario_id = $1',
+        [comentarioId]
+      );
       await client.query('COMMIT');
 
       res.json({

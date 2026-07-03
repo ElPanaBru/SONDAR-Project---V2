@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
@@ -459,6 +459,8 @@ export default function Descubrir({ usuario }) {
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const [respuestasEnviando, setRespuestasEnviando] = useState(new Set());
   const [comentariosPorLanzamiento, setComentariosPorLanzamiento] = useState({});
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestaActiva, setRespuestaActiva] = useState(null);
@@ -491,6 +493,8 @@ export default function Descubrir({ usuario }) {
   const portadaReelInputRef = useRef(null);
   const audioReelInputRef = useRef(null);
   const subiendoReelRef = useRef(false);
+  const enviandoComentarioRef = useRef(false);
+  const respuestasEnviandoRef = useRef(new Set());
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
   const usuarioComentario = obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
@@ -539,7 +543,7 @@ export default function Descubrir({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) throw new Error("Sesion no disponible para registrar la visita.");
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/visita`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/visita`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -615,7 +619,7 @@ export default function Descubrir({ usuario }) {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
-        const response = await fetch(apiUrl("/api/reels"), {
+        const response = await apiRequest("/api/reels", {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
@@ -636,7 +640,7 @@ export default function Descubrir({ usuario }) {
           const comentariosEntries = await Promise.all(
             reelsBackend.map(async (reel) => {
               try {
-                const comentariosResponse = await fetch(apiUrl(`/api/reels/${reel.backendId}/comentarios`), {
+                const comentariosResponse = await apiRequest(`/api/reels/${reel.backendId}/comentarios`, {
                   headers: token
                     ? {
                         Authorization: `Bearer ${token}`,
@@ -672,7 +676,7 @@ export default function Descubrir({ usuario }) {
             const avatarEntries = await Promise.all(
               creadoresSinAvatar.map(async (creadorId) => {
                 try {
-                  const perfilResponse = await fetch(apiUrl(`/api/usuarios/${creadorId}/perfil`), {
+                  const perfilResponse = await apiRequest(`/api/usuarios/${creadorId}/perfil`, {
                     headers: { Authorization: `Bearer ${token}` },
                   });
                   if (!perfilResponse.ok) return [creadorId, ""];
@@ -1127,7 +1131,7 @@ export default function Descubrir({ usuario }) {
         formData.append("portada", nuevoReel.portadaFile);
       }
 
-      const response = await fetch(apiUrl("/api/reels/crear"), {
+      const response = await apiRequest("/api/reels/crear", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1148,7 +1152,7 @@ export default function Descubrir({ usuario }) {
       };
 
       if (!reel.avatar) {
-        const perfilResponse = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const perfilResponse = await apiRequest("/api/usuarios/me/perfil", {
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => null);
         if (perfilResponse?.ok) {
@@ -1206,7 +1210,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return { ok: false, nuevoCompartido: false };
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/compartir`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/compartir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1313,7 +1317,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${lanzamiento.creadorId}/seguir`), {
+        const response = await apiRequest(`/api/usuarios/${lanzamiento.creadorId}/seguir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1382,7 +1386,7 @@ export default function Descubrir({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/usuarios/${perfilBase.id}/perfil`), {
+      const response = await apiRequest(`/api/usuarios/${perfilBase.id}/perfil`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1418,7 +1422,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${perfilVista.perfil.id}/seguir`), {
+        const response = await apiRequest(`/api/usuarios/${perfilVista.perfil.id}/seguir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1472,7 +1476,7 @@ export default function Descubrir({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tenes que iniciar sesion para denunciar publicaciones.");
-      const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/denunciar`), {
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1521,7 +1525,7 @@ export default function Descubrir({ usuario }) {
           return;
         }
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1564,7 +1568,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}`), {
+        const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1629,6 +1633,7 @@ export default function Descubrir({ usuario }) {
 
   const enviarComentario = async (event) => {
     event.preventDefault();
+    if (enviandoComentarioRef.current) return;
     if (!usuario) {
       pedirLogin();
       return;
@@ -1641,13 +1646,15 @@ export default function Descubrir({ usuario }) {
     const lanzamientoId = comentariosAbiertos ?? reproduciendo;
     if (!lanzamientoId) return;
     const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+    enviandoComentarioRef.current = true;
+    setEnviandoComentario(true);
 
     if (lanzamiento?.backendId) {
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1672,6 +1679,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo guardar el comentario.");
         return;
+      } finally {
+        enviandoComentarioRef.current = false;
+        setEnviandoComentario(false);
       }
     }
 
@@ -1692,6 +1702,8 @@ export default function Descubrir({ usuario }) {
       ],
     }));
     setComentarioTexto("");
+    enviandoComentarioRef.current = false;
+    setEnviandoComentario(false);
   };
 
   const incrementarMetrica = (id, campo) => {
@@ -1710,7 +1722,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`), {
+        const response = await apiRequest(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1762,7 +1774,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/like`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/like`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1859,7 +1871,7 @@ export default function Descubrir({ usuario }) {
           const token = await obtenerTokenSesion();
           if (!token) return;
 
-          const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}/like`), {
+          const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}/like`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -1932,6 +1944,8 @@ export default function Descubrir({ usuario }) {
 
   const enviarRespuesta = async (event, lanzamientoId, comentarioId) => {
     event.preventDefault();
+    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
+    if (respuestasEnviandoRef.current.has(respuestaKey)) return;
     if (!usuario) {
       pedirLogin();
       return;
@@ -1940,13 +1954,15 @@ export default function Descubrir({ usuario }) {
     const texto = respuestaTexto.trim();
     if (!texto) return;
     const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+    respuestasEnviandoRef.current.add(respuestaKey);
+    setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
 
     if (lanzamiento?.backendId) {
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1983,6 +1999,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo guardar la respuesta.");
         return;
+      } finally {
+        respuestasEnviandoRef.current.delete(respuestaKey);
+        setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
       }
     }
 
@@ -2012,10 +2031,11 @@ export default function Descubrir({ usuario }) {
     setRespuestaTexto("");
     setRespuestaActiva(null);
     setRespuestaPara(null);
-    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
     setRespuestasAbiertas((abiertas) =>
       abiertas.includes(respuestaKey) ? abiertas : [...abiertas, respuestaKey]
     );
+    respuestasEnviandoRef.current.delete(respuestaKey);
+    setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
   };
 
   return (
@@ -2389,7 +2409,7 @@ export default function Descubrir({ usuario }) {
                               onChange={setRespuestaTexto}
                               autoFocus
                             />
-                            <button type="submit" aria-label="Enviar respuesta">
+                            <button type="submit" aria-label="Enviar respuesta" disabled={respuestasEnviando.has(`${lanzamiento.id}-${comentario.id}`)}>
                               <Icono nombre="enviar" />
                             </button>
                           </form>
@@ -2422,7 +2442,7 @@ export default function Descubrir({ usuario }) {
                     value={comentarioTexto}
                     onChange={setComentarioTexto}
                   />
-                  <button type="submit" aria-label="Enviar comentario">
+                  <button type="submit" aria-label="Enviar comentario" disabled={enviandoComentario}>
                     <Icono nombre="enviar" />
                   </button>
                 </form>

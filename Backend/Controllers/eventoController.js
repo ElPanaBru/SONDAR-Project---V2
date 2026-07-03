@@ -68,7 +68,7 @@ const eventoController = {
         SELECT
           e.*,
           e.img_url AS img,
-          COALESCE(u.username, u.full_name, u.artist_name, 'Anonimo') AS creador,
+          COALESCE(u.display_name, u.username, 'Anonimo') AS creador,
           u.profile_img_url AS avatar,
           COALESCE(org.organizadores, '[]'::jsonb) AS organizadores
         FROM eventos e
@@ -78,7 +78,7 @@ const eventoController = {
             jsonb_build_object(
               'id', co.id,
               'username', co.username,
-              'nombre', COALESCE(co.artist_name, co.full_name, co.username),
+              'nombre', COALESCE(co.display_name, co.username),
               'avatar', COALESCE(co.profile_img_url, '')
             )
             ORDER BY eo.created_at
@@ -242,7 +242,7 @@ const eventoController = {
           `SELECT
              u.id,
              u.username,
-             COALESCE(u.artist_name, u.full_name, u.username) AS nombre,
+             COALESCE(u.display_name, u.username) AS nombre,
              COALESCE(u.profile_img_url, '') AS avatar
            FROM event_organizers eo
            JOIN users u ON u.id = eo.user_id
