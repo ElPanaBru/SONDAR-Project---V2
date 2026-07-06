@@ -20,6 +20,8 @@ const GENEROS = [
 ];
 
 export default function OnboardingPerfilModal({ token, username, onComplete }) {
+  const [nombre, setNombre] = useState("");
+  const [bio, setBio] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [avatar, setAvatar] = useState(null);
   const [generos, setGeneros] = useState([]);
@@ -33,6 +35,10 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
 
   const guardar = async (event) => {
     event.preventDefault();
+    if (nombre.trim().length < 2) {
+      setMensaje("Ingresá el nombre que querés mostrar en tu perfil.");
+      return;
+    }
     if (!birthDate) {
       setMensaje("Elegí tu fecha de nacimiento para continuar.");
       return;
@@ -46,6 +52,8 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
     setMensaje("");
     try {
       const formData = new FormData();
+      formData.append("nombre", nombre.trim());
+      formData.append("bio", bio.trim());
       formData.append("birthDate", birthDate);
       formData.append("genres", JSON.stringify(generos));
       if (avatar) formData.append("avatar", avatar);
@@ -95,6 +103,34 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
             <small>JPG, PNG, WebP o GIF · máximo 5 MB</small>
           </label>
 
+          <div className="onboarding-profile-fields">
+            <label>
+              <span>Nombre visible</span>
+              <input
+                type="text"
+                value={nombre}
+                maxLength={32}
+                placeholder="Ej: Martina López"
+                autoComplete="name"
+                onChange={(event) => { setNombre(event.target.value); setMensaje(""); }}
+                required
+              />
+              <small>Es tu nombre común, sin @. Tu usuario sigue siendo @{String(username || "usuario").replace(/^@/, "")}.</small>
+            </label>
+
+            <label>
+              <span>Bio</span>
+              <textarea
+                value={bio}
+                maxLength={180}
+                rows={3}
+                placeholder="Contá qué hacés, qué escuchás o qué estás creando."
+                onChange={(event) => setBio(event.target.value)}
+              />
+              <small>{bio.length}/180</small>
+            </label>
+          </div>
+
           <label className="onboarding-date-field">
             <span>¿Cuál es tu fecha de nacimiento?</span>
             <input
@@ -131,7 +167,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
 
           {mensaje ? <p className="onboarding-error">{mensaje}</p> : null}
 
-          <button className="onboarding-submit" type="submit" disabled={loading || !birthDate || generos.length < 3}>
+          <button className="onboarding-submit" type="submit" disabled={loading || nombre.trim().length < 2 || !birthDate || generos.length < 3}>
             {loading ? "Guardando..." : `Entrar a SONDAR (${Math.min(generos.length, 3)}/3)`}
           </button>
         </form>

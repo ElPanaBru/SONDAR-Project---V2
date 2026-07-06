@@ -250,6 +250,7 @@
 }
 
 .album-sello,
+.album-recomendacion,
 .album-titulo,
 .album-artista,
 .album-disco,
@@ -297,6 +298,23 @@
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
+}
+
+.album-recomendacion {
+  top: calc(8% + 38px);
+  left: 8%;
+  max-width: 72%;
+  overflow: hidden;
+  padding: 5px 9px;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(8, 8, 8, 0.72);
+  border: 1px solid rgba(255, 139, 0, 0.48);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
 }
 
 .album-titulo {

@@ -477,6 +477,7 @@ export default function Descubrir({ usuario }) {
   const [compartirActivo, setCompartirActivo] = useState(null);
   const [perfilVista, setPerfilVista] = useState(null);
   const [progresos, setProgresos] = useState({});
+  const [posicionUsuario, setPosicionUsuario] = useState(null);
   const reproduciendoRef = useRef(reproduciendo);
   const comentariosAbiertosRef = useRef(comentariosAbiertos);
   const lanzamientosFiltradosRef = useRef([]);
@@ -602,6 +603,19 @@ export default function Descubrir({ usuario }) {
   }, []);
 
   useEffect(() => {
+    if (!navigator.geolocation) return undefined;
+    let activo = true;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (activo) setPosicionUsuario({ lat: coords.latitude, lng: coords.longitude });
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 10 * 60 * 1000 }
+    );
+    return () => { activo = false; };
+  }, []);
+
+  useEffect(() => {
     const abrirCreador = () => ejecutarConSesion(() => setMostrarCrearReel(true));
     window.addEventListener("sondar:crear-reel", abrirCreador);
     return () => window.removeEventListener("sondar:crear-reel", abrirCreador);
@@ -619,7 +633,13 @@ export default function Descubrir({ usuario }) {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
-        const response = await apiRequest("/api/reels", {
+        const parametros = new URLSearchParams();
+        if (posicionUsuario) {
+          parametros.set("lat", String(posicionUsuario.lat));
+          parametros.set("lng", String(posicionUsuario.lng));
+        }
+        const queryPosicion = parametros.toString();
+        const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
@@ -709,7 +729,7 @@ export default function Descubrir({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [usuario?.id]);
+  }, [usuario?.id, posicionUsuario]);
 
   function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
@@ -2097,6 +2117,9 @@ export default function Descubrir({ usuario }) {
                   ) : null}
                   {lanzamiento.genero ? (
                     <span className="album-sello">{mostrarGeneroReel(lanzamiento.genero)}</span>
+                  ) : null}
+                  {lanzamiento.recomendacion ? (
+                    <span className="album-recomendacion">{lanzamiento.recomendacion}</span>
                   ) : null}
                   <span className="album-brillo" />
                   <span className="album-disco" />

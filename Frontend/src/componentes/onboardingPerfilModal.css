@@ -11,6 +11,8 @@
 
 .onboarding-modal {
   width: min(100%, 680px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   padding: clamp(22px, 3vw, 32px);
   color: #fff;
   background: #171717;
@@ -51,6 +53,7 @@
 
 .onboarding-avatar-picker {
   display: grid;
+  grid-row: 1 / span 2;
   justify-items: center;
   gap: 7px;
   font-size: 14px;
@@ -67,10 +70,53 @@
 }
 
 .onboarding-avatar-picker small,
+.onboarding-profile-fields small,
 .onboarding-date-field small {
   color: rgba(255, 255, 255, 0.46);
   font-size: 11px;
   font-weight: 650;
+}
+
+.onboarding-profile-fields {
+  display: grid;
+  gap: 11px;
+  text-align: left;
+}
+
+.onboarding-profile-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.onboarding-profile-fields label > span {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.onboarding-profile-fields input,
+.onboarding-profile-fields textarea {
+  width: 100%;
+  padding: 12px 15px;
+  color: #fff;
+  background: #282828;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 750;
+  outline: none;
+  resize: vertical;
+}
+
+.onboarding-profile-fields input:focus,
+.onboarding-profile-fields textarea:focus {
+  border-color: #ffae00;
+  box-shadow: 0 0 0 4px rgba(255, 174, 0, 0.14);
+}
+
+.onboarding-profile-fields label:last-child small {
+  justify-self: end;
 }
 
 .onboarding-avatar-preview {
@@ -245,6 +291,7 @@
     border-radius: 20px;
   }
   .onboarding-form { grid-template-columns: 1fr; gap: 16px; }
+  .onboarding-avatar-picker { grid-row: auto; }
   .onboarding-avatar-preview { width: 92px; height: 92px; }
   .onboarding-genres,
   .onboarding-error,

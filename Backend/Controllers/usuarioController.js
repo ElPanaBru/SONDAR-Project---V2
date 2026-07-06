@@ -725,6 +725,14 @@ const usuariosController = {
   },
 
   completarOnboarding: async (req, res) => {
+    const nombre = String(req.body?.nombre || '').trim();
+    const bio = String(req.body?.bio || '').trim();
+    if (nombre.length < 2 || nombre.length > 32) {
+      return res.status(400).json({ error: 'El nombre visible debe tener entre 2 y 32 caracteres.' });
+    }
+    if (bio.length > 180) {
+      return res.status(400).json({ error: 'La bio no puede superar los 180 caracteres.' });
+    }
     const validacion = validarFechaNacimiento(req.body?.birthDate);
     if (validacion.error) return res.status(400).json({ error: validacion.error });
     const validacionGeneros = validarGenerosOnboarding(req.body?.genres);
@@ -743,13 +751,17 @@ const usuariosController = {
       await client.query('BEGIN');
       const result = await client.query(
         `UPDATE users
-         SET birth_date = $1,
-             profile_img_url = COALESCE($2, profile_img_url),
-             profile_img_path = COALESCE($3, profile_img_path),
+         SET display_name = $1,
+             bio = $2,
+             birth_date = $3,
+             profile_img_url = COALESCE($4, profile_img_url),
+             profile_img_path = COALESCE($5, profile_img_path),
              updated_at = timezone('utc'::text, now())
-         WHERE id = $4
+         WHERE id = $6
          RETURNING id, username, display_name, bio, profile_img_url, birth_date`,
         [
+          nombre,
+          bio,
           validacion.birthDate,
           avatarSubido?.publicUrl || null,
           avatarSubido?.path || null,

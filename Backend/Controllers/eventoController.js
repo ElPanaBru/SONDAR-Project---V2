@@ -64,14 +64,79 @@ const eventoController = {
     try {
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
+      const latitudRecibida = Number(req.query?.lat);
+      const longitudRecibida = Number(req.query?.lng);
+      const viewerLat = Number.isFinite(latitudRecibida) && Math.abs(latitudRecibida) <= 90
+        ? latitudRecibida
+        : null;
+      const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
+        ? longitudRecibida
+        : null;
       const result = await pool.query(`
+        WITH contexto AS (
+          SELECT CASE
+            WHEN u.birth_date IS NOT NULL
+              THEN EXTRACT(YEAR FROM age(CURRENT_DATE, u.birth_date))::int
+            ELSE NULL
+          END AS edad
+          FROM (SELECT 1) semilla
+          LEFT JOIN users u ON u.id = $1
+        ), eventos_personalizados AS (
+          SELECT
+            e.*,
+            EXISTS (
+              SELECT 1
+              FROM user_interests ui
+              WHERE ui.user_id = $1 AND ui.genre = lower(e.genero)
+            ) AS coincide_interes,
+            CASE
+              WHEN $2::double precision IS NULL OR $3::double precision IS NULL THEN NULL
+              ELSE 6371 * acos(LEAST(1, GREATEST(-1,
+                cos(radians($2::double precision)) * cos(radians(e.latitud))
+                * cos(radians(e.longitud) - radians($3::double precision))
+                + sin(radians($2::double precision)) * sin(radians(e.latitud))
+              )))
+            END AS distancia_km,
+            CASE WHEN contexto.edad IS NULL THEN 0 ELSE (
+              SELECT COUNT(*)::int
+              FROM event_saves es
+              JOIN users usuario_similar ON usuario_similar.id = es.user_id
+              WHERE es.event_id = e.id
+                AND usuario_similar.birth_date IS NOT NULL
+                AND abs(
+                  EXTRACT(YEAR FROM age(CURRENT_DATE, usuario_similar.birth_date))::int
+                  - contexto.edad
+                ) <= 5
+            ) END AS guardados_misma_edad
+          FROM eventos e
+          CROSS JOIN contexto
+        )
         SELECT
           e.*,
           e.img_url AS img,
           COALESCE(u.display_name, u.username, 'Anonimo') AS creador,
           u.profile_img_url AS avatar,
-          COALESCE(org.organizadores, '[]'::jsonb) AS organizadores
-        FROM eventos e
+          COALESCE(org.organizadores, '[]'::jsonb) AS organizadores,
+          ROUND((
+            CASE WHEN e.coincide_interes THEN 45 ELSE 0 END
+            + CASE
+                WHEN e.distancia_km IS NULL THEN 0
+                WHEN e.distancia_km <= 5 THEN 35
+                WHEN e.distancia_km <= 20 THEN 28
+                WHEN e.distancia_km <= 50 THEN 20
+                WHEN e.distancia_km <= 100 THEN 10
+                ELSE 0
+              END
+            + LEAST(20, LN(1 + e.guardados_misma_edad) * 8)
+            + CASE WHEN e.fecha >= NOW() THEN 5 ELSE -20 END
+          )::numeric, 2)::float AS recomendacion_score,
+          CASE
+            WHEN e.coincide_interes THEN 'Coincide con tus gustos'
+            WHEN e.distancia_km <= 20 THEN 'Cerca de vos'
+            WHEN e.guardados_misma_edad > 0 THEN 'Popular entre personas de tu edad'
+            ELSE 'Evento en SONDAR'
+          END AS motivo_recomendacion
+        FROM eventos_personalizados e
         LEFT JOIN users u ON u.id = e.creador_id
         LEFT JOIN LATERAL (
           SELECT jsonb_agg(
@@ -92,8 +157,8 @@ const eventoController = {
           WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
              OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
         )
-        ORDER BY e.id DESC
-      `, [viewerId]);
+        ORDER BY recomendacion_score DESC, e.fecha ASC, e.id DESC
+      `, [viewerId, viewerLat, viewerLng]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);

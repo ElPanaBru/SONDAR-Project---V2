@@ -170,8 +170,17 @@ function mapearReel(reel) {
     liked: false,
     guardado: false,
     siguiendo: false,
-    recomendado: Boolean(reel.afinidad_score > 0 || reel.sigue_creador),
+    recomendado: Boolean(
+      reel.afinidad_score > 0
+      || reel.sigue_creador
+      || reel.afinidad_edad > 0
+      || (reel.distancia_evento_km !== null && reel.distancia_evento_km !== undefined)
+    ),
     recomendacion: reel.motivo_recomendacion || '',
+    afinidadEdad: Number(reel.afinidad_edad || 0),
+    distanciaEventoKm: reel.distancia_evento_km === null || reel.distancia_evento_km === undefined
+      ? null
+      : Number(reel.distancia_evento_km),
     creadorId: reel.creador_id,
     backendId: reel.id,
   };
@@ -276,6 +285,14 @@ const reelController = {
       await asegurarEsquemaVisitas();
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
+      const latitudRecibida = Number(req.query?.lat);
+      const longitudRecibida = Number(req.query?.lng);
+      const viewerLat = Number.isFinite(latitudRecibida) && Math.abs(latitudRecibida) <= 90
+        ? latitudRecibida
+        : null;
+      const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
+        ? longitudRecibida
+        : null;
       const result = await pool.query(`
         WITH senales_afinidad AS (
           SELECT ui.genre, 30::numeric AS peso
@@ -310,6 +327,14 @@ const reelController = {
           FROM senales_afinidad
           WHERE genre IS NOT NULL AND genre <> ''
           GROUP BY genre
+        ), contexto_viewer AS (
+          SELECT CASE
+            WHEN u.birth_date IS NOT NULL
+              THEN EXTRACT(YEAR FROM age(CURRENT_DATE, u.birth_date))::int
+            ELSE NULL
+          END AS edad
+          FROM (SELECT 1) semilla
+          LEFT JOIN users u ON u.id = $1
         )
         SELECT
           r.*,
@@ -320,9 +345,19 @@ const reelController = {
           COALESCE(ag.puntaje, 0)::float AS afinidad_score,
           (f.follower_id IS NOT NULL) AS sigue_creador,
           (visto.user_id IS NOT NULL) AS ya_visto,
+          COALESCE(edad.personas, 0)::int AS afinidad_edad,
+          cercania.distancia_km::float AS distancia_evento_km,
           ROUND((
             COALESCE(ag.puntaje, 0)
             + CASE WHEN f.follower_id IS NOT NULL THEN 22 ELSE 0 END
+            + LEAST(15, LN(1 + COALESCE(edad.personas, 0)) * 7)
+            + CASE
+                WHEN cercania.distancia_km IS NULL THEN 0
+                WHEN cercania.distancia_km <= 5 THEN 20
+                WHEN cercania.distancia_km <= 25 THEN 15
+                WHEN cercania.distancia_km <= 75 THEN 8
+                ELSE 0
+              END
             + LEAST(
                 18,
                 LN(1 + (SELECT COUNT(*) FROM reel_likes rl WHERE rl.reel_id = r.id)) * 5
@@ -339,6 +374,8 @@ const reelController = {
               SELECT 1 FROM user_interests ui
               WHERE ui.user_id = $1 AND ui.genre = lower(r.genero)
             ) THEN 'Porque elegiste ' || r.genero
+            WHEN cercania.distancia_km <= 25 THEN 'Este artista toca cerca de vos'
+            WHEN COALESCE(edad.personas, 0) > 0 THEN 'Popular entre personas de tu edad'
             WHEN COALESCE(ag.puntaje, 0) > 0 THEN 'Basado en tu actividad'
             WHEN r.created_at >= NOW() - INTERVAL '7 days' THEN 'Nuevo en SONDAR'
             ELSE 'Popular en SONDAR'
@@ -351,13 +388,43 @@ const reelController = {
         LEFT JOIN afinidad_generos ag ON ag.genre = lower(r.genero)
         LEFT JOIN follows f ON f.follower_id = $1 AND f.following_id = r.creador_id
         LEFT JOIN reel_views visto ON visto.user_id = $1 AND visto.reel_id = r.id
+        LEFT JOIN LATERAL (
+          SELECT COUNT(DISTINCT senal.user_id)::int AS personas
+          FROM (
+            SELECT rl.user_id FROM reel_likes rl WHERE rl.reel_id = r.id
+            UNION ALL
+            SELECT rs.user_id FROM reel_saves rs WHERE rs.reel_id = r.id
+            UNION ALL
+            SELECT rv.user_id FROM reel_views rv WHERE rv.reel_id = r.id
+          ) senal
+          JOIN users usuario_similar ON usuario_similar.id = senal.user_id
+          CROSS JOIN contexto_viewer cv
+          WHERE cv.edad IS NOT NULL
+            AND usuario_similar.birth_date IS NOT NULL
+            AND abs(
+              EXTRACT(YEAR FROM age(CURRENT_DATE, usuario_similar.birth_date))::int
+              - cv.edad
+            ) <= 5
+        ) edad ON true
+        LEFT JOIN LATERAL (
+          SELECT MIN(
+            6371 * acos(LEAST(1, GREATEST(-1,
+              cos(radians($2::double precision)) * cos(radians(ev.latitud))
+              * cos(radians(ev.longitud) - radians($3::double precision))
+              + sin(radians($2::double precision)) * sin(radians(ev.latitud))
+            )))
+          ) AS distancia_km
+          FROM eventos ev
+          WHERE ev.creador_id = r.creador_id
+            AND ev.fecha >= NOW()
+        ) cercania ON $2::double precision IS NOT NULL AND $3::double precision IS NOT NULL
         WHERE $1::uuid IS NULL OR NOT EXISTS (
           SELECT 1 FROM user_blocks ub
           WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
              OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
         )
         ORDER BY recomendacion_score DESC, r.created_at DESC, r.id DESC
-      `, [viewerId]);
+      `, [viewerId, viewerLat, viewerLng]);
 
       const reelsOrdenados = diversificarReels(result.rows);
 
