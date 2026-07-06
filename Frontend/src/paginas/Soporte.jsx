@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { apiJson } from "../lib/api";
+import emailjs from "emailjs-com";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./soporte.css";
 
 const preguntas = [
+
   {
     id: "mapa",
     titulo: "Como encuentro eventos cerca mio?",
@@ -88,14 +89,19 @@ export default function Soporte({ usuario }) {
     setLoading(true);
 
     try {
-      await apiJson("/api/soporte/mensaje", {
-        method: "POST",
-        body: {
-          tipo: "contacto",
+      await emailjs.send(
+        "service_ckdohp4",
+        "template_jl05slh",
+        {
           subject,
           message,
+          from_email: emailUsuario,
+          user_email: emailUsuario,
         },
-      });
+        "AG58ztaqMTuDqZNbX"
+      );
+
+
 
       setEstado({
         tipo: "success",
