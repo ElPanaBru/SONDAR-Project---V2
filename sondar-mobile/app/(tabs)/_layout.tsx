@@ -35,6 +35,6 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   loading: { flex: 1, backgroundColor: palette.bg, alignItems: 'center', justifyContent: 'center' },
-  tabBar: { position: 'absolute', height: 72, paddingTop: 7, paddingBottom: 10, backgroundColor: '#101217F5', borderTopColor: palette.border },
+  tabBar: { position: 'absolute', height: 66, paddingTop: 6, paddingBottom: 8, backgroundColor: '#080808F5', borderTopColor: palette.border },
   label: { fontSize: 10, fontWeight: '700' },
 });

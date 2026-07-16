@@ -1,15 +1,24 @@
 export const palette = {
-  bg: '#030303',
+  bg: '#000000',
   surface: '#101010',
-  surface2: '#1D1D1D',
-  border: '#2A2A2A',
+  surface2: '#181818',
+  border: 'rgba(255,255,255,0.14)',
   text: '#FFFFFF',
-  muted: '#A7A7AF',
+  muted: 'rgba(255,255,255,0.68)',
   orange: '#FF5E00',
   amber: '#FFAE00',
+  accent: '#AA3BFF',
+  lime: '#3CFF00',
   danger: '#FF4D61',
   success: '#38D996',
   white: '#FFFFFF',
 };
 
-export const genres = ['todos', 'rock', 'pop', 'electronica', 'urbano', 'indie', 'jazz', 'metal', 'folklore'];
+export const musicGenres = ['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros'];
+export const genres = ['todos', ...musicGenres];
+
+export function formatGenre(genre?: string | null) {
+  const value = String(genre || '').trim().toLowerCase();
+  if (!value) return '';
+  return value === 'edm' ? 'EDM' : value.charAt(0).toUpperCase() + value.slice(1);
+}

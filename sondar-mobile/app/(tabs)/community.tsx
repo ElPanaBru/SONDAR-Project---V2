@@ -8,6 +8,7 @@ import { Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen,
 import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
+import { normalizeComment, normalizeCommunity, normalizeCommunityPost } from '@/lib/normalizers';
 
 type Community = { id: string; nombre: string; titulo?: string; genero: string; descripcion?: string; miembros: number; publicaciones: number; portada?: string };
 type Comment = { id: number; usuario: string; autor?: string; texto: string; tiempo?: string; likes?: number; respuestas?: Comment[] };
@@ -18,7 +19,7 @@ export default function CommunityScreen() {
   const [communities, setCommunities] = useState<Community[]>([]);
   const [active, setActive] = useState<Community | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [filter, setFilter] = useState('reciente');
+  const [filter, setFilter] = useState('destacado');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -27,12 +28,21 @@ export default function CommunityScreen() {
   const [comment, setComment] = useState('');
 
   useEffect(() => {
-    api<Community[]>('/api/comunidades', { token }).then(data => { setCommunities(data); setActive(data[0] || null); setError(''); }).catch(e => setError(e.message)).finally(() => setLoading(false));
+    api<Community[]>('/api/comunidades', { token }).then(data => {
+      const normalized = data.map(normalizeCommunity);
+      setCommunities(normalized);
+      setActive(current => normalized.find(item => item.id === current?.id) || normalized[0] || null);
+      setError('');
+    }).catch(e => setError(e.message)).finally(() => setLoading(false));
   }, [token]);
 
   const loadPosts = useCallback(async () => {
     if (!active) return; setLoading(true);
-    try { setPosts(await api<Post[]>(`/api/comunidades/${active.id}/publicaciones?filtro=${filter}`, { token })); setError(''); }
+    try {
+      const data = await api<Post[]>(`/api/comunidades/${active.id}/publicaciones?filtro=${filter}`, { token });
+      setPosts(data.map(normalizeCommunityPost));
+      setError('');
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron cargar las publicaciones.'); }
     finally { setLoading(false); }
   }, [active, filter, token]);
@@ -45,14 +55,14 @@ export default function CommunityScreen() {
 
   async function publish() {
     if (!active || !form.titulo.trim() || !form.texto.trim()) return setError('Completá título y texto.');
-    try { const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, etiqueta: form.etiqueta || active.genero }) }); setPosts(items => [created, ...items]); setCreating(false); setForm({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' }); setError(''); }
+    try { const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, etiqueta: form.etiqueta || active.genero }) }); setPosts(items => [normalizeCommunityPost(created), ...items]); setCreating(false); setForm({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' }); setError(''); }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar.'); }
   }
 
   async function sendComment() {
     if (!openPost || !comment.trim()) return;
     try {
-      const created = await api<Comment>(`/api/comunidades/publicaciones/${openPost.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto: comment.trim() }) });
+      const created = normalizeComment(await api<Comment>(`/api/comunidades/publicaciones/${openPost.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto: comment.trim() }) }));
       const update = (post: Post) => ({ ...post, comentarios: [...(post.comentarios || []), created], comentariosTotal: Number(post.comentariosTotal || 0) + 1 });
       setPosts(items => items.map(item => item.id === openPost.id ? update(item) : item)); setOpenPost(current => current ? update(current) : current); setComment('');
     } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder.'); }
@@ -64,7 +74,7 @@ export default function CommunityScreen() {
       {loading && !communities.length ? <Loading /> : <>
         <FlatList horizontal data={communities} keyExtractor={item => item.id} style={styles.communitiesList} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.communities} renderItem={({ item }) => <Pressable onPress={() => setActive(item)} style={[styles.community, active?.id === item.id && styles.communityActive]}>{item.portada ? <Image source={{ uri: item.portada }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}<View style={styles.communityTint} /><Text style={styles.communityTitle}>{item.titulo || item.nombre}</Text><Text style={styles.communityMeta}>{item.miembros} miembros · {item.genero}</Text></Pressable>} />
         {active ? <View style={styles.activeIntro}><View style={{ flex: 1 }}><Text style={ui.h2}>{active.titulo || active.nombre}</Text><Text style={ui.muted} numberOfLines={2}>{active.descripcion}</Text></View><Ionicons name="people-circle" size={42} color={palette.orange} /></View> : null}
-        <View style={styles.filters}>{[['reciente', 'Recientes'], ['popular', 'Populares'], ['guardado', 'Guardados']].map(([id, label]) => <Pressable key={id} onPress={() => setFilter(id)} style={[styles.filter, filter === id && styles.filterActive]}><Text style={[styles.filterText, filter === id && { color: '#111' }]}>{label}</Text></Pressable>)}</View>
+        <View style={styles.filters}>{[['destacado', 'Destacado'], ['reciente', 'Recientes'], ['popular', 'Populares'], ['preguntas', 'Preguntas']].map(([id, label]) => <Pressable key={id} onPress={() => setFilter(id)} style={[styles.filter, filter === id && styles.filterActive]}><Text style={[styles.filterText, filter === id && { color: '#111' }]}>{label}</Text></Pressable>)}</View>
         <ErrorNotice message={error} />
         {loading ? <Loading /> : <FlatList data={posts} keyExtractor={item => String(item.id)} contentContainerStyle={styles.posts} refreshing={loading} onRefresh={loadPosts} ListEmptyComponent={<Empty icon="people-outline" title="No hay publicaciones todavía" text="Abrí una conversación en esta comunidad." />} renderItem={({ item }) => <PostCard post={item} onOpen={() => setOpenPost(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} />} />}
       </>}
@@ -79,9 +89,9 @@ export default function CommunityScreen() {
 function PostCard({ post, onOpen, onLike, onSave }: { post: Post; onOpen: () => void; onLike: () => void; onSave: () => void }) { return <Pressable onPress={onOpen} style={styles.post}><View style={styles.postHeader}><View><Text style={styles.author}>{post.usuario || `@${post.op}`}</Text><Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text></View><IconButton name={post.guardado ? 'bookmark' : 'bookmark-outline'} active={post.guardado} onPress={onSave} /></View><Text style={styles.postTitle}>{post.titulo}</Text><Text style={styles.postText} numberOfLines={4}>{post.texto}</Text><View style={styles.postFooter}><Pressable onPress={onLike} style={styles.metric}><Ionicons name={post.liked ? 'heart' : 'heart-outline'} size={18} color={post.liked ? palette.orange : palette.muted} /><Text style={styles.metricText}>{post.likes || 0}</Text></Pressable><View style={styles.metric}><Ionicons name="chatbubble-outline" size={17} color={palette.muted} /><Text style={styles.metricText}>{post.comentariosTotal || 0} respuestas</Text></View></View></Pressable>; }
 
 const styles = StyleSheet.create({
-  communitiesList: { flexGrow: 0, height: 122 }, communities: { paddingHorizontal: 14, paddingVertical: 11, gap: 10 }, community: { width: 184, height: 100, borderRadius: 14, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 13, justifyContent: 'flex-end' }, communityActive: { borderColor: palette.amber, borderWidth: 2 }, communityTint: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0505059E' }, communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, communityMeta: { color: '#D0D0D3', fontSize: 11, marginTop: 3 },
-  activeIntro: { marginHorizontal: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: palette.border }, filters: { flexDirection: 'row', gap: 7, paddingHorizontal: 14, paddingVertical: 10 }, filter: { flex: 1, height: 36, borderRadius: 10, backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border }, filterActive: { backgroundColor: palette.amber, borderColor: palette.orange }, filterText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 }, post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 14 }, postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, author: { color: palette.amber, fontWeight: '800' }, postTitle: { color: palette.text, fontSize: 17, fontWeight: '800' }, postText: { color: '#D6D7DA', lineHeight: 20 }, postFooter: { flexDirection: 'row', gap: 17, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 }, metric: { flexDirection: 'row', gap: 6, alignItems: 'center' }, metricText: { color: palette.muted, fontSize: 12 },
+  communitiesList: { flexGrow: 0, height: 122 }, communities: { paddingHorizontal: 14, paddingVertical: 11, gap: 10 }, community: { width: 184, height: 100, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 13, justifyContent: 'flex-end' }, communityActive: { borderColor: palette.amber, borderWidth: 2 }, communityTint: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0505059E' }, communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, communityMeta: { color: '#D0D0D3', fontSize: 11, marginTop: 3 },
+  activeIntro: { marginHorizontal: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 }, filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border }, filterActive: { backgroundColor: palette.amber, borderColor: palette.orange }, filterText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
+  posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 }, post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 }, postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, author: { color: palette.amber, fontWeight: '800' }, postTitle: { color: palette.text, fontSize: 17, fontWeight: '800' }, postText: { color: '#D6D7DA', lineHeight: 20 }, postFooter: { flexDirection: 'row', gap: 17, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 }, metric: { flexDirection: 'row', gap: 6, alignItems: 'center' }, metricText: { color: palette.muted, fontSize: 12 },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, thread: { height: '84%', padding: 17, backgroundColor: palette.bg, borderTopLeftRadius: 27, borderTopRightRadius: 27 }, threadTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }, postActions: { flexDirection: 'row', gap: 5, borderBottomWidth: 1, borderBottomColor: palette.border }, comment: { flexDirection: 'row', gap: 11 }, commentLine: { width: 3, borderRadius: 2, backgroundColor: palette.border }, commentText: { color: palette.text, lineHeight: 20, marginTop: 4 }, composer: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 10 },
 });
 

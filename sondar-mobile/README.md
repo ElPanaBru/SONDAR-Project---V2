@@ -4,7 +4,7 @@ Aplicación móvil de SONDAR para Android, iOS y Expo Go. Comparte autenticació
 
 ## Configuración
 
-1. Copiá `.env.example` como `.env`.
+1. Copiá `.env.example` como `.env.local`.
 2. Usá en `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` los mismos valores públicos del frontend.
 3. En un teléfono físico, `EXPO_PUBLIC_API_URL` debe apuntar a la IP LAN de la computadora (por ejemplo `http://192.168.1.100:3000`). Si se omite durante desarrollo, la app intenta obtener esa IP desde Expo.
 

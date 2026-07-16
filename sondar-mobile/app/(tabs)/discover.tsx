@@ -10,9 +10,10 @@ import { Alert, Dimensions, FlatList, KeyboardAvoidingView, Modal, Platform, Pre
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
-import { genres, palette } from '@/constants/sondar';
+import { formatGenre, musicGenres, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api, mediaPart } from '@/lib/api';
+import { normalizeComment, normalizeReel } from '@/lib/normalizers';
 
 type Reel = { id: number; backendId?: number; artista: string; usuario: string; tema: string; album: string; genero: string; descripcion?: string; portada?: string; audio?: string; avatar?: string; likes: number; comentarios: number | string; compartidos: number; guardados: number; visitas: number; liked?: boolean; guardado?: boolean; siguiendo?: boolean; creadorId?: string; duracion?: string };
 type Comment = { id: number; usuario: string; avatar?: string; texto: string; tiempo?: string; likes?: number; liked?: boolean; respuestas?: Comment[] };
@@ -40,9 +41,9 @@ export default function DiscoverScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api<Reel[]>('/api/reels', { token });
+      const data = (await api<Reel[]>('/api/reels', { token })).map(normalizeReel);
       const withCommentCounts = await Promise.all(data.map(async reel => {
-        try { return { ...reel, comentarios: countComments(await api<Comment[]>(`/api/reels/${reel.backendId || reel.id}/comentarios`, { token })) }; }
+        try { return { ...reel, comentarios: countComments((await api<Comment[]>(`/api/reels/${reel.backendId || reel.id}/comentarios`, { token })).map(normalizeComment)) }; }
         catch { return reel; }
       }));
       setReels(withCommentCounts); setActive(withCommentCounts[0]?.id || null); setError('');
@@ -60,14 +61,14 @@ export default function DiscoverScreen() {
 
   async function openComments(reel: Reel) {
     setCommentReel(reel); setReplyTo(null);
-    try { setComments(await api<Comment[]>(`/api/reels/${reel.backendId || reel.id}/comentarios`, { token })); }
+    try { setComments((await api<Comment[]>(`/api/reels/${reel.backendId || reel.id}/comentarios`, { token })).map(normalizeComment)); }
     catch { setComments([]); }
   }
 
   async function sendComment() {
     if (!comment.trim() || !commentReel) return;
     try {
-      const created = await api<Comment>(`/api/reels/${commentReel.backendId || commentReel.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto: comment.trim(), parentId: replyTo?.id, respondeA: replyTo?.usuario }) });
+      const created = normalizeComment(await api<Comment>(`/api/reels/${commentReel.backendId || commentReel.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto: comment.trim(), parentId: replyTo?.id, respondeA: replyTo?.usuario }) }));
       setComments(items => replyTo ? appendReply(items, replyTo.id, created) : [...items, created]); setComment(''); setReplyTo(null);
       setReels(items => items.map(item => item.id === commentReel.id ? { ...item, comentarios: Number(item.comentarios || 0) + 1 } : item));
     } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo comentar.'); }
@@ -81,7 +82,7 @@ export default function DiscoverScreen() {
 
   async function share(reel: Reel) {
     try { const result = await api<{ compartidos: number }>(`/api/reels/${reel.backendId || reel.id}/compartir`, { method: 'POST', token }); setReels(items => items.map(item => item.id === reel.id ? { ...item, compartidos: result.compartidos } : item)); } catch {}
-    await Share.share({ message: `Escuchá “${reel.tema}” de ${reel.artista} en SONDAR 🎧` });
+    await Share.share({ message: `Escucha "${reel.tema}" de ${reel.artista} en SONDAR.` });
   }
 
   async function toggleCommentLike(target: Comment) {
@@ -104,7 +105,7 @@ export default function DiscoverScreen() {
     try {
       const body = new FormData(); Object.entries(form).forEach(([key, value]) => body.append(key, value));
       body.append('audio', mediaPart(audio, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
-      const created = await api<Reel>('/api/reels/crear', { method: 'POST', token, body });
+      const created = normalizeReel(await api<Reel>('/api/reels/crear', { method: 'POST', token, body }));
       setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setForm({ tema: '', album: '', genero: 'rock', descripcion: '', duracion: '0:30' }); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar.'); }
     finally { setBusy(false); }
@@ -135,7 +136,7 @@ export default function DiscoverScreen() {
           <Pressable onPress={pickCover} style={styles.coverPicker}>{cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <><Ionicons name="disc-outline" size={48} color={palette.orange} /><Text style={ui.muted}>Elegir portada</Text></>}</Pressable>
           <Field label="Título del tema *" value={form.tema} onChangeText={tema => setForm(f => ({ ...f, tema }))} placeholder="Nombre de la canción" />
           <Field label="Álbum / lanzamiento *" value={form.album} onChangeText={album => setForm(f => ({ ...f, album }))} placeholder="Single, EP o álbum" />
-          <Text style={styles.label}>Género</Text><View style={styles.genreWrap}>{genres.filter(x => x !== 'todos').map(item => <Pressable key={item} style={[styles.genre, form.genero === item && styles.genreActive]} onPress={() => setForm(f => ({ ...f, genero: item }))}><Text style={[styles.genreText, form.genero === item && { color: '#111' }]}>{item}</Text></Pressable>)}</View>
+          <Text style={styles.label}>Género</Text><View style={styles.genreWrap}>{musicGenres.map(item => <Pressable key={item} style={[styles.genre, form.genero === item && styles.genreActive]} onPress={() => setForm(f => ({ ...f, genero: item }))}><Text style={[styles.genreText, form.genero === item && { color: '#111' }]}>{formatGenre(item)}</Text></Pressable>)}</View>
           <Field label="Descripción" value={form.descripcion} onChangeText={descripcion => setForm(f => ({ ...f, descripcion }))} placeholder="La historia detrás del tema…" multiline />
           <Button kind="secondary" icon="musical-note" onPress={pickAudio}>{audio ? audio.name : 'Seleccionar audio *'}</Button>
           <Button onPress={publish} disabled={busy}>{busy ? 'Subiendo…' : 'Publicar lanzamiento'}</Button>
@@ -157,7 +158,7 @@ function ReelCard({ height, reel, active, mine, onLike, onSave, onComments, onSh
       <Pressable onPress={play} style={styles.playArea}>{!playing ? <View style={styles.play}><Ionicons name="play" size={33} color="#111" /></View> : null}</Pressable>
       <View style={styles.reelBottom}>
         <Pressable style={styles.artist} onPress={() => reel.creadorId && router.push({ pathname: '/profile/[id]', params: { id: reel.creadorId } })}><Avatar uri={reel.avatar} name={reel.artista} size={43} /><View style={{ flex: 1 }}><Text style={styles.artistName}>{reel.artista}</Text><Text style={styles.handle}>{reel.usuario}</Text></View>{!mine ? <Pressable onPress={onFollow} style={[styles.follow, reel.siguiendo && styles.following]}><Text style={styles.followText}>{reel.siguiendo ? 'Siguiendo' : 'Seguir'}</Text></Pressable> : null}</Pressable>
-        <Text style={styles.song}>{reel.tema}</Text><Text style={styles.album}>{reel.album} · {reel.genero}</Text>{reel.descripcion ? <Text style={styles.reelDescription} numberOfLines={2}>{reel.descripcion}</Text> : null}
+        <Text style={styles.song}>{reel.tema}</Text><Text style={styles.album}>{reel.album} · {formatGenre(reel.genero)}</Text>{reel.descripcion ? <Text style={styles.reelDescription} numberOfLines={2}>{reel.descripcion}</Text> : null}
       </View>
       <View style={styles.actions}><ReelAction icon={reel.liked ? 'heart' : 'heart-outline'} active={reel.liked} label={reel.likes} onPress={onLike} /><ReelAction icon="chatbubble-outline" label={Number(reel.comentarios || 0)} onPress={onComments} /><ReelAction icon={reel.guardado ? 'bookmark' : 'bookmark-outline'} active={reel.guardado} label={reel.guardados || 0} onPress={onSave} /><ReelAction icon="share-social-outline" label={reel.compartidos || 0} onPress={onShare} /><ReelAction icon="ellipsis-horizontal" label="" onPress={onReport} /></View>
     </View>
@@ -178,6 +179,6 @@ const styles = StyleSheet.create({
   reelBottom: { position: 'absolute', left: 16, right: 76, bottom: 18, gap: 4 }, artist: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 }, artistName: { color: '#fff', fontSize: 15, fontWeight: '800' }, handle: { color: '#D0D1D5', fontSize: 12 }, follow: { borderRadius: 10, borderWidth: 1, borderColor: palette.amber, paddingVertical: 6, paddingHorizontal: 11 }, following: { backgroundColor: '#FFAE0030' }, followText: { color: palette.text, fontSize: 12, fontWeight: '700' }, song: { color: '#fff', fontSize: 21, fontWeight: '900' }, album: { color: palette.amber, fontSize: 13, fontWeight: '800' }, reelDescription: { color: '#E4E4E6', fontSize: 13, lineHeight: 17, marginTop: 2 },
   actions: { position: 'absolute', right: 10, bottom: 14, gap: 9 }, reelAction: { alignItems: 'center', gap: 2 }, actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#101010D9', borderWidth: 1, borderColor: '#FFFFFF22' }, actionActive: { borderColor: palette.amber }, actionLabel: { color: '#fff', fontSize: 10, fontWeight: '700' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, commentsModal: { height: '76%', backgroundColor: palette.bg, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 16, paddingBottom: 24 }, modalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, comment: { flexDirection: 'row', gap: 10 }, nestedComment: { marginLeft: 35, marginTop: 12, gap: 12 }, username: { color: palette.text, fontWeight: '700', fontSize: 13 }, time: { color: palette.muted, fontSize: 11, fontWeight: '500' }, commentText: { color: palette.text, marginTop: 4, lineHeight: 19 }, commentLike: { alignItems: 'center', gap: 2, padding: 4 }, replyAction: { color: palette.muted, fontSize: 11, fontWeight: '700', marginTop: 6 }, replyBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingVertical: 7, backgroundColor: palette.surface }, commentComposer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: palette.border },
-  coverPicker: { width: 210, height: 210, alignSelf: 'center', borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, label: { color: palette.muted, fontSize: 12, fontWeight: '700' }, genreWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, genre: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, genreActive: { backgroundColor: palette.orange, borderColor: palette.orange }, genreText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' },
+  coverPicker: { width: 210, height: 210, alignSelf: 'center', borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, label: { color: palette.muted, fontSize: 12, fontWeight: '700' }, genreWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, genre: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, genreActive: { backgroundColor: palette.orange, borderColor: palette.orange }, genreText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' },
 });
 

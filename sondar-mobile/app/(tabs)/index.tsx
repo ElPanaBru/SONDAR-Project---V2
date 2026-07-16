@@ -6,12 +6,13 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 
+import { EventMap } from '@/components/event-map';
 import { Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
-import { genres, palette } from '@/constants/sondar';
+import { formatGenre, genres, musicGenres, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api, mediaPart } from '@/lib/api';
+import { normalizeEvent } from '@/lib/normalizers';
 
 type EventItem = {
   id: number; titulo: string; descripcion?: string; genero: string; lugar?: string; ubicacion?: string; fecha: string;
@@ -40,7 +41,7 @@ export default function EventsScreen() {
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
-    try { setEvents(await api<EventItem[]>('/api/eventos', { token })); setError(''); }
+    try { setEvents((await api<EventItem[]>('/api/eventos', { token })).map(normalizeEvent)); setError(''); }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron cargar los eventos.'); }
     finally { setLoading(false); setRefreshing(false); }
   }, [token]);
@@ -76,7 +77,7 @@ export default function EventsScreen() {
       body.append('link', form.link.trim()); body.append('latitud', String(form.latitud)); body.append('longitud', String(form.longitud));
       body.append('organizadores', JSON.stringify(organizers.map(item => item.id)));
       if (image) body.append('imagen', mediaPart(image, 'evento.jpg'));
-      const created = await api<EventItem>('/api/eventos/crear', { method: 'POST', token, body });
+      const created = normalizeEvent(await api<EventItem>('/api/eventos/crear', { method: 'POST', token, body }));
       setEvents(current => [created, ...current]); setSelected(created); setCreating(false); setForm(emptyForm()); setImage(null); setOrganizers([]); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo crear el evento.'); }
     finally { setBusy(false); }
@@ -108,19 +109,9 @@ export default function EventsScreen() {
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={styles.body}>
-        <MapView provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined} style={styles.map} initialRegion={initialRegion} customMapStyle={darkMap}>
-          {filtered.map(event => {
-            const latitude = Number(event.latitud), longitude = Number(event.longitud);
-            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-            const markerImage = event.img || event.img_url;
-            return <Marker key={event.id} coordinate={{ latitude, longitude }} title={event.titulo} description={event.lugar || event.ubicacion} onPress={() => setSelected(event)} anchor={{ x: .5, y: 1 }}>
-              <View style={styles.marker}>{markerImage ? <Image source={{ uri: markerImage }} style={styles.markerImage} contentFit="cover" /> : <Ionicons name="musical-note" size={18} color="#080808" />}</View>
-              <View style={styles.markerTip} />
-            </Marker>;
-          })}
-        </MapView>
+        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} onSelect={setSelected} style={styles.map} />
         <View style={styles.sheet}>
-          <FlatList horizontal showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item}</Text></Pressable>} />
+          <FlatList horizontal showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item === 'todos' ? 'Todos' : formatGenre(item)}</Text></Pressable>} />
           <ErrorNotice message={error} />
           <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
         </View>
@@ -146,7 +137,7 @@ export default function EventsScreen() {
           <Pressable onPress={pickImage} style={styles.imagePicker}>{image ? <Image source={{ uri: image.uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <><Ionicons name="image-outline" size={32} color={palette.orange} /><Text style={ui.muted}>Elegir portada</Text></>}</Pressable>
           <Field label="Título *" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Nombre del evento" />
           <Field label="Descripción" value={form.descripcion} onChangeText={descripcion => setForm(f => ({ ...f, descripcion }))} placeholder="Contá de qué se trata" multiline maxLength={1000} />
-          <Text style={styles.formLabel}>Género</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>{genres.filter(x => x !== 'todos').map(item => <Pressable key={item} onPress={() => setForm(f => ({ ...f, genero: item }))} style={[styles.chip, form.genero === item && styles.chipActive]}><Text style={[styles.chipText, form.genero === item && styles.chipTextActive]}>{item}</Text></Pressable>)}</ScrollView>
+          <Text style={styles.formLabel}>Género</Text><ScrollView horizontal showsHorizontalScrollIndicator={false}>{musicGenres.map(item => <Pressable key={item} onPress={() => setForm(f => ({ ...f, genero: item }))} style={[styles.chip, form.genero === item && styles.chipActive]}><Text style={[styles.chipText, form.genero === item && styles.chipTextActive]}>{formatGenre(item)}</Text></Pressable>)}</ScrollView>
           <Field label="Lugar *" value={form.lugar} onChangeText={lugar => setForm(f => ({ ...f, lugar }))} placeholder="Club, sala o dirección" />
           <View style={ui.card}><Text style={styles.formLabel}>Fecha y hora</Text><DateTimePicker value={form.fecha} mode={Platform.OS === 'ios' ? 'datetime' : 'date'} minimumDate={new Date()} onChange={(_, fecha) => fecha && setForm(f => ({ ...f, fecha }))} />{Platform.OS === 'android' ? <DateTimePicker value={form.fecha} mode="time" onChange={(_, fecha) => fecha && setForm(f => ({ ...f, fecha }))} /> : null}</View>
           <View style={styles.actionRow}><Field label="Precio" style={{ minWidth: 120 }} keyboardType="numeric" value={form.precio} onChangeText={precio => setForm(f => ({ ...f, precio }))} placeholder="0" /><View style={{ flex: 1 }}><Field label="Link" autoCapitalize="none" value={form.link} onChangeText={link => setForm(f => ({ ...f, link }))} placeholder="https://…" /></View></View>
@@ -168,12 +159,12 @@ function EventCard({ event, onPress, onSave }: { event: EventItem; onPress: () =
 
 const styles = StyleSheet.create({
   body: { flex: 1 }, map: { flex: 1 }, sheet: { height: 238, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 72 },
-  chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 18, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
-  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 15, borderWidth: 1, borderColor: palette.border }, cardImage: { width: 82, height: 82, borderRadius: 11 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+  chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
+  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardImage: { width: 82, height: 82, borderRadius: 8 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
   marker: { width: 48, height: 48, borderRadius: 24, padding: 3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: palette.amber, borderWidth: 3, borderColor: '#080808' }, markerImage: { width: 38, height: 38, borderRadius: 19 }, markerTip: { width: 0, height: 0, alignSelf: 'center', borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#080808', marginTop: -2 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalCard: { minHeight: '72%', marginTop: 70, backgroundColor: palette.bg, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 18, paddingBottom: 40, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, hero: { width: '100%', height: 220, borderRadius: 18 }, heroFallback: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
-  imagePicker: { height: 180, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, formLabel: { color: palette.muted, fontSize: 12, fontWeight: '700', marginBottom: 7 },
-  personResult: { minHeight: 46, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 13, borderWidth: 1, borderColor: palette.border }, selectedPerson: { borderColor: palette.orange },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalCard: { minHeight: '72%', marginTop: 70, backgroundColor: palette.bg, borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: 18, paddingBottom: 40, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, hero: { width: '100%', height: 220, borderRadius: 8 }, heroFallback: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
+  imagePicker: { height: 180, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, formLabel: { color: palette.muted, fontSize: 12, fontWeight: '700', marginBottom: 7 },
+  personResult: { minHeight: 46, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, selectedPerson: { borderColor: palette.orange },
 });
 
 const darkMap = [{ elementType: 'geometry', stylers: [{ color: '#17191e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#8a8f9b' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#17191e' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#282b33' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#090b10' }] }];

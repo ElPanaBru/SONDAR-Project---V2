@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Button, ErrorNotice, Field } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
@@ -20,6 +20,9 @@ export default function AuthScreen() {
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const { width } = useWindowDimensions();
+  const contentWidth = Math.min(width, 430);
+  const logoWidth = Math.min(contentWidth - 72, 285);
   const strong = useMemo(() => password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password), [password]);
   const backgroundPlayer = useVideoPlayer(require('../assets/auth-background.mp4'), player => {
     player.loop = true;
@@ -48,11 +51,13 @@ export default function AuthScreen() {
 
   return (
     <View style={styles.page}>
-      <VideoView player={backgroundPlayer} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />
-      <LinearGradient colors={['#00000045', '#00000018', '#000000A8']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
+      <View style={styles.backgroundClip}>
+        <VideoView player={backgroundPlayer} style={styles.backgroundMedia} contentFit="cover" nativeControls={false} />
+        <LinearGradient colors={['#00000045', '#00000018', '#000000A8']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
+      </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Image source={require('../assets/sondar-logo.png')} style={styles.logo} contentFit="contain" />
+        <ScrollView style={styles.scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Image source={require('../assets/sondar-logo.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
           <Text style={styles.heroTitle}>La música pasa cerca tuyo.</Text>
           <Text style={styles.tagline}>Descubrí artistas, lanzamientos y eventos de tu escena.</Text>
           <View style={styles.card}>
@@ -75,10 +80,11 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1 }, flex: { flex: 1 }, content: { flexGrow: 1, padding: 24, justifyContent: 'center', alignItems: 'center' },
-  logo: { width: 285, height: 84 }, heroTitle: { color: palette.text, fontSize: 29, fontWeight: '900', textAlign: 'center', textShadowColor: '#000', textShadowRadius: 12, marginTop: 4 }, tagline: { color: '#E6E6E6', textAlign: 'center', fontWeight: '600', lineHeight: 20, marginTop: 7, marginBottom: 22, textShadowColor: '#000', textShadowRadius: 8 },
-  card: { width: '100%', maxWidth: 430, padding: 18, gap: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FFFFFF29', backgroundColor: '#080808D9' },
-  switcher: { flexDirection: 'row', padding: 4, backgroundColor: '#FFFFFF14', borderWidth: 1, borderColor: '#FFFFFF1F', borderRadius: 12 }, switch: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 9 }, switchActive: { backgroundColor: palette.amber }, switchText: { color: '#D8D8DC', fontWeight: '800' }, switchTextActive: { color: '#080808' },
+  page: { flex: 1, overflow: 'hidden', backgroundColor: palette.bg }, backgroundClip: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' }, backgroundMedia: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  flex: { flex: 1 }, scroller: { width: '100%', maxWidth: 430, alignSelf: 'center' }, content: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 28, justifyContent: 'center' },
+  logo: { height: 84, alignSelf: 'center' }, heroTitle: { color: palette.text, fontSize: 26, lineHeight: 31, fontWeight: '900', textAlign: 'center', marginTop: 4 }, tagline: { color: '#E6E6E6', textAlign: 'center', fontWeight: '600', lineHeight: 20, marginTop: 7, marginBottom: 22 },
+  card: { alignSelf: 'stretch', padding: 18, gap: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FFFFFF29', backgroundColor: '#080808D9' },
+  switcher: { flexDirection: 'row', padding: 4, backgroundColor: '#FFFFFF14', borderWidth: 1, borderColor: '#FFFFFF1F', borderRadius: 12 }, switch: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', borderRadius: 9 }, switchActive: { backgroundColor: palette.amber }, switchText: { color: '#D8D8DC', fontWeight: '800', fontSize: 13 }, switchTextActive: { color: '#080808' },
   eye: { position: 'absolute', right: 13, bottom: 14 },
 });
 

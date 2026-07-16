@@ -5,8 +5,25 @@ function getDevHost() {
   return hostUri?.split(':')[0] || 'localhost';
 }
 
+function isLocalHost(host: string) {
+  return host === 'localhost'
+    || host === '127.0.0.1'
+    || /^10\./.test(host)
+    || /^192\.168\./.test(host)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+}
+
+function getDevApiUrl() {
+  const host = getDevHost();
+  if (isLocalHost(host)) {
+    return `http://${host}:3000`;
+  }
+
+  return `https://${host}`;
+}
+
 export const API_URL = (
-  process.env.EXPO_PUBLIC_API_URL || `http://${getDevHost()}:3000`
+  process.env.EXPO_PUBLIC_API_URL || getDevApiUrl()
 ).replace(/\/$/, '');
 
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';

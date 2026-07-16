@@ -8,6 +8,7 @@ import { Avatar, Empty, ErrorNotice, Header, Loading, Screen, ui } from '@/compo
 import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
+import { normalizeEvent, normalizeReel } from '@/lib/normalizers';
 
 type Result = any & { resultType: 'usuario' | 'reel' | 'evento' };
 
@@ -29,8 +30,10 @@ export default function SearchScreen() {
           api<any[]>(`/api/usuarios?query=${encodeURIComponent(term)}`, { token }), api<any[]>('/api/reels', { token }), api<any[]>('/api/eventos', { token }),
         ]);
         const lower = term.toLowerCase();
-        const matchedReels = reels.filter(item => [item.tema, item.artista, item.album, item.genero].join(' ').toLowerCase().includes(lower));
-        const matchedEvents = events.filter(item => [item.titulo, item.descripcion, item.genero, item.lugar].join(' ').toLowerCase().includes(lower));
+        const normalizedReels = reels.map(normalizeReel);
+        const normalizedEvents = events.map(normalizeEvent);
+        const matchedReels = normalizedReels.filter(item => [item.tema, item.artista, item.album, item.genero].join(' ').toLowerCase().includes(lower));
+        const matchedEvents = normalizedEvents.filter(item => [item.titulo, item.descripcion, item.genero, item.lugar, item.ubicacion].join(' ').toLowerCase().includes(lower));
         setResults([...users.map(item => ({ ...item, resultType: 'usuario' })), ...matchedReels.map(item => ({ ...item, resultType: 'reel' })), ...matchedEvents.map(item => ({ ...item, resultType: 'evento' }))]); setError('');
       } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo buscar.'); }
       finally { setLoading(false); }
@@ -64,8 +67,8 @@ function ResultCard({ item, onPress }: { item: Result; onPress: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  search: { margin: 16, marginBottom: 9, height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 17 }, input: { flex: 1, color: palette.text, fontSize: 16 },
-  tabs: { flexDirection: 'row', gap: 7, paddingHorizontal: 16, paddingBottom: 10 }, tab: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.surface }, tabActive: { backgroundColor: palette.orange }, tabText: { color: palette.muted, fontSize: 11, fontWeight: '700' }, tabTextActive: { color: '#111' },
-  list: { padding: 16, paddingTop: 6, paddingBottom: 110, gap: 10 }, card: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 17 }, image: { width: 60, height: 60, borderRadius: 13 }, placeholder: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontSize: 16, fontWeight: '800' }, type: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: '#FF790022' }, typeText: { color: palette.orange, fontSize: 9, fontWeight: '800' },
+  search: { margin: 16, marginBottom: 9, height: 50, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 }, input: { flex: 1, color: palette.text, fontSize: 16 },
+  tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 10 }, tab: { flex: 1, minWidth: 0, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 8, backgroundColor: palette.surface }, tabActive: { backgroundColor: palette.orange }, tabText: { color: palette.muted, fontSize: 10, fontWeight: '700' }, tabTextActive: { color: '#111' },
+  list: { padding: 16, paddingTop: 6, paddingBottom: 110, gap: 10 }, card: { minHeight: 84, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 }, image: { width: 60, height: 60, borderRadius: 8 }, placeholder: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, title: { color: palette.text, fontSize: 16, fontWeight: '800' }, type: { alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, backgroundColor: '#FF790022' }, typeText: { color: palette.orange, fontSize: 9, fontWeight: '800' },
 });
 
