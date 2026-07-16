@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import TextoConMenciones from "../componentes/TextoConMenciones";
-import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./comunidad.css";
 
 const filtros = [
@@ -12,6 +11,18 @@ const filtros = [
   { id: "reciente", label: "Mas reciente" },
   { id: "popular", label: "Mas popular" },
   { id: "preguntas", label: "Preguntas" },
+];
+
+const reglasForo = [
+  "Publica musica, eventos, preguntas o recomendaciones vinculadas al genero.",
+  "Respeta a artistas y oyentes. Critica ideas, no personas.",
+  "Evita spam repetido y agrega contexto cuando compartas enlaces o lanzamientos.",
+];
+
+const recursosForo = [
+  { id: "eventos", label: "Eventos del genero" },
+  { id: "reels", label: "Reels del genero" },
+  { id: "guardadas", label: "Publicaciones guardadas" },
 ];
 
 const comunidadesPorGenero = [
@@ -125,8 +136,6 @@ const comunidadesPorGenero = [
   },
 ];
 
-const miembrosActivos = ["S", "O", "N", "D", "R"];
-
 const hilosIniciales = [
   {
     id: 1,
@@ -190,6 +199,15 @@ const mostrarGenero = (genero) => {
   return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
 };
 
+const normalizarGenero = (genero) => genero?.trim().toLowerCase() || "";
+
+const formatearFechaCorta = (fecha) => {
+  if (!fecha) return "Sin fecha";
+  const valor = new Date(fecha);
+  if (Number.isNaN(valor.getTime())) return fecha;
+  return valor.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
+};
+
 const normalizarHilo = (hilo) => ({
   ...hilo,
   votos: Number(hilo.votos ?? hilo.likes ?? 0),
@@ -203,12 +221,14 @@ const normalizarHilo = (hilo) => ({
 });
 
 export default function Comunidad({ usuario }) {
-  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const publicandoRef = useRef(false);
   const comentariosEnviandoRef = useRef(new Set());
+  const filtroRef = useRef(null);
+  const audioAsociadoRef = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
@@ -222,11 +242,17 @@ export default function Comunidad({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [eventosAsociables, setEventosAsociables] = useState([]);
+  const [reelsAsociables, setReelsAsociables] = useState([]);
+  const [reelAsociadoActivo, setReelAsociadoActivo] = useState(null);
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
     tipo: "reciente",
     etiqueta: "",
+    eventoAsociadoId: "",
+    reelAsociadoId: "",
   });
 
   const comunidadActiva = useMemo(
@@ -234,9 +260,58 @@ export default function Comunidad({ usuario }) {
     [comunidadActivaId, comunidades]
   );
 
+  const filtroSeleccionado = useMemo(
+    () => filtros.find((filtro) => filtro.id === filtroActivo) || filtros[0],
+    [filtroActivo]
+  );
+
+  const eventosDelGenero = useMemo(
+    () =>
+      eventosAsociables.filter(
+        (evento) => normalizarGenero(evento.genero) === normalizarGenero(comunidadActiva?.genero)
+      ),
+    [comunidadActiva?.genero, eventosAsociables]
+  );
+
+  const reelsDelGenero = useMemo(
+    () =>
+      reelsAsociables.filter(
+        (reel) => normalizarGenero(reel.genero || reel.tag || reel.etiqueta) === normalizarGenero(comunidadActiva?.genero)
+      ),
+    [comunidadActiva?.genero, reelsAsociables]
+  );
+
+  const eventoAsociadoSeleccionado = useMemo(
+    () => eventosAsociables.find((evento) => String(evento.id) === String(nuevoHilo.eventoAsociadoId)) || null,
+    [eventosAsociables, nuevoHilo.eventoAsociadoId]
+  );
+
+  const reelAsociadoSeleccionado = useMemo(
+    () => reelsAsociables.find((reel) => String(reel.id) === String(nuevoHilo.reelAsociadoId)) || null,
+    [nuevoHilo.reelAsociadoId, reelsAsociables]
+  );
+
   useEffect(() => {
     return () => {
       clearTimeout(avisoTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const cerrarFiltros = (event) => {
+      if (!filtroRef.current?.contains(event.target)) setMostrarFiltros(false);
+    };
+
+    const cerrarConEscape = (event) => {
+      if (event.key === "Escape") setMostrarFiltros(false);
+    };
+
+    document.addEventListener("pointerdown", cerrarFiltros);
+    document.addEventListener("keydown", cerrarConEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", cerrarFiltros);
+      document.removeEventListener("keydown", cerrarConEscape);
     };
   }, []);
 
@@ -270,6 +345,48 @@ export default function Comunidad({ usuario }) {
     }
 
     cargarComunidades();
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+
+    async function cargarAsociables() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const [eventosResponse, reelsResponse] = await Promise.all([
+          apiRequest("/api/eventos", { headers }),
+          apiRequest("/api/reels", { headers }),
+        ]);
+
+        if (!cancelado && eventosResponse.ok) {
+          const dataEventos = await eventosResponse.json();
+          setEventosAsociables(Array.isArray(dataEventos) ? dataEventos : []);
+        }
+
+        if (!cancelado && reelsResponse.ok) {
+          const dataReels = await reelsResponse.json();
+          setReelsAsociables(
+            Array.isArray(dataReels)
+              ? dataReels.map((reel) => ({
+                  ...reel,
+                  id: String(reel.id).startsWith("db-") ? reel.id : `db-${reel.id}`,
+                  backendId: reel.backendId || reel.id,
+                }))
+              : []
+          );
+        }
+      } catch (error) {
+        console.error("No se pudieron cargar asociaciones para comunidad:", error);
+      }
+    }
+
+    cargarAsociables();
 
     return () => {
       cancelado = true;
@@ -335,8 +452,27 @@ export default function Comunidad({ usuario }) {
     };
   }, [busqueda, comunidadActiva?.id, filtroActivo, publicacionCompartida]);
 
+  const hilosConAsociaciones = useMemo(
+    () =>
+      hilos.map((hilo) => ({
+        ...hilo,
+        eventoAsociado:
+          hilo.eventoAsociado ||
+          eventosAsociables.find((evento) => String(evento.id) === String(hilo.eventoAsociadoId)) ||
+          null,
+        reelAsociado:
+          hilo.reelAsociado ||
+          reelsAsociables.find((reel) => (
+            String(reel.id) === String(hilo.reelAsociadoId) ||
+            String(reel.backendId) === String(hilo.reelAsociadoId).replace(/^db-/, "")
+          )) ||
+          null,
+      })),
+    [eventosAsociables, hilos, reelsAsociables]
+  );
+
   const hilosFiltrados = useMemo(() => {
-    return hilos.filter((hilo) => {
+    return hilosConAsociaciones.filter((hilo) => {
       const textoBusqueda = [
         hilo.op,
         hilo.usuario,
@@ -348,7 +484,12 @@ export default function Comunidad({ usuario }) {
 
       return Boolean(publicacionCompartida) || !busqueda || textoBusqueda.includes(busqueda);
     });
-  }, [busqueda, hilos, publicacionCompartida]);
+  }, [busqueda, hilosConAsociaciones, publicacionCompartida]);
+
+  const totalComentarios = useMemo(
+    () => hilosFiltrados.reduce((total, hilo) => total + hilo.comentarios.length, 0),
+    [hilosFiltrados]
+  );
 
   useEffect(() => {
     if (!publicacionCompartida || cargandoHilos) return;
@@ -423,6 +564,8 @@ export default function Comunidad({ usuario }) {
           texto,
           tipo: nuevoHilo.tipo,
           etiqueta: nuevoHilo.etiqueta || comunidadActiva.genero,
+          eventoAsociadoId: nuevoHilo.eventoAsociadoId || null,
+          reelAsociadoId: nuevoHilo.reelAsociadoId || null,
         }),
       });
 
@@ -431,7 +574,11 @@ export default function Comunidad({ usuario }) {
         throw new Error(dataError.error || "No se pudo publicar en la comunidad.");
       }
 
-      const hiloGuardado = normalizarHilo(await response.json());
+      const hiloGuardado = normalizarHilo({
+        ...(await response.json()),
+        eventoAsociado: eventoAsociadoSeleccionado || undefined,
+        reelAsociado: reelAsociadoSeleccionado || undefined,
+      });
       setHilos((actuales) => [hiloGuardado, ...actuales]);
       setRespuestasAbiertas((abiertas) => [hiloGuardado.id, ...abiertas]);
       setMostrarModal(false);
@@ -440,6 +587,8 @@ export default function Comunidad({ usuario }) {
         texto: "",
         tipo: "reciente",
         etiqueta: "",
+        eventoAsociadoId: "",
+        reelAsociadoId: "",
       });
     } catch (error) {
       mostrarAviso(error.message || "No se pudo publicar en la comunidad.");
@@ -596,12 +745,44 @@ export default function Comunidad({ usuario }) {
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
 
+  const irARecursoForo = (recursoId) => {
+    const genero = comunidadActiva.genero || comunidadActiva.id;
+    if (recursoId === "eventos") {
+      navigate(`/?genero=${encodeURIComponent(genero)}`);
+      return;
+    }
+
+    if (recursoId === "reels") {
+      navigate(`/descubrir?genero=${encodeURIComponent(genero)}`);
+    }
+  };
+
+  const alternarReelAsociado = (reel) => {
+    const audio = audioAsociadoRef.current;
+    if (!audio || !reel?.audio) return;
+
+    if (reelAsociadoActivo === reel.id && !audio.paused) {
+      audio.pause();
+      setReelAsociadoActivo(null);
+      return;
+    }
+
+    if (audio.src !== reel.audio) {
+      audio.src = reel.audio;
+      audio.load();
+    }
+
+    audio.play()
+      .then(() => setReelAsociadoActivo(reel.id))
+      .catch(() => mostrarAviso("No se pudo reproducir este reel."));
+  };
+
   return (
     <main className="comunidad-container">
       <section className="comunidad-layout reddit-layout">
         <aside className="comunidad-sidebar subreddit-list">
-          <section className="comunidad-panel">
-            <h2>{t("Géneros")}</h2>
+          <section className="comunidad-panel comunidad-panel-lista">
+            <h2>Foros SONDAR</h2>
             <div className="comunidades-lista">
               {comunidades.map((comunidad) => (
                 <button
@@ -614,9 +795,8 @@ export default function Comunidad({ usuario }) {
                     {comunidad.titulo.charAt(0)}
                   </div>
                   <div>
-                    <strong>{comunidad.nombre}</strong>
+                    <strong>s/{mostrarGenero(comunidad.genero)}</strong>
                     <span>{comunidad.publicaciones || 0} publicaciones</span>
-                    <p>{comunidad.actividad}</p>
                   </div>
                 </button>
               ))}
@@ -628,56 +808,87 @@ export default function Comunidad({ usuario }) {
           <header className="comunidad-portada">
             <div
               className="comunidad-cover"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(3, 3, 3, 0.72)), url(${comunidadActiva.portada})` }}
+              style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18)), url(${comunidadActiva.portada})` }}
             ></div>
             <div className="comunidad-identidad">
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
-                <span className="comunidad-eyebrow">{comunidadActiva.nombre}</span>
-                <h1>Comunidad {mostrarGenero(comunidadActiva.genero)}</h1>
+                <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
                 <p>{comunidadActiva.descripcion}</p>
                 <div className="comunidad-miembros">
-                  <div className="miembros-stack" aria-hidden="true">
-                    {miembrosActivos.map((miembro) => (
-                      <span key={miembro}>{miembro}</span>
-                    ))}
-                  </div>
                   <strong>{comunidadActiva.publicaciones || 0}</strong>
-                  <span>publicaciones - Comunidad por genero</span>
+                  <span>publicaciones</span>
+                  <strong>{totalComentarios}</strong>
+                  <span>respuestas</span>
                 </div>
               </div>
-              <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
-                <span aria-hidden="true">+</span>
-                Crear publicacion
-              </button>
+              <div className="comunidad-header-actions">
+                <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
+                  <span aria-hidden="true">+</span>
+                  Crear post
+                </button>
+                <button className="comunidad-unirse" type="button">
+                  Unirse
+                </button>
+                <button className="comunidad-mas" type="button" aria-label="Mas opciones">
+                  ...
+                </button>
+              </div>
             </div>
           </header>
 
-          <div className="comunidad-filtros" aria-label="Filtros de publicaciones">
-            {filtros.map((filtro) => (
+          <div className="comunidad-toolbar">
+            <div className="comunidad-filtro-dropdown" ref={filtroRef}>
               <button
-                key={filtro.id}
-                className={filtroActivo === filtro.id ? "activo" : ""}
+                className="comunidad-filtro-trigger"
                 type="button"
-                onClick={() => setFiltroActivo(filtro.id)}
+                aria-haspopup="menu"
+                aria-expanded={mostrarFiltros}
+                onClick={() => setMostrarFiltros((valor) => !valor)}
               >
-                {filtro.label}
+                {filtroSeleccionado.label}
+                <span aria-hidden="true">v</span>
               </button>
-            ))}
+              {mostrarFiltros ? (
+                <div className="comunidad-filtros-menu" role="menu" aria-label="Filtros de publicaciones">
+                  {filtros.map((filtro) => (
+                    <button
+                      key={filtro.id}
+                      className={filtroActivo === filtro.id ? "activo" : ""}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setFiltroActivo(filtro.id);
+                        setMostrarFiltros(false);
+                      }}
+                    >
+                      <strong>{filtro.label}</strong>
+                      <span>
+                        {filtro.id === "destacado" && "Lo mas relevante del foro"}
+                        {filtro.id === "reciente" && "Ultimas publicaciones"}
+                        {filtro.id === "popular" && "Mas votos y respuestas"}
+                        {filtro.id === "preguntas" && "Consultas de la comunidad"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="comunidad-toolbar-meta">
+              <span>{hilosFiltrados.length} posts</span>
+              <span>{mostrarGenero(comunidadActiva.genero)}</span>
+            </div>
           </div>
 
           <div className="comunidad-feed">
-            <section className="comunidad-composer" onClick={abrirCrearHilo}>
-              <div className="publicacion-avatar">
-                {(usuario?.user_metadata?.username || usuario?.email || "S").charAt(0).toUpperCase()}
-              </div>
-              <div className="composer-cuerpo">
-                <button type="button">Escribir en {comunidadActiva.nombre}</button>
-                <div className="composer-acciones">
-                  <span>Pregunta</span>
-                  <span>Comentario</span>
-                  <strong>Publicar</strong>
-                </div>
+            <section className="comunidad-highlights">
+              <button className="highlight-toggle" type="button">
+                <span aria-hidden="true">^</span>
+                Community highlights
+              </button>
+              <div className="highlight-card">
+                <strong>Bienvenido a s/{mostrarGenero(comunidadActiva.genero)}</strong>
+                <p>Comparte lanzamientos, eventos, dudas y recomendaciones para que este foro se mantenga util para la escena.</p>
               </div>
             </section>
 
@@ -693,30 +904,78 @@ export default function Comunidad({ usuario }) {
                 id={`publicacion-${hilo.id}`}
                 key={hilo.id}
               >
-                <div className="hilo-votos">
-                  <button
-                    className={hilo.liked ? "activo" : ""}
-                    type="button"
-                    onClick={() => votar(hilo.id)}
-                    aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
-                  >
-                    +
-                  </button>
-                  <strong>{hilo.votos}</strong>
-                </div>
-
                 <div className="publicacion-contenido">
-                  <div className="publicacion-meta">
-                    <strong>{hilo.usuario}</strong>
-                    <span>{hilo.op}</span>
-                    <span>{hilo.tiempo || "ahora"}</span>
+                  <div className="post-author-row">
+                    <div className="publicacion-avatar post-avatar">
+                      {(hilo.op || hilo.usuario || "S").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="publicacion-meta post-meta">
+                      <strong>{hilo.usuario}</strong>
+                      <span>{hilo.op}</span>
+                      <span>{hilo.tiempo || "ahora"}</span>
+                    </div>
+                    <button className="post-menu" type="button" aria-label="Mas opciones">...</button>
+                  </div>
+
+                  <div className="publicacion-meta etiquetas-row">
                     <span>{hilo.etiqueta || comunidadActiva.genero}</span>
+                    <span>{filtros.find((filtro) => filtro.id === hilo.tipo)?.label || hilo.tipo}</span>
                   </div>
 
                   <h2>{hilo.titulo}</h2>
                   <p><TextoConMenciones texto={hilo.texto} /></p>
 
+                  {hilo.eventoAsociado ? (
+                    <button
+                      className="publicacion-asociada publicacion-asociada-evento"
+                      type="button"
+                      onClick={() => navigate(`/?evento=${encodeURIComponent(hilo.eventoAsociado.id)}`)}
+                    >
+                      <span className="asociada-icono">E</span>
+                      <span>
+                        <small>Evento asociado</small>
+                        <strong>{hilo.eventoAsociado.titulo}</strong>
+                        <em>{hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
+                      </span>
+                    </button>
+                  ) : null}
+
+                  {hilo.reelAsociado ? (
+                    <div className="publicacion-asociada publicacion-asociada-reel">
+                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png"} alt="" />
+                      <span>
+                        <small>Tema asociado</small>
+                        <strong>{hilo.reelAsociado.tema || hilo.reelAsociado.album}</strong>
+                        <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {hilo.reelAsociado.album || mostrarGenero(hilo.reelAsociado.genero)}</em>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => alternarReelAsociado(hilo.reelAsociado)}
+                        disabled={!hilo.reelAsociado.audio}
+                        aria-label={reelAsociadoActivo === hilo.reelAsociado.id ? "Pausar tema asociado" : "Reproducir tema asociado"}
+                      >
+                        {reelAsociadoActivo === hilo.reelAsociado.id ? "II" : "Play"}
+                      </button>
+                      <button
+                        className="asociada-abrir"
+                        type="button"
+                        onClick={() => navigate(`/descubrir?lanzamiento=${encodeURIComponent(hilo.reelAsociado.id)}`)}
+                      >
+                        Abrir
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="publicacion-acciones">
+                    <button
+                      className={hilo.liked ? "activo" : ""}
+                      type="button"
+                      onClick={() => votar(hilo.id)}
+                      aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
+                    >
+                      <span aria-hidden="true">^</span>
+                      {hilo.votos}
+                    </button>
                     <button
                       className={respuestasAbiertas.includes(hilo.id) ? "activo" : ""}
                       type="button"
@@ -751,7 +1010,7 @@ export default function Comunidad({ usuario }) {
 
                       <div className="respuesta-form">
                         <CampoMenciones
-                          placeholder="Respondé o mencioná con @usuario"
+                          placeholder="Responde o menciona con @usuario"
                           value={respuestas[hilo.id] || ""}
                           onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
                         />
@@ -775,14 +1034,39 @@ export default function Comunidad({ usuario }) {
 
         <aside className="comunidad-sidebar detalle-comunidad">
           <section className="comunidad-panel comunidad-panel-acento">
-            <h2>Acerca de {comunidadActiva.nombre}</h2>
+            <h2>s/{mostrarGenero(comunidadActiva.genero)}</h2>
             <p>{comunidadActiva.descripcion}</p>
             <div className="subreddit-stats">
               <strong>{comunidadActiva.publicaciones || 0}</strong>
               <span>publicaciones</span>
+              <strong>{totalComentarios}</strong>
+              <span>respuestas</span>
               <strong>{mostrarGenero(comunidadActiva.genero)}</strong>
               <span>genero</span>
             </div>
+            <button className="comunidad-unirse comunidad-unirse-panel" type="button">
+              Unirse al foro
+            </button>
+          </section>
+
+          <section className="comunidad-panel">
+            <h2>Recursos</h2>
+            <div className="comunidad-bookmarks">
+              {recursosForo.map((recurso) => (
+                <button key={recurso.id} type="button" onClick={() => irARecursoForo(recurso.id)}>
+                  {recurso.label}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="comunidad-panel">
+            <h2>Reglas del foro</h2>
+            <ol className="comunidad-reglas">
+              {reglasForo.map((regla) => (
+                <li key={regla}>{regla}</li>
+              ))}
+            </ol>
           </section>
         </aside>
       </section>
@@ -790,45 +1074,80 @@ export default function Comunidad({ usuario }) {
       {mostrarModal && (
         <div className="comunidad-modal-overlay">
           <div className="comunidad-modal">
-            <h2>{t("Crear publicación")}</h2>
-            <form onSubmit={crearHilo}>
-              <input
-                name="titulo"
-                placeholder="Titulo de la publicacion"
-                value={nuevoHilo.titulo}
-                onChange={handleChange}
-                required
-              />
+            <header className="comunidad-modal-header">
+              <div>
+                <h2>Crear post</h2>
+                <p>s/{mostrarGenero(comunidadActiva.genero)}</p>
+              </div>
+              <button className="comunidad-modal-cerrar" type="button" onClick={() => setMostrarModal(false)} aria-label="Cerrar">
+                x
+              </button>
+            </header>
 
-              <CampoMenciones
-                placeholder={`Escribí en ${comunidadActiva.nombre} o mencioná con @usuario`}
-                value={nuevoHilo.texto}
-                onChange={(texto) => setNuevoHilo((actual) => ({ ...actual, texto }))}
-                required
-              />
-
-              <div className="comunidad-form-row">
-                <select name="tipo" value={nuevoHilo.tipo} onChange={handleChange}>
-                  {filtros.map((filtro) => (
-                    <option key={filtro.id} value={filtro.id}>{filtro.label}</option>
-                  ))}
-                </select>
+            <form className="comunidad-post-form" onSubmit={crearHilo}>
+              <label className="comunidad-post-campo">
+                <span>Titulo</span>
                 <input
-                  name="etiqueta"
-                  placeholder={`Etiqueta (${comunidadActiva.genero})`}
-                  value={nuevoHilo.etiqueta}
+                  name="titulo"
+                  placeholder="Titulo de la publicacion"
+                  value={nuevoHilo.titulo}
                   onChange={handleChange}
+                  maxLength="300"
+                  required
                 />
+                <small>{nuevoHilo.titulo.length}/300</small>
+              </label>
+
+              <button className="comunidad-media-fake" type="button">
+                <span aria-hidden="true">+</span>
+                Cargar imagen
+              </button>
+
+              <div className="comunidad-asociaciones-form">
+                <label>
+                  <span>Evento asociado (opcional)</span>
+                  <select name="eventoAsociadoId" value={nuevoHilo.eventoAsociadoId} onChange={handleChange}>
+                    <option value="">Sin evento asociado</option>
+                    {eventosDelGenero.map((evento) => (
+                      <option key={evento.id} value={evento.id}>
+                        {evento.titulo}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Tema asociado (opcional)</span>
+                  <select name="reelAsociadoId" value={nuevoHilo.reelAsociadoId} onChange={handleChange}>
+                    <option value="">Sin tema asociado</option>
+                    {reelsDelGenero.map((reel) => (
+                      <option key={reel.id} value={reel.id}>
+                        {reel.tema || reel.album || reel.artista}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
+              <label className="comunidad-post-campo">
+                <span>Descripcion</span>
+                <CampoMenciones
+                  placeholder={`Escribi en ${comunidadActiva.nombre} o menciona con @usuario`}
+                  value={nuevoHilo.texto}
+                  onChange={(texto) => setNuevoHilo((actual) => ({ ...actual, texto }))}
+                  required
+                />
+              </label>
+
               <div className="comunidad-modal-botones">
-                <button type="submit" disabled={publicando}>{publicando ? "Publicando..." : "Publicar"}</button>
                 <button type="button" onClick={() => setMostrarModal(false)}>Cancelar</button>
+                <button type="submit" disabled={publicando}>{publicando ? "Publicando..." : "Post"}</button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      <audio ref={audioAsociadoRef} onEnded={() => setReelAsociadoActivo(null)} />
 
       {aviso && (
         <div className="comunidad-toast" role="status">

@@ -324,10 +324,17 @@ const GENEROS_REEL = [
   "folklore",
   "otros",
 ];
+const GENEROS_REEL_SET = new Set(GENEROS_REEL);
+
+function normalizarGeneroReel(genero) {
+  const valor = genero?.trim().toLowerCase() || "";
+  return GENEROS_REEL_SET.has(valor) ? valor : "";
+}
 
 function mostrarGeneroReel(genero) {
-  if (!genero) return "";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  const valor = normalizarGeneroReel(genero);
+  if (!valor) return "";
+  return valor === "edm" ? "EDM" : valor.charAt(0).toUpperCase() + valor.slice(1);
 }
 
 function Icono({ nombre }) {
@@ -497,6 +504,8 @@ export default function Descubrir({ usuario }) {
   const enviandoComentarioRef = useRef(false);
   const respuestasEnviandoRef = useRef(new Set());
   const query = searchParams.get("query")?.trim().toLowerCase() || "";
+  const generoFiltro = normalizarGeneroReel(searchParams.get("genero"));
+  const generoFiltroNombre = mostrarGeneroReel(generoFiltro);
   const usuarioComentario = obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
   const inicialUsuario = usuario ? usuarioComentario.charAt(1).toUpperCase() : "";
@@ -505,14 +514,17 @@ export default function Descubrir({ usuario }) {
   )?.audio;
 
   const lanzamientosFiltrados = useMemo(() => {
-    if (!query) return lanzamientos;
-
     return lanzamientos.filter((lanzamiento) => {
+      const coincideGenero = !generoFiltro || normalizarGeneroReel(lanzamiento.genero || lanzamiento.tag || lanzamiento.etiqueta) === generoFiltro;
+      if (!coincideGenero) return false;
+
+      if (!query) return true;
+
       const contenido =
         `${lanzamiento.artista} ${lanzamiento.usuario} ${lanzamiento.tema} ${lanzamiento.album} ${lanzamiento.descripcion}`.toLowerCase();
       return contenido.includes(query);
     });
-  }, [lanzamientos, query]);
+  }, [generoFiltro, lanzamientos, query]);
   const idsLanzamientosFiltrados = lanzamientosFiltrados
     .map((lanzamiento) => lanzamiento.id)
     .join(",");
@@ -2065,12 +2077,18 @@ export default function Descubrir({ usuario }) {
       }`}
       aria-label="Descubrir musica"
     >
+      {generoFiltro ? (
+        <div className="descubrir-filtro-activo" role="status">
+          <span>Filtro</span>
+          <strong>{generoFiltroNombre}</strong>
+        </div>
+      ) : null}
       <div className={`feed-pista ${lanzamientosFiltrados.length === 0 ? "sin-resultados" : ""}`}>
         {lanzamientosFiltrados.length === 0 ? (
           <div className="descubrir-vacio" role="status">
             <span aria-hidden="true">♫</span>
-            <strong>{query ? t("No encontramos música") : t("No hay nada que descubrir")}</strong>
-            <p>{query ? "Probá con otra búsqueda." : "Cuando haya nuevos reels van a aparecer acá."}</p>
+            <strong>{query || generoFiltro ? t("No encontramos música") : t("No hay nada que descubrir")}</strong>
+            <p>{generoFiltro ? `No hay reels de ${generoFiltroNombre} por ahora.` : query ? "Proba con otra busqueda." : "Cuando haya nuevos reels van a aparecer aca."}</p>
           </div>
         ) : null}
         {lanzamientosFiltrados.map((lanzamiento) => {

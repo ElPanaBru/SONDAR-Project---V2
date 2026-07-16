@@ -138,6 +138,9 @@ export default function Eventos({ usuario }) {
   const [searchParams] = useSearchParams();
   const eventoCompartido = searchParams.get("evento");
   const crearEventoParam = searchParams.get("crear");
+  const generoUrl = searchParams.get("genero")?.trim().toLowerCase() || "";
+  const filtroGeneroUrl = generoUrl && GENEROS_PERMITIDOS_SET.has(generoUrl) ? generoUrl : "todos";
+  const generosIniciales = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
   // Referencias para el mapa principal
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -155,7 +158,7 @@ export default function Eventos({ usuario }) {
   const [ultimoEventoDetalle, setUltimoEventoDetalle] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [detalleExpandido, setDetalleExpandido] = useState(false);
-  const [filtroGenero, setFiltroGenero] = useState("todos");
+  const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
@@ -313,16 +316,24 @@ export default function Eventos({ usuario }) {
   }, [eventoActivo]);
 
   const eventosFiltrados = useMemo(
-    () => filtroGenero === "todos"
-      ? eventos
-      : eventos.filter((evento) => normalizarGenero(evento.genero) === filtroGenero),
-    [eventos, filtroGenero]
+    () => eventos.filter((evento) => generosVisibles.includes(normalizarGenero(evento.genero))),
+    [eventos, generosVisibles]
   );
 
   const eventosConCoordenadas = useMemo(
     () => eventosFiltrados.filter(tieneCoordenadasValidas),
     [eventosFiltrados]
   );
+  const todosGenerosVisibles = generosVisibles.length === GENEROS_PERMITIDOS.length;
+
+  useEffect(() => {
+    if (!detalleEvento) return;
+    if (generosVisibles.includes(normalizarGenero(detalleEvento.genero))) return;
+
+    setEventoActivo(null);
+    setUltimoEventoDetalle(null);
+    setDetalleExpandido(false);
+  }, [detalleEvento, generosVisibles]);
 
   // 2. Inicialización del Mapa Principal (Modo Oscuro)
   useEffect(() => {
@@ -368,6 +379,12 @@ export default function Eventos({ usuario }) {
     const eventoDestino = eventos.find((evento) => String(evento.id) === String(eventoCompartido));
     if (!eventoDestino) return;
 
+    const generoDestino = normalizarGenero(eventoDestino.genero);
+    setGenerosVisibles((actuales) =>
+      actuales.includes(generoDestino)
+        ? actuales
+        : GENEROS_PERMITIDOS.filter((genero) => [...actuales, generoDestino].includes(genero))
+    );
     setUltimoEventoDetalle(eventoDestino);
     setEventoActivo(eventoDestino.id);
     setDetalleExpandido(true);
@@ -584,7 +601,7 @@ export default function Eventos({ usuario }) {
     }
   };
 
-  const seleccionarEvento = (evento, expandir = false) => {
+  const seleccionarEvento = useCallback((evento, expandir = false) => {
     setUltimoEventoDetalle(evento);
     setEventoActivo(evento.id);
     setDetalleExpandido(expandir);
@@ -594,7 +611,7 @@ export default function Eventos({ usuario }) {
         easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
       });
     }
-  };
+  }, []);
 
   const navegarEntreEventos = (direccion) => {
     if (eventosFiltrados.length === 0) return;
@@ -604,20 +621,24 @@ export default function Eventos({ usuario }) {
     seleccionarEvento(eventosFiltrados[siguienteIndice]);
   };
 
-  const cambiarFiltroGenero = (genero) => {
-    setFiltroGenero(genero);
-    const visibles = genero === "todos"
-      ? eventos
-      : eventos.filter((evento) => normalizarGenero(evento.genero) === genero);
-    if (detalleEvento && (genero === "todos" || normalizarGenero(detalleEvento.genero) === genero)) return;
-    if (visibles.length > 0) {
-      seleccionarEvento(visibles[0]);
+  const cambiarFiltroGenero = useCallback((genero) => {
+    if (genero === "todos") {
+      setGenerosVisibles(GENEROS_PERMITIDOS);
       return;
     }
-    setEventoActivo(null);
-    setUltimoEventoDetalle(null);
-    setDetalleExpandido(false);
-  };
+
+    setGenerosVisibles([genero]);
+  }, []);
+
+  useEffect(() => {
+    const siguientes = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
+    setGenerosVisibles((actuales) => {
+      const mismos =
+        actuales.length === siguientes.length &&
+        actuales.every((genero) => siguientes.includes(genero));
+      return mismos ? actuales : siguientes;
+    });
+  }, [filtroGeneroUrl]);
 
   const compartirEvento = async (evento) => {
     const enlace = new URL(window.location.origin);
@@ -913,7 +934,7 @@ export default function Eventos({ usuario }) {
       setEventos((actuales) => [eventoParaMapa, ...actuales]);
       setUltimoEventoDetalle(eventoParaMapa);
       setEventoActivo(eventoParaMapa.id);
-      setFiltroGenero("todos");
+      setGenerosVisibles(GENEROS_PERMITIDOS);
       setDetalleExpandido(true);
       
       setMostrarModal(false);
@@ -1011,9 +1032,9 @@ export default function Eventos({ usuario }) {
 
         {!detalleExpandido ? (
           <div className="eventos-sheet-tags" aria-label="Filtrar eventos por género">
-            <button className={filtroGenero === "todos" ? "activo" : ""} type="button" aria-pressed={filtroGenero === "todos"} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+            <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
             {GENEROS_PERMITIDOS.map((genero) => (
-              <button className={filtroGenero === genero ? "activo" : ""} type="button" key={genero} aria-pressed={filtroGenero === genero} onClick={() => cambiarFiltroGenero(genero)}>
+              <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
                 {mostrarGenero(genero)}
               </button>
             ))}

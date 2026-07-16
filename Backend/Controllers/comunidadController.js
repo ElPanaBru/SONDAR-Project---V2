@@ -144,10 +144,15 @@ async function asegurarEsquemaComunidades() {
           titulo text NOT NULL CHECK (length(trim(titulo)) > 0),
           texto text NOT NULL CHECK (length(trim(texto)) > 0),
           etiqueta text,
+          evento_asociado_id text,
+          reel_asociado_id text,
           fijada boolean NOT NULL DEFAULT false,
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+
+      await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS evento_asociado_id text');
+      await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS reel_asociado_id text');
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS comunidad_publicacion_likes (
@@ -313,6 +318,8 @@ function mapearPublicacion(row, comentarios = []) {
     titulo: row.titulo,
     texto: row.texto,
     etiqueta: row.etiqueta || row.genero,
+    eventoAsociadoId: row.evento_asociado_id || null,
+    reelAsociadoId: row.reel_asociado_id || null,
     votos: Number(row.likes_calculados ?? row.likes ?? 0),
     likes: Number(row.likes_calculados ?? row.likes ?? 0),
     liked: Boolean(row.liked),
@@ -467,6 +474,8 @@ const comunidadController = {
     const texto = req.body.texto?.trim();
     const tipo = req.body.tipo || 'reciente';
     const etiqueta = req.body.etiqueta?.trim() || null;
+    const eventoAsociadoId = req.body.eventoAsociadoId ? String(req.body.eventoAsociadoId).trim() : null;
+    const reelAsociadoId = req.body.reelAsociadoId ? String(req.body.reelAsociadoId).trim() : null;
 
     if (!titulo || !texto) {
       return res.status(400).json({ error: 'Completa titulo y texto para publicar.' });
@@ -483,10 +492,19 @@ const comunidadController = {
 
       const tipoSeguro = ['destacado', 'reciente', 'popular', 'preguntas'].includes(tipo) ? tipo : 'reciente';
       const result = await pool.query(
-        `INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta, evento_asociado_id, reel_asociado_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [comunidadId, req.user.id, tipoSeguro, titulo, texto, etiqueta || comunidad.rows[0].genero]
+        [
+          comunidadId,
+          req.user.id,
+          tipoSeguro,
+          titulo,
+          texto,
+          etiqueta || comunidad.rows[0].genero,
+          eventoAsociadoId || null,
+          reelAsociadoId || null,
+        ]
       );
 
       const usuarioResult = await pool.query(

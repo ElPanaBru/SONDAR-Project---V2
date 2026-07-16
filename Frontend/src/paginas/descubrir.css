@@ -23,6 +23,35 @@
   background: #050505;
 }
 
+.descubrir-filtro-activo {
+  position: fixed;
+  top: calc(var(--nav-alto) + 14px);
+  left: 86px;
+  z-index: 90;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #050505;
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  padding: 0 14px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.descubrir-filtro-activo span {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.descubrir-filtro-activo strong {
+  font-size: 14px;
+  font-weight: 950;
+}
+
 .feed-pista {
   width: 100%;
   height: calc(100vh - var(--nav-alto));
@@ -1618,6 +1647,13 @@
 }
 
 @media (max-width: 720px) {
+  .descubrir-filtro-activo {
+    top: 124px;
+    left: 76px;
+    min-height: 34px;
+    padding: 0 11px;
+  }
+
   .descubrir-feed {
     --nav-alto: 114px;
     --album-size: min(88vw, 430px);

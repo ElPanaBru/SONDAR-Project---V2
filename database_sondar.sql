@@ -43,6 +43,8 @@ ALTER TABLE "comunidad_publicaciones" (
   "titulo" text NOT NULL,
   "texto" text NOT NULL,
   "etiqueta" text,
+  "evento_asociado_id" text,
+  "reel_asociado_id" text,
   "likes" integer DEFAULT 0 NOT NULL,
   "guardados" integer DEFAULT 0 NOT NULL,
   "fijada" boolean DEFAULT false NOT NULL,
