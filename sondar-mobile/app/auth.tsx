@@ -21,8 +21,9 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, 430);
-  const logoWidth = Math.min(contentWidth - 72, 285);
+  const viewportWidth = width >= 320 ? width : 390;
+  const contentWidth = Math.min(Math.max(viewportWidth - 32, 280), 358);
+  const logoWidth = Math.min(contentWidth - 40, 285);
   const strong = useMemo(() => password.length >= 8 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password), [password]);
   const backgroundPlayer = useVideoPlayer(require('../assets/auth-background.mp4'), player => {
     player.loop = true;
@@ -57,21 +58,23 @@ export default function AuthScreen() {
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView style={styles.scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Image source={require('../assets/sondar-logo.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
-          <Text style={styles.heroTitle}>La música pasa cerca tuyo.</Text>
-          <Text style={styles.tagline}>Descubrí artistas, lanzamientos y eventos de tu escena.</Text>
-          <View style={styles.card}>
-            <View style={styles.switcher}>
-              <Pressable onPress={() => setRegister(false)} style={[styles.switch, !register && styles.switchActive]}><Text style={[styles.switchText, !register && styles.switchTextActive]}>Ingresar</Text></Pressable>
-              <Pressable onPress={() => setRegister(true)} style={[styles.switch, register && styles.switchActive]}><Text style={[styles.switchText, register && styles.switchTextActive]}>Crear cuenta</Text></Pressable>
+          <View style={[styles.inner, { width: contentWidth }]}>
+            <Image source={require('../assets/sondar-logo.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
+            <Text style={styles.heroTitle}>La música pasa cerca tuyo.</Text>
+            <Text style={styles.tagline}>Descubrí artistas, lanzamientos y eventos de tu escena.</Text>
+            <View style={styles.card}>
+              <View style={styles.switcher}>
+                <Pressable onPress={() => setRegister(false)} style={[styles.switch, !register && styles.switchActive]}><Text style={[styles.switchText, !register && styles.switchTextActive]}>Ingresar</Text></Pressable>
+                <Pressable onPress={() => setRegister(true)} style={[styles.switch, register && styles.switchActive]}><Text style={[styles.switchText, register && styles.switchTextActive]}>Crear cuenta</Text></Pressable>
+              </View>
+              {!configured ? <ErrorNotice message="Copiá .env.example a .env y completá las variables EXPO_PUBLIC de Supabase." /> : null}
+              {register ? <Field label="Nombre de usuario" placeholder="@tuusuario" autoCapitalize="none" value={username} onChangeText={setUsername} /> : null}
+              <Field label="Email" placeholder="vos@email.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+              <View><Field label="Contraseña" placeholder="••••••••" secureTextEntry={!visible} value={password} onChangeText={setPassword} /><Pressable style={styles.eye} onPress={() => setVisible(v => !v)}><Ionicons name={visible ? 'eye-off' : 'eye'} size={20} color={palette.muted} /></Pressable></View>
+              {register ? <Field label="Repetir contraseña" placeholder="••••••••" secureTextEntry={!visible} value={repeat} onChangeText={setRepeat} /> : null}
+              <ErrorNotice message={error} />
+              <Button onPress={submit} disabled={busy || !configured}>{busy ? 'Procesando…' : register ? 'Crear mi cuenta' : 'Entrar a SONDAR'}</Button>
             </View>
-            {!configured ? <ErrorNotice message="Copiá .env.example a .env y completá las variables EXPO_PUBLIC de Supabase." /> : null}
-            {register ? <Field label="Nombre de usuario" placeholder="@tuusuario" autoCapitalize="none" value={username} onChangeText={setUsername} /> : null}
-            <Field label="Email" placeholder="vos@email.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
-            <View><Field label="Contraseña" placeholder="••••••••" secureTextEntry={!visible} value={password} onChangeText={setPassword} /><Pressable style={styles.eye} onPress={() => setVisible(v => !v)}><Ionicons name={visible ? 'eye-off' : 'eye'} size={20} color={palette.muted} /></Pressable></View>
-            {register ? <Field label="Repetir contraseña" placeholder="••••••••" secureTextEntry={!visible} value={repeat} onChangeText={setRepeat} /> : null}
-            <ErrorNotice message={error} />
-            <Button onPress={submit} disabled={busy || !configured}>{busy ? 'Procesando…' : register ? 'Crear mi cuenta' : 'Entrar a SONDAR'}</Button>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -81,8 +84,9 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, overflow: 'hidden', backgroundColor: palette.bg }, backgroundClip: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' }, backgroundMedia: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
-  flex: { flex: 1 }, scroller: { width: '100%', maxWidth: 430, alignSelf: 'center' }, content: { flexGrow: 1, paddingHorizontal: 20, paddingVertical: 28, justifyContent: 'center' },
-  logo: { height: 84, alignSelf: 'center' }, heroTitle: { color: palette.text, fontSize: 26, lineHeight: 31, fontWeight: '900', textAlign: 'center', marginTop: 4 }, tagline: { color: '#E6E6E6', textAlign: 'center', fontWeight: '600', lineHeight: 20, marginTop: 7, marginBottom: 22 },
+  flex: { flex: 1 }, scroller: { width: '100%' }, content: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 28, justifyContent: 'center', alignItems: 'flex-start' },
+  inner: { maxWidth: 358 },
+  logo: { height: 84, alignSelf: 'center' }, heroTitle: { color: palette.text, fontSize: 26, lineHeight: 31, fontWeight: '900', textAlign: 'center', marginTop: 4, alignSelf: 'stretch' }, tagline: { color: '#E6E6E6', textAlign: 'center', fontWeight: '600', lineHeight: 20, marginTop: 7, marginBottom: 22, alignSelf: 'stretch' },
   card: { alignSelf: 'stretch', padding: 18, gap: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FFFFFF29', backgroundColor: '#080808D9' },
   switcher: { flexDirection: 'row', padding: 4, backgroundColor: '#FFFFFF14', borderWidth: 1, borderColor: '#FFFFFF1F', borderRadius: 12 }, switch: { flex: 1, paddingVertical: 10, paddingHorizontal: 6, alignItems: 'center', borderRadius: 9 }, switchActive: { backgroundColor: palette.amber }, switchText: { color: '#D8D8DC', fontWeight: '800', fontSize: 13 }, switchTextActive: { color: '#080808' },
   eye: { position: 'absolute', right: 13, bottom: 14 },

@@ -15,13 +15,18 @@ export function normalizeHandle(value: unknown, fallback = 'usuario') {
 }
 
 export function normalizeComment(item: AnyRecord = {}) {
+  const respondeA = item.respondeA ?? item.responde_a;
+  const parentId = item.parentId ?? item.parent_id;
   return {
     ...item,
     id: toNumber(item.id),
+    userId: item.userId || item.user_id,
+    parentId: parentId ? toNumber(parentId) : null,
     usuario: item.usuario || normalizeHandle(item.username || item.autor || item.email?.split?.('@')?.[0]),
     autor: item.autor || item.username || item.usuario || 'Usuario SONDAR',
     avatar: item.avatar || item.profile_img_url || '',
     texto: item.texto || '',
+    respondeA: respondeA ? normalizeHandle(respondeA) : '',
     likes: toNumber(item.likes ?? item.votos),
     votos: toNumber(item.votos ?? item.likes),
     liked: toBoolean(item.liked),

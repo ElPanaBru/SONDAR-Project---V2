@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $root 'sondar-mobile'
 $npm = (Get-Command npm.cmd).Source
+$node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 $metroPort = 8081
 
 function Test-LocalPort([int]$Port) {
@@ -112,6 +113,29 @@ function Stop-MobileDevProcesses {
   }
 }
 
+function Show-ExpoQr([string]$Url) {
+  Write-Host ''
+  Write-Host 'QR para Expo Go:' -ForegroundColor Green
+  $qrBin = Join-Path $mobile 'node_modules\qrcode-terminal\bin\qrcode-terminal.js'
+  $qrPrinted = $false
+
+  if ($node -and (Test-Path $qrBin)) {
+    try {
+      & $node $qrBin $Url 2>$null
+      $qrPrinted = ($LASTEXITCODE -eq 0)
+    } catch {
+      $qrPrinted = $false
+    }
+  }
+
+  if (-not $qrPrinted) {
+    Write-Host $Url -ForegroundColor Green
+  }
+
+  Write-Host "URL manual: $Url" -ForegroundColor DarkGray
+  Write-Host ''
+}
+
 function Start-MobileExpo([string]$ScriptName) {
   $maxAttempts = if ($Tunnel) { 3 } else { 1 }
 
@@ -164,7 +188,11 @@ if (($Clear -or $Tunnel) -and (Test-MetroPort $metroPort)) {
 } elseif (Test-LocalPort $metroPort) {
   if (Test-MetroPort $metroPort) {
     Write-Host "Expo ya esta corriendo en el puerto $metroPort." -ForegroundColor Green
-    Write-Host "Abrilo desde Expo Go con $expoUrl" -ForegroundColor DarkGray
+    if (-not $Tunnel) {
+      Show-ExpoQr $expoUrl
+    } else {
+      Write-Host "Abrilo desde Expo Go con $expoUrl" -ForegroundColor DarkGray
+    }
     return
   }
 
@@ -184,6 +212,7 @@ if ($Tunnel) {
   Write-Host 'Modo tunnel activo: no usa puertos entrantes del firewall.' -ForegroundColor DarkGray
 } else {
   Write-Host "Expo LAN: $expoUrl" -ForegroundColor DarkGray
+  Show-ExpoQr $expoUrl
 }
 
 if ($Tunnel -and $Clear) {

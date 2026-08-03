@@ -1,6 +1,7 @@
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { palette } from '@/constants/sondar';
@@ -13,18 +14,20 @@ const sondarTheme = {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <ThemeProvider value={sondarTheme}>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
-          <Stack.Screen name="settings" options={{ presentation: 'card' }} />
-          <Stack.Screen name="support" options={{ presentation: 'card' }} />
-          <Stack.Screen name="profile/[id]" options={{ presentation: 'card' }} />
-        </Stack>
-        <StatusBar style="light" />
-      </ThemeProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <ThemeProvider value={sondarTheme}>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+            <Stack.Screen name="settings" options={{ presentation: 'card' }} />
+            <Stack.Screen name="support" options={{ presentation: 'card' }} />
+            <Stack.Screen name="profile/[id]" options={{ presentation: 'card' }} />
+          </Stack>
+          <StatusBar style="light" />
+        </ThemeProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

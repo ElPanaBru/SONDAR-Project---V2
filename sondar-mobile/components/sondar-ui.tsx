@@ -3,8 +3,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { PropsWithChildren, ReactNode } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/sondar';
 
@@ -18,12 +18,15 @@ export function Screen({ children, scroll = false, refreshing, onRefresh }: Prop
       {children}
     </ScrollView>
   ) : children;
-  return <SafeAreaView edges={['top']} style={styles.screen}>{body}</SafeAreaView>;
+  return <View style={styles.screen}>{body}</View>;
 }
 
 export function Header({ title, subtitle, back = false, onBack, actions }: { title: string; subtitle?: string; back?: boolean; onBack?: () => void; actions?: ReactNode }) {
+  const insets = useSafeAreaInsets();
+  const fallbackTop = Platform.OS === 'ios' ? 44 : RNStatusBar.currentHeight || 0;
+  const topInset = Math.max(insets.top, fallbackTop);
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { minHeight: 58 + topInset, paddingTop: topInset }]}>
       {back ? <IconButton name="arrow-back" onPress={onBack || (() => router.back())} /> : <View style={styles.brand}><Text style={styles.brandS}>S</Text></View>}
       <View style={styles.headerText}><Text style={styles.title} numberOfLines={1}>{title}</Text>{subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}</View>
       <View style={styles.headerActions}>{actions}</View>
@@ -33,7 +36,7 @@ export function Header({ title, subtitle, back = false, onBack, actions }: { tit
 
 export function IconButton({ name, onPress, active, badge, danger }: { name: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; active?: boolean; badge?: number; danger?: boolean }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
+    <Pressable hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
       <Ionicons name={name} size={22} color={danger ? palette.danger : active ? palette.orange : palette.text} />
       {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
     </Pressable>
@@ -90,7 +93,7 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', right: -3, top: -4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: palette.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   button: { minHeight: 44, borderRadius: 8, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, overflow: 'hidden' },
-  buttonGradient: { minHeight: 46, paddingHorizontal: 17, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
+  buttonGradient: { width: '100%', minHeight: 46, paddingHorizontal: 17, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
   button_primary: { backgroundColor: palette.orange, borderColor: palette.amber }, button_secondary: { paddingHorizontal: 17, backgroundColor: palette.surface2, borderColor: palette.border }, button_ghost: { paddingHorizontal: 17, backgroundColor: 'transparent', borderColor: 'transparent' }, button_danger: { paddingHorizontal: 17, backgroundColor: '#261216', borderColor: '#55202A' },
   buttonText: { color: palette.text, fontSize: 15, fontWeight: '700', textAlign: 'center', flexShrink: 1 }, buttonTextPrimary: { color: '#121212' },
   disabled: { opacity: .45 }, pressed: { opacity: .7 },

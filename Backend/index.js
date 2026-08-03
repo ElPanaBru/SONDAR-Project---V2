@@ -17,8 +17,14 @@ const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:3001',
-  'http://127.0.0.1:3001'
+  'http://127.0.0.1:3001',
+  'http://localhost:8081',
+  'http://127.0.0.1:8081',
+  'http://localhost:19006',
+  'http://127.0.0.1:19006'
 ].filter(Boolean));
+
+const devPorts = new Set(['3001', '5173', '8081', '19006']);
 
 function esOrigenDesarrolloLocal(origin) {
   try {
@@ -28,7 +34,7 @@ function esOrigenDesarrolloLocal(origin) {
       || /^10\./.test(url.hostname)
       || /^192\.168\./.test(url.hostname)
       || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname);
-    return url.protocol === 'http:' && hostLocal && ['3001', '5173'].includes(url.port);
+    return url.protocol === 'http:' && hostLocal && devPorts.has(url.port);
   } catch {
     return false;
   }
@@ -74,7 +80,11 @@ app.use('/api/notificaciones', notificacionesRoutes);
 
 async function iniciarServidor() {
   try {
-    await asegurarEsquemaConfiguracion();
+    if (process.env.AUTO_MIGRATE_SETTINGS === 'true') {
+      await asegurarEsquemaConfiguracion();
+    } else {
+      console.log('Migraciones automaticas de configuracion omitidas. Usa AUTO_MIGRATE_SETTINGS=true para ejecutarlas.');
+    }
     app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
   } catch (error) {
     console.error('No se pudo preparar el esquema de configuracion:', error);

@@ -181,6 +181,7 @@ async function asegurarEsquemaComunidades() {
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+      await pool.query('ALTER TABLE comunidad_comentarios ADD COLUMN IF NOT EXISTS responde_a text');
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS comunidad_comentario_likes (
@@ -277,6 +278,7 @@ function mapearComentario(row) {
     likes: Number(row.likes || 0),
     liked: Boolean(row.liked),
     parentId: row.parent_id ? Number(row.parent_id) : null,
+    respondeA: row.responde_a || '',
     tiempo: tiempoRelativo(row.created_at),
     respuestas: [],
   };
@@ -536,6 +538,7 @@ const comunidadController = {
     const { publicacionId } = req.params;
     const texto = req.body.texto?.trim();
     const parentId = req.body.parentId || null;
+    const respondeA = req.body.respondeA?.trim() || null;
 
     if (!texto) {
       return res.status(400).json({ error: 'El comentario no puede estar vacio.' });
@@ -554,10 +557,10 @@ const comunidadController = {
       }
 
       const result = await pool.query(
-        `INSERT INTO comunidad_comentarios (publicacion_id, user_id, parent_id, texto)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO comunidad_comentarios (publicacion_id, user_id, parent_id, texto, responde_a)
+         VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [publicacionId, req.user.id, parentId, texto]
+        [publicacionId, req.user.id, parentId, texto, parentId ? respondeA : null]
       );
 
       const usuarioResult = await pool.query(

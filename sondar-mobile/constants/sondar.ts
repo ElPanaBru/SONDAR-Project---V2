@@ -17,6 +17,13 @@ export const palette = {
 export const musicGenres = ['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros'];
 export const genres = ['todos', ...musicGenres];
 
+const countFormatter = new Intl.NumberFormat('es-AR');
+
+export function formatCount(value?: number | string | null) {
+  const parsed = Number(value);
+  return countFormatter.format(Number.isFinite(parsed) ? parsed : 0);
+}
+
 export function formatGenre(genre?: string | null) {
   const value = String(genre || '').trim().toLowerCase();
   if (!value) return '';
