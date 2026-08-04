@@ -9,6 +9,7 @@ $mobile = Join-Path $root 'sondar-mobile'
 $npm = (Get-Command npm.cmd).Source
 $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 $metroPort = 8081
+$apiPort = 3000
 
 function Test-LocalPort([int]$Port) {
   $client = New-Object System.Net.Sockets.TcpClient
@@ -201,6 +202,8 @@ if (($Clear -or $Tunnel) -and (Test-MetroPort $metroPort)) {
 
 if ($lanIp -and -not $Tunnel) {
   $env:REACT_NATIVE_PACKAGER_HOSTNAME = $lanIp
+  $env:EXPO_PUBLIC_API_URL = "http://${lanIp}:$apiPort"
+  $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
 }
 
 if ($Tunnel) {
@@ -212,6 +215,7 @@ if ($Tunnel) {
   Write-Host 'Modo tunnel activo: no usa puertos entrantes del firewall.' -ForegroundColor DarkGray
 } else {
   Write-Host "Expo LAN: $expoUrl" -ForegroundColor DarkGray
+  Write-Host "API mobile: $env:EXPO_PUBLIC_API_URL" -ForegroundColor DarkGray
   Show-ExpoQr $expoUrl
 }
 

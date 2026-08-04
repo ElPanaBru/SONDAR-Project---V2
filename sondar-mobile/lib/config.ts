@@ -1,8 +1,30 @@
 import Constants from 'expo-constants';
 
+function extractHost(value?: string | null) {
+  if (!value) return '';
+  const cleaned = String(value)
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+    .split('/')[0]
+    .replace(/^\[/, '')
+    .replace(/\]$/, '');
+  return cleaned.split(':')[0] || '';
+}
+
 function getDevHost() {
-  const hostUri = Constants.expoConfig?.hostUri;
-  return hostUri?.split(':')[0] || 'localhost';
+  const constants = Constants as typeof Constants & {
+    manifest?: { debuggerHost?: string; hostUri?: string };
+    manifest2?: { extra?: { expoClient?: { hostUri?: string } } };
+  };
+  const host = [
+    Constants.expoConfig?.hostUri,
+    constants.manifest2?.extra?.expoClient?.hostUri,
+    constants.manifest?.debuggerHost,
+    constants.manifest?.hostUri,
+    Constants.linkingUri,
+    Constants.experienceUrl,
+  ].map(extractHost).find(Boolean);
+
+  return host || 'localhost';
 }
 
 function isLocalHost(host: string) {
