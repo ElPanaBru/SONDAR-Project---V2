@@ -110,60 +110,9 @@ CREATE POLICY user_interests_own ON public.user_interests
 
 DROP TYPE IF EXISTS public.content_moderation_status;
 
--- Mantener public.users sincronizado con Supabase Auth.
-CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  base_username text;
-BEGIN
-  base_username := left(
-    regexp_replace(
-      regexp_replace(
-        lower(COALESCE(
-          NEW.raw_user_meta_data ->> 'username',
-          NEW.raw_user_meta_data ->> 'name',
-          split_part(NEW.email, '@', 1),
-          'usuario'
-        )),
-        '^@+',
-        ''
-      ),
-      '[^a-z0-9._-]',
-      '',
-      'g'
-    ),
-    30
-  );
-
-  IF length(base_username) < 3 THEN
-    base_username := 'u_' || left(replace(NEW.id::text, '-', ''), 12);
-  END IF;
-
-  IF EXISTS (SELECT 1 FROM public.users WHERE lower(username) = lower(base_username)) THEN
-    base_username := left(base_username, 21) || '_' || left(NEW.id::text, 8);
-  END IF;
-
-  INSERT INTO public.users (id, email, username, user_type, display_name)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.email, NEW.id::text || '@sin-email.local'),
-    base_username,
-    CASE
-      WHEN NEW.raw_user_meta_data ->> 'user_type' IN ('musico', 'organizador', 'admin')
-        THEN NEW.raw_user_meta_data ->> 'user_type'
-      ELSE 'musico'
-    END,
-    NULLIF(left(trim(NEW.raw_user_meta_data ->> 'name'), 100), '')
-  )
-  ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email;
-
-  RETURN NEW;
-END;
-$$;
+-- El backend crea public.users despues de crear la cuenta en Auth.
+-- No se usa trigger AFTER INSERT porque puede bloquear /auth/v1/signup.
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 CREATE OR REPLACE FUNCTION public.sync_auth_user_email()
 RETURNS trigger
@@ -179,11 +128,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 DROP TRIGGER IF EXISTS on_auth_user_email_updated ON auth.users;
 CREATE TRIGGER on_auth_user_email_updated

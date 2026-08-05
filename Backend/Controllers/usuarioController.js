@@ -16,6 +16,7 @@ const {
   PERFILES_BUCKET,
 } = require('../services/storageService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+const supabaseAuth = supabase.authClient || supabase;
 
 const CONFIGURACION_INICIAL = Object.freeze({
   telefono: '',
@@ -133,6 +134,271 @@ function validarGenerosOnboarding(valor) {
     return { error: 'La selección de géneros no es válida.' };
   }
   return { generos };
+}
+
+function esTimeoutSupabase(error) {
+  const mensaje = String(error?.message || error?.error_description || '').toLowerCase();
+  return error?.code === 'SUPABASE_TIMEOUT'
+    || error?.name === 'AbortError'
+    || mensaje.includes('upstream request timeout')
+    || mensaje.includes('tardo demasiado')
+    || mensaje.includes('timeout');
+}
+
+function esUsuarioAuthExistente(error) {
+  const mensaje = String(error?.message || error?.error_description || '').toLowerCase();
+  return error?.code === 'USER_ALREADY_REGISTERED'
+    || mensaje.includes('already been registered')
+    || mensaje.includes('user already registered')
+    || mensaje.includes('already registered')
+    || mensaje.includes('correo ya esta registrado');
+}
+
+function esKeySupabaseInvalida(error) {
+  const mensaje = String(error?.message || error?.error_description || error?.msg || '').toLowerCase();
+  return error?.status === 401
+    || error?.code === 401
+    || mensaje.includes('unregistered api key')
+    || mensaje.includes('invalid api key')
+    || mensaje.includes('api key');
+}
+
+function esErrorValidacionArchivo(error) {
+  const mensaje = String(error?.message || '').toLowerCase();
+  return mensaje.includes('formato de imagen')
+    || mensaje.includes('imagen no puede superar')
+    || mensaje.includes('file too large');
+}
+
+function esErrorStorageNoBloqueante(error) {
+  const mensaje = String(error?.message || error?.error_description || error?.msg || '').toLowerCase();
+  return esTimeoutSupabase(error)
+    || esKeySupabaseInvalida(error)
+    || mensaje.includes('invalid compact jws')
+    || mensaje.includes('jwt')
+    || mensaje.includes('storage')
+    || mensaje.includes('no se pudo subir');
+}
+
+async function subirAvatarOpcional(file, userId, contexto) {
+  if (!file) return { avatar: null, advertencia: null };
+
+  try {
+    return {
+      avatar: await subirAvatarUsuario(file, userId),
+      advertencia: null,
+    };
+  } catch (error) {
+    if (esErrorValidacionArchivo(error) || !esErrorStorageNoBloqueante(error)) {
+      throw error;
+    }
+
+    console.warn(`No se pudo subir avatar en ${contexto}; se continua sin foto:`, error.message);
+    return {
+      avatar: null,
+      advertencia: 'No se pudo guardar la foto ahora, pero el perfil se completo.',
+    };
+  }
+}
+
+async function recuperarUsuarioAuthConPassword(email, password) {
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+  if (error || !data?.user?.id) return null;
+  return data.user;
+}
+
+async function crearUsuarioAuthPorSql({ email, password, username, userType }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const userResult = await client.query(
+      `INSERT INTO auth.users (
+         instance_id, id, aud, role, email, encrypted_password,
+         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+         confirmation_token, recovery_token, email_change_token_new, email_change,
+         email_change_token_current, reauthentication_token, phone_change, phone_change_token,
+         created_at, updated_at
+       )
+       VALUES (
+         '00000000-0000-0000-0000-000000000000',
+         gen_random_uuid(),
+         'authenticated',
+         'authenticated',
+         $1,
+         crypt($2, gen_salt('bf')),
+         timezone('utc'::text, now()),
+         '{"provider":"email","providers":["email"]}'::jsonb,
+         jsonb_build_object('username', $3::text, 'user_type', $4::text),
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now())
+       )
+       RETURNING id, email, raw_user_meta_data`,
+      [email, password, username, userType]
+    );
+
+    const user = userResult.rows[0];
+    await client.query(
+      `INSERT INTO auth.identities (
+         provider_id, user_id, identity_data, provider,
+         last_sign_in_at, created_at, updated_at
+       )
+       VALUES (
+         $1::text,
+         $1::uuid,
+         jsonb_build_object(
+           'sub', $1::text,
+           'email', $2::text,
+           'email_verified', false,
+           'phone_verified', false
+         ),
+         'email',
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now())
+       )`,
+      [user.id, email]
+    );
+
+    await client.query('COMMIT');
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.raw_user_meta_data || { username, user_type: userType },
+      },
+      creadoEnEsteRequest: true,
+    };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => null);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function crearUsuarioAuthConSignup({ email, password, username, userType }) {
+  const { data, error } = await supabaseAuth.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        username,
+        user_type: userType,
+      },
+    },
+  });
+
+  if (error) throw error;
+  if (!data?.user?.id) throw new Error('Supabase no devolvio el usuario registrado.');
+  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    const errorExistente = new Error('El correo ya esta registrado.');
+    errorExistente.code = 'USER_ALREADY_REGISTERED';
+    throw errorExistente;
+  }
+
+  return { user: data.user, creadoEnEsteRequest: true };
+}
+
+async function eliminarUsuarioAuthCreado(userId) {
+  if (!userId) return;
+  await supabase.auth.admin.deleteUser(userId).catch(() => null);
+  await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]).catch(() => null);
+}
+
+async function crearUsuarioAuth({ email, password, username, userType }) {
+  let crear;
+  try {
+    crear = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        username,
+        user_type: userType,
+      },
+    });
+  } catch (error) {
+    if (esKeySupabaseInvalida(error)) {
+      return crearUsuarioAuthPorSql({ email, password, username, userType });
+    }
+
+    if (esTimeoutSupabase(error)) {
+      const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+      if (usuarioRecuperado) {
+        return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+      }
+      return crearUsuarioAuthPorSql({ email, password, username, userType });
+    }
+
+    if (esUsuarioAuthExistente(error)) {
+      const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+      if (usuarioRecuperado) {
+        return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+      }
+    }
+    throw error;
+  }
+
+  if (crear.error && esKeySupabaseInvalida(crear.error)) {
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
+  }
+
+  if (!crear.error && crear.data?.user?.id) {
+    return { user: crear.data.user, creadoEnEsteRequest: true };
+  }
+
+  if (crear.error && esTimeoutSupabase(crear.error)) {
+    const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+    if (usuarioRecuperado) {
+      return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+    }
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
+  }
+
+  if (crear.error && esUsuarioAuthExistente(crear.error)) {
+    const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+    if (usuarioRecuperado) {
+      return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+    }
+  }
+
+  if (crear.error) throw crear.error;
+  throw new Error('Supabase no devolvio el usuario creado.');
+}
+
+async function buscarCuentaLocalExistente(email, username) {
+  const result = await pool.query(
+    `SELECT id, email, username
+     FROM users
+     WHERE lower(email) = lower($1) OR lower(username) = lower($2)
+     LIMIT 1`,
+    [email, username]
+  );
+  return result.rows[0] || null;
+}
+
+function programarNotificacionBienvenida(userId) {
+  setImmediate(() => {
+    crearNotificacion({
+      userId,
+      actorId: null,
+      type: 'welcome',
+      title: 'Bienvenido a SONDAR',
+      body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
+      targetUrl: '/descubrir',
+      uniqueKey: `welcome:${userId}`,
+    }).catch((error) => {
+      console.error('No se pudo programar la notificacion de bienvenida:', error);
+    });
+  });
 }
 
 async function obtenerConfiguracion(userId, client = pool) {
@@ -483,6 +749,7 @@ const usuariosController = {
     const cleanPassword = typeof password === 'string' ? password : '';
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
+    let authCreadoEnEsteRequest = false;
 
     if (!cleanEmail || !cleanPassword || !username) {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
@@ -500,27 +767,29 @@ const usuariosController = {
     }
 
     try {
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: cleanEmail,
-        password: cleanPassword,
-        email_confirm: true,
-        user_metadata: {
-          username: cleanUsername
-        }
-      });
-
-      if (error) {
-        throw error;
+      const cuentaExistente = await buscarCuentaLocalExistente(cleanEmail, cleanUsername);
+      if (cuentaExistente?.email?.toLowerCase() === cleanEmail) {
+        return res.status(400).json({ error: 'El correo ya esta registrado. Inicia sesion.' });
+      }
+      if (cuentaExistente?.username?.toLowerCase() === cleanUsername) {
+        return res.status(400).json({ error: 'Ese nombre de usuario ya esta en uso.' });
       }
 
-      authUserId = data.user.id;
+      const { user, creadoEnEsteRequest } = await crearUsuarioAuth({
+        email: cleanEmail,
+        password: cleanPassword,
+        username: cleanUsername,
+        userType: tipoUsuario,
+      });
+
+      authUserId = user.id;
+      authCreadoEnEsteRequest = creadoEnEsteRequest;
 
       const query = `
         INSERT INTO users (id, email, username, user_type)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (id) DO UPDATE
         SET email = EXCLUDED.email,
-            username = EXCLUDED.username,
             user_type = EXCLUDED.user_type
         RETURNING *`;
 
@@ -531,20 +800,12 @@ const usuariosController = {
         tipoUsuario
       ]);
 
-      await crearNotificacion({
-        userId: authUserId,
-        actorId: null,
-        type: 'welcome',
-        title: 'Bienvenido a SONDAR',
-        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
-        targetUrl: '/descubrir',
-        uniqueKey: `welcome:${authUserId}`,
-      });
+      programarNotificacionBienvenida(authUserId);
 
       res.status(201).json(result.rows[0]);
     } catch (error) {
-      if (authUserId) {
-        await supabase.auth.admin.deleteUser(authUserId).catch(() => null);
+      if (authUserId && authCreadoEnEsteRequest) {
+        await eliminarUsuarioAuthCreado(authUserId);
       }
 
       if (error.code === '23505') {
@@ -555,8 +816,12 @@ const usuariosController = {
         return res.status(400).json({ error: 'El tipo de usuario no es valido para la base de datos.' });
       }
 
-      if (error.message?.includes('already been registered')) {
+      if (esUsuarioAuthExistente(error)) {
         return res.status(400).json({ error: 'El correo ya esta registrado.' });
+      }
+
+      if (esTimeoutSupabase(error)) {
+        return res.status(503).json({ error: 'El servicio de autenticacion tardo demasiado. Proba de nuevo en unos segundos.' });
       }
 
       console.error('Error al crear cuenta:', error);
@@ -739,6 +1004,7 @@ const usuariosController = {
     if (validacionGeneros.error) return res.status(400).json({ error: validacionGeneros.error });
 
     let avatarSubido = null;
+    let avatarAdvertencia = null;
     const client = await pool.connect();
     try {
       await asegurarUsuarioPublico(req.user);
@@ -746,7 +1012,9 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'onboarding');
+      avatarSubido = avatarOpcional.avatar;
+      avatarAdvertencia = avatarOpcional.advertencia;
 
       await client.query('BEGIN');
       const result = await client.query(
@@ -792,10 +1060,14 @@ const usuariosController = {
         },
         birthDate: result.rows[0].birth_date,
         genres: validacionGeneros.generos,
+        avatarWarning: avatarAdvertencia,
       });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      if (esErrorValidacionArchivo(error)) {
+        return res.status(400).json({ error: error.message });
+      }
       console.error('Error al completar onboarding:', error);
       res.status(500).json({ error: 'No se pudo completar el perfil.' });
     } finally {
@@ -848,6 +1120,7 @@ const usuariosController = {
     const { nombre, bio, avatar } = req.body;
     const nombreLimpio = nombre?.trim();
     let avatarSubido = null;
+    let avatarAdvertencia = null;
 
     if (!nombreLimpio) {
       return res.status(400).json({ error: 'El nombre es obligatorio.' });
@@ -859,7 +1132,9 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'perfil');
+      avatarSubido = avatarOpcional.avatar;
+      avatarAdvertencia = avatarOpcional.advertencia;
       const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
       const result = await pool.query(
         `UPDATE users
@@ -886,10 +1161,17 @@ const usuariosController = {
         });
       }
 
-      res.json(mapearUsuarioPerfil(result.rows[0]));
+      res.json({
+        ...mapearUsuarioPerfil(result.rows[0]),
+        avatarWarning: avatarAdvertencia,
+      });
     } catch (error) {
       if (avatarSubido?.path) {
         await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      }
+
+      if (esErrorValidacionArchivo(error)) {
+        return res.status(400).json({ error: error.message });
       }
 
       if (error.code === '23505') {
@@ -1180,15 +1462,7 @@ const usuariosController = {
         tipoUsuario
       ]);
 
-      await crearNotificacion({
-        userId,
-        actorId: null,
-        type: 'welcome',
-        title: 'Bienvenido a SONDAR',
-        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
-        targetUrl: '/descubrir',
-        uniqueKey: `welcome:${userId}`,
-      });
+      programarNotificacionBienvenida(userId);
 
       res.status(201).json(result.rows[0]);
     } catch (error) {
@@ -1238,16 +1512,11 @@ const usuariosController = {
     }
 
     try {
-      const verificacion = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: req.user.email, password }),
+      const { data: acceso, error: loginError } = await supabaseAuth.auth.signInWithPassword({
+        email: req.user.email,
+        password,
       });
-      const acceso = await verificacion.json().catch(() => ({}));
-      if (!verificacion.ok || acceso.user?.id !== userId) {
+      if (loginError || acceso.user?.id !== userId) {
         return res.status(401).json({ error: 'La contrasena es incorrecta.' });
       }
 
@@ -1272,8 +1541,7 @@ const usuariosController = {
       ];
       await Promise.all(eliminacionesStorage);
 
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-      if (error) throw new Error(error.message);
+      await eliminarUsuarioAuthCreado(userId);
 
       res.json({ success: true });
     } catch (error) {

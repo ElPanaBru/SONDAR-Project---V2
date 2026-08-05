@@ -1,5 +1,6 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+require('dotenv').config({ path: path.join(__dirname, '..', '..', 'Frontend', '.env') });
 
 const API = process.env.TEST_API_URL || 'http://127.0.0.1:3000/api';
 const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -38,7 +39,7 @@ async function signIn(email) {
   const response = await fetch(`${process.env.SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      apikey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ email, password }),

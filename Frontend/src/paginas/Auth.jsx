@@ -39,6 +39,16 @@ export default function Auth() {
     return mensajesSupabase[error.message] || error.message;
   };
 
+  const esperarConTimeout = (promesa, mensaje, timeoutMs = 15000) => (
+    new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error(mensaje)), timeoutMs);
+      promesa
+        .then(resolve)
+        .catch(reject)
+        .finally(() => window.clearTimeout(timeout));
+    })
+  );
+
   const crearPerfilBackend = async (accessToken, cleanUsername) => {
     const response = await apiRequest("/api/usuarios/registrar", {
       method: "POST",
@@ -133,6 +143,7 @@ export default function Auth() {
 
       const crearCuentaResponse = await apiRequest("/api/usuarios/crear-cuenta", {
         method: "POST",
+        auth: false,
         headers: {
           "Content-Type": "application/json"
         },
@@ -152,12 +163,25 @@ export default function Auth() {
         );
       }
 
-      const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword
-      });
+      let loginError = null;
+      try {
+        const loginResult = await esperarConTimeout(
+          supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword
+          }),
+          "No se pudo iniciar sesion automaticamente."
+        );
+        loginError = loginResult.error;
+      } catch (error) {
+        loginError = error;
+      }
 
-      if (loginError) throw loginError;
+      if (loginError) {
+        setMensaje("Cuenta creada, pero no se pudo iniciar sesion automaticamente. Inicia sesion con tu email y contrasena.");
+        navigate("/auth", { replace: true });
+        return;
+      }
       window.localStorage.setItem("sondar:onboarding-pending", "true");
       navigate("/");
     } catch (error) {

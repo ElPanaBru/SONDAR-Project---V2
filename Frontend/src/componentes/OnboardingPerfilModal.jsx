@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { apiRequest } from "../lib/api";
 import "./onboardingPerfilModal.css";
 
@@ -19,6 +20,9 @@ const GENEROS = [
   ["folklore", "🪕", "Folklore"],
 ];
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
 export default function OnboardingPerfilModal({ token, username, onComplete }) {
   const [nombre, setNombre] = useState("");
   const [bio, setBio] = useState("");
@@ -32,6 +36,36 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
   useEffect(() => () => {
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
+
+  useEffect(() => {
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+    };
+  }, []);
+
+  const seleccionarAvatar = (event) => {
+    const archivo = event.target.files?.[0] || null;
+    if (!archivo) {
+      setAvatar(null);
+      return;
+    }
+    if (!AVATAR_TYPES.has(archivo.type)) {
+      event.target.value = "";
+      setAvatar(null);
+      setMensaje("Usa una foto JPG, PNG, WebP o GIF.");
+      return;
+    }
+    if (archivo.size > AVATAR_MAX_BYTES) {
+      event.target.value = "";
+      setAvatar(null);
+      setMensaje("La foto no puede superar los 5 MB.");
+      return;
+    }
+    setAvatar(archivo);
+    setMensaje("");
+  };
 
   const guardar = async (event) => {
     event.preventDefault();
@@ -81,7 +115,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
     setMensaje("");
   };
 
-  return (
+  const modal = (
     <div className="onboarding-backdrop" role="presentation">
       <section className="onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
         <div className="onboarding-step">ÚLTIMO PASO</div>
@@ -93,7 +127,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={(event) => setAvatar(event.target.files?.[0] || null)}
+              onChange={seleccionarAvatar}
             />
             <span className="onboarding-avatar-preview">
               {preview ? <img src={preview} alt="Vista previa del perfil" /> : <strong>{String(username || "S").charAt(0).toUpperCase()}</strong>}
@@ -174,4 +208,6 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
       </section>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

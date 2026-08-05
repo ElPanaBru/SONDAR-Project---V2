@@ -15,6 +15,7 @@ function resolverApiUrl() {
 }
 
 export const API_URL = resolverApiUrl();
+const DEFAULT_API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || 25000);
 
 export function apiUrl(path) {
   return `${API_URL}${path}`;
@@ -57,13 +58,34 @@ export async function apiRequest(path, options = {}) {
     auth = true,
     body,
     headers,
+    signal,
+    timeoutMs = DEFAULT_API_TIMEOUT_MS,
     ...fetchOptions
   } = options;
   const preparados = prepararBodyYHeaders(body, headers);
+  const controller = new AbortController();
+  let timeoutId = null;
+  let timeoutAgotado = false;
 
   if (auth && !preparados.headers.has("Authorization")) {
     const token = await obtenerToken();
     if (token) preparados.headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const abortarPorSignalExterno = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      abortarPorSignalExterno();
+    } else {
+      signal.addEventListener("abort", abortarPorSignalExterno, { once: true });
+    }
+  }
+
+  if (timeoutMs > 0) {
+    timeoutId = window.setTimeout(() => {
+      timeoutAgotado = true;
+      controller.abort();
+    }, timeoutMs);
   }
 
   try {
@@ -71,9 +93,21 @@ export async function apiRequest(path, options = {}) {
       ...fetchOptions,
       body: preparados.body,
       headers: preparados.headers,
+      signal: controller.signal,
     });
   } catch (error) {
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        timeoutAgotado
+          ? "El servidor tardo demasiado en responder. Proba de nuevo en unos segundos."
+          : "La solicitud fue cancelada.",
+        { status: timeoutAgotado ? 504 : 0, cause: error }
+      );
+    }
     throw new ApiError("No se pudo conectar con el servidor de SONDAR.", { cause: error });
+  } finally {
+    if (timeoutId) window.clearTimeout(timeoutId);
+    if (signal) signal.removeEventListener("abort", abortarPorSignalExterno);
   }
 }
 
