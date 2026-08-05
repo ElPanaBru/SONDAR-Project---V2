@@ -16,9 +16,12 @@ type ReplyTarget = { parentId: number; usuario: string };
 type Post = { id: number; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
 
 const countComments = (items: Comment[]): number => items.reduce((total, item) => total + 1 + countComments(item.respuestas || []), 0);
+const removeComment = (items: Comment[], id: number): Comment[] => items
+  .filter(item => item.id !== id)
+  .map(item => ({ ...item, respuestas: removeComment(item.respuestas || [], id) }));
 
 export default function CommunityScreen() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [active, setActive] = useState<Community | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -133,6 +136,36 @@ export default function CommunityScreen() {
     }
   }
 
+  function deleteComment(target: Comment) {
+    if (!openPost) return;
+    if (!token) {
+      Alert.alert('SONDAR', 'Inicia sesion para eliminar comentarios.');
+      return;
+    }
+
+    const postId = openPost.id;
+    Alert.alert('Eliminar comentario', 'Esta accion no se puede deshacer.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api(`/api/comunidades/comentarios/${target.id}`, { method: 'DELETE', token });
+            const update = (post: Post) => {
+              const comentarios = removeComment(post.comentarios || [], target.id);
+              return { ...post, comentarios, comentariosTotal: countComments(comentarios) };
+            };
+            setPosts(items => items.map(item => item.id === postId ? update(item) : item));
+            setOpenPost(current => current ? update(current) : current);
+          } catch (e) {
+            Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el comentario.');
+          }
+        },
+      },
+    ]);
+  }
+
   return (
     <Screen>
       <Header
@@ -141,11 +174,15 @@ export default function CommunityScreen() {
         actions={<><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>}
       />
       {loading && !communities.length ? <Loading /> : <>
+        <View style={styles.communityRail}>
         <FlatList
           horizontal
           data={communities}
           keyExtractor={item => item.id}
           style={styles.communitiesList}
+          bounces={false}
+          directionalLockEnabled
+          nestedScrollEnabled
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.communities}
           renderItem={({ item }) => (
@@ -157,6 +194,7 @@ export default function CommunityScreen() {
             </Pressable>
           )}
         />
+        </View>
         {active ? (
           <View style={styles.activeIntro}>
             <View style={{ flex: 1 }}>
@@ -225,7 +263,7 @@ export default function CommunityScreen() {
                 contentContainerStyle={{ gap: 13, paddingVertical: 12 }}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={<Empty title="Sin respuestas todavia" />}
-                renderItem={({ item }) => <CommunityComment item={item} onLike={toggleCommentLike} onReply={setReplyTo} />}
+                renderItem={({ item }) => <CommunityComment item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} />}
               />
               {replyTo ? (
                 <View style={styles.replyBanner}>
@@ -249,9 +287,10 @@ export default function CommunityScreen() {
   );
 }
 
-function CommunityComment({ item, onLike, onReply, nested = false, rootId }: { item: Comment; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; nested?: boolean; rootId?: number }) {
+function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; nested?: boolean; rootId?: number }) {
   const parentId = rootId || item.id;
   const displayName = item.usuario || (item.autor ? `@${String(item.autor).replace(/^@/, '')}` : '@usuario');
+  const canDelete = Boolean(currentUserId && item.userId === currentUserId);
   return (
     <View style={nested && styles.nestedComment}>
       <View style={styles.comment}>
@@ -267,37 +306,49 @@ function CommunityComment({ item, onLike, onReply, nested = false, rootId }: { i
               <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={15} color={item.liked ? palette.orange : palette.muted} />
               <Text style={styles.commentActionText}>{formatCount(item.likes || 0)} me gusta</Text>
             </Pressable>
+            {canDelete ? (
+              <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.commentLike}>
+                <Ionicons name="trash-outline" size={15} color={palette.muted} />
+                <Text style={styles.commentActionText}>Eliminar</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </View>
-      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} onLike={onLike} onReply={onReply} nested rootId={parentId} />)}
+      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} nested rootId={parentId} />)}
     </View>
   );
 }
 
 function PostCard({ post, onOpen, onLike, onSave }: { post: Post; onOpen: () => void; onLike: () => void; onSave: () => void }) {
   return (
-    <Pressable onPress={onOpen} style={styles.post}>
+    <View style={styles.post}>
       <View style={styles.postHeader}>
-        <View>
+        <Pressable onPress={onOpen} style={styles.postHeaderInfo}>
           <Text style={styles.author}>{post.usuario || `@${post.op}`}</Text>
           <Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text>
-        </View>
+        </Pressable>
         <IconButton name={post.guardado ? 'bookmark' : 'bookmark-outline'} active={post.guardado} onPress={onSave} />
       </View>
-      <Text style={styles.postTitle}>{post.titulo}</Text>
-      <Text style={styles.postText} numberOfLines={4}>{post.texto}</Text>
+      <Pressable onPress={onOpen} style={styles.postBody}>
+        <Text style={styles.postTitle}>{post.titulo}</Text>
+        <Text style={styles.postText} numberOfLines={4}>{post.texto}</Text>
+      </Pressable>
       <View style={styles.postFooter}>
         <Pressable onPress={onLike} style={styles.metric}>
           <Ionicons name={post.liked ? 'heart' : 'heart-outline'} size={18} color={post.liked ? palette.orange : palette.muted} />
-          <Text style={styles.metricText}>{formatCount(post.likes || 0)}</Text>
+          <Text style={styles.metricText}>{formatCount(post.likes || 0)} me gusta</Text>
         </Pressable>
-        <View style={styles.metric}>
+        <Pressable onPress={onOpen} style={styles.metric}>
           <Ionicons name="chatbubble-outline" size={17} color={palette.muted} />
           <Text style={styles.metricText}>{formatCount(post.comentariosTotal || 0)} respuestas</Text>
-        </View>
+        </Pressable>
+        <Pressable onPress={onSave} style={styles.metric}>
+          <Ionicons name={post.guardado ? 'bookmark' : 'bookmark-outline'} size={17} color={post.guardado ? palette.orange : palette.muted} />
+          <Text style={styles.metricText}>{post.guardado ? 'Guardado' : 'Guardar'}</Text>
+        </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -310,9 +361,10 @@ function appendReply(items: Comment[], id: number, reply: Comment): Comment[] {
 }
 
 const styles = StyleSheet.create({
-  communitiesList: { flexGrow: 0, height: 122 },
-  communities: { paddingHorizontal: 14, paddingVertical: 11, gap: 10 },
-  community: { width: 184, height: 100, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 13, justifyContent: 'flex-end' },
+  communityRail: { height: 116, flexShrink: 0 },
+  communitiesList: { flexGrow: 0, height: 108 },
+  communities: { paddingHorizontal: 14, paddingVertical: 8, gap: 10 },
+  community: { width: 154, height: 92, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 12, justifyContent: 'flex-end' },
   communityActive: { borderColor: palette.amber, borderWidth: 2 },
   communityTint: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0505059E' },
   communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
@@ -325,12 +377,14 @@ const styles = StyleSheet.create({
   posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 },
   post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 },
   postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  postHeaderInfo: { flex: 1, paddingVertical: 2 },
+  postBody: { gap: 9 },
   author: { color: palette.amber, fontWeight: '800' },
   postTitle: { color: palette.text, fontSize: 17, fontWeight: '800' },
   postText: { color: '#D6D7DA', lineHeight: 20 },
-  postFooter: { flexDirection: 'row', gap: 17, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 },
-  metric: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  metricText: { color: palette.muted, fontSize: 12 },
+  postFooter: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 9 },
+  metric: { minHeight: 30, flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: 9, borderRadius: 8, backgroundColor: palette.surface2, borderWidth: 1, borderColor: palette.border },
+  metricText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' },
   thread: { height: '84%', padding: 17, backgroundColor: palette.bg, borderTopLeftRadius: 27, borderTopRightRadius: 27 },
   threadTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },

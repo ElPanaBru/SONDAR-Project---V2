@@ -1,5 +1,6 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
 const { subirImagenEvento, eliminarImagenEvento } = require('../services/storageService');
 const {
   crearNotificacion,
@@ -76,7 +77,7 @@ async function obtenerViewerId(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
 }

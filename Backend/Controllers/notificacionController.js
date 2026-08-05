@@ -1,9 +1,11 @@
 const pool = require('../Pool_DB');
+const { asegurarEsquemaNotificaciones } = require('../services/notificationService');
 
 const notificacionController = {
   listar: async (req, res) => {
     const limite = Math.min(80, Math.max(1, Number(req.query.limit) || 40));
     try {
+      await asegurarEsquemaNotificaciones();
       const [items, count] = await Promise.all([
         pool.query(
           `SELECT
@@ -35,6 +37,7 @@ const notificacionController = {
 
   contarNoLeidas: async (req, res) => {
     try {
+      await asegurarEsquemaNotificaciones();
       const result = await pool.query(
         'SELECT COUNT(*)::int AS total FROM notifications WHERE user_id = $1 AND read_at IS NULL',
         [req.user.id]
@@ -48,6 +51,7 @@ const notificacionController = {
 
   marcarLeida: async (req, res) => {
     try {
+      await asegurarEsquemaNotificaciones();
       const result = await pool.query(
         `UPDATE notifications
          SET read_at = COALESCE(read_at, timezone('utc'::text, now()))
@@ -65,6 +69,7 @@ const notificacionController = {
 
   marcarTodasLeidas: async (req, res) => {
     try {
+      await asegurarEsquemaNotificaciones();
       const result = await pool.query(
         `UPDATE notifications
          SET read_at = timezone('utc'::text, now())
@@ -80,6 +85,7 @@ const notificacionController = {
 
   eliminarLeidas: async (req, res) => {
     try {
+      await asegurarEsquemaNotificaciones();
       const result = await pool.query(
         'DELETE FROM notifications WHERE user_id = $1 AND read_at IS NOT NULL',
         [req.user.id]

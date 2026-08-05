@@ -10,6 +10,41 @@ import { Button, ErrorNotice, Field } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 
+function rawAuthMessage(error: unknown): string {
+  if (!error) return '';
+  if (error instanceof Error) return rawAuthMessage(error.message);
+  if (typeof error === 'string') {
+    const trimmed = error.trim();
+    return trimmed && !['{}', '[]', 'null', 'undefined', '[object Object]'].includes(trimmed) ? trimmed : '';
+  }
+  if (typeof error === 'object') {
+    const candidate =
+      rawAuthMessage((error as { message?: unknown }).message) ||
+      rawAuthMessage((error as { error_description?: unknown }).error_description) ||
+      rawAuthMessage((error as { error?: unknown }).error) ||
+      rawAuthMessage((error as { detail?: unknown }).detail) ||
+      rawAuthMessage((error as { details?: unknown }).details);
+    if (candidate) return candidate;
+  }
+
+  return rawAuthMessage(String(error));
+}
+
+function authErrorMessage(error: unknown, creatingAccount = false) {
+  const fallback = creatingAccount
+    ? 'No pudimos crear la cuenta. Verifica email, usuario y contrasena.'
+    : 'No pudimos ingresar. Verifica tus datos.';
+  const message = rawAuthMessage(error) || fallback;
+  const lower = message.toLowerCase();
+
+  if (lower.includes('invalid login credentials')) return 'Email o contrasena incorrectos.';
+  if (lower.includes('email not confirmed')) return 'Cuenta creada. Revisa tu correo para confirmar el registro.';
+  if (lower.includes('already registered') || lower.includes('ya esta registrado')) return 'Ese correo ya esta registrado.';
+  if (lower.includes('api key') || lower.includes('supabase')) return 'No pudimos conectar con Supabase. Reinicia Expo y el backend.';
+
+  return message || fallback;
+}
+
 export default function AuthScreen() {
   const { configured, user, signIn, signUp } = useAuth();
   const [register, setRegister] = useState(false);
@@ -46,7 +81,7 @@ export default function AuthScreen() {
       if (register) await signUp(email, password, username);
       else await signIn(email, password);
       router.replace('/');
-    } catch (e) { setError(e instanceof Error ? e.message : 'No pudimos ingresar.'); }
+    } catch (e) { setError(authErrorMessage(e, register)); }
     finally { setBusy(false); }
   }
 
@@ -67,7 +102,7 @@ export default function AuthScreen() {
                 <Pressable onPress={() => setRegister(false)} style={[styles.switch, !register && styles.switchActive]}><Text style={[styles.switchText, !register && styles.switchTextActive]}>Ingresar</Text></Pressable>
                 <Pressable onPress={() => setRegister(true)} style={[styles.switch, register && styles.switchActive]}><Text style={[styles.switchText, register && styles.switchTextActive]}>Crear cuenta</Text></Pressable>
               </View>
-              {!configured ? <ErrorNotice message="Copiá .env.example a .env y completá las variables EXPO_PUBLIC de Supabase." /> : null}
+              {!configured ? <ErrorNotice message="No pudimos cargar la configuracion de acceso. Reinicia Expo desde la terminal del proyecto." /> : null}
               {register ? <Field label="Nombre de usuario" placeholder="@tuusuario" autoCapitalize="none" value={username} onChangeText={setUsername} /> : null}
               <Field label="Email" placeholder="vos@email.com" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
               <View><Field label="Contraseña" placeholder="••••••••" secureTextEntry={!visible} value={password} onChangeText={setPassword} /><Pressable style={styles.eye} onPress={() => setVisible(v => !v)}><Ionicons name={visible ? 'eye-off' : 'eye'} size={20} color={palette.muted} /></Pressable></View>

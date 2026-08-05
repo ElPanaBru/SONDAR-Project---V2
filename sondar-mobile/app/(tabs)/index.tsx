@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +39,7 @@ export default function EventsScreen() {
   const [organizerQuery, setOrganizerQuery] = useState('');
   const [organizerResults, setOrganizerResults] = useState<any[]>([]);
   const [organizers, setOrganizers] = useState<any[]>([]);
+  const tabBarHeight = useBottomTabBarHeight();
 
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true);
@@ -108,10 +110,12 @@ export default function EventsScreen() {
   return (
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
-      {loading ? <Loading /> : <View style={styles.body}>
+      {loading ? <Loading /> : <View style={[styles.body, { paddingBottom: tabBarHeight }]}>
         <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} onSelect={setSelected} style={styles.map} />
         <View style={styles.sheet}>
-          <FlatList horizontal showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item === 'todos' ? 'Todos' : formatGenre(item)}</Text></Pressable>} />
+          <View style={styles.genreRail}>
+            <FlatList horizontal bounces={false} directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} style={styles.genreList} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item === 'todos' ? 'Todos' : formatGenre(item)}</Text></Pressable>} />
+          </View>
           <ErrorNotice message={error} />
           <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
         </View>
@@ -120,7 +124,7 @@ export default function EventsScreen() {
       <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => setSelected(null)}>
         <View style={styles.modalBackdrop}><ScrollView contentContainerStyle={styles.modalCard}>{selected ? <>
           <View style={styles.modalTop}><Text style={ui.h1}>{selected.titulo}</Text><IconButton name="close" onPress={() => setSelected(null)} /></View>
-          {(selected.img || selected.img_url) ? <Image source={{ uri: selected.img || selected.img_url }} style={styles.hero} contentFit="cover" /> : <View style={[styles.hero, styles.heroFallback]}><Ionicons name="musical-notes" size={50} color={palette.orange} /></View>}
+          {(selected.img || selected.img_url || selected.avatar) ? <Image source={{ uri: selected.img || selected.img_url || selected.avatar }} style={styles.hero} contentFit="cover" /> : <View style={[styles.hero, styles.heroFallback]}><Ionicons name="musical-notes" size={50} color={palette.orange} /></View>}
           <View style={styles.detailLine}><Ionicons name="calendar" size={19} color={palette.orange} /><Text style={ui.text}>{new Date(selected.fecha).toLocaleString('es-AR')}</Text></View>
           <View style={styles.detailLine}><Ionicons name="location" size={19} color={palette.orange} /><Text style={ui.text}>{selected.lugar || selected.ubicacion}</Text></View>
           <View style={styles.detailLine}><Ionicons name="ticket" size={19} color={palette.orange} /><Text style={ui.text}>{selected.precio ? `$ ${selected.precio}` : 'Entrada libre / consultar'}</Text></View>
@@ -153,14 +157,16 @@ export default function EventsScreen() {
 }
 
 function EventCard({ event, onPress, onSave }: { event: EventItem; onPress: () => void; onSave: () => void }) {
-  const image = event.img || event.img_url;
-  return <Pressable onPress={onPress} style={styles.card}>{image ? <Image source={{ uri: image }} style={styles.cardImage} contentFit="cover" /> : <View style={[styles.cardImage, styles.heroFallback]}><Ionicons name="musical-note" size={28} color={palette.orange} /></View>}<View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text></View><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></Pressable>;
+  const image = event.img || event.img_url || event.avatar;
+  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}>{image ? <Image source={{ uri: image }} style={styles.cardImage} contentFit="cover" /> : <View style={[styles.cardImage, styles.heroFallback]}><Ionicons name="musical-note" size={28} color={palette.orange} /></View>}<View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1 }, map: { flex: 1 }, sheet: { height: 238, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 72 },
+  body: { flex: 1 }, map: { flex: 1 }, sheet: { height: 206, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
+  genreRail: { height: 50, flexShrink: 0 },
+  genreList: { height: 44, flexGrow: 0, flexShrink: 0 },
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
-  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardImage: { width: 82, height: 82, borderRadius: 8 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 11 }, cardImage: { width: 82, height: 82, borderRadius: 8 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
   marker: { width: 48, height: 48, borderRadius: 24, padding: 3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: palette.amber, borderWidth: 3, borderColor: '#080808' }, markerImage: { width: 38, height: 38, borderRadius: 19 }, markerTip: { width: 0, height: 0, alignSelf: 'center', borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#080808', marginTop: -2 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalCard: { minHeight: '72%', marginTop: 70, backgroundColor: palette.bg, borderTopLeftRadius: 12, borderTopRightRadius: 12, padding: 18, paddingBottom: 40, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }, hero: { width: '100%', height: 220, borderRadius: 8 }, heroFallback: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
   imagePicker: { height: 180, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, formLabel: { color: palette.muted, fontSize: 12, fontWeight: '700', marginBottom: 7 },

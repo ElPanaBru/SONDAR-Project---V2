@@ -27,7 +27,7 @@ export function Header({ title, subtitle, back = false, onBack, actions }: { tit
   const topInset = Math.max(insets.top, fallbackTop);
   return (
     <View style={[styles.header, { minHeight: 58 + topInset, paddingTop: topInset }]}>
-      {back ? <IconButton name="arrow-back" onPress={onBack || (() => router.back())} /> : <View style={styles.brand}><Text style={styles.brandS}>S</Text></View>}
+      {back ? <IconButton name="arrow-back" onPress={onBack || (() => router.back())} /> : <View style={styles.brand}><Image source={require('../assets/images/icon.png')} style={styles.brandLogo} contentFit="contain" /></View>}
       <View style={styles.headerText}><Text style={styles.title} numberOfLines={1}>{title}</Text>{subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}</View>
       <View style={styles.headerActions}>{actions}</View>
     </View>
@@ -84,8 +84,8 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.bg },
   scroll: { paddingHorizontal: 16, paddingBottom: 110, gap: 12 },
   header: { minHeight: 58, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.border, backgroundColor: palette.bg, zIndex: 20 },
-  brand: { width: 36, height: 36, borderRadius: 8, backgroundColor: palette.orange, alignItems: 'center', justifyContent: 'center' },
-  brandS: { color: '#111', fontSize: 23, fontWeight: '900' },
+  brand: { width: 40, height: 40, borderRadius: 8, backgroundColor: '#050505', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  brandLogo: { width: 38, height: 38 },
   headerText: { flex: 1 }, headerActions: { flexDirection: 'row', gap: 6 },
   title: { color: palette.text, fontSize: 21, fontWeight: '800' }, subtitle: { color: palette.muted, fontSize: 11, marginTop: 1 },
   iconButton: { width: 40, height: 40, borderRadius: 8, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border },

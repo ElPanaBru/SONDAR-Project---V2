@@ -1,5 +1,6 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
 const {
   crearNotificacion,
   eliminarNotificacion,
@@ -93,7 +94,7 @@ async function obtenerViewerId(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
 }
@@ -151,6 +152,10 @@ async function asegurarEsquemaComunidades() {
           updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+      await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS likes integer NOT NULL DEFAULT 0');
+      await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS guardados integer NOT NULL DEFAULT 0');
+      await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS fijada boolean NOT NULL DEFAULT false');
+      await pool.query("ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())");
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS comunidad_publicacion_likes (
@@ -181,6 +186,7 @@ async function asegurarEsquemaComunidades() {
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+      await pool.query('ALTER TABLE comunidad_comentarios ADD COLUMN IF NOT EXISTS likes integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE comunidad_comentarios ADD COLUMN IF NOT EXISTS responde_a text');
 
       await pool.query(`
@@ -607,6 +613,36 @@ const comunidadController = {
     } catch (error) {
       console.error('Error al comentar publicacion de comunidad:', error);
       res.status(500).json({ error: 'No se pudo guardar el comentario.' });
+    }
+  },
+
+  eliminarComentario: async (req, res) => {
+    const { comentarioId } = req.params;
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+
+      const result = await pool.query(
+        `DELETE FROM comunidad_comentarios
+         WHERE id = $1 AND user_id = $2
+         RETURNING id, publicacion_id, parent_id`,
+        [comentarioId, req.user.id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Comentario no encontrado o sin permiso para eliminarlo.' });
+      }
+
+      res.json({
+        ok: true,
+        id: Number(result.rows[0].id),
+        publicacionId: Number(result.rows[0].publicacion_id),
+        parentId: result.rows[0].parent_id ? Number(result.rows[0].parent_id) : null,
+      });
+    } catch (error) {
+      console.error('Error al eliminar comentario de comunidad:', error);
+      res.status(500).json({ error: 'No se pudo eliminar el comentario.' });
     }
   },
 

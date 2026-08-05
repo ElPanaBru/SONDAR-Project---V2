@@ -22,19 +22,28 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) return;
+    if (term.length < 2) {
+      setResults([]);
+      setError('');
+      setLoading(false);
+      return;
+    }
     const timeout = setTimeout(async () => {
       setLoading(true);
       try {
-        const [users, reels, events] = await Promise.all([
+        const [usersResult, reelsResult, eventsResult] = await Promise.allSettled([
           api<any[]>(`/api/usuarios?query=${encodeURIComponent(term)}`, { token }), api<any[]>('/api/reels', { token }), api<any[]>('/api/eventos', { token }),
         ]);
+        const users = usersResult.status === 'fulfilled' ? usersResult.value : [];
+        const reels = reelsResult.status === 'fulfilled' ? reelsResult.value : [];
+        const events = eventsResult.status === 'fulfilled' ? eventsResult.value : [];
         const lower = term.toLowerCase();
         const normalizedReels = reels.map(normalizeReel);
         const normalizedEvents = events.map(normalizeEvent);
         const matchedReels = normalizedReels.filter(item => [item.tema, item.artista, item.album, item.genero].join(' ').toLowerCase().includes(lower));
         const matchedEvents = normalizedEvents.filter(item => [item.titulo, item.descripcion, item.genero, item.lugar, item.ubicacion].join(' ').toLowerCase().includes(lower));
-        setResults([...users.map(item => ({ ...item, resultType: 'usuario' })), ...matchedReels.map(item => ({ ...item, resultType: 'reel' })), ...matchedEvents.map(item => ({ ...item, resultType: 'evento' }))]); setError('');
+        setResults([...users.map(item => ({ ...item, resultType: 'usuario' })), ...matchedReels.map(item => ({ ...item, resultType: 'reel' })), ...matchedEvents.map(item => ({ ...item, resultType: 'evento' }))]);
+        setError(usersResult.status === 'rejected' && reelsResult.status === 'rejected' && eventsResult.status === 'rejected' ? 'No se pudo buscar.' : '');
       } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo buscar.'); }
       finally { setLoading(false); }
     }, 350);
@@ -51,7 +60,7 @@ export default function SearchScreen() {
   return (
     <Screen>
       <Header title="Buscar" subtitle="Personas, música y eventos" />
-      <View style={styles.search}><Ionicons name="search" size={21} color={palette.muted} /><TextInput value={query} onChangeText={value => { setQuery(value); if (value.trim().length < 2) { setResults([]); setLoading(false); } }} placeholder="Buscar en SONDAR" placeholderTextColor={palette.muted} autoCapitalize="none" autoFocus style={styles.input} /></View>
+      <View style={styles.search}><Ionicons name="search" size={21} color={palette.muted} /><TextInput value={query} onChangeText={value => { setQuery(value); if (value.trim().length < 2) { setResults([]); setError(''); setLoading(false); } }} placeholder="Buscar en SONDAR" placeholderTextColor={palette.muted} autoCapitalize="none" autoFocus style={styles.input} /></View>
       <View style={styles.tabs}>{([['todos', 'Todo'], ['usuario', 'Personas'], ['reel', 'Música'], ['evento', 'Eventos']] as const).map(([id, label]) => <Pressable key={id} onPress={() => setTab(id)} style={[styles.tab, tab === id && styles.tabActive]}><Text style={[styles.tabText, tab === id && styles.tabTextActive]}>{label}</Text></Pressable>)}</View>
       <ErrorNotice message={error} />
       {loading ? <Loading /> : <FlatList data={visible} keyExtractor={(item, index) => `${item.resultType}-${item.id}-${index}`} contentContainerStyle={styles.list} ListEmptyComponent={<Empty icon="search-outline" title={query.length < 2 ? 'Buscá lo que te mueve' : 'No encontramos resultados'} text={query.length < 2 ? 'Escribí al menos dos letras.' : 'Probá con otro nombre, género o lugar.'} />} renderItem={({ item }) => <ResultCard item={item} onPress={() => open(item)} />} />}

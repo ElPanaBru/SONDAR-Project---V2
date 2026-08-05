@@ -64,7 +64,8 @@ export function normalizeReel(item: AnyRecord = {}) {
 
 export function normalizeEvent(item: AnyRecord = {}) {
   const place = item.lugar || item.ubicacion || '';
-  const image = item.img || item.img_url || item.imagen || item.portada || '';
+  const avatar = item.avatar || item.profile_img_url || '';
+  const image = item.img || item.img_url || item.imagen || item.portada || avatar || '';
   return {
     ...item,
     id: item.id,
@@ -82,7 +83,7 @@ export function normalizeEvent(item: AnyRecord = {}) {
     longitud: item.longitud ?? item.longitude,
     creador: item.creador || item.username || null,
     creador_id: item.creador_id || item.creadorId,
-    avatar: item.avatar || item.profile_img_url || '',
+    avatar,
     guardado: toBoolean(item.guardado),
     organizadores: item.organizadores || [],
   };

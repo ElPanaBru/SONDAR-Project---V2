@@ -1,6 +1,9 @@
 const pool = require('../Pool_DB');
+const { asegurarEsquemaNotificaciones } = require('./notificationService');
 
 async function asegurarEsquemaConfiguracion() {
+  await asegurarEsquemaNotificaciones();
+
   await pool.query(`
     WITH preparados AS (
       SELECT id, created_at,

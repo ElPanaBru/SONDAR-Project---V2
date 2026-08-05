@@ -10,5 +10,6 @@ router.post('/publicaciones/:publicacionId/comentarios', authMiddleware, comunid
 router.post('/publicaciones/:publicacionId/like', authMiddleware, comunidadController.alternarLikePublicacion);
 router.post('/publicaciones/:publicacionId/guardar', authMiddleware, comunidadController.alternarGuardadoPublicacion);
 router.post('/comentarios/:comentarioId/like', authMiddleware, comunidadController.alternarLikeComentario);
+router.delete('/comentarios/:comentarioId', authMiddleware, comunidadController.eliminarComentario);
 
 module.exports = router;

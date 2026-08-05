@@ -20,7 +20,7 @@ export function EventMap({ events, onSelect, style }: EventMapProps) {
         keyExtractor={item => String(item.id)}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
-          const image = item.img || item.img_url;
+          const image = item.img || item.img_url || item.avatar;
           return (
             <Pressable style={styles.pinCard} onPress={() => onSelect(item)}>
               {image ? <Image source={{ uri: image }} style={styles.pinImage} contentFit="cover" /> : <View style={styles.pinImage}><Ionicons name="musical-note" size={18} color={palette.orange} /></View>}

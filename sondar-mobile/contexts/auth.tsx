@@ -27,8 +27,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setLoading(false);
       return;
     }
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) {
+        setSession(null);
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.getUser();
+      if (error) {
+        await supabase.auth.signOut({ scope: 'local' }).catch(() => null);
+        setSession(null);
+      } else {
+        setSession(data.session);
+      }
+      setLoading(false);
+    }).catch(() => {
+      setSession(null);
       setLoading(false);
     });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -48,6 +63,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!IS_SUPABASE_CONFIGURED) throw new Error('Falta configurar Supabase en la app móvil.');
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
+      if (!data.session) throw new Error('No pudimos abrir la sesion.');
+      setSession(data.session);
       const verification = await api<{ existe: boolean }>('/api/usuarios/me', { token: data.session.access_token });
       if (!verification.existe) {
         const username = data.user.user_metadata?.username;
@@ -58,14 +75,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     },
     signUp: async (email, password, username) => {
-      await api('/api/usuarios/crear-cuenta', {
-        method: 'POST', body: JSON.stringify({ email: email.trim(), password, username: username.trim().replace(/^@/, '').toLowerCase() }),
+      if (!IS_SUPABASE_CONFIGURED) throw new Error('Falta configurar Supabase en la app movil.');
+      const created = await api<{ creadoConAdmin?: boolean }>('/api/usuarios/crear-cuenta', {
+        method: 'POST', token: null, body: JSON.stringify({ email: email.trim(), password, username: username.trim().replace(/^@/, '').toLowerCase() }),
       });
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) {
+        const lower = String(error.message || '').toLowerCase();
+        if (created?.creadoConAdmin === false && (lower.includes('confirm') || lower.includes('email') || lower.includes('credential') || lower.includes('invalid'))) {
+          throw new Error('Cuenta creada. Revisa tu correo para confirmar el registro.');
+        }
+        throw error;
+      }
+      if (!data.session) throw new Error('Cuenta creada. Revisa tu correo para confirmar el registro.');
+      setSession(data.session);
     },
     signOut: async () => {
       await supabase.auth.signOut({ scope: 'local' });
+      setSession(null);
     },
   }), [loading, session]);
 

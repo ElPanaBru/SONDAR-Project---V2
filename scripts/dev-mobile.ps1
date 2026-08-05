@@ -6,6 +6,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $root 'sondar-mobile'
+$frontendEnv = Join-Path $root 'Frontend\.env'
+$mobileEnv = Join-Path $mobile '.env.local'
 $npm = (Get-Command npm.cmd).Source
 $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 $metroPort = 8081
@@ -95,6 +97,21 @@ function Stop-MetroPort([int]$Port) {
   throw "No se pudo liberar el puerto $Port."
 }
 
+function Stop-BackendPort([int]$Port) {
+  $listenerPid = Get-PortListenerPid $Port
+  if (-not $listenerPid) { return }
+
+  Write-Host "Cerrando backend viejo en el puerto $Port..." -ForegroundColor DarkGray
+  Stop-Process -Id $listenerPid -Force
+
+  for ($intento = 0; $intento -lt 30; $intento++) {
+    Start-Sleep -Milliseconds 200
+    if (-not (Test-LocalPort $Port)) { return }
+  }
+
+  throw "No se pudo liberar el puerto $Port."
+}
+
 function Stop-MobileDevProcesses {
   $escapedMobile = [regex]::Escape($mobile)
   try {
@@ -112,6 +129,55 @@ function Stop-MobileDevProcesses {
   } catch {
     Write-Host 'No pude inspeccionar procesos viejos de Expo; sigo con la limpieza por puerto.' -ForegroundColor DarkGray
   }
+}
+
+function Read-DotEnvValue([string]$Path, [string]$Name) {
+  if (-not (Test-Path $Path)) { return $null }
+
+  $prefix = "$Name="
+  foreach ($line in Get-Content -LiteralPath $Path) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed -or $trimmed.StartsWith('#') -or -not $trimmed.StartsWith($prefix)) { continue }
+
+    return $trimmed.Substring($prefix.Length).Trim().Trim('"').Trim("'")
+  }
+
+  return $null
+}
+
+function Sync-MobileEnv([string]$ApiUrl) {
+  $supabaseUrl = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_URL'
+  $supabaseAnonKey = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_ANON_KEY'
+
+  if ($ApiUrl) {
+    $env:EXPO_PUBLIC_API_URL = $ApiUrl
+    $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
+  }
+  if ($supabaseUrl) { $env:EXPO_PUBLIC_SUPABASE_URL = $supabaseUrl }
+  if ($supabaseAnonKey) {
+    $env:EXPO_PUBLIC_SUPABASE_ANON_KEY = $supabaseAnonKey
+    $env:SUPABASE_ANON_KEY = $supabaseAnonKey
+  }
+
+  if (-not $supabaseUrl -or -not $supabaseAnonKey) {
+    Write-Host 'No encontre las variables publicas de Supabase en Frontend\.env.' -ForegroundColor Yellow
+    return $false
+  }
+
+  $lines = @(
+    "EXPO_PUBLIC_API_URL=$ApiUrl",
+    "EXPO_PUBLIC_SUPABASE_URL=$supabaseUrl",
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY=$supabaseAnonKey"
+  )
+  $next = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
+  $previous = if (Test-Path $mobileEnv) { Get-Content -Raw -LiteralPath $mobileEnv } else { '' }
+
+  if ($previous -ne $next) {
+    Set-Content -LiteralPath $mobileEnv -Value $next -NoNewline -Encoding UTF8
+    return $true
+  }
+
+  return $false
 }
 
 function Show-ExpoQr([string]$Url) {
@@ -158,6 +224,12 @@ function Start-MobileExpo([string]$ScriptName) {
 
 $lanIp = Get-LanIPv4
 $expoUrl = if ($lanIp) { "exp://${lanIp}:$metroPort" } else { "exp://<IP-DE-TU-PC>:$metroPort" }
+$apiUrl = if ($lanIp) { "http://${lanIp}:$apiPort" } else { "http://127.0.0.1:$apiPort" }
+$mobileEnvChanged = Sync-MobileEnv $apiUrl
+
+if (($Clear -or $mobileEnvChanged) -and (Test-LocalPort $apiPort)) {
+  Stop-BackendPort $apiPort
+}
 
 if (-not (Test-LocalPort 3000)) {
   Write-Host 'Iniciando backend SONDAR...' -ForegroundColor DarkGray
@@ -188,13 +260,19 @@ if (($Clear -or $Tunnel) -and (Test-MetroPort $metroPort)) {
   Stop-MetroPort $metroPort
 } elseif (Test-LocalPort $metroPort) {
   if (Test-MetroPort $metroPort) {
-    Write-Host "Expo ya esta corriendo en el puerto $metroPort." -ForegroundColor Green
-    if (-not $Tunnel) {
-      Show-ExpoQr $expoUrl
+    if ($mobileEnvChanged) {
+      Write-Host "Reiniciando Expo para aplicar variables de mobile..." -ForegroundColor Yellow
+      Stop-MobileDevProcesses
+      Stop-MetroPort $metroPort
     } else {
-      Write-Host "Abrilo desde Expo Go con $expoUrl" -ForegroundColor DarkGray
+      Write-Host "Expo ya esta corriendo en el puerto $metroPort." -ForegroundColor Green
+      if (-not $Tunnel) {
+        Show-ExpoQr $expoUrl
+      } else {
+        Write-Host "Abrilo desde Expo Go con $expoUrl" -ForegroundColor DarkGray
+      }
+      return
     }
-    return
   }
 
   throw "El puerto $metroPort esta ocupado por otra aplicacion. Cerrala y volve a ejecutar este comando."
@@ -202,8 +280,6 @@ if (($Clear -or $Tunnel) -and (Test-MetroPort $metroPort)) {
 
 if ($lanIp -and -not $Tunnel) {
   $env:REACT_NATIVE_PACKAGER_HOSTNAME = $lanIp
-  $env:EXPO_PUBLIC_API_URL = "http://${lanIp}:$apiPort"
-  $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
 }
 
 if ($Tunnel) {

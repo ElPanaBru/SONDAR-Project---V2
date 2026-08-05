@@ -1,6 +1,13 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey =
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const {
+  asegurarEsquemaNotificaciones,
   crearNotificacion,
   eliminarNotificacion,
   nombreActor,
@@ -34,6 +41,30 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
+let esquemaUsuariosListo = null;
+let adminAuthDisponible = Boolean(supabase.hasServiceRole);
+
+async function asegurarEsquemaUsuarios() {
+  if (!esquemaUsuariosListo) {
+    esquemaUsuariosListo = (async () => {
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS artist_name text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS bio text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS artist_bio text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_img_url text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_img_path text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url text');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS verified boolean DEFAULT false');
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT timezone('utc'::text, now())");
+    })().catch((error) => {
+      esquemaUsuariosListo = null;
+      throw error;
+    });
+  }
+
+  return esquemaUsuariosListo;
+}
 
 function normalizarUsername(valor = '') {
   return String(valor).trim().replace(/^@+/, '').toLowerCase();
@@ -45,6 +76,187 @@ function validarUsername(valor) {
     return { error: 'El @ debe tener entre 3 y 30 caracteres y usar solo letras, numeros, punto, guion o guion bajo.' };
   }
   return { username };
+}
+
+function esErrorApiKeySupabase(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.status === 401 && (
+    message.includes('api key') ||
+    message.includes('jwt') ||
+    message.includes('invalid')
+  );
+}
+
+function mensajeErrorLegible(error) {
+  const message = String(
+    error?.message ||
+    error?.error_description ||
+    error?.error ||
+    error?.msg ||
+    error?.detail ||
+    error?.details ||
+    ''
+  ).trim();
+  if (!message || ['{}', '[]', 'null', 'undefined', '[object Object]'].includes(message)) return '';
+  return message;
+}
+
+function esErrorSupabaseOpaco(error) {
+  return !mensajeErrorLegible(error) || String(error?.message || '').trim() === '{}';
+}
+
+function esCorreoRegistrado(error) {
+  const lower = mensajeErrorLegible(error).toLowerCase();
+  return lower.includes('already been registered')
+    || lower.includes('already registered')
+    || lower.includes('user already registered')
+    || lower.includes('email already');
+}
+
+function traducirErrorAuth(error) {
+  const message = mensajeErrorLegible(error);
+  const lower = message.toLowerCase();
+
+  if (esCorreoRegistrado(error)) {
+    return 'El correo ya esta registrado.';
+  }
+  if (lower.includes('password')) {
+    return 'La contrasena no cumple los requisitos de seguridad.';
+  }
+  if (lower.includes('email')) {
+    return 'El email no tiene un formato valido.';
+  }
+
+  return message || 'No se pudo crear la cuenta. Revisa si el correo ya existe o intenta iniciar sesion.';
+}
+
+function crearErrorAuth(mensaje, status = 400) {
+  const error = new Error(mensaje);
+  error.status = status;
+  error.__isAuthError = true;
+  return error;
+}
+
+async function crearUsuarioAuthPublicoRest({ cleanEmail, cleanPassword, cleanUsername }) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw crearErrorAuth('Falta configurar la anon key de Supabase en el backend.', 503);
+  }
+
+  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/signup`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: cleanEmail,
+      password: cleanPassword,
+      data: { username: cleanUsername },
+    }),
+  });
+
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = { message: text };
+  }
+
+  if (!response.ok) {
+    const mensaje = mensajeErrorLegible(payload);
+    throw crearErrorAuth(
+      mensaje || 'Supabase rechazo el registro sin devolver detalle.',
+      response.status
+    );
+  }
+
+  const userId = payload?.user?.id || payload?.id;
+  if (!userId) {
+    throw crearErrorAuth('Supabase no devolvio el usuario creado.', 502);
+  }
+
+  return { userId, creadoConAdmin: false };
+}
+
+async function recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword }) {
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({
+    email: cleanEmail,
+    password: cleanPassword,
+  });
+
+  if (error || !data.user?.id) {
+    const loginError = new Error('El correo ya esta registrado. Inicia sesion o revisa la contrasena.');
+    loginError.status = 400;
+    throw loginError;
+  }
+
+  return { userId: data.user.id, creadoConAdmin: false, recuperadoConLogin: true };
+}
+
+async function crearUsuarioAuthPublico(params) {
+  const { cleanEmail, cleanPassword, cleanUsername } = params;
+  const { data, error } = await supabaseAuth.auth.signUp({
+    email: cleanEmail,
+    password: cleanPassword,
+    options: { data: { username: cleanUsername } },
+  });
+
+  if (!error && data.user?.id) {
+    return { userId: data.user.id, creadoConAdmin: false };
+  }
+
+  if (error && esCorreoRegistrado(error)) {
+    return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
+  }
+
+  if (error && esErrorSupabaseOpaco(error)) {
+    try {
+      return await crearUsuarioAuthPublicoRest(params);
+    } catch (restError) {
+      if (esCorreoRegistrado(restError)) {
+        return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
+      }
+      throw restError;
+    }
+  }
+
+  if (error) throw error;
+  throw crearErrorAuth('Supabase no devolvio el usuario creado.', 502);
+}
+
+async function crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername }) {
+  const userMetadata = { username: cleanUsername };
+
+  if (adminAuthDisponible) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: cleanEmail,
+      password: cleanPassword,
+      email_confirm: true,
+      user_metadata: userMetadata,
+    });
+
+    if (!error) {
+      return { userId: data.user.id, creadoConAdmin: true };
+    }
+
+    if (esCorreoRegistrado(error)) {
+      return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
+    }
+
+    if (esErrorApiKeySupabase(error)) {
+      adminAuthDisponible = false;
+    }
+
+    if (!esErrorApiKeySupabase(error) && !esErrorSupabaseOpaco(error)) {
+      throw error;
+    }
+
+    console.warn('No se pudo crear cuenta con admin de Supabase; usando signUp publico como fallback.');
+  }
+
+  return crearUsuarioAuthPublico({ cleanEmail, cleanPassword, cleanUsername });
 }
 
 function mapearConfiguracion(row = {}) {
@@ -97,6 +309,7 @@ function validarConfiguracion(body = {}) {
 }
 
 async function obtenerConfiguracion(userId, client = pool) {
+  await asegurarEsquemaNotificaciones(client);
   const result = await client.query(
     'SELECT * FROM user_settings WHERE user_id = $1',
     [userId]
@@ -383,6 +596,7 @@ const usuariosController = {
     }
 
     try {
+      await asegurarEsquemaUsuarios();
       const patron = `%${termino}%`;
       const result = await pool.query(
         `SELECT *
@@ -448,6 +662,8 @@ const usuariosController = {
     const cleanPassword = typeof password === 'string' ? password : '';
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
+    let authUserCreadoConAdmin = false;
+    let authUserRecuperadoConLogin = false;
 
     if (!cleanEmail || !cleanPassword || !username) {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
@@ -465,20 +681,31 @@ const usuariosController = {
     }
 
     try {
-      const { data, error } = await supabase.auth.admin.createUser({
-        email: cleanEmail,
-        password: cleanPassword,
-        email_confirm: true,
-        user_metadata: {
-          username: cleanUsername
+      const authUser = await crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername });
+      authUserId = authUser.userId;
+      authUserCreadoConAdmin = authUser.creadoConAdmin;
+      authUserRecuperadoConLogin = Boolean(authUser.recuperadoConLogin);
+
+      const existente = await pool.query(
+        `SELECT *
+         FROM users
+         WHERE id = $1 OR lower(email) = lower($2) OR lower(username) = lower($3)
+         LIMIT 1`,
+        [authUserId, cleanEmail, cleanUsername]
+      );
+
+      if (existente.rows[0]) {
+        const row = existente.rows[0];
+        if (row.id === authUserId && String(row.email || '').toLowerCase() === cleanEmail) {
+          return res.status(authUserRecuperadoConLogin ? 200 : 201).json({
+            ...row,
+            creadoConAdmin: authUserCreadoConAdmin,
+            recuperadoConLogin: authUserRecuperadoConLogin,
+          });
         }
-      });
 
-      if (error) {
-        throw error;
+        return res.status(400).json({ error: 'El email o nombre de usuario ya esta en uso.' });
       }
-
-      authUserId = data.user.id;
 
       const query = `
         INSERT INTO users (id, email, username, user_type)
@@ -502,9 +729,12 @@ const usuariosController = {
         uniqueKey: `welcome:${authUserId}`,
       });
 
-      res.status(201).json(result.rows[0]);
+      res.status(201).json({
+        ...result.rows[0],
+        creadoConAdmin: authUserCreadoConAdmin,
+      });
     } catch (error) {
-      if (authUserId) {
+      if (authUserId && authUserCreadoConAdmin) {
         await supabase.auth.admin.deleteUser(authUserId).catch(() => null);
       }
 
@@ -516,8 +746,12 @@ const usuariosController = {
         return res.status(400).json({ error: 'El tipo de usuario no es valido para la base de datos.' });
       }
 
-      if (error.message?.includes('already been registered')) {
-        return res.status(400).json({ error: 'El correo ya esta registrado.' });
+      if (esErrorApiKeySupabase(error)) {
+        return res.status(503).json({ error: 'La configuracion de Supabase del backend no es valida.' });
+      }
+
+      if (error.__isAuthError || error.status) {
+        return res.status(400).json({ error: traducirErrorAuth(error) });
       }
 
       console.error('Error al crear cuenta:', error);
@@ -548,6 +782,7 @@ const usuariosController = {
   obtenerConfiguracionActual: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaNotificaciones();
       const [configuracion, usuarioResult] = await Promise.all([
         obtenerConfiguracion(req.user.id),
         pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]),
@@ -570,6 +805,7 @@ const usuariosController = {
     const client = await pool.connect();
     try {
       await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaNotificaciones(client);
       await client.query('BEGIN');
       const usuarioResult = await client.query(
         'SELECT username FROM users WHERE id = $1',
@@ -632,6 +868,7 @@ const usuariosController = {
   exportarDatosActuales: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaNotificaciones();
       const consultas = {
         cuenta: ['SELECT * FROM users WHERE id = $1', [req.user.id]],
         configuracion: ['SELECT * FROM user_settings WHERE user_id = $1', [req.user.id]],
@@ -891,6 +1128,7 @@ const usuariosController = {
     try {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaModeracion();
+      await asegurarEsquemaNotificaciones(client);
       const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
       if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
       if (usuarioEncontrado.id === req.user.id) {
@@ -972,6 +1210,7 @@ const usuariosController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaNotificaciones(client);
       const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
       if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
       if (usuarioEncontrado.id === req.user.id) {
