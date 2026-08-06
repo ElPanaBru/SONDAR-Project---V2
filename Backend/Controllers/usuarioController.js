@@ -36,6 +36,7 @@ const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
 const GENEROS_ONBOARDING = new Set(['pop', 'rock', 'trap', 'cumbia', 'edm', 'jazz', 'blues', 'metal', 'folklore']);
+const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 
 function normalizarUsername(valor = '') {
   return String(valor).trim().replace(/^@+/, '').toLowerCase();
@@ -314,6 +315,10 @@ async function eliminarUsuarioAuthCreado(userId) {
 }
 
 async function crearUsuarioAuth({ email, password, username, userType }) {
+  if (CREAR_AUTH_POR_SQL) {
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
+  }
+
   let crear;
   try {
     crear = await supabase.auth.admin.createUser({
