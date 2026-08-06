@@ -1,30 +1,35 @@
 # SONDAR Mobile
 
-Aplicación móvil de SONDAR para Android, iOS y Expo Go. Comparte autenticación, base de datos, almacenamiento y API con la versión web.
+App movil de SONDAR para Android, iOS y Expo Go. Comparte autenticacion, Supabase, storage y API con la version web.
 
-## Configuración
+## Configuracion
 
-1. Copiá `.env.example` como `.env.local`.
-2. Usá en `EXPO_PUBLIC_SUPABASE_URL` y `EXPO_PUBLIC_SUPABASE_ANON_KEY` los mismos valores públicos del frontend.
-3. En un teléfono físico, `EXPO_PUBLIC_API_URL` debe apuntar a la IP LAN de la computadora (por ejemplo `http://192.168.1.100:3000`). Si se omite durante desarrollo, la app intenta obtener esa IP desde Expo.
+El comando de desarrollo copia automaticamente las variables publicas de Supabase desde `Frontend/.env` hacia `sondar-mobile/.env.local`.
 
-## Ejecutar
+En desarrollo no hace falta configurar `EXPO_PUBLIC_API_URL`: la app usa el servidor de Expo como proxy y Metro reenvia `/api` al backend local en `http://127.0.0.1:3000`.
 
-Desde la raíz del repositorio:
+## Ejecutar En Expo Go
 
-```bash
-npm run dev:mobile
-```
-
-O solamente la app:
+Desde la raiz del repo:
 
 ```bash
-npm start --prefix sondar-mobile
+npm run dev:mobile:clear
 ```
 
-## Verificación
+Espera a que Expo muestre el QR oficial en la terminal y escanealo desde Expo Go.
+
+Este comando usa tunnel para que Expo Go no dependa de que el celular pueda entrar a la IP LAN de la PC.
+
+## LAN
+
+Si queres probar en una red local que permita conexiones entre el celular y la PC:
+
+```bash
+npm run dev:mobile:lan:clear
+```
+
+## Verificacion
 
 ```bash
 npm run typecheck --prefix sondar-mobile
-npm run lint --prefix sondar-mobile
 ```

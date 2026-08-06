@@ -1,47 +1,51 @@
 import Constants from 'expo-constants';
 
-function extractHost(value?: string | null) {
-  if (!value) return '';
-  const cleaned = String(value)
-    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
-    .split('/')[0]
-    .replace(/^\[/, '')
-    .replace(/\]$/, '');
-  return cleaned.split(':')[0] || '';
+function isLocalHostName(hostname: string) {
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || /^10\./.test(hostname)
+    || /^192\.168\./.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname);
 }
 
-function getDevHost() {
+function normalizeDevUrl(value?: string | null) {
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const withProtocol = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+    ? raw
+    : `http://${raw}`;
+
+  try {
+    const url = new URL(withProtocol);
+    const protocol = url.protocol === 'https:' || !isLocalHostName(url.hostname)
+      ? 'https:'
+      : 'http:';
+    return `${protocol}//${url.host}`;
+  } catch {
+    return '';
+  }
+}
+
+function getDevServerUrl() {
   const constants = Constants as typeof Constants & {
     manifest?: { debuggerHost?: string; hostUri?: string };
     manifest2?: { extra?: { expoClient?: { hostUri?: string } } };
   };
-  const host = [
+  const serverUrl = [
     Constants.expoConfig?.hostUri,
     constants.manifest2?.extra?.expoClient?.hostUri,
     constants.manifest?.debuggerHost,
     constants.manifest?.hostUri,
     Constants.linkingUri,
     Constants.experienceUrl,
-  ].map(extractHost).find(Boolean);
+  ].map(normalizeDevUrl).find(Boolean);
 
-  return host || 'localhost';
-}
-
-function isLocalHost(host: string) {
-  return host === 'localhost'
-    || host === '127.0.0.1'
-    || /^10\./.test(host)
-    || /^192\.168\./.test(host)
-    || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  return serverUrl || 'http://localhost:8081';
 }
 
 function getDevApiUrl() {
-  const host = getDevHost();
-  if (isLocalHost(host)) {
-    return `http://${host}:3000`;
-  }
-
-  return `https://${host}`;
+  return getDevServerUrl();
 }
 
 export const API_URL = (

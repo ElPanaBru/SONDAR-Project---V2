@@ -1,6 +1,7 @@
 param(
   [switch]$Clear,
-  [switch]$Tunnel
+  [switch]$Tunnel,
+  [switch]$DirectApi
 )
 
 $ErrorActionPreference = 'Stop'
@@ -149,9 +150,11 @@ function Sync-MobileEnv([string]$ApiUrl) {
   $supabaseUrl = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_URL'
   $supabaseAnonKey = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_ANON_KEY'
 
+  $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
   if ($ApiUrl) {
     $env:EXPO_PUBLIC_API_URL = $ApiUrl
-    $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
+  } else {
+    Remove-Item Env:\EXPO_PUBLIC_API_URL -ErrorAction SilentlyContinue
   }
   if ($supabaseUrl) { $env:EXPO_PUBLIC_SUPABASE_URL = $supabaseUrl }
   if ($supabaseAnonKey) {
@@ -164,8 +167,11 @@ function Sync-MobileEnv([string]$ApiUrl) {
     return $false
   }
 
-  $lines = @(
-    "EXPO_PUBLIC_API_URL=$ApiUrl",
+  $lines = @()
+  if ($ApiUrl) {
+    $lines += "EXPO_PUBLIC_API_URL=$ApiUrl"
+  }
+  $lines += @(
     "EXPO_PUBLIC_SUPABASE_URL=$supabaseUrl",
     "EXPO_PUBLIC_SUPABASE_ANON_KEY=$supabaseAnonKey"
   )
@@ -224,7 +230,11 @@ function Start-MobileExpo([string]$ScriptName) {
 
 $lanIp = Get-LanIPv4
 $expoUrl = if ($lanIp) { "exp://${lanIp}:$metroPort" } else { "exp://<IP-DE-TU-PC>:$metroPort" }
-$apiUrl = if ($lanIp) { "http://${lanIp}:$apiPort" } else { "http://127.0.0.1:$apiPort" }
+$apiUrl = if ($DirectApi -and -not $Tunnel) {
+  if ($lanIp) { "http://${lanIp}:$apiPort" } else { "http://127.0.0.1:$apiPort" }
+} else {
+  $null
+}
 $mobileEnvChanged = Sync-MobileEnv $apiUrl
 
 if (($Clear -or $mobileEnvChanged) -and (Test-LocalPort $apiPort)) {
@@ -291,8 +301,12 @@ if ($Tunnel) {
   Write-Host 'Modo tunnel activo: no usa puertos entrantes del firewall.' -ForegroundColor DarkGray
 } else {
   Write-Host "Expo LAN: $expoUrl" -ForegroundColor DarkGray
-  Write-Host "API mobile: $env:EXPO_PUBLIC_API_URL" -ForegroundColor DarkGray
-  Show-ExpoQr $expoUrl
+  if ($apiUrl) {
+    Write-Host "API mobile: $env:EXPO_PUBLIC_API_URL" -ForegroundColor DarkGray
+  } else {
+    Write-Host "API mobile: /api via Expo -> $env:SONDAR_LOCAL_API_URL" -ForegroundColor DarkGray
+  }
+  Write-Host 'Espera el QR oficial de Expo y escanea ese desde Expo Go.' -ForegroundColor DarkGray
 }
 
 if ($Tunnel -and $Clear) {
