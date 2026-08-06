@@ -17,6 +17,7 @@ export default function SettingsScreen() {
   const [blocked, setBlocked] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
@@ -26,7 +27,19 @@ export default function SettingsScreen() {
   async function save() { setSaving(true); try { const result = await api('/api/usuarios/me/configuracion', { method: 'PUT', token, body: JSON.stringify(settings) }); setSettings({ ...defaults, ...result }); Alert.alert('Listo', 'Configuración guardada.'); } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar.'); } finally { setSaving(false); } }
   async function changePassword() { if (password.length < 8 || password !== repeat) return setError('La contraseña debe tener al menos 8 caracteres y ambas deben coincidir.'); const { error: authError } = await supabase.auth.updateUser({ password }); if (authError) return setError(authError.message); setPassword(''); setRepeat(''); Alert.alert('Listo', 'Contraseña actualizada.'); }
   async function exportData() { try { const data = await api('/api/usuarios/me/exportar', { token }); await Share.share({ title: 'Mis datos de SONDAR', message: JSON.stringify(data, null, 2) }); } catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron exportar los datos.'); } }
-  function deleteAccount() { Alert.alert('Eliminar cuenta', `Esta acción elimina definitivamente la cuenta ${user?.email}.`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar definitivamente', style: 'destructive', onPress: () => api('/api/usuarios/me', { method: 'DELETE', token }).then(async () => { await signOut(); router.replace('/auth'); }).catch(e => Alert.alert('Error', e.message)) }]); }
+  async function confirmDeleteAccount() {
+    setDeleting(true);
+    try {
+      await api('/api/usuarios/me', { method: 'DELETE', token });
+      await signOut();
+      router.replace('/auth');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar la cuenta.');
+    } finally {
+      setDeleting(false);
+    }
+  }
+  function deleteAccount() { Alert.alert('Eliminar cuenta', `Esta acción elimina definitivamente la cuenta ${user?.email}.`, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Eliminar definitivamente', style: 'destructive', onPress: () => void confirmDeleteAccount() }]); }
   async function unblock(item: any) { try { await api(`/api/usuarios/${item.id}/bloquear`, { method: 'DELETE', token }); setBlocked(current => current.filter(x => x.id !== item.id)); } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo desbloquear.'); } }
   if (loading) return <Screen><Header title="Configuración" back /><Loading /></Screen>;
   return <Screen scroll><Header title="Configuración" subtitle="Cuenta, privacidad y experiencia" back /><ErrorNotice message={error} />
@@ -37,7 +50,7 @@ export default function SettingsScreen() {
     <Button onPress={save} disabled={saving}>{saving ? 'Guardando…' : 'Guardar configuración'}</Button>
     <Section icon="key-outline" title="Seguridad"><Field label="Nueva contraseña" secureTextEntry value={password} onChangeText={setPassword} /><Field label="Repetir contraseña" secureTextEntry value={repeat} onChangeText={setRepeat} /><Button kind="secondary" onPress={changePassword}>Cambiar contraseña</Button></Section>
     <Section icon="folder-outline" title="Tus datos"><Button kind="secondary" icon="share-outline" onPress={exportData}>Exportar mis datos</Button><Button kind="secondary" icon="help-circle-outline" onPress={() => router.push('/support')}>Centro de soporte</Button></Section>
-    <Section icon="warning-outline" title="Zona de cuenta"><Button kind="secondary" icon="log-out-outline" onPress={async () => { await signOut(); router.replace('/auth'); }}>Cerrar sesión</Button><Button kind="danger" icon="trash-outline" onPress={deleteAccount}>Eliminar cuenta</Button></Section>
+    <Section icon="warning-outline" title="Zona de cuenta"><Button kind="secondary" icon="log-out-outline" onPress={async () => { await signOut(); router.replace('/auth'); }}>Cerrar sesión</Button><Button kind="danger" icon="trash-outline" onPress={deleteAccount} disabled={deleting}>{deleting ? 'Eliminando...' : 'Eliminar cuenta'}</Button></Section>
   </Screen>;
 }
 

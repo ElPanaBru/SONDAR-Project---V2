@@ -6,7 +6,7 @@ App movil de SONDAR para Android, iOS y Expo Go. Comparte autenticacion, Supabas
 
 El comando de desarrollo copia automaticamente las variables publicas de Supabase desde `Frontend/.env` hacia `sondar-mobile/.env.local`.
 
-En desarrollo no hace falta configurar `EXPO_PUBLIC_API_URL`: la app usa el servidor de Expo como proxy y Metro reenvia `/api` al backend local en `http://127.0.0.1:3000`.
+En desarrollo no hace falta configurar `EXPO_PUBLIC_API_URL`: en LAN la app toma la IP de Expo y usa el backend en el puerto `3000`; en tunnel usa el servidor de Expo como proxy y Metro reenvia `/api` al backend local.
 
 ## Ejecutar En Expo Go
 

@@ -46,7 +46,7 @@ function authErrorMessage(error: unknown, creatingAccount = false) {
 }
 
 export default function AuthScreen() {
-  const { configured, user, signIn, signUp } = useAuth();
+  const { configured, user, needsOnboarding, signIn, signUp } = useAuth();
   const [register, setRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -66,7 +66,7 @@ export default function AuthScreen() {
     player.play();
   });
 
-  useEffect(() => { if (user) router.replace('/'); }, [user]);
+  useEffect(() => { if (user) router.replace(needsOnboarding ? '/onboarding' : '/'); }, [needsOnboarding, user]);
 
   async function submit() {
     setError('');
@@ -78,9 +78,13 @@ export default function AuthScreen() {
     }
     setBusy(true);
     try {
-      if (register) await signUp(email, password, username);
-      else await signIn(email, password);
-      router.replace('/');
+      if (register) {
+        await signUp(email, password, username);
+        router.replace('/onboarding');
+      } else {
+        await signIn(email, password);
+        router.replace('/');
+      }
     } catch (e) { setError(authErrorMessage(e, register)); }
     finally { setBusy(false); }
   }

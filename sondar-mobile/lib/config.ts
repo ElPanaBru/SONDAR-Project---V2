@@ -44,8 +44,22 @@ function getDevServerUrl() {
   return serverUrl || 'http://localhost:8081';
 }
 
+function getBackendUrlFromDevServer(serverUrl: string) {
+  try {
+    const url = new URL(serverUrl);
+    if (isLocalHostName(url.hostname)) {
+      url.port = process.env.EXPO_PUBLIC_API_PORT || '3000';
+      return `${url.protocol}//${url.host}`;
+    }
+  } catch {
+    return serverUrl;
+  }
+
+  return serverUrl;
+}
+
 function getDevApiUrl() {
-  return getDevServerUrl();
+  return getBackendUrlFromDevServer(getDevServerUrl());
 }
 
 export const API_URL = (

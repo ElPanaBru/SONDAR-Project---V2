@@ -41,7 +41,10 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
+const GENEROS_ONBOARDING_VALIDOS = new Set(['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros']);
+const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 let esquemaUsuariosListo = null;
+let esquemaOnboardingListo = null;
 let adminAuthDisponible = Boolean(supabase.hasServiceRole);
 
 async function asegurarEsquemaUsuarios() {
@@ -56,7 +59,10 @@ async function asegurarEsquemaUsuarios() {
       await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url text');
       await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url text');
       await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS verified boolean DEFAULT false');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date date');
+      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed boolean NOT NULL DEFAULT false');
       await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT timezone('utc'::text, now())");
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT timezone('utc'::text, now())");
     })().catch((error) => {
       esquemaUsuariosListo = null;
       throw error;
@@ -64,6 +70,32 @@ async function asegurarEsquemaUsuarios() {
   }
 
   return esquemaUsuariosListo;
+}
+
+async function asegurarEsquemaOnboarding() {
+  await asegurarEsquemaUsuarios();
+  if (!esquemaOnboardingListo) {
+    esquemaOnboardingListo = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS user_genre_preferences (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          genero text NOT NULL,
+          peso integer NOT NULL DEFAULT 1,
+          created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+          updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT user_genre_preferences_pkey PRIMARY KEY (user_id, genero),
+          CONSTRAINT user_genre_preferences_genero_valido
+            CHECK (genero IN ('pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros'))
+        )
+      `);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_genre_preferences_genero ON user_genre_preferences(genero)');
+    })().catch((error) => {
+      esquemaOnboardingListo = null;
+      throw error;
+    });
+  }
+
+  return esquemaOnboardingListo;
 }
 
 function normalizarUsername(valor = '') {
@@ -76,6 +108,42 @@ function validarUsername(valor) {
     return { error: 'El @ debe tener entre 3 y 30 caracteres y usar solo letras, numeros, punto, guion o guion bajo.' };
   }
   return { username };
+}
+
+function normalizarGenerosOnboarding(valor) {
+  let recibidos = valor;
+  if (typeof valor === 'string') {
+    try {
+      recibidos = JSON.parse(valor);
+    } catch {
+      recibidos = valor.split(',');
+    }
+  }
+
+  if (!Array.isArray(recibidos)) return [];
+
+  return [...new Set(recibidos
+    .map((genero) => String(genero || '').trim().toLowerCase())
+    .filter((genero) => GENEROS_ONBOARDING_VALIDOS.has(genero)))];
+}
+
+function validarFechaNacimiento(valor) {
+  const raw = String(valor || '').trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return { error: 'La fecha de nacimiento no es valida.' };
+
+  const fecha = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`);
+  if (Number.isNaN(fecha.getTime())) {
+    return { error: 'La fecha de nacimiento no es valida.' };
+  }
+
+  const hoy = new Date();
+  const minimo = new Date(Date.UTC(hoy.getUTCFullYear() - 13, hoy.getUTCMonth(), hoy.getUTCDate()));
+  if (fecha > minimo) {
+    return { error: 'Debes tener al menos 13 anos para crear tu perfil.' };
+  }
+
+  return { fecha: `${match[1]}-${match[2]}-${match[3]}` };
 }
 
 function esErrorApiKeySupabase(error) {
@@ -195,6 +263,87 @@ async function recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword }) {
   return { userId: data.user.id, creadoConAdmin: false, recuperadoConLogin: true };
 }
 
+async function crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const userResult = await client.query(
+      `INSERT INTO auth.users (
+         instance_id, id, aud, role, email, encrypted_password,
+         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+         confirmation_token, recovery_token, email_change_token_new, email_change,
+         email_change_token_current, reauthentication_token, phone_change, phone_change_token,
+         created_at, updated_at
+       )
+       VALUES (
+         '00000000-0000-0000-0000-000000000000',
+         gen_random_uuid(),
+         'authenticated',
+         'authenticated',
+         $1,
+         crypt($2, gen_salt('bf')),
+         timezone('utc'::text, now()),
+         '{"provider":"email","providers":["email"]}'::jsonb,
+         jsonb_build_object('username', $3::text),
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         '',
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now())
+       )
+       RETURNING id`,
+      [cleanEmail, cleanPassword, cleanUsername]
+    );
+
+    const userId = userResult.rows[0].id;
+    await client.query(
+      `INSERT INTO auth.identities (
+         provider_id, user_id, identity_data, provider,
+         last_sign_in_at, created_at, updated_at
+       )
+       VALUES (
+         $1::text,
+         $1::uuid,
+         jsonb_build_object(
+           'sub', $1::text,
+           'email', $2::text,
+           'email_verified', false,
+           'phone_verified', false
+         ),
+         'email',
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now()),
+         timezone('utc'::text, now())
+       )`,
+      [userId, cleanEmail]
+    );
+
+    await client.query('COMMIT');
+    return { userId, creadoConAdmin: false, creadoPorSql: true };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => null);
+    if (error.code === '23505') {
+      return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function eliminarUsuarioAuthCreado(userId) {
+  if (!userId) return;
+  if (adminAuthDisponible) {
+    await supabase.auth.admin.deleteUser(userId).catch(() => null);
+  }
+  await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]).catch(() => null);
+}
+
 async function crearUsuarioAuthPublico(params) {
   const { cleanEmail, cleanPassword, cleanUsername } = params;
   const { data, error } = await supabaseAuth.auth.signUp({
@@ -228,6 +377,10 @@ async function crearUsuarioAuthPublico(params) {
 
 async function crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername }) {
   const userMetadata = { username: cleanUsername };
+
+  if (CREAR_AUTH_POR_SQL) {
+    return crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername });
+  }
 
   if (adminAuthDisponible) {
     const { data, error } = await supabase.auth.admin.createUser({
@@ -342,6 +495,8 @@ function mapearUsuarioPerfil(usuario, configuracion = CONFIGURACION_INICIAL, esP
     nombre: nombreVisible(usuario),
     usuario: usuarioVisible(usuario),
     bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
+    birth_date: esPropio ? usuario.birth_date || null : null,
+    onboarding_completed: Boolean(usuario.onboarding_completed),
     avatar: usuario.profile_img_url || '',
     banner: usuario.banner_url || '',
     instagram: usuario.instagram_url || '',
@@ -663,6 +818,7 @@ const usuariosController = {
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
     let authUserCreadoConAdmin = false;
+    let authUserCreadoPorSql = false;
     let authUserRecuperadoConLogin = false;
 
     if (!cleanEmail || !cleanPassword || !username) {
@@ -681,9 +837,25 @@ const usuariosController = {
     }
 
     try {
+      const usuarioExistente = await pool.query(
+        `SELECT id, email, username
+         FROM users
+         WHERE lower(email) = lower($1) OR lower(username) = lower($2)
+         LIMIT 1`,
+        [cleanEmail, cleanUsername]
+      );
+      if (usuarioExistente.rows[0]) {
+        const existente = usuarioExistente.rows[0];
+        if (String(existente.email || '').toLowerCase() === cleanEmail) {
+          return res.status(400).json({ error: 'El correo ya esta registrado. Inicia sesion.' });
+        }
+        return res.status(400).json({ error: 'Ese nombre de usuario ya esta en uso.' });
+      }
+
       const authUser = await crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername });
       authUserId = authUser.userId;
       authUserCreadoConAdmin = authUser.creadoConAdmin;
+      authUserCreadoPorSql = Boolean(authUser.creadoPorSql);
       authUserRecuperadoConLogin = Boolean(authUser.recuperadoConLogin);
 
       const existente = await pool.query(
@@ -734,8 +906,8 @@ const usuariosController = {
         creadoConAdmin: authUserCreadoConAdmin,
       });
     } catch (error) {
-      if (authUserId && authUserCreadoConAdmin) {
-        await supabase.auth.admin.deleteUser(authUserId).catch(() => null);
+      if (authUserId && (authUserCreadoConAdmin || authUserCreadoPorSql)) {
+        await eliminarUsuarioAuthCreado(authUserId);
       }
 
       if (error.code === '23505') {
@@ -776,6 +948,116 @@ const usuariosController = {
     } catch (error) {
       console.error('Error en verificacion:', error);
       res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+  },
+
+  completarOnboarding: async (req, res) => {
+    const nombreLimpio = String(req.body?.nombre || '').trim();
+    const bioLimpia = String(req.body?.bio || '').trim();
+    const generos = normalizarGenerosOnboarding(req.body?.genres || req.body?.generos);
+    const fechaNacimiento = validarFechaNacimiento(req.body?.birthDate || req.body?.fechaNacimiento || req.body?.birth_date);
+    const client = await pool.connect();
+    let avatarSubido = null;
+    let avatarUploadError = null;
+    let transaccionActiva = false;
+
+    if (nombreLimpio.length < 2 || nombreLimpio.length > 80) {
+      client.release();
+      return res.status(400).json({ error: 'El nombre visible debe tener entre 2 y 80 caracteres.' });
+    }
+
+    if (bioLimpia.length > 180) {
+      client.release();
+      return res.status(400).json({ error: 'La bio no puede superar los 180 caracteres.' });
+    }
+
+    if (fechaNacimiento.error) {
+      client.release();
+      return res.status(400).json({ error: fechaNacimiento.error });
+    }
+
+    if (generos.length < 3) {
+      client.release();
+      return res.status(400).json({ error: 'Elegi al menos 3 generos para personalizar recomendaciones.' });
+    }
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaOnboarding();
+
+      try {
+        avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+      } catch (error) {
+        avatarUploadError = error;
+        console.error('No se pudo subir el avatar de onboarding:', error);
+      }
+
+      await client.query('BEGIN');
+      transaccionActiva = true;
+
+      const perfilAnterior = await client.query(
+        'SELECT profile_img_path FROM users WHERE id = $1',
+        [req.user.id]
+      );
+
+      const usuarioResult = await client.query(
+        `UPDATE users
+         SET full_name = $1,
+             artist_name = $1,
+             bio = $2,
+             artist_bio = $2,
+             birth_date = $3,
+             onboarding_completed = true,
+             profile_img_url = COALESCE($4, profile_img_url),
+             profile_img_path = COALESCE($5, profile_img_path),
+             updated_at = timezone('utc'::text, now())
+         WHERE id = $6
+         RETURNING *`,
+        [
+          nombreLimpio,
+          bioLimpia,
+          fechaNacimiento.fecha,
+          avatarSubido?.publicUrl || null,
+          avatarSubido?.path || null,
+          req.user.id,
+        ]
+      );
+
+      await client.query('DELETE FROM user_genre_preferences WHERE user_id = $1', [req.user.id]);
+      for (const [index, genero] of generos.entries()) {
+        await client.query(
+          `INSERT INTO user_genre_preferences (user_id, genero, peso, updated_at)
+           VALUES ($1, $2, $3, timezone('utc'::text, now()))
+           ON CONFLICT (user_id, genero) DO UPDATE
+           SET peso = EXCLUDED.peso,
+               updated_at = EXCLUDED.updated_at`,
+          [req.user.id, genero, generos.length - index]
+        );
+      }
+
+      await client.query('COMMIT');
+      transaccionActiva = false;
+
+      const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
+      if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
+        await eliminarAvatarUsuario(avatarAnteriorPath).catch((error) => {
+          console.error('No se pudo eliminar el avatar anterior:', error);
+        });
+      }
+
+      res.json({
+        success: true,
+        perfil: mapearUsuarioPerfil(usuarioResult.rows[0], CONFIGURACION_INICIAL, true),
+        genres: generos,
+        avatarWarning: avatarUploadError ? 'No se pudo guardar la foto, pero el perfil quedo completado.' : null,
+      });
+    } catch (error) {
+      if (transaccionActiva) await client.query('ROLLBACK').catch(() => null);
+      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      console.error('Error al completar onboarding:', error);
+      res.status(500).json({ error: 'No se pudo completar el perfil.' });
+    } finally {
+      client.release();
     }
   },
 
@@ -1374,10 +1656,15 @@ const usuariosController = {
           eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET)),
         ]),
       ];
-      await Promise.all(eliminacionesStorage);
+      const storageResults = await Promise.allSettled(eliminacionesStorage);
+      storageResults
+        .filter((resultado) => resultado.status === 'rejected')
+        .forEach((resultado) => console.error('No se pudo limpiar un archivo al eliminar cuenta:', resultado.reason));
 
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-      if (error) throw new Error(error.message);
+      await pool.query('DELETE FROM users WHERE id = $1', [userId]).catch((error) => {
+        console.error('No se pudo eliminar el perfil publico antes del auth user:', error);
+      });
+      await eliminarUsuarioAuthCreado(userId);
 
       res.json({ success: true });
     } catch (error) {

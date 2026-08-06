@@ -315,6 +315,24 @@ async function consultarSetInteraccion(query, params, campo) {
   }
 }
 
+async function obtenerGenerosPreferidos(viewerId) {
+  if (!viewerId) return [];
+
+  try {
+    const result = await pool.query(
+      `SELECT genero
+       FROM user_genre_preferences
+       WHERE user_id = $1
+       ORDER BY peso DESC, created_at ASC`,
+      [viewerId]
+    );
+    return result.rows.map((row) => String(row.genero || '').toLowerCase()).filter(Boolean);
+  } catch (error) {
+    if (error.code === '42P01' || error.code === '42703') return [];
+    throw error;
+  }
+}
+
 const reelController = {
   listarReels: async (req, res) => {
     try {
@@ -323,6 +341,7 @@ const reelController = {
       await asegurarEsquemaComentarios();
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
+      const generosPreferidos = await obtenerGenerosPreferidos(viewerId);
       const result = await pool.query(`
         SELECT
           r.*,
@@ -341,8 +360,15 @@ const reelController = {
           WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
              OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
         )
-        ORDER BY r.created_at DESC, r.id DESC
-      `, [viewerId]);
+        ORDER BY
+          CASE
+            WHEN cardinality($2::text[]) > 0 AND lower(COALESCE(r.genero, '')) = ANY($2::text[]) THEN 0
+            ELSE 1
+          END,
+          COALESCE(array_position($2::text[], lower(COALESCE(r.genero, ''))), 999),
+          r.created_at DESC,
+          r.id DESC
+      `, [viewerId, generosPreferidos]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows.map(mapearReel));

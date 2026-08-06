@@ -90,6 +90,24 @@ async function buscarAccesoEvento(eventoId) {
   return result.rows[0] || null;
 }
 
+async function obtenerGenerosPreferidos(viewerId) {
+  if (!viewerId) return [];
+
+  try {
+    const result = await pool.query(
+      `SELECT genero
+       FROM user_genre_preferences
+       WHERE user_id = $1
+       ORDER BY peso DESC, created_at ASC`,
+      [viewerId]
+    );
+    return result.rows.map((row) => String(row.genero || '').toLowerCase()).filter(Boolean);
+  } catch (error) {
+    if (error.code === '42P01' || error.code === '42703') return [];
+    throw error;
+  }
+}
+
 function mapearEvento(evento) {
   if (!evento) return evento;
 
@@ -126,6 +144,7 @@ const eventoController = {
       await asegurarEsquemaModeracion();
       await asegurarEsquemaEventos();
       const viewerId = await obtenerViewerId(req);
+      const generosPreferidos = await obtenerGenerosPreferidos(viewerId);
       const result = await pool.query(`
         SELECT
           e.*,
@@ -154,8 +173,14 @@ const eventoController = {
           WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
              OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
         )
-        ORDER BY e.id DESC
-      `, [viewerId]);
+        ORDER BY
+          CASE
+            WHEN cardinality($2::text[]) > 0 AND lower(COALESCE(e.genero, '')) = ANY($2::text[]) THEN 0
+            ELSE 1
+          END,
+          COALESCE(array_position($2::text[], lower(COALESCE(e.genero, ''))), 999),
+          e.id DESC
+      `, [viewerId, generosPreferidos]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);
