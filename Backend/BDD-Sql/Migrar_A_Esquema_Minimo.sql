@@ -91,10 +91,19 @@ ALTER TABLE public.notifications
 
 -- Modulos sin ninguna ruta o consulta activa en el proyecto.
 DROP TABLE IF EXISTS public.settings;
-DROP TABLE IF EXISTS public.comunidad_miembros;
 DROP TABLE IF EXISTS public.event_attendance_events;
 DROP TABLE IF EXISTS public.reel_listen_events;
 DROP TABLE IF EXISTS public.content_moderation_alerts;
+
+CREATE TABLE IF NOT EXISTS public.comunidad_miembros (
+  comunidad_id text NOT NULL REFERENCES public.comunidades(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  PRIMARY KEY (comunidad_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS comunidad_miembros_user_idx
+  ON public.comunidad_miembros (user_id, created_at DESC);
 
 DROP TABLE IF EXISTS public.user_interests;
 CREATE TABLE public.user_interests (
@@ -153,6 +162,7 @@ ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_miembros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_guardados ENABLE ROW LEVEL SECURITY;
@@ -160,5 +170,30 @@ ALTER TABLE public.comunidad_comentarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_comentario_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comunidad_miembros'
+      AND policyname = 'comunidad_miembros_select_own'
+  ) THEN
+    CREATE POLICY comunidad_miembros_select_own ON public.comunidad_miembros
+      FOR SELECT TO authenticated USING (auth.uid() = user_id);
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'comunidad_miembros'
+      AND policyname = 'comunidad_miembros_own_write'
+  ) THEN
+    CREATE POLICY comunidad_miembros_own_write ON public.comunidad_miembros
+      FOR ALL TO authenticated
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
 
 COMMIT;

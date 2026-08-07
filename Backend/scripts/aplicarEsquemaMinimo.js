@@ -6,6 +6,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const EXPECTED_TABLES = [
   'comunidad_comentario_likes',
   'comunidad_comentarios',
+  'comunidad_miembros',
   'comunidad_publicacion_guardados',
   'comunidad_publicacion_likes',
   'comunidad_publicaciones',

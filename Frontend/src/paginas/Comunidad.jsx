@@ -7,10 +7,10 @@ import TextoConMenciones from "../componentes/TextoConMenciones";
 import "./comunidad.css";
 
 const filtros = [
-  { id: "destacado", label: "Destacado" },
-  { id: "reciente", label: "Mas reciente" },
-  { id: "popular", label: "Mas popular" },
-  { id: "preguntas", label: "Preguntas" },
+  { id: "destacado", label: "Mas relevantes" },
+  { id: "reciente", label: "Mas recientes" },
+  { id: "popular", label: "Mas populares" },
+  { id: "preguntas", label: "Solo preguntas" },
 ];
 
 const reglasForo = [
@@ -22,7 +22,6 @@ const reglasForo = [
 const recursosForo = [
   { id: "eventos", label: "Eventos del genero" },
   { id: "reels", label: "Reels del genero" },
-  { id: "guardadas", label: "Publicaciones guardadas" },
 ];
 
 const comunidadesPorGenero = [
@@ -243,6 +242,7 @@ export default function Comunidad({ usuario }) {
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
   const [eventosAsociables, setEventosAsociables] = useState([]);
   const [reelsAsociables, setReelsAsociables] = useState([]);
   const [reelAsociadoActivo, setReelAsociadoActivo] = useState(null);
@@ -526,7 +526,72 @@ export default function Comunidad({ usuario }) {
       return;
     }
 
+    if (!comunidadActiva?.unido) {
+      mostrarAviso("Unite a este foro antes de crear una publicacion");
+      return;
+    }
+
     setMostrarModal(true);
+  };
+
+  const alternarMembresia = async () => {
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para unirte a un foro");
+      return;
+    }
+    if (actualizandoMembresia) return;
+
+    setActualizandoMembresia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+
+      const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/membresia`, {
+        method: "POST",
+        headers: crearHeadersJson(token),
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(resultado.error || "No se pudo actualizar tu membresia.");
+
+      setComunidades((actuales) => actuales.map((comunidad) => (
+        comunidad.id === comunidadActiva.id
+          ? { ...comunidad, unido: resultado.unido, miembros: resultado.miembros }
+          : comunidad
+      )));
+      if (resultado.unido) {
+        mostrarAviso(`Ahora formas parte de s/${mostrarGenero(comunidadActiva.genero)}`);
+      } else {
+        setMostrarModal(false);
+        mostrarAviso(`Saliste de s/${mostrarGenero(comunidadActiva.genero)}`);
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo actualizar tu membresia.");
+    } finally {
+      setActualizandoMembresia(false);
+    }
+  };
+
+  const copiarEnlace = async (url, mensaje) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      mostrarAviso(mensaje);
+    } catch {
+      mostrarAviso("No se pudo copiar el enlace en este navegador.");
+    }
+  };
+
+  const compartirForo = () => {
+    const url = new URL("/comunidad", window.location.origin);
+    url.searchParams.set("comunidad", comunidadActiva.id);
+    copiarEnlace(url.toString(), "Enlace del foro copiado");
+  };
+
+  const compartirPublicacion = (hilo) => {
+    const url = new URL("/comunidad", window.location.origin);
+    url.searchParams.set("comunidad", comunidadActiva.id);
+    url.searchParams.set("publicacion", hilo.id);
+    copiarEnlace(url.toString(), "Enlace de la publicacion copiado");
   };
 
   const actualizarHilo = (id, actualizar) => {
@@ -541,6 +606,11 @@ export default function Comunidad({ usuario }) {
 
     if (!usuario) {
       pedirLogin();
+      return;
+    }
+
+    if (!comunidadActiva?.unido) {
+      mostrarAviso("Unite a este foro antes de crear una publicacion");
       return;
     }
 
@@ -816,6 +886,8 @@ export default function Comunidad({ usuario }) {
                 <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
                 <p>{comunidadActiva.descripcion}</p>
                 <div className="comunidad-miembros">
+                  <strong>{comunidadActiva.miembros || 0}</strong>
+                  <span>miembros</span>
                   <strong>{comunidadActiva.publicaciones || 0}</strong>
                   <span>publicaciones</span>
                   <strong>{totalComentarios}</strong>
@@ -823,15 +895,27 @@ export default function Comunidad({ usuario }) {
                 </div>
               </div>
               <div className="comunidad-header-actions">
-                <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
+                <button
+                  className="comunidad-crear"
+                  type="button"
+                  onClick={abrirCrearHilo}
+                  disabled={!usuario || !comunidadActiva.unido}
+                  title={!usuario ? "Inicia sesion y unite al foro para publicar" : !comunidadActiva.unido ? "Unite al foro para publicar" : "Crear una publicacion"}
+                >
                   <span aria-hidden="true">+</span>
-                  Crear post
+                  {comunidadActiva.unido ? "Crear post" : "Unite para publicar"}
                 </button>
-                <button className="comunidad-unirse" type="button">
-                  Unirse
+                <button
+                  className={`comunidad-unirse ${comunidadActiva.unido ? "activa" : ""}`}
+                  type="button"
+                  onClick={alternarMembresia}
+                  disabled={actualizandoMembresia}
+                  aria-pressed={Boolean(comunidadActiva.unido)}
+                >
+                  {actualizandoMembresia ? "Actualizando..." : comunidadActiva.unido ? "Salir del foro" : "Unirse"}
                 </button>
-                <button className="comunidad-mas" type="button" aria-label="Mas opciones">
-                  ...
+                <button className="comunidad-mas" type="button" aria-label="Copiar enlace del foro" onClick={compartirForo}>
+                  Compartir
                 </button>
               </div>
             </div>
@@ -846,7 +930,7 @@ export default function Comunidad({ usuario }) {
                 aria-expanded={mostrarFiltros}
                 onClick={() => setMostrarFiltros((valor) => !valor)}
               >
-                {filtroSeleccionado.label}
+                <span className="comunidad-filtro-prefijo">Filtrar por:</span> {filtroSeleccionado.label}
                 <span aria-hidden="true">v</span>
               </button>
               {mostrarFiltros ? (
@@ -864,10 +948,10 @@ export default function Comunidad({ usuario }) {
                     >
                       <strong>{filtro.label}</strong>
                       <span>
-                        {filtro.id === "destacado" && "Lo mas relevante del foro"}
-                        {filtro.id === "reciente" && "Ultimas publicaciones"}
-                        {filtro.id === "popular" && "Mas votos y respuestas"}
-                        {filtro.id === "preguntas" && "Consultas de la comunidad"}
+                        {filtro.id === "destacado" && "Ordena por relevancia y actividad"}
+                        {filtro.id === "reciente" && "Ordena de nuevas a antiguas"}
+                        {filtro.id === "popular" && "Ordena por votos y respuestas"}
+                        {filtro.id === "preguntas" && "Muestra unicamente consultas"}
                       </span>
                     </button>
                   ))}
@@ -882,10 +966,6 @@ export default function Comunidad({ usuario }) {
 
           <div className="comunidad-feed">
             <section className="comunidad-highlights">
-              <button className="highlight-toggle" type="button">
-                <span aria-hidden="true">^</span>
-                Community highlights
-              </button>
               <div className="highlight-card">
                 <strong>Bienvenido a s/{mostrarGenero(comunidadActiva.genero)}</strong>
                 <p>Comparte lanzamientos, eventos, dudas y recomendaciones para que este foro se mantenga util para la escena.</p>
@@ -914,7 +994,7 @@ export default function Comunidad({ usuario }) {
                       <span>{hilo.op}</span>
                       <span>{hilo.tiempo || "ahora"}</span>
                     </div>
-                    <button className="post-menu" type="button" aria-label="Mas opciones">...</button>
+                    <button className="post-menu" type="button" aria-label={`Copiar enlace de ${hilo.titulo}`} onClick={() => compartirPublicacion(hilo)}>Compartir</button>
                   </div>
 
                   <div className="publicacion-meta etiquetas-row">
@@ -1033,20 +1113,13 @@ export default function Comunidad({ usuario }) {
         </div>
 
         <aside className="comunidad-sidebar detalle-comunidad">
-          <section className="comunidad-panel comunidad-panel-acento">
-            <h2>s/{mostrarGenero(comunidadActiva.genero)}</h2>
-            <p>{comunidadActiva.descripcion}</p>
-            <div className="subreddit-stats">
-              <strong>{comunidadActiva.publicaciones || 0}</strong>
-              <span>publicaciones</span>
-              <strong>{totalComentarios}</strong>
-              <span>respuestas</span>
-              <strong>{mostrarGenero(comunidadActiva.genero)}</strong>
-              <span>genero</span>
-            </div>
-            <button className="comunidad-unirse comunidad-unirse-panel" type="button">
-              Unirse al foro
-            </button>
+          <section className="comunidad-panel">
+            <h2>Reglas del foro</h2>
+            <ol className="comunidad-reglas">
+              {reglasForo.map((regla) => (
+                <li key={regla}>{regla}</li>
+              ))}
+            </ol>
           </section>
 
           <section className="comunidad-panel">
@@ -1058,15 +1131,6 @@ export default function Comunidad({ usuario }) {
                 </button>
               ))}
             </div>
-          </section>
-
-          <section className="comunidad-panel">
-            <h2>Reglas del foro</h2>
-            <ol className="comunidad-reglas">
-              {reglasForo.map((regla) => (
-                <li key={regla}>{regla}</li>
-              ))}
-            </ol>
           </section>
         </aside>
       </section>
@@ -1098,12 +1162,14 @@ export default function Comunidad({ usuario }) {
                 <small>{nuevoHilo.titulo.length}/300</small>
               </label>
 
-              <button className="comunidad-media-fake" type="button">
-                <span aria-hidden="true">+</span>
-                Cargar imagen
-              </button>
-
               <div className="comunidad-asociaciones-form">
+                <label>
+                  <span>Tipo de publicacion</span>
+                  <select name="tipo" value={nuevoHilo.tipo} onChange={handleChange}>
+                    <option value="reciente">Publicacion general</option>
+                    <option value="preguntas">Pregunta</option>
+                  </select>
+                </label>
                 <label>
                   <span>Evento asociado (opcional)</span>
                   <select name="eventoAsociadoId" value={nuevoHilo.eventoAsociadoId} onChange={handleChange}>

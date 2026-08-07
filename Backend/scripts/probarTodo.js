@@ -143,6 +143,11 @@ async function main() {
     await step('Silenciar notificaciones', () => request(`/usuarios/${userB.id}/silenciar-notificaciones`, { method: 'POST', token: tokenA }));
     await step('Reactivar notificaciones', () => request(`/usuarios/${userB.id}/silenciar-notificaciones`, { method: 'POST', token: tokenA }));
 
+    await step('Bloquear publicacion sin membresia', () => request('/comunidades/pop/publicaciones', {
+      method: 'POST', token: tokenA,
+      body: { titulo: 'No debe publicarse', texto: 'Prueba de permiso' }, expected: 403,
+    }));
+    await step('Unirse a comunidad', () => request('/comunidades/pop/membresia', { method: 'POST', token: tokenA }));
     const post = await step('Evitar publicacion de comunidad duplicada', () => creacionDoble(() => request('/comunidades/pop/publicaciones', {
       method: 'POST', token: tokenA, headers: { 'Idempotency-Key': `post-${suffix}` },
       body: { titulo: 'Prueba integral temporal', texto: `Hola @${accounts[1].username}`, tipo: 'reciente', etiqueta: 'test' }, expected: 201,
@@ -197,7 +202,7 @@ async function main() {
       eventForm.append('organizadores', JSON.stringify([userB.id]));
       return eventForm;
     };
-    const event = await step('Evitar evento duplicado con coorganizador', () => creacionDoble(() => request('/eventos/crear', {
+    const event = await step('Evitar evento duplicado con invitado', () => creacionDoble(() => request('/eventos/crear', {
       method: 'POST', token: tokenA, headers: { 'Idempotency-Key': `event-${suffix}` },
       body: crearEventoForm(), expected: 201,
     })));

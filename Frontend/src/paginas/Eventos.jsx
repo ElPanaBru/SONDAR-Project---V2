@@ -23,6 +23,7 @@ const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
+const LOGO_EVENTO_PREDETERMINADO = "/sondar-logo.png";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
   month: "long",
@@ -47,7 +48,7 @@ const crearEventoVacio = () => ({
 
 const mapearEvento = (evento) => ({
   ...evento,
-  img: evento.img || evento.img_url,
+  img: LOGO_EVENTO_PREDETERMINADO,
   coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
 });
 
@@ -515,7 +516,7 @@ export default function Eventos({ usuario }) {
       const evento = grupo.eventos[0];
       const posicionFinal = evento.coords;
       const activo = eventoActivo === evento.id;
-      const imagenEvento = evento.avatar || "/sondar-icon.png";
+      const imagenEvento = LOGO_EVENTO_PREDETERMINADO;
       const compacto = zoomMapa <= 11;
 
       const marker = L.marker(posicionFinal, {
@@ -524,7 +525,7 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png'" />
+                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-logo.png'" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>
@@ -818,12 +819,12 @@ export default function Eventos({ usuario }) {
       return;
     }
     if (nuevoEvento.organizadores.some((organizador) => organizador.id === persona.id)) {
-      mostrarAviso("Esa persona ya esta agregada como organizadora.");
+      mostrarAviso("Esa persona ya esta agregada como invitada.");
       setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
       return;
     }
     if (nuevoEvento.organizadores.length >= 8) {
-      mostrarAviso("Podes agregar hasta 8 coorganizadores.");
+      mostrarAviso("Podes agregar hasta 8 invitados o bandas invitadas.");
       setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
       return;
     }
@@ -890,20 +891,18 @@ export default function Eventos({ usuario }) {
     setSubiendo(true);
     subiendoRef.current = true;
 
-    const formData = new FormData();
-    formData.append("titulo", nuevoEvento.titulo);
-    formData.append("descripcion", nuevoEvento.descripcion);
-    formData.append(
-      "organizadores",
-      JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id))
-    );
-    formData.append("genero", normalizarGenero(nuevoEvento.genero));
-    formData.append("ubicacion", nuevoEvento.lugar);
-    formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
-    formData.append("precio", nuevoEvento.precio);
-    formData.append("link", nuevoEvento.link);
-    formData.append("latitud", nuevoEvento.lat);
-    formData.append("longitud", nuevoEvento.lng);
+    const datosEvento = {
+      titulo: nuevoEvento.titulo,
+      descripcion: nuevoEvento.descripcion,
+      organizadores: JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id)),
+      genero: normalizarGenero(nuevoEvento.genero),
+      ubicacion: nuevoEvento.lugar,
+      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
+      precio: nuevoEvento.precio,
+      link: nuevoEvento.link,
+      latitud: nuevoEvento.lat,
+      longitud: nuevoEvento.lng,
+    };
 
     try {
       const { data } = await supabase.auth.getSession();
@@ -919,7 +918,7 @@ export default function Eventos({ usuario }) {
         headers: {
           Authorization: `Bearer ${token}`
         },
-        body: formData
+        body: datosEvento
       });
 
       if (!response.ok) {
@@ -997,7 +996,7 @@ export default function Eventos({ usuario }) {
                 <IconoPanel nombre="izquierda" />
               </button>
               <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
-                <img src={detalleEvento.avatar || "/sondar-icon.png"} alt="" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
+                <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
                 <span>
                   <strong>{detalleEvento.titulo}</strong>
                   <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
@@ -1082,7 +1081,7 @@ export default function Eventos({ usuario }) {
               {detalleEvento.descripcion ? <p className="evento-sheet-descripcion">{detalleEvento.descripcion}</p> : null}
 
               <div className="evento-sheet-organizadores">
-                <span>Participan</span>
+                <span>Invitados y bandas invitadas</span>
                 <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
                   {detalleEvento.avatar ? <img src={detalleEvento.avatar} alt="" /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
                   {detalleEvento.creador || "Anónimo"}
@@ -1207,10 +1206,10 @@ export default function Eventos({ usuario }) {
                 aria-label="Descripcion del evento"
               />
 
-              <section className="evento-organizadores-selector" aria-label="Organizadores del evento">
+              <section className="evento-organizadores-selector" aria-label="Invitados y bandas invitadas del evento">
                 <div className="evento-organizadores-encabezado">
-                  <span>Organizadores</span>
-                  <small>Vos sos el creador principal</small>
+                  <span>Invitados o bandas invitadas</span>
+                  <small>Vos sos quien crea el evento</small>
                 </div>
 
                 {nuevoEvento.organizadores.length > 0 ? (
@@ -1237,7 +1236,7 @@ export default function Eventos({ usuario }) {
                   aria-expanded={mostrarBuscadorOrganizador}
                 >
                   <span aria-hidden="true">+</span>
-                  Agregar organizador
+                  Agregar invitado
                 </button>
 
                 {mostrarBuscadorOrganizador ? (
@@ -1248,8 +1247,8 @@ export default function Eventos({ usuario }) {
                     value={nuevoEvento.organizadorBusqueda}
                     onChange={(organizadorBusqueda) => setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda }))}
                     onMentionSelect={agregarCoorganizador}
-                    placeholder="Escribi @ y busca a la persona"
-                    aria-label="Buscar coorganizador"
+                    placeholder="Escribi @ y busca a la persona o banda"
+                    aria-label="Buscar invitado o banda invitada"
                     autoFocus
                   />
                 ) : null}

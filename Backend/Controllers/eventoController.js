@@ -1,6 +1,6 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
-const { subirImagenEvento, eliminarImagenEvento } = require('../services/storageService');
+const { eliminarImagenEvento } = require('../services/storageService');
 const {
   crearNotificacion,
   nombreActor,
@@ -34,7 +34,6 @@ function mapearEvento(evento) {
 
   return {
     ...evento,
-    img: evento.img_url || null,
     creador: evento.creador || null
   };
 }
@@ -209,7 +208,6 @@ const eventoController = {
   crearEvento: async (req, res) => {
     const { titulo, descripcion, genero, ubicacion, fecha, precio, link, latitud, longitud, organizadores } = req.body;
     const creadorId = req.user.id;
-    let imagenSubida = null;
     let dbClient = null;
     let transaccionActiva = false;
 
@@ -236,16 +234,16 @@ const eventoController = {
         .map((id) => String(id || '').trim())
         .filter((id) => id && id !== creadorId))];
     } catch {
-      return res.status(400).json({ error: 'La lista de organizadores no es valida.' });
+      return res.status(400).json({ error: 'La lista de invitados no es valida.' });
     }
 
     if (organizadorIds.length > 8) {
-      return res.status(400).json({ error: 'Podes agregar hasta 8 coorganizadores.' });
+      return res.status(400).json({ error: 'Podes agregar hasta 8 invitados o bandas invitadas.' });
     }
 
     const uuidValido = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (organizadorIds.some((id) => !uuidValido.test(id))) {
-      return res.status(400).json({ error: 'Hay un organizador invalido.' });
+      return res.status(400).json({ error: 'Hay un invitado invalido.' });
     }
 
     const precioNormalizado = precio === '' || precio === undefined ? null : Number(precio);
@@ -263,18 +261,17 @@ const eventoController = {
           [organizadorIds]
         );
         if (usuariosValidos.rowCount !== organizadorIds.length) {
-          return res.status(400).json({ error: 'Uno de los coorganizadores ya no esta disponible.' });
+          return res.status(400).json({ error: 'Uno de los invitados ya no esta disponible.' });
         }
       }
 
-      imagenSubida = await subirImagenEvento(req.file);
       dbClient = await pool.connect();
       await dbClient.query('BEGIN');
       transaccionActiva = true;
 
       const query = `
-        INSERT INTO eventos (titulo, descripcion, genero, lugar, fecha, img_url, img_path, precio, link, creador_id, latitud, longitud)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO eventos (titulo, descripcion, genero, lugar, fecha, precio, link, creador_id, latitud, longitud)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *`;
 
       const values = [
@@ -283,8 +280,6 @@ const eventoController = {
         genero,
         ubicacion,
         fecha,
-        imagenSubida?.publicUrl || null,
-        imagenSubida?.path || null,
         precioNormalizado,
         link || null,
         creadorId,
@@ -336,7 +331,7 @@ const eventoController = {
           userId: organizador.id,
           actorId: creadorId,
           type: 'event_coorganizer',
-          title: `${actorName} te agrego como coorganizador`,
+          title: `${actorName} te agrego como invitado a un evento`,
           body: titulo,
           targetUrl: `/?evento=${result.rows[0].id}`,
           entityType: 'event',
@@ -352,10 +347,6 @@ const eventoController = {
       }));
     } catch (error) {
       if (dbClient && transaccionActiva) await dbClient.query('ROLLBACK').catch(() => {});
-      if (imagenSubida?.path) {
-        await eliminarImagenEvento(imagenSubida.path);
-      }
-
       console.error('Error al crear evento:', error);
       res.status(500).json({ error: error.message || 'Error al guardar el evento.' });
     } finally {

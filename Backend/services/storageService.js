@@ -76,35 +76,6 @@ async function subirArchivo(bucket, carpeta, file, validar) {
   };
 }
 
-async function subirImagenEvento(file) {
-  if (!file) return null;
-
-  validarImagen(file);
-
-  const extension = path.extname(file.originalname || '').toLowerCase() || '.jpg';
-  const storagePath = `eventos/${Date.now()}-${crypto.randomUUID()}${extension}`;
-
-  const { error } = await supabase.storage
-    .from(EVENTOS_BUCKET)
-    .upload(storagePath, file.buffer, {
-      contentType: file.mimetype,
-      upsert: false
-    });
-
-  if (error) {
-    throw new Error(`No se pudo subir la imagen: ${error.message}`);
-  }
-
-  const { data } = supabase.storage
-    .from(EVENTOS_BUCKET)
-    .getPublicUrl(storagePath);
-
-  return {
-    path: storagePath,
-    publicUrl: data.publicUrl
-  };
-}
-
 async function subirPortadaReel(file) {
   return subirArchivo(REELS_BUCKET, 'reels/portadas', file, validarImagen);
 }
@@ -145,7 +116,6 @@ async function eliminarAvatarUsuario(storagePath) {
 }
 
 module.exports = {
-  subirImagenEvento,
   eliminarImagenEvento,
   subirPortadaReel,
   subirAudioReel,

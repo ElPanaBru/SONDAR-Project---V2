@@ -18,6 +18,7 @@ ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comunidad_miembros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_guardados ENABLE ROW LEVEL SECURITY;

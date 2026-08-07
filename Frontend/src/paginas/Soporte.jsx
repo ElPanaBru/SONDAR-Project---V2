@@ -9,7 +9,7 @@ const preguntas = [
     id: "mapa",
     titulo: "Como encuentro eventos cerca mio?",
     texto:
-      "En Eventos podes moverte por el mapa, filtrar por genero y abrir cada pin para ver lugar, fecha, organizador y link de compra.",
+      "En Eventos podes moverte por el mapa, filtrar por genero y abrir cada pin para ver lugar, fecha, invitados o bandas invitadas y link de compra.",
   },
   {
     id: "reels",

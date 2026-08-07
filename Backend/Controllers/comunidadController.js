@@ -151,6 +151,15 @@ async function asegurarEsquemaComunidades() {
         )
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS comunidad_miembros (
+          comunidad_id text NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT comunidad_miembros_pkey PRIMARY KEY (comunidad_id, user_id)
+        )
+      `);
+
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS evento_asociado_id text');
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS reel_asociado_id text');
 
@@ -194,11 +203,39 @@ async function asegurarEsquemaComunidades() {
 
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_comunidad ON comunidad_publicaciones(comunidad_id, created_at DESC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_user ON comunidad_publicaciones(user_id)');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user ON comunidad_miembros(user_id, created_at DESC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_likes_publicacion ON comunidad_publicacion_likes(publicacion_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_guardados_publicacion ON comunidad_publicacion_guardados(publicacion_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_publicacion ON comunidad_comentarios(publicacion_id, created_at ASC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_parent ON comunidad_comentarios(parent_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentario_likes_comentario ON comunidad_comentario_likes(comentario_id)');
+      await pool.query('ALTER TABLE comunidad_miembros ENABLE ROW LEVEL SECURITY');
+      await pool.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = 'comunidad_miembros'
+              AND policyname = 'comunidad_miembros_select_own'
+          ) THEN
+            CREATE POLICY comunidad_miembros_select_own ON comunidad_miembros
+              FOR SELECT TO authenticated USING (auth.uid() = user_id);
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies
+            WHERE schemaname = 'public'
+              AND tablename = 'comunidad_miembros'
+              AND policyname = 'comunidad_miembros_own_write'
+          ) THEN
+            CREATE POLICY comunidad_miembros_own_write ON comunidad_miembros
+              FOR ALL TO authenticated
+              USING (auth.uid() = user_id)
+              WITH CHECK (auth.uid() = user_id);
+          END IF;
+        END $$
+      `);
 
       for (const comunidad of COMUNIDADES_GENERO) {
         await pool.query(
@@ -263,6 +300,7 @@ function mapearComunidad(row) {
       ? `${Number(row.publicaciones)} publicaciones`
       : 'Sin publicaciones todavia',
     portada: row.portada_url,
+    unido: Boolean(row.unido),
   };
 }
 
@@ -372,18 +410,26 @@ const comunidadController = {
   listarComunidades: async (req, res) => {
     try {
       await asegurarEsquemaComunidades();
+      const viewerId = await obtenerViewerId(req);
 
       const result = await pool.query(`
         SELECT
           c.*,
           COUNT(DISTINCT cp.id) AS publicaciones,
-          COUNT(DISTINCT cp.user_id) AS miembros
+          COUNT(DISTINCT cm.user_id) AS miembros,
+          EXISTS (
+            SELECT 1
+            FROM comunidad_miembros cm_viewer
+            WHERE cm_viewer.comunidad_id = c.id
+              AND cm_viewer.user_id = $2::uuid
+          ) AS unido
         FROM comunidades c
         LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id
+        LEFT JOIN comunidad_miembros cm ON cm.comunidad_id = c.id
         WHERE c.activa = true
         GROUP BY c.id
         ORDER BY array_position($1::text[], c.id)
-      `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id)]);
+      `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id), viewerId]);
 
       res.json(result.rows.map(mapearComunidad));
     } catch (error) {
@@ -392,9 +438,69 @@ const comunidadController = {
     }
   },
 
+  alternarMembresia: async (req, res) => {
+    const { comunidadId } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await client.query('BEGIN');
+
+      const comunidad = await client.query(
+        'SELECT id FROM comunidades WHERE id = $1 AND activa = true',
+        [comunidadId]
+      );
+      if (comunidad.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Foro no encontrado.' });
+      }
+
+      const membresia = await client.query(
+        'SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',
+        [comunidadId, req.user.id]
+      );
+
+      let unido = false;
+      if (membresia.rowCount > 0) {
+        await client.query(
+          'DELETE FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',
+          [comunidadId, req.user.id]
+        );
+      } else {
+        await client.query(
+          'INSERT INTO comunidad_miembros (comunidad_id, user_id) VALUES ($1, $2)',
+          [comunidadId, req.user.id]
+        );
+        unido = true;
+      }
+
+      const total = await client.query(
+        'SELECT COUNT(*)::int AS miembros FROM comunidad_miembros WHERE comunidad_id = $1',
+        [comunidadId]
+      );
+      await client.query('COMMIT');
+
+      res.json({
+        comunidadId,
+        unido,
+        miembros: Number(total.rows[0]?.miembros || 0),
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al actualizar membresia del foro:', error);
+      res.status(500).json({ error: 'No se pudo actualizar tu membresia del foro.' });
+    } finally {
+      client.release();
+    }
+  },
+
   listarPublicaciones: async (req, res) => {
     const { comunidadId } = req.params;
-    const filtro = req.query.filtro || 'destacado';
+    const filtroRecibido = req.query.filtro || 'destacado';
+    const filtro = ['destacado', 'reciente', 'popular', 'preguntas'].includes(filtroRecibido)
+      ? filtroRecibido
+      : 'destacado';
     const busqueda = `${req.query.q || ''}`.trim().toLowerCase();
 
     try {
@@ -403,9 +509,8 @@ const comunidadController = {
       const params = [comunidadId, viewerId];
       const condiciones = ['cp.comunidad_id = $1'];
 
-      if (filtro !== 'destacado') {
-        params.push(filtro);
-        condiciones.push(`cp.tipo = $${params.length}`);
+      if (filtro === 'preguntas') {
+        condiciones.push("cp.tipo = 'preguntas'");
       }
 
       if (busqueda) {
@@ -419,8 +524,10 @@ const comunidadController = {
       }
 
       const orderBy = filtro === 'popular'
-        ? 'likes_calculados DESC, cp.created_at DESC, cp.id DESC'
-        : 'cp.fijada DESC, cp.created_at DESC, cp.id DESC';
+        ? 'likes_calculados DESC, comentarios_total DESC, cp.created_at DESC, cp.id DESC'
+        : filtro === 'reciente' || filtro === 'preguntas'
+          ? 'cp.created_at DESC, cp.id DESC'
+          : 'cp.fijada DESC, likes_calculados DESC, comentarios_total DESC, cp.created_at DESC, cp.id DESC';
 
       const result = await pool.query(
         `SELECT
@@ -488,6 +595,14 @@ const comunidadController = {
       const comunidad = await pool.query('SELECT id, genero FROM comunidades WHERE id = $1 AND activa = true', [comunidadId]);
       if (comunidad.rowCount === 0) {
         return res.status(404).json({ error: 'Comunidad no encontrada.' });
+      }
+
+      const membresia = await pool.query(
+        'SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',
+        [comunidadId, req.user.id]
+      );
+      if (membresia.rowCount === 0) {
+        return res.status(403).json({ error: 'Unite a este foro antes de crear una publicacion.' });
       }
 
       const tipoSeguro = ['destacado', 'reciente', 'popular', 'preguntas'].includes(tipo) ? tipo : 'reciente';
