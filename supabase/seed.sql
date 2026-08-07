@@ -1,0 +1,2 @@
+-- Los datos canonicos de comunidades se mantienen en la migracion versionada.
+-- Este archivo existe para que `supabase db reset` no apunte a una ruta ausente.

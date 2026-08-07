@@ -991,6 +991,12 @@
   }
 }
 
+.hilo-respuestas .comentarios-estado {
+  margin: 2px 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
   .comunidad-layout.reddit-layout {
     grid-template-columns: 1fr;

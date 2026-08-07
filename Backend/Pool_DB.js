@@ -1,6 +1,6 @@
  const path = require('path');
  const { Pool } = require('pg');
- require('dotenv').config({ path: path.join(__dirname, '.env') });
+ require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 
  const numeroEntorno = (nombre, fallback) => {
    const valor = Number(process.env[nombre]);
@@ -18,21 +18,18 @@
      idleTimeoutMillis: numeroEntorno('DB_IDLE_TIMEOUT_MS', 30000),
      query_timeout: numeroEntorno('DB_QUERY_TIMEOUT_MS', 12000),
      statement_timeout: numeroEntorno('DB_STATEMENT_TIMEOUT_MS', 12000),
+     keepAlive: true,
+     application_name: process.env.DB_APPLICATION_NAME || 'sondar-backend',
      ssl: process.env.DB_SSL === 'false' ? false : {
-        rejectUnauthorized: false
+        rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
+        ...(process.env.DB_SSL_CA
+          ? { ca: process.env.DB_SSL_CA.replace(/\\n/g, '\n') }
+          : {})
     }
  });
 
  pool.on('error', (err) => {
    console.error('Error inesperado en el pool de PostgreSQL:', err);
- });
-
- pool.connect((err, client, release) => {
-   if (err) {
-     return console.error('❌ Error adquiriendo el cliente de la DB:', err.stack);
-   }
-   console.log('✅ Conexión a PostgreSQL establecida con éxito');
-   release();
  });
 
  module.exports = pool;

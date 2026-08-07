@@ -211,6 +211,7 @@ const normalizarHilo = (hilo) => ({
   ...hilo,
   votos: Number(hilo.votos ?? hilo.likes ?? 0),
   likes: Number(hilo.likes ?? hilo.votos ?? 0),
+  comentariosTotal: Number(hilo.comentariosTotal ?? hilo.comentarios?.length ?? 0),
   comentarios: (hilo.comentarios || []).map((comentario) => ({
     ...comentario,
     votos: Number(comentario.votos ?? comentario.likes ?? 0),
@@ -222,10 +223,11 @@ const normalizarHilo = (hilo) => ({
 export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const publicandoRef = useRef(false);
   const comentariosEnviandoRef = useRef(new Set());
+  const comentariosCargadosRef = useRef(new Set());
+  const comentariosCargandoRef = useRef(new Set());
   const filtroRef = useRef(null);
   const audioAsociadoRef = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
@@ -241,6 +243,7 @@ export default function Comunidad({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
+  const [comentariosCargando, setComentariosCargando] = useState(new Set());
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
   const [eventosAsociables, setEventosAsociables] = useState([]);
@@ -323,6 +326,7 @@ export default function Comunidad({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         const response = await apiRequest("/api/comunidades", {
+          auth: false,
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -352,6 +356,7 @@ export default function Comunidad({ usuario }) {
   }, []);
 
   useEffect(() => {
+    if (!mostrarModal || eventosAsociables.length > 0 || reelsAsociables.length > 0) return undefined;
     let cancelado = false;
 
     async function cargarAsociables() {
@@ -360,8 +365,8 @@ export default function Comunidad({ usuario }) {
         const token = data.session?.access_token;
         const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
         const [eventosResponse, reelsResponse] = await Promise.all([
-          apiRequest("/api/eventos", { headers }),
-          apiRequest("/api/reels", { headers }),
+          apiRequest("/api/eventos", { auth: false, headers }),
+          apiRequest("/api/reels", { auth: false, headers }),
         ]);
 
         if (!cancelado && eventosResponse.ok) {
@@ -391,7 +396,7 @@ export default function Comunidad({ usuario }) {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [eventosAsociables.length, mostrarModal, reelsAsociables.length]);
 
   useEffect(() => {
     const comunidadBuscada = comunidades.find((comunidad) => {
@@ -418,9 +423,10 @@ export default function Comunidad({ usuario }) {
         const token = data.session?.access_token;
         const params = new URLSearchParams({ filtro: filtroActivo });
         if (busqueda && !publicacionCompartida) params.set("q", busqueda);
+        if (publicacionCompartida) params.set("publicacionId", publicacionCompartida);
 
         const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+          { auth: false, headers: token ? { Authorization: `Bearer ${token}` } : {} }
         );
 
         if (!response.ok) throw new Error("No se pudieron cargar las publicaciones.");
@@ -428,6 +434,7 @@ export default function Comunidad({ usuario }) {
         const dataHilos = await response.json();
         if (!cancelado) {
           setHilos(dataHilos.map(normalizarHilo));
+          comentariosCargadosRef.current.clear();
           setRespuestasAbiertas((abiertas) =>
             abiertas.filter((id) => dataHilos.some((hilo) => hilo.id === id))
           );
@@ -487,7 +494,7 @@ export default function Comunidad({ usuario }) {
   }, [busqueda, hilosConAsociaciones, publicacionCompartida]);
 
   const totalComentarios = useMemo(
-    () => hilosFiltrados.reduce((total, hilo) => total + hilo.comentarios.length, 0),
+    () => hilosFiltrados.reduce((total, hilo) => total + hilo.comentariosTotal, 0),
     [hilosFiltrados]
   );
 
@@ -548,7 +555,7 @@ export default function Comunidad({ usuario }) {
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
 
       const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/membresia`, {
-        method: "POST",
+        method: comunidadActiva.unido ? "DELETE" : "PUT",
         headers: crearHeadersJson(token),
       });
       const resultado = await response.json().catch(() => ({}));
@@ -741,12 +748,44 @@ export default function Comunidad({ usuario }) {
     }
   };
 
-  const toggleRespuestas = (id) => {
+  const toggleRespuestas = async (id) => {
     setRespuestasAbiertas((abiertas) =>
       abiertas.includes(id)
         ? abiertas.filter((hiloId) => hiloId !== id)
         : [...abiertas, id]
     );
+
+    if (
+      respuestasAbiertas.includes(id)
+      || comentariosCargadosRef.current.has(id)
+      || comentariosCargandoRef.current.has(id)
+    ) return;
+
+    comentariosCargandoRef.current.add(id);
+    setComentariosCargando(new Set(comentariosCargandoRef.current));
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await apiRequest(`/api/comunidades/publicaciones/${id}/comentarios`, {
+        auth: false,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      const resultado = await response.json().catch(() => []);
+      if (!response.ok) throw new Error(resultado.error || "No se pudieron cargar las respuestas.");
+      const comentarios = normalizarHilo({ comentarios: resultado }).comentarios;
+      comentariosCargadosRef.current.add(id);
+      setHilos((actuales) => actuales.map((hilo) => (
+        hilo.id === id
+          ? { ...hilo, comentarios, comentariosTotal: Number(hilo.comentariosTotal || comentarios.length) }
+          : hilo
+      )));
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudieron cargar las respuestas.");
+      setRespuestasAbiertas((abiertas) => abiertas.filter((hiloId) => hiloId !== id));
+    } finally {
+      comentariosCargandoRef.current.delete(id);
+      setComentariosCargando(new Set(comentariosCargandoRef.current));
+    }
   };
 
   const responder = async (hiloId) => {
@@ -777,35 +816,21 @@ export default function Comunidad({ usuario }) {
       }
 
       const comentarioGuardado = await response.json();
+      comentariosCargadosRef.current.add(hiloId);
       setHilos((actuales) =>
         actuales.map((hilo) =>
           hilo.id === hiloId
             ? {
                 ...hilo,
                 comentarios: [...hilo.comentarios, normalizarHilo({ comentarios: [comentarioGuardado] }).comentarios[0]],
+                comentariosTotal: Number(hilo.comentariosTotal || 0) + 1,
               }
             : hilo
         )
       );
     } catch (error) {
-      const comentarioLocal = {
-        id: siguienteComentarioId.current,
-        autor: usuario?.user_metadata?.username || usuario?.email?.split("@")[0] || "Usuario SONDAR",
-        usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
-        texto,
-        votos: 0,
-        likes: 0,
-        respuestas: [],
-      };
-      siguienteComentarioId.current += 1;
-      setHilos((actuales) =>
-        actuales.map((hilo) =>
-          hilo.id === hiloId
-            ? { ...hilo, comentarios: [...hilo.comentarios, comentarioLocal] }
-            : hilo
-        )
-      );
-      mostrarAviso(error.message || "Comentario local hasta reconectar.");
+      mostrarAviso(error.message || "No se pudo guardar el comentario. El texto se conservo.");
+      return;
     } finally {
       comentariosEnviandoRef.current.delete(claveEnvio);
       setComentariosEnviando(new Set(comentariosEnviandoRef.current));
@@ -1061,7 +1086,7 @@ export default function Comunidad({ usuario }) {
                       type="button"
                       onClick={() => toggleRespuestas(hilo.id)}
                     >
-                      {hilo.comentarios.length} respuestas
+                      {hilo.comentariosTotal} respuestas
                     </button>
                     <button
                       className={hilo.guardado ? "activo" : ""}
@@ -1074,6 +1099,12 @@ export default function Comunidad({ usuario }) {
 
                   {respuestasAbiertas.includes(hilo.id) && (
                     <section className="hilo-respuestas">
+                      {comentariosCargando.has(hilo.id) ? (
+                        <p className="comentarios-estado" role="status">Cargando respuestas...</p>
+                      ) : null}
+                      {!comentariosCargando.has(hilo.id) && hilo.comentarios.length === 0 ? (
+                        <p className="comentarios-estado">Todavía no hay respuestas.</p>
+                      ) : null}
                       {hilo.comentarios.map((comentario) => (
                         <article className="respuesta-card" key={comentario.id}>
                           <div className="respuesta-linea"></div>
@@ -1093,8 +1124,9 @@ export default function Comunidad({ usuario }) {
                           placeholder="Responde o menciona con @usuario"
                           value={respuestas[hilo.id] || ""}
                           onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
+                          disabled={comentariosCargando.has(hilo.id)}
                         />
-                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosEnviando.has(String(hilo.id))}>
+                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosCargando.has(hilo.id) || comentariosEnviando.has(String(hilo.id))}>
                           {comentariosEnviando.has(String(hilo.id)) ? "Enviando..." : "Responder"}
                         </button>
                       </div>

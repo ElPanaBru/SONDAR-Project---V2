@@ -720,6 +720,13 @@
   scrollbar-color: rgba(255, 174, 0, 0.72) transparent;
 }
 
+.comentarios-lista > .comentarios-estado {
+  margin: 8px 0 18px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  text-align: center;
+}
+
 .comentarios-lista::-webkit-scrollbar {
   width: 5px;
 }

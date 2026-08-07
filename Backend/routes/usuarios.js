@@ -4,9 +4,23 @@ const router = express.Router();
 const usuariosController = require('../Controllers/usuarioController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
+const IMAGENES_PERMITIDAS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  fileFilter: (_req, file, callback) => {
+    if (IMAGENES_PERMITIDAS.has(file.mimetype)) return callback(null, true);
+    const error = new Error('Formato de imagen no permitido.');
+    error.code = 'ARCHIVO_INVALIDO';
+    error.status = 400;
+    return callback(error);
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 1,
+    fields: 12,
+    parts: 13,
+  }
 });
 
 router.post('/crear-cuenta', usuariosController.crearCuenta);

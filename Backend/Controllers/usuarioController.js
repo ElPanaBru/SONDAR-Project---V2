@@ -31,12 +31,12 @@ const CONFIGURACION_INICIAL = Object.freeze({
   reducirMovimiento: false,
   mostrarEmail: false,
 });
+const TIPOS_USUARIO_PUBLICOS = new Set(['musico', 'organizador']);
 
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
 const GENEROS_ONBOARDING = new Set(['pop', 'rock', 'trap', 'cumbia', 'edm', 'jazz', 'blues', 'metal', 'folklore']);
-const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 
 function normalizarUsername(valor = '') {
   return String(valor).trim().replace(/^@+/, '').toLowerCase();
@@ -165,6 +165,7 @@ function esKeySupabaseInvalida(error) {
 }
 
 function esErrorValidacionArchivo(error) {
+  if (error?.code === 'ARCHIVO_INVALIDO') return true;
   const mensaje = String(error?.message || '').toLowerCase();
   return mensaje.includes('formato de imagen')
     || mensaje.includes('imagen no puede superar')
@@ -208,117 +209,12 @@ async function recuperarUsuarioAuthConPassword(email, password) {
   return data.user;
 }
 
-async function crearUsuarioAuthPorSql({ email, password, username, userType }) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const userResult = await client.query(
-      `INSERT INTO auth.users (
-         instance_id, id, aud, role, email, encrypted_password,
-         email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
-         confirmation_token, recovery_token, email_change_token_new, email_change,
-         email_change_token_current, reauthentication_token, phone_change, phone_change_token,
-         created_at, updated_at
-       )
-       VALUES (
-         '00000000-0000-0000-0000-000000000000',
-         gen_random_uuid(),
-         'authenticated',
-         'authenticated',
-         $1,
-         crypt($2, gen_salt('bf')),
-         timezone('utc'::text, now()),
-         '{"provider":"email","providers":["email"]}'::jsonb,
-         jsonb_build_object('username', $3::text, 'user_type', $4::text),
-         '',
-         '',
-         '',
-         '',
-         '',
-         '',
-         '',
-         '',
-         timezone('utc'::text, now()),
-         timezone('utc'::text, now())
-       )
-       RETURNING id, email, raw_user_meta_data`,
-      [email, password, username, userType]
-    );
-
-    const user = userResult.rows[0];
-    await client.query(
-      `INSERT INTO auth.identities (
-         provider_id, user_id, identity_data, provider,
-         last_sign_in_at, created_at, updated_at
-       )
-       VALUES (
-         $1::text,
-         $1::uuid,
-         jsonb_build_object(
-           'sub', $1::text,
-           'email', $2::text,
-           'email_verified', false,
-           'phone_verified', false
-         ),
-         'email',
-         timezone('utc'::text, now()),
-         timezone('utc'::text, now()),
-         timezone('utc'::text, now())
-       )`,
-      [user.id, email]
-    );
-
-    await client.query('COMMIT');
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        user_metadata: user.raw_user_meta_data || { username, user_type: userType },
-      },
-      creadoEnEsteRequest: true,
-    };
-  } catch (error) {
-    await client.query('ROLLBACK').catch(() => null);
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-async function crearUsuarioAuthConSignup({ email, password, username, userType }) {
-  const { data, error } = await supabaseAuth.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        username,
-        user_type: userType,
-      },
-    },
-  });
-
-  if (error) throw error;
-  if (!data?.user?.id) throw new Error('Supabase no devolvio el usuario registrado.');
-  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-    const errorExistente = new Error('El correo ya esta registrado.');
-    errorExistente.code = 'USER_ALREADY_REGISTERED';
-    throw errorExistente;
-  }
-
-  return { user: data.user, creadoEnEsteRequest: true };
-}
-
 async function eliminarUsuarioAuthCreado(userId) {
   if (!userId) return;
-  await supabase.auth.admin.deleteUser(userId).catch(() => null);
-  await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]).catch(() => null);
+  await supabase.auth.admin.deleteUser(userId);
 }
 
 async function crearUsuarioAuth({ email, password, username, userType }) {
-  if (CREAR_AUTH_POR_SQL) {
-    return crearUsuarioAuthPorSql({ email, password, username, userType });
-  }
-
   let crear;
   try {
     crear = await supabase.auth.admin.createUser({
@@ -332,7 +228,8 @@ async function crearUsuarioAuth({ email, password, username, userType }) {
     });
   } catch (error) {
     if (esKeySupabaseInvalida(error)) {
-      return crearUsuarioAuthPorSql({ email, password, username, userType });
+      error.code = 'SUPABASE_CONFIG_ERROR';
+      throw error;
     }
 
     if (esTimeoutSupabase(error)) {
@@ -340,7 +237,7 @@ async function crearUsuarioAuth({ email, password, username, userType }) {
       if (usuarioRecuperado) {
         return { user: usuarioRecuperado, creadoEnEsteRequest: false };
       }
-      return crearUsuarioAuthPorSql({ email, password, username, userType });
+      throw error;
     }
 
     if (esUsuarioAuthExistente(error)) {
@@ -353,7 +250,8 @@ async function crearUsuarioAuth({ email, password, username, userType }) {
   }
 
   if (crear.error && esKeySupabaseInvalida(crear.error)) {
-    return crearUsuarioAuthPorSql({ email, password, username, userType });
+    crear.error.code = 'SUPABASE_CONFIG_ERROR';
+    throw crear.error;
   }
 
   if (!crear.error && crear.data?.user?.id) {
@@ -365,7 +263,7 @@ async function crearUsuarioAuth({ email, password, username, userType }) {
     if (usuarioRecuperado) {
       return { user: usuarioRecuperado, creadoEnEsteRequest: false };
     }
-    return crearUsuarioAuthPorSql({ email, password, username, userType });
+    throw crear.error;
   }
 
   if (crear.error && esUsuarioAuthExistente(crear.error)) {
@@ -500,7 +398,7 @@ async function asegurarUsuarioPublico(user) {
      ON CONFLICT (id) DO UPDATE
      SET email = EXCLUDED.email
      RETURNING id`,
-    [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
+    [user.id, email, usernameSeguro, 'musico']
   );
 }
 
@@ -546,13 +444,15 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
               (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reels r
        WHERE creador_id = $1
-       ORDER BY created_at DESC, id DESC`,
+       ORDER BY created_at DESC, id DESC
+       LIMIT 100`,
       [targetUserId]
     ),
     pool.query(
       `SELECT * FROM eventos
        WHERE creador_id = $1
-       ORDER BY fecha DESC, id DESC`,
+       ORDER BY fecha DESC, id DESC
+       LIMIT 100`,
       [targetUserId]
     ),
     pool.query(
@@ -752,7 +652,7 @@ const usuariosController = {
     const validacionUsername = validarUsername(username);
     const cleanUsername = validacionUsername.username;
     const cleanPassword = typeof password === 'string' ? password : '';
-    const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
+    const tipoUsuario = user_type || 'musico';
     let authUserId = null;
     let authCreadoEnEsteRequest = false;
 
@@ -760,6 +660,9 @@ const usuariosController = {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
     }
     if (validacionUsername.error) return res.status(400).json({ error: validacionUsername.error });
+    if (!TIPOS_USUARIO_PUBLICOS.has(tipoUsuario)) {
+      return res.status(400).json({ error: 'El tipo de cuenta no es valido.' });
+    }
 
     if (cleanPassword.length < 8) {
       return res.status(400).json({ error: 'La contrasena debe tener al menos 8 caracteres.' });
@@ -810,7 +713,9 @@ const usuariosController = {
       res.status(201).json(result.rows[0]);
     } catch (error) {
       if (authUserId && authCreadoEnEsteRequest) {
-        await eliminarUsuarioAuthCreado(authUserId);
+        await eliminarUsuarioAuthCreado(authUserId).catch((cleanupError) => {
+          console.error('No se pudo revertir el usuario Auth recien creado:', cleanupError);
+        });
       }
 
       if (error.code === '23505') {
@@ -827,6 +732,10 @@ const usuariosController = {
 
       if (esTimeoutSupabase(error)) {
         return res.status(503).json({ error: 'El servicio de autenticacion tardo demasiado. Proba de nuevo en unos segundos.' });
+      }
+
+      if (error.code === 'SUPABASE_CONFIG_ERROR') {
+        return res.status(503).json({ error: 'El servicio de autenticacion no esta configurado correctamente.' });
       }
 
       console.error('Error al crear cuenta:', error);
@@ -1280,7 +1189,8 @@ const usuariosController = {
          FROM user_blocks ub
          JOIN users u ON u.id = ub.blocked_id
          WHERE ub.blocker_id = $1
-         ORDER BY ub.created_at DESC`,
+         ORDER BY ub.created_at DESC
+         LIMIT 200`,
         [req.user.id]
       );
       res.json(result.rows.map((usuario) => mapearUsuarioPerfil(usuario)));
@@ -1367,7 +1277,8 @@ const usuariosController = {
       res.json(resultado);
     } catch (error) {
       console.error('Error al denunciar perfil:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el perfil.' });
+      const status = error.status || 500;
+      res.status(status).json({ error: status >= 500 ? 'No se pudo denunciar el perfil.' : error.message });
     }
   },
 
@@ -1429,7 +1340,8 @@ const usuariosController = {
          FROM follows f
          JOIN users u ON u.id = f.following_id
          WHERE f.follower_id = $1
-         ORDER BY f.created_at DESC`,
+         ORDER BY f.created_at DESC
+         LIMIT 200`,
         [req.user.id]
       );
 
@@ -1444,10 +1356,13 @@ const usuariosController = {
     const userId = req.user.id;
     const email = req.user.email;
     const { username, user_type } = req.body;
-    const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
+    const tipoUsuario = user_type || 'musico';
 
     if (!username) {
       return res.status(400).json({ error: 'El nombre de usuario es obligatorio.' });
+    }
+    if (!TIPOS_USUARIO_PUBLICOS.has(tipoUsuario)) {
+      return res.status(400).json({ error: 'El tipo de cuenta no es valido.' });
     }
     const validacionUsername = validarUsername(username);
     if (validacionUsername.error) return res.status(400).json({ error: validacionUsername.error });
@@ -1532,6 +1447,8 @@ const usuariosController = {
         pool.query('SELECT portada_path, portada_url, audio_path, audio_url FROM reels WHERE creador_id = $1', [userId]),
       ]);
 
+      await eliminarUsuarioAuthCreado(userId);
+
       const eliminacionesStorage = [
         eliminarAvatarUsuario(
           perfil.rows[0]?.profile_img_path
@@ -1545,11 +1462,14 @@ const usuariosController = {
           eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET)),
         ]),
       ];
-      await Promise.all(eliminacionesStorage);
 
-      await eliminarUsuarioAuthCreado(userId);
+      const limpieza = await Promise.allSettled(eliminacionesStorage);
+      const archivosNoEliminados = limpieza.filter((resultado) => resultado.status === 'rejected').length;
+      if (archivosNoEliminados > 0) {
+        console.warn(`La cuenta ${userId} se elimino, pero quedaron ${archivosNoEliminados} archivos para limpieza diferida.`);
+      }
 
-      res.json({ success: true });
+      res.json({ success: true, archivosPendientes: archivosNoEliminados });
     } catch (error) {
       console.error('Error al eliminar cuenta:', error);
       res.status(500).json({ error: 'No se pudo eliminar la cuenta.' });

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { PREFERENCIAS_INICIALES, usePreferencias } from "../contextos/PreferenciasContext";
+import { PREFERENCIAS_INICIALES } from "../contextos/preferenciasBase";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./configuracion.css";
 
 const AJUSTES_INICIALES = PREFERENCIAS_INICIALES;

@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('dotenv').config({ path: path.join(__dirname, '.env'), quiet: true });
 const express = require('express');
 const cors = require('cors');
 const usuariosRoutes = require('./routes/usuarios');
@@ -9,10 +9,16 @@ const reelsRoutes = require('./routes/reels');
 const comunidadesRoutes = require('./routes/comunidades');
 const notificacionesRoutes = require('./routes/notificaciones');
 const soporteRoutes = require('./routes/soporte');
-const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
+const seguridadHttp = require('./middlewares/seguridadHttp');
+const { crearRateLimiter } = require('./middlewares/rateLimiter');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const esProduccion = process.env.NODE_ENV === 'production';
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy === 'true') app.set('trust proxy', 1);
+else if (/^\d+$/.test(trustProxy || '')) app.set('trust proxy', Number(trustProxy));
+app.disable('x-powered-by');
 const allowedOrigins = new Set([
   process.env.FRONTEND_URL,
   'http://localhost:5173',
@@ -35,33 +41,35 @@ function esOrigenDesarrolloLocal(origin) {
   }
 }
 
+app.use(seguridadHttp);
+
 // Configuración de CORS adaptada a tus variables de entorno
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin) || esOrigenDesarrolloLocal(origin)) {
+    if (!origin || allowedOrigins.has(origin) || (!esProduccion && esOrigenDesarrolloLocal(origin))) {
       callback(null, true);
       return;
     }
 
-    callback(new Error(`Origen no permitido por CORS: ${origin}`));
+    const error = new Error('Origen no permitido por CORS.');
+    error.status = 403;
+    error.code = 'CORS_ORIGIN_DENIED';
+    callback(error);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true // Recomendado para mantener sesiones y tokens seguros
 }));
-
-app.use(express.json({ limit: '8mb' }));
+app.use('/api', crearRateLimiter({ nombre: 'api', ventanaMs: 60 * 1000, maximo: 180 }));
+app.use('/api/usuarios/crear-cuenta', crearRateLimiter({ nombre: 'crear-cuenta', ventanaMs: 60 * 60 * 1000, maximo: 5 }));
+app.use('/api/soporte', crearRateLimiter({ nombre: 'soporte', ventanaMs: 15 * 60 * 1000, maximo: 5 }));
+app.use('/api/reels/crear', crearRateLimiter({ nombre: 'crear-reel', ventanaMs: 60 * 60 * 1000, maximo: 10 }));
+app.use(express.json({ limit: '512kb' }));
 
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
-    port: PORT,
-    frontendUrl: process.env.FRONTEND_URL || null,
-    supabaseUrl: process.env.SUPABASE_URL || null,
-    dbHost: process.env.DB_HOST || null,
-    dbName: process.env.DB_NAME || null,
-    dbUser: process.env.DB_USER || null,
-    settingsSchema: 3
+    version: process.env.APP_VERSION || 'dev',
   });
 });
 
@@ -74,14 +82,39 @@ app.use('/api/comunidades', comunidadesRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/soporte', soporteRoutes);
 
+app.use('/api', (req, res) => {
+  res.status(404).json({
+    error: 'Ruta de API no encontrada.',
+    code: 'NOT_FOUND',
+    requestId: req.requestId,
+  });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+  const esMulter = error?.name === 'MulterError';
+  const status = esMulter
+    ? error.code === 'LIMIT_FILE_SIZE' ? 413 : 400
+    : Number(error.status || error.statusCode) || 500;
+  if (status >= 500) console.error(`[${req.requestId}] Error no controlado:`, error);
+  return res.status(status).json({
+    error: esMulter
+      ? status === 413 ? 'El archivo supera el limite permitido.' : 'La carga de archivos no es valida.'
+      : status >= 500 ? 'Error interno del servidor.' : error.message,
+    code: esMulter ? 'UPLOAD_INVALID' : error.code || (status >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR'),
+    requestId: req.requestId,
+  });
+});
+
 async function iniciarServidor() {
   try {
-    await asegurarEsquemaConfiguracion();
     app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
   } catch (error) {
-    console.error('No se pudo preparar el esquema de configuracion:', error);
+    console.error('No se pudo iniciar el servidor:', error);
     process.exitCode = 1;
   }
 }
 
-iniciarServidor();
+if (require.main === module) iniciarServidor();
+
+module.exports = { app, iniciarServidor };

@@ -1,0 +1,43 @@
+name: Calidad
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://example.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      SUPABASE_ANON_KEY: test-anon-key
+      DB_SSL: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            Backend/package-lock.json
+            Frontend/package-lock.json
+      - name: Instalar herramientas de raiz
+        run: npm ci --ignore-scripts
+      - name: Instalar Backend
+        run: npm ci --prefix Backend --ignore-scripts
+      - name: Instalar Frontend
+        run: npm ci --prefix Frontend --ignore-scripts
+      - name: Lint
+        run: npm run lint
+      - name: Sintaxis Backend
+        run: find Backend -path 'Backend/node_modules' -prune -o -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Pruebas
+        run: npm test
+      - name: Build
+        run: npm run build

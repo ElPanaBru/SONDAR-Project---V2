@@ -5,20 +5,34 @@ function limpiarTexto(value, maxLength) {
 }
 
 async function enviarEmail(templateParams) {
-  const serviceId = process.env.EMAILJS_SERVICE_ID || 'service_ckdohp4';
-  const templateId = process.env.EMAILJS_TEMPLATE_ID || 'template_jl05slh';
-  const publicKey = process.env.EMAILJS_PUBLIC_KEY || 'zEobDbcTNOMCmcI0O';
+  const serviceId = process.env.EMAILJS_SERVICE_ID;
+  const templateId = process.env.EMAILJS_TEMPLATE_ID;
+  const publicKey = process.env.EMAILJS_PUBLIC_KEY;
+  if (!serviceId || !templateId || !publicKey) {
+    const error = new Error('EmailJS no esta configurado en el servidor.');
+    error.status = 503;
+    throw error;
+  }
 
-  const response = await fetch(EMAILJS_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      service_id: serviceId,
-      template_id: templateId,
-      user_id: publicKey,
-      template_params: templateParams,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  let response;
+  try {
+    response = await fetch(EMAILJS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: serviceId,
+        template_id: templateId,
+        user_id: publicKey,
+        template_params: templateParams,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
@@ -84,7 +98,7 @@ const soporteController = {
       return res.json({ ok: true });
     } catch (error) {
       console.error('No se pudo enviar el mensaje a soporte:', error.message);
-      return res.status(502).json({ error: 'No se pudo notificar al equipo de soporte.' });
+      return res.status(error.status || 502).json({ error: 'No se pudo notificar al equipo de soporte.' });
     }
   },
 };

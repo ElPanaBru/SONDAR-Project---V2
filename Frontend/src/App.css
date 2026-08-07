@@ -4,6 +4,35 @@
   overflow-x: hidden;
 }
 
+.ruta-cargando,
+.ruta-no-encontrada {
+  min-height: 60vh;
+  display: grid;
+  place-content: center;
+  gap: 12px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.ruta-no-encontrada span {
+  color: #ffae00;
+  font-size: clamp(48px, 10vw, 96px);
+  font-weight: 950;
+}
+
+.ruta-no-encontrada h1 {
+  margin: 0;
+}
+
+.ruta-no-encontrada a {
+  color: #080808;
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
 .main-content {
   width: 100%;
   min-width: 0;

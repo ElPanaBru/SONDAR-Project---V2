@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./auth.css";
 
 const mensajesSupabase = {

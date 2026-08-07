@@ -8,8 +8,9 @@ import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "../componentes/eventoOrganizadorPopover.css";
 
 
@@ -139,6 +140,7 @@ export default function Eventos({ usuario }) {
   const [searchParams] = useSearchParams();
   const eventoCompartido = searchParams.get("evento");
   const crearEventoParam = searchParams.get("crear");
+  const estadoUrl = searchParams.get("estado");
   const generoUrl = searchParams.get("genero")?.trim().toLowerCase() || "";
   const filtroGeneroUrl = generoUrl && GENEROS_PERMITIDOS_SET.has(generoUrl) ? generoUrl : "todos";
   const generosIniciales = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
@@ -160,6 +162,11 @@ export default function Eventos({ usuario }) {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [detalleExpandido, setDetalleExpandido] = useState(false);
   const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
+  const [estadoEventos, setEstadoEventos] = useState(
+    ["proximos", "pasados"].includes(estadoUrl)
+      ? estadoUrl
+      : eventoCompartido ? "todos" : "proximos"
+  );
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
@@ -216,16 +223,19 @@ export default function Eventos({ usuario }) {
   useEffect(() => {
     let isMounted = true;
     const cargarEventos = async () => {
+      setLoading(true);
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
         const parametros = new URLSearchParams();
+        parametros.set("estado", estadoEventos);
         if (posicionUsuario) {
           parametros.set("lat", String(posicionUsuario.lat));
           parametros.set("lng", String(posicionUsuario.lng));
         }
         const endpoint = `/api/eventos${parametros.size ? `?${parametros.toString()}` : ""}`;
         const res = await apiRequest(endpoint, {
+          auth: false,
           headers: token
             ? {
                 Authorization: `Bearer ${token}`
@@ -238,6 +248,12 @@ export default function Eventos({ usuario }) {
           
           if (isMounted) {
             setEventos(eventosMapeados);
+            setEventoActivo((actual) => (
+              eventosMapeados.some((evento) => evento.id === actual) ? actual : null
+            ));
+            setUltimoEventoDetalle((actual) => (
+              actual && eventosMapeados.some((evento) => evento.id === actual.id) ? actual : null
+            ));
             setLoading(false);
           }
         } else {
@@ -252,7 +268,7 @@ export default function Eventos({ usuario }) {
 
     cargarEventos();
     return () => { isMounted = false; };
-  }, [usuario?.id, posicionUsuario]);
+  }, [estadoEventos, posicionUsuario, usuario?.id]);
 
   useEffect(() => {
     let activo = true;
@@ -261,6 +277,7 @@ export default function Eventos({ usuario }) {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
         const response = await apiRequest("/api/reels", {
+          auth: false,
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (!response.ok) throw new Error("No se pudieron cargar las previews.");
@@ -1031,6 +1048,19 @@ export default function Eventos({ usuario }) {
 
         {!detalleExpandido ? (
           <div className="eventos-sheet-tags" aria-label="Filtrar eventos por género">
+            <button
+              className={estadoEventos === "proximos" ? "activo" : ""}
+              type="button"
+              aria-pressed={estadoEventos === "proximos"}
+              onClick={() => setEstadoEventos("proximos")}
+            >Próximos</button>
+            <button
+              className={estadoEventos === "pasados" ? "activo" : ""}
+              type="button"
+              aria-pressed={estadoEventos === "pasados"}
+              onClick={() => setEstadoEventos("pasados")}
+            >Pasados</button>
+            <span className="eventos-sheet-tags-separador" aria-hidden="true" />
             <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
             {GENEROS_PERMITIDOS.map((genero) => (
               <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>

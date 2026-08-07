@@ -4,7 +4,7 @@ import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilToast from "../componentes/PerfilToast";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./miperfil.css";
 
 const iconosPerfil = {

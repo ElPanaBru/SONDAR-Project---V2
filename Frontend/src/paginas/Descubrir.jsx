@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
 import TextoConMenciones from "../componentes/TextoConMenciones";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./descubrir.css";
 
-const lanzamientosIniciales = [
+const LANZAMIENTOS_INICIALES = [
   {
     id: 1,
     artista: "Luna Norte",
@@ -201,7 +202,7 @@ const comentariosIniciales = [
   },
 ];
 
-const comentariosPorLanzamientoIniciales = {
+const COMENTARIOS_POR_LANZAMIENTO_INICIALES = {
   1: comentariosIniciales,
   2: [
     {
@@ -429,17 +430,6 @@ function AvatarComentario({ comentario }) {
   return inicialComentario(comentario);
 }
 
-function buscarAvatarEnComentarios(comentarios, userId) {
-  for (const comentario of comentarios || []) {
-    if (comentario.userId === userId && comentario.avatar) return comentario.avatar;
-
-    const avatarRespuesta = buscarAvatarEnComentarios(comentario.respuestas, userId);
-    if (avatarRespuesta) return avatarRespuesta;
-  }
-
-  return "";
-}
-
 const reelVacio = {
   tema: "",
   album: "",
@@ -469,6 +459,7 @@ export default function Descubrir({ usuario }) {
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [respuestasEnviando, setRespuestasEnviando] = useState(new Set());
   const [comentariosPorLanzamiento, setComentariosPorLanzamiento] = useState({});
+  const [comentariosCargando, setComentariosCargando] = useState(new Set());
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestaActiva, setRespuestaActiva] = useState(null);
   const [respuestaPara, setRespuestaPara] = useState(null);
@@ -498,6 +489,8 @@ export default function Descubrir({ usuario }) {
   const tiemposReelRef = useRef({});
   const reelPausadoPorUsuarioRef = useRef(null);
   const visitasRegistradasRef = useRef(new Set());
+  const comentariosCargadosRef = useRef(new Set());
+  const comentariosCargandoRef = useRef(new Set());
   const portadaReelInputRef = useRef(null);
   const audioReelInputRef = useRef(null);
   const subiendoReelRef = useRef(false);
@@ -628,17 +621,6 @@ export default function Descubrir({ usuario }) {
   }, []);
 
   useEffect(() => {
-    const abrirCreador = () => ejecutarConSesion(() => setMostrarCrearReel(true));
-    window.addEventListener("sondar:crear-reel", abrirCreador);
-    return () => window.removeEventListener("sondar:crear-reel", abrirCreador);
-  });
-
-  useEffect(() => {
-    if (crearReelParam !== "reel") return;
-    ejecutarConSesion(() => setMostrarCrearReel(true));
-  }, [crearReelParam, usuario]);
-
-  useEffect(() => {
     let activo = true;
 
     const cargarReels = async () => {
@@ -652,6 +634,7 @@ export default function Descubrir({ usuario }) {
         }
         const queryPosicion = parametros.toString();
         const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, {
+          auth: false,
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
@@ -669,67 +652,14 @@ export default function Descubrir({ usuario }) {
 
         if (activo) {
           setLanzamientos(reelsBackend);
-          const comentariosEntries = await Promise.all(
-            reelsBackend.map(async (reel) => {
-              try {
-                const comentariosResponse = await apiRequest(`/api/reels/${reel.backendId}/comentarios`, {
-                  headers: token
-                    ? {
-                        Authorization: `Bearer ${token}`,
-                      }
-                    : undefined,
-                });
-                if (!comentariosResponse.ok) return [reel.id, []];
-                const comentarios = await comentariosResponse.json();
-                return [reel.id, comentarios];
-              } catch {
-                return [reel.id, []];
-              }
-            })
-          );
-
-          const comentariosPorReel = Object.fromEntries(comentariosEntries);
-          let reelsConAvatar = reelsBackend.map((reel) => ({
-            ...reel,
-            avatar:
-              reel.avatar ||
-              buscarAvatarEnComentarios(comentariosPorReel[reel.id], reel.creadorId),
-          }));
-
-          if (token) {
-            const creadoresSinAvatar = [
-              ...new Set(
-                reelsConAvatar
-                  .filter((reel) => !reel.avatar && reel.creadorId)
-                  .map((reel) => reel.creadorId)
-              ),
-            ];
-
-            const avatarEntries = await Promise.all(
-              creadoresSinAvatar.map(async (creadorId) => {
-                try {
-                  const perfilResponse = await apiRequest(`/api/usuarios/${creadorId}/perfil`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                  });
-                  if (!perfilResponse.ok) return [creadorId, ""];
-                  const perfilData = await perfilResponse.json();
-                  return [creadorId, perfilData.perfil?.avatar || ""];
-                } catch {
-                  return [creadorId, ""];
-                }
-              })
-            );
-            const avatarPorCreador = Object.fromEntries(avatarEntries);
-
-            reelsConAvatar = reelsConAvatar.map((reel) => ({
-              ...reel,
-              avatar: reel.avatar || avatarPorCreador[reel.creadorId] || "",
-            }));
-          }
-
-          if (activo) {
-            setLanzamientos(reelsConAvatar);
-            setComentariosPorLanzamiento(comentariosPorReel);
+          if (
+            lanzamientoCompartido
+            && comentarioCompartido
+            && reelsBackend.some((reel) => reel.id === lanzamientoCompartido)
+          ) {
+            setReproduciendo(lanzamientoCompartido);
+            setComentariosAbiertos(lanzamientoCompartido);
+            comentariosAbiertosRef.current = lanzamientoCompartido;
           }
         }
       } catch (error) {
@@ -741,7 +671,50 @@ export default function Descubrir({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [usuario?.id, posicionUsuario]);
+  }, [comentarioCompartido, lanzamientoCompartido, posicionUsuario, usuario?.id]);
+
+  useEffect(() => {
+    if (!comentariosAbiertos) return undefined;
+
+    const lanzamiento = lanzamientos.find((item) => item.id === comentariosAbiertos);
+    if (!lanzamiento?.backendId) return undefined;
+    if (
+      comentariosCargadosRef.current.has(comentariosAbiertos)
+      || comentariosCargandoRef.current.has(comentariosAbiertos)
+    ) return undefined;
+
+    const controller = new AbortController();
+    const lanzamientoId = comentariosAbiertos;
+    comentariosCargandoRef.current.add(lanzamientoId);
+    setComentariosCargando(new Set(comentariosCargandoRef.current));
+
+    const cargarComentarios = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {
+          auth: false,
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("No se pudieron cargar los comentarios.");
+        const comentarios = await response.json();
+        comentariosCargadosRef.current.add(lanzamientoId);
+        setComentariosPorLanzamiento((actuales) => ({
+          ...actuales,
+          [lanzamientoId]: comentarios,
+        }));
+      } catch (error) {
+        if (!controller.signal.aborted) console.error(error);
+      } finally {
+        comentariosCargandoRef.current.delete(lanzamientoId);
+        setComentariosCargando(new Set(comentariosCargandoRef.current));
+      }
+    };
+
+    cargarComentarios();
+    return () => controller.abort();
+  }, [comentariosAbiertos, lanzamientos]);
 
   function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
@@ -1003,26 +976,37 @@ export default function Descubrir({ usuario }) {
     };
   }, []);
 
-  const mostrarAviso = (mensaje) => {
+  const mostrarAviso = useCallback((mensaje) => {
     clearTimeout(avisoTimer.current);
     setAviso(mensaje);
     avisoTimer.current = setTimeout(() => {
       setAviso("");
     }, 2400);
-  };
+  }, []);
 
-  const pedirLogin = () => {
+  const pedirLogin = useCallback(() => {
     mostrarAviso("Tenes que iniciar sesion para interactuar en Descubrir");
-  };
+  }, [mostrarAviso]);
 
-  const ejecutarConSesion = (accion) => {
+  const ejecutarConSesion = useCallback((accion) => {
     if (!usuario) {
       pedirLogin();
       return;
     }
 
     accion();
-  };
+  }, [pedirLogin, usuario]);
+
+  useEffect(() => {
+    const abrirCreador = () => ejecutarConSesion(() => setMostrarCrearReel(true));
+    window.addEventListener("sondar:crear-reel", abrirCreador);
+    return () => window.removeEventListener("sondar:crear-reel", abrirCreador);
+  }, [ejecutarConSesion]);
+
+  useEffect(() => {
+    if (crearReelParam !== "reel") return;
+    ejecutarConSesion(() => setMostrarCrearReel(true));
+  }, [crearReelParam, ejecutarConSesion]);
 
   const obtenerTokenSesion = async () => {
     const { data } = await supabase.auth.getSession();
@@ -1394,48 +1378,6 @@ export default function Descubrir({ usuario }) {
       return;
     }
     navigate(`/perfil/${userId}`);
-  };
-
-  const abrirVistaPerfil = async (perfilBase) => {
-    if (!perfilBase?.id) return;
-
-    setPerfilVista({
-      cargando: true,
-      perfil: perfilBase,
-      stats: perfilBase.stats || {},
-      siguiendo: Boolean(perfilBase.siguiendo),
-    });
-
-    if (!usuario) {
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-      return;
-    }
-
-    try {
-      const token = await obtenerTokenSesion();
-      if (!token) {
-        setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-        return;
-      }
-
-      const response = await apiRequest(`/api/usuarios/${perfilBase.id}/perfil`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("No se pudo cargar el perfil.");
-      const data = await response.json();
-      setPerfilVista({
-        cargando: false,
-        perfil: data.perfil || perfilBase,
-        stats: data.stats || perfilBase.stats || {},
-        siguiendo: Boolean(data.siguiendo),
-      });
-    } catch (error) {
-      console.error(error);
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-    }
   };
 
   const abrirVistaPerfilLanzamiento = (lanzamiento) => {
@@ -2094,6 +2036,13 @@ export default function Descubrir({ usuario }) {
         {lanzamientosFiltrados.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
+          const comentariosCargados = Object.hasOwn(
+            comentariosPorLanzamiento,
+            lanzamiento.id
+          );
+          const cantidadComentarios = comentariosCargados
+            ? comentariosDelLanzamiento.length
+            : Number(lanzamiento.comentarios || 0);
           const puedeEliminar = usuarioPuedeEliminarLanzamiento(lanzamiento);
 
           return (
@@ -2243,7 +2192,7 @@ export default function Descubrir({ usuario }) {
                   >
                     <Icono nombre="comentario" />
                   </button>
-                  <span>{comentariosDelLanzamiento.length}</span>
+                  <span>{cantidadComentarios}</span>
                 </div>
                 <div className="accion-item">
                   <button
@@ -2315,7 +2264,7 @@ export default function Descubrir({ usuario }) {
               >
                 <header className="comentarios-header">
                   <strong>Comentarios</strong>
-                  <span>{comentariosDelLanzamiento.length}</span>
+                  <span>{cantidadComentarios}</span>
                   <button
                     type="button"
                     aria-label="Cerrar comentarios"
@@ -2325,6 +2274,12 @@ export default function Descubrir({ usuario }) {
                   </button>
                 </header>
                 <div className="comentarios-lista">
+                  {comentariosCargando.has(lanzamiento.id) ? (
+                    <p className="comentarios-estado" role="status">Cargando comentarios...</p>
+                  ) : null}
+                  {comentariosCargados && comentariosDelLanzamiento.length === 0 ? (
+                    <p className="comentarios-estado">Todavía no hay comentarios.</p>
+                  ) : null}
                   {comentariosDelLanzamiento.map((comentario) => (
                     <article className="comentario" id={`comentario-${comentario.id}`} key={comentario.id}>
                       <button

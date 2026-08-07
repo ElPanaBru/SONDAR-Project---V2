@@ -5,10 +5,26 @@ const reelController = require('../Controllers/reelController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const evitarCreacionDuplicada = require('../middlewares/evitarCreacionDuplicada');
 
+const IMAGENES_PERMITIDAS = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const AUDIOS_PERMITIDOS = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4']);
+
 const upload = multer({
   storage: multer.memoryStorage(),
+  fileFilter: (_req, file, callback) => {
+    const permitido = file.fieldname === 'portada'
+      ? IMAGENES_PERMITIDAS.has(file.mimetype)
+      : file.fieldname === 'audio' && AUDIOS_PERMITIDOS.has(file.mimetype);
+    if (permitido) return callback(null, true);
+    const error = new Error('Formato de archivo no permitido.');
+    error.code = 'ARCHIVO_INVALIDO';
+    error.status = 400;
+    return callback(error);
+  },
   limits: {
-    fileSize: 20 * 1024 * 1024
+    fileSize: 20 * 1024 * 1024,
+    files: 2,
+    fields: 8,
+    parts: 10,
   }
 });
 

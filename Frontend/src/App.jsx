@@ -1,22 +1,32 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import "./App.css";
-import "./paginas/otroperfil.css";
 
 import Navbar from "./componentes/Navbar";
-import Auth from "./paginas/Auth";
-import Soporte from "./paginas/Soporte";
-import Eventos from "./paginas/Eventos";
-import Descubrir from "./paginas/Descubrir";
-import Buscar from "./paginas/Buscar";
-import Comunidad from "./paginas/Comunidad";
-import MiPerfil from "./paginas/Miperfil";
-import OtroPerfil from "./paginas/OtroPerfil";
-import Configuracion from "./paginas/Configuracion";
 import SidebarNav from "./componentes/SidebarNav";
-import OnboardingPerfilModal from "./componentes/OnboardingPerfilModal";
 import { PreferenciasProvider } from "./contextos/PreferenciasContext";
+
+const Auth = lazy(() => import("./paginas/Auth"));
+const Soporte = lazy(() => import("./paginas/Soporte"));
+const Eventos = lazy(() => import("./paginas/Eventos"));
+const Descubrir = lazy(() => import("./paginas/Descubrir"));
+const Buscar = lazy(() => import("./paginas/Buscar"));
+const Comunidad = lazy(() => import("./paginas/Comunidad"));
+const MiPerfil = lazy(() => import("./paginas/Miperfil"));
+const OtroPerfil = lazy(() => import("./paginas/OtroPerfil"));
+const Configuracion = lazy(() => import("./paginas/Configuracion"));
+const OnboardingPerfilModal = lazy(() => import("./componentes/OnboardingPerfilModal"));
+
+function RutaNoEncontrada() {
+  return (
+    <section className="ruta-no-encontrada">
+      <span>404</span>
+      <h1>Esta pagina no existe</h1>
+      <a href="/">Volver a Eventos</a>
+    </section>
+  );
+}
 
 function App() {
   const location = useLocation();
@@ -42,17 +52,6 @@ function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (location.pathname === "/auth") return;
-    if (window.localStorage.getItem("sondar:onboarding-pending") !== "true") return;
-
-    let activo = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (activo && data.session) setOnboardingToken(data.session.access_token);
-    });
-    return () => { activo = false; };
-  }, [location.pathname]);
-
   const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
@@ -74,29 +73,34 @@ function App() {
           isAuthRoute ? "auth-content" : ""
         }`}
       >
-        <Routes>
-          <Route path="/" element={<Eventos usuario={usuario} />} />
-          <Route path="/soporte" element={<Soporte usuario={usuario} />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
-          <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />
-          <Route path="/buscar" element={<Buscar usuario={usuario} />} />
-          <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
-          <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
-          <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
-        </Routes>
+        <Suspense fallback={<div className="ruta-cargando" role="status">Cargando...</div>}>
+          <Routes>
+            <Route path="/" element={<Eventos usuario={usuario} />} />
+            <Route path="/soporte" element={<Soporte usuario={usuario} />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/perfil" element={<MiPerfil usuario={usuario} />} />
+            <Route path="/perfil/:usuario" element={<OtroPerfil usuarioActual={usuario} />} />
+            <Route path="/buscar" element={<Buscar usuario={usuario} />} />
+            <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
+            <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
+            <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
+            <Route path="*" element={<RutaNoEncontrada />} />
+          </Routes>
+        </Suspense>
       </div>
 
-      {usuario && onboardingToken && location.pathname !== "/auth" ? (
-        <OnboardingPerfilModal
-          token={onboardingToken}
-          username={usuario.user_metadata?.username || usuario.email?.split("@")[0]}
-          onComplete={() => {
-            window.localStorage.removeItem("sondar:onboarding-pending");
-            setOnboardingToken(null);
-          }}
-        />
-      ) : null}
+      <Suspense fallback={null}>
+        {usuario && onboardingToken && location.pathname !== "/auth" ? (
+          <OnboardingPerfilModal
+            token={onboardingToken}
+            username={usuario.user_metadata?.username || usuario.email?.split("@")[0]}
+            onComplete={() => {
+              window.localStorage.removeItem("sondar:onboarding-pending");
+              setOnboardingToken(null);
+            }}
+          />
+        ) : null}
+      </Suspense>
     </div>
     </PreferenciasProvider>
   );

@@ -2,6 +2,8 @@
 
 Fecha: 7 de agosto de 2026
 
+> Actualizacion: gran parte de los hallazgos de este documento ya fue implementada. El estado posterior, el analisis de BDD y los pendientes vigentes estan en `INFORME_IMPLEMENTACION_OPTIMIZACION_BDD_2026-08-07.md`.
+
 ## Resumen ejecutivo
 
 Los cambios pedidos para Eventos y Comunidad quedaron implementados y cuentan con seis pruebas automatizadas específicas. El frontend compila para producción y los archivos modificados pasan ESLint. Durante la revisión se detectaron y corrigieron dos regresiones de integración antes de la entrega: el formulario de eventos todavía enviaba `multipart/form-data` después de retirar el parser de imágenes, y una migración antigua seguía eliminando la nueva tabla de membresías.
@@ -583,4 +585,3 @@ Cachear shell, assets y lecturas recientes; no prometer publicaciones offline si
 5. Crear staging, migraciones formales y CI con tests E2E.
 6. Corregir lint/build raíz, N+1 y code splitting.
 7. Completar moderación/edición de Comunidad y la pasada de accesibilidad/UX.
-

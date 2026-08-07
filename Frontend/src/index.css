@@ -24,6 +24,22 @@ body {
   scrollbar-width: thin;
 }
 
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  color: inherit;
+}
+
+button {
+  margin: 0;
+}
+
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;

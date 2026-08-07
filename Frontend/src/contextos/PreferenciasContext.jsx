@@ -1,20 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-
-export const PREFERENCIAS_INICIALES = Object.freeze({
-  telefono: "",
-  codigoPais: "+54",
-  idioma: "es",
-  actividadCuenta: true,
-  notificarInteracciones: true,
-  notificarComentarios: true,
-  notificarSeguidores: true,
-  notificarPublicaciones: true,
-  notificarMenciones: true,
-  reducirMovimiento: false,
-  mostrarEmail: false,
-});
+import { PREFERENCIAS_INICIALES, PreferenciasContext } from "./preferenciasBase";
 
 const TRADUCCIONES = {
   en: {
@@ -250,7 +237,6 @@ const TRADUCCIONES = {
   },
 };
 
-const PreferenciasContext = createContext(null);
 const STORAGE_KEY = "sondar:preferencias";
 
 function leerPreferenciasLocales() {
@@ -276,8 +262,6 @@ export function PreferenciasProvider({ usuario, children }) {
   }, []);
 
   useEffect(() => {
-    const guardadas = usuario?.user_metadata?.configuracion;
-    if (guardadas && typeof guardadas === "object") actualizarPreferencias(guardadas);
     if (!usuario) return undefined;
 
     let activo = true;
@@ -316,10 +300,4 @@ export function PreferenciasProvider({ usuario, children }) {
   }), [actualizarPreferencias, locale, preferencias, t]);
 
   return <PreferenciasContext.Provider value={valor}>{children}</PreferenciasContext.Provider>;
-}
-
-export function usePreferencias() {
-  const contexto = useContext(PreferenciasContext);
-  if (!contexto) throw new Error("usePreferencias debe usarse dentro de PreferenciasProvider");
-  return contexto;
 }

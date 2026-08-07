@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./sidebarNav.css";
 
 const iconos = {

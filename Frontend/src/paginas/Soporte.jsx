@@ -1,6 +1,6 @@
 import { useState } from "react";
-import emailjs from "emailjs-com";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { apiRequest } from "../lib/api";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./soporte.css";
 
 const preguntas = [
@@ -89,19 +89,12 @@ export default function Soporte({ usuario }) {
     setLoading(true);
 
     try {
-      await emailjs.send(
-        "service_ckdohp4",
-        "template_jl05slh",
-        {
-          subject,
-          message,
-          from_email: emailUsuario,
-          user_email: emailUsuario,
-        },
-        "AG58ztaqMTuDqZNbX"
-      );
-
-
+      const response = await apiRequest("/api/soporte/mensaje", {
+        method: "POST",
+        body: { subject, message },
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(resultado.error || "No se pudo enviar el mensaje.");
 
       setEstado({
         tipo: "success",

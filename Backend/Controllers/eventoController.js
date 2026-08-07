@@ -7,6 +7,8 @@ const {
   notificarSeguidores,
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+const { generoMusicalValido, normalizarGenero } = require('../domain/catalogos');
+const { enteroLimitado, textoLimitado, urlHttpOpcional } = require('../domain/validacion');
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -54,7 +56,7 @@ async function asegurarUsuarioPublico(user) {
      ON CONFLICT (id) DO UPDATE
      SET email = EXCLUDED.email
      RETURNING id`,
-    [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
+    [user.id, email, usernameSeguro, 'musico']
   );
 }
 
@@ -71,6 +73,16 @@ const eventoController = {
       const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
         ? longitudRecibida
         : null;
+      const limite = enteroLimitado(req.query?.limit, { predeterminado: 100, maximo: 200 });
+      const estado = ['proximos', 'pasados', 'todos'].includes(req.query?.estado)
+        ? req.query.estado
+        : 'proximos';
+      const condicionFecha = estado === 'pasados'
+        ? 'e.fecha < NOW()'
+        : estado === 'todos'
+          ? 'TRUE'
+          : 'e.fecha >= NOW()';
+      const ordenFecha = estado === 'pasados' ? 'e.fecha DESC' : 'e.fecha ASC';
       const result = await pool.query(`
         WITH contexto AS (
           SELECT CASE
@@ -151,13 +163,17 @@ const eventoController = {
           JOIN users co ON co.id = eo.user_id
           WHERE eo.event_id = e.id
         ) org ON true
-        WHERE $1::uuid IS NULL OR NOT EXISTS (
-          SELECT 1 FROM user_blocks ub
-          WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
-             OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
+        WHERE (
+          $1::uuid IS NULL OR NOT EXISTS (
+            SELECT 1 FROM user_blocks ub
+            WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
+               OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
+          )
         )
-        ORDER BY recomendacion_score DESC, e.fecha ASC, e.id DESC
-      `, [viewerId, viewerLat, viewerLng]);
+          AND ${condicionFecha}
+        ORDER BY recomendacion_score DESC, ${ordenFecha}, e.id DESC
+        LIMIT $4
+      `, [viewerId, viewerLat, viewerLng, limite]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows);
@@ -201,7 +217,8 @@ const eventoController = {
       res.json(resultado);
     } catch (error) {
       console.error('Error al denunciar evento:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el evento.' });
+      const status = error.status || 500;
+      res.status(status).json({ error: status >= 500 ? 'No se pudo denunciar el evento.' : error.message });
     }
   },
 
@@ -218,17 +235,42 @@ const eventoController = {
       'Anonimo';
 
 
-    if (!titulo || !genero || !ubicacion || !fecha || !latitud || !longitud) {
+    const tituloValidado = textoLimitado(titulo, { minimo: 3, maximo: 160, campo: 'El titulo' });
+    const descripcionValidada = textoLimitado(descripcion, { minimo: 0, maximo: 1000, campo: 'La descripcion' });
+    const ubicacionValidada = textoLimitado(ubicacion, { minimo: 3, maximo: 240, campo: 'La ubicacion' });
+    const generoNormalizado = normalizarGenero(genero);
+    const linkValidado = urlHttpOpcional(link);
+    const latitudNormalizada = Number(latitud);
+    const longitudNormalizada = Number(longitud);
+    const fechaEvento = new Date(fecha);
+    const fechaMaxima = Date.now() + (62 * 24 * 60 * 60 * 1000);
+
+    if (!titulo || !genero || !ubicacion || !fecha || latitud === '' || longitud === '') {
       return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
     }
-
-    if (String(descripcion || '').length > 1000) {
-      return res.status(400).json({ error: 'La descripcion no puede superar los 1000 caracteres.' });
+    if (tituloValidado.error || descripcionValidada.error || ubicacionValidada.error || linkValidado.error) {
+      return res.status(400).json({
+        error: tituloValidado.error || descripcionValidada.error || ubicacionValidada.error || linkValidado.error,
+      });
+    }
+    if (!generoMusicalValido(generoNormalizado)) {
+      return res.status(400).json({ error: 'El genero del evento no es valido.' });
+    }
+    if (!Number.isFinite(latitudNormalizada) || latitudNormalizada < -90 || latitudNormalizada > 90
+      || !Number.isFinite(longitudNormalizada) || longitudNormalizada < -180 || longitudNormalizada > 180) {
+      return res.status(400).json({ error: 'Las coordenadas del evento no son validas.' });
+    }
+    if (Number.isNaN(fechaEvento.getTime()) || fechaEvento.getTime() <= Date.now() || fechaEvento.getTime() > fechaMaxima) {
+      return res.status(400).json({ error: 'La fecha debe estar entre ahora y los proximos dos meses.' });
     }
 
     let organizadorIds = [];
     try {
-      const recibidos = organizadores ? JSON.parse(organizadores) : [];
+      const recibidos = Array.isArray(organizadores)
+        ? organizadores
+        : organizadores
+          ? JSON.parse(organizadores)
+          : [];
       if (!Array.isArray(recibidos)) throw new Error('Formato invalido');
       organizadorIds = [...new Set(recibidos
         .map((id) => String(id || '').trim())
@@ -275,16 +317,16 @@ const eventoController = {
         RETURNING *`;
 
       const values = [
-        titulo,
-        String(descripcion || '').trim(),
-        genero,
-        ubicacion,
-        fecha,
+        tituloValidado.texto,
+        descripcionValidada.texto,
+        generoNormalizado,
+        ubicacionValidada.texto,
+        fechaEvento.toISOString(),
         precioNormalizado,
-        link || null,
+        linkValidado.url,
         creadorId,
-        latitud,
-        longitud
+        latitudNormalizada,
+        longitudNormalizada
       ];
 
       const result = await dbClient.query(query, values);
@@ -319,7 +361,7 @@ const eventoController = {
         actorId: creadorId,
         type: 'new_event',
         title: `${actorName} creo un nuevo evento`,
-        body: titulo,
+        body: tituloValidado.texto,
         targetUrl: `/?evento=${result.rows[0].id}`,
         entityType: 'event',
         entityId: result.rows[0].id,
@@ -332,7 +374,7 @@ const eventoController = {
           actorId: creadorId,
           type: 'event_coorganizer',
           title: `${actorName} te agrego como invitado a un evento`,
-          body: titulo,
+          body: tituloValidado.texto,
           targetUrl: `/?evento=${result.rows[0].id}`,
           entityType: 'event',
           entityId: result.rows[0].id,
@@ -348,7 +390,7 @@ const eventoController = {
     } catch (error) {
       if (dbClient && transaccionActiva) await dbClient.query('ROLLBACK').catch(() => {});
       console.error('Error al crear evento:', error);
-      res.status(500).json({ error: error.message || 'Error al guardar el evento.' });
+      res.status(500).json({ error: 'Error al guardar el evento.' });
     } finally {
       dbClient?.release();
     }

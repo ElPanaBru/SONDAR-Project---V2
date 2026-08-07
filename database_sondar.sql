@@ -1,4 +1,9 @@
--- SONDAR Database Dump
+-- ARCHIVO HISTORICO: NO EJECUTAR NI USAR COMO BACKUP.
+-- Este volcado fue generado con sintaxis ALTER TABLE invalida y se conserva
+-- solo como referencia. Para una instalacion nueva usar
+-- Backend/BDD-Sql/Esquema_Minimo_SONDAR.sql. Para actualizar una instalacion
+-- existente usar, en orden, los archivos versionados de supabase/migrations.
+-- SONDAR Database Dump historico
 -- Generated at 2026-07-01T16:09:28.477Z
 
 ALTER TABLE "comunidad_comentario_likes" (

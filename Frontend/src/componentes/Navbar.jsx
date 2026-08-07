@@ -1,10 +1,10 @@
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 
 const iconosCrear = {
   evento:
@@ -43,7 +43,6 @@ function Navbar({ usuario }) {
   const notificacionesRef = useRef(null);
   const perfilRef = useRef(null);
   const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     const avatarPreview = perfilEditado.avatar;
@@ -65,7 +64,6 @@ function Navbar({ usuario }) {
       return undefined;
     }
     if (!preferencias.actividadCuenta) {
-      setNotificacionesNoLeidas(0);
       return undefined;
     }
 
@@ -174,12 +172,6 @@ function Navbar({ usuario }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (location.pathname !== "/buscar") return;
-    const queryActual = new URLSearchParams(location.search).get("query") || "";
-    setBusqueda(queryActual);
-  }, [location.pathname, location.search]);
-
   const handleSearch = (e) => {
     e.preventDefault();
     const query = busqueda.trim();
@@ -279,6 +271,7 @@ function Navbar({ usuario }) {
   };
 
   const inicialPerfil = (perfilEditado.nombre || usuario?.email || "S").charAt(0).toUpperCase();
+  const notificacionesVisibles = preferencias.actividadCuenta ? notificacionesNoLeidas : 0;
 
   return (
     <>
@@ -348,15 +341,15 @@ function Navbar({ usuario }) {
                     setMostrarPerfil(false);
                     setMostrarNotifs((value) => !value);
                   }}
-                  aria-label={`${t("Notificaciones")}${!preferencias.actividadCuenta ? ": pausadas" : notificacionesNoLeidas ? `, ${notificacionesNoLeidas} sin leer` : ""}`}
+                  aria-label={`${t("Notificaciones")}${!preferencias.actividadCuenta ? ": pausadas" : notificacionesVisibles ? `, ${notificacionesVisibles} sin leer` : ""}`}
                   aria-expanded={mostrarNotifs}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
                     <path d="M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z" />
                   </svg>
-                  {notificacionesNoLeidas > 0 ? (
+                  {notificacionesVisibles > 0 ? (
                     <span className="navbar-notification-badge" aria-hidden="true">
-                      {notificacionesNoLeidas > 99 ? "99+" : notificacionesNoLeidas}
+                      {notificacionesVisibles > 99 ? "99+" : notificacionesVisibles}
                     </span>
                   ) : null}
                 </button>

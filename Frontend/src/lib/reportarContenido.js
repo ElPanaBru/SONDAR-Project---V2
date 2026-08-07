@@ -1,10 +1,4 @@
-import emailjs from "emailjs-com";
-
-const SERVICE_ID = "service_ckdohp4";
-const TEMPLATE_ID = "template_jl05slh";
-const PUBLIC_KEY = "AG58ztaqMTuDqZNbX";
-
-const DESTINO_EMAIL = "sonaradevteam@gmail.com";
+import { apiRequest } from "./api";
 
 export async function avisarDenunciaASoporte({
   tipo,
@@ -15,24 +9,9 @@ export async function avisarDenunciaASoporte({
   detalle,
   nombreUsuario,
 }) {
-  const descripcion = `${nombreUsuario || "Usuario"} denuncio un ${tipo || "contenido"}`;
-  const asunto = `${nombreUsuario || "Usuario"} denuncio ${tipo || "contenido"}`;
-  const message = [
-    asunto + ":",
-    `Motivo: ${motivo || ""}`,
-    detalle ? `Detalle adicional: ${detalle}` : null,
-    `ContenidoId: ${contenidoId || ""}`,
-    titulo ? `Titulo: ${titulo}` : null,
-    autor ? `Autor: ${autor}` : null,
-    `URL: ${window.location.href}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return emailjs.send(
-    SERVICE_ID,
-    TEMPLATE_ID,
-    {
+  const response = await apiRequest("/api/soporte/mensaje", {
+    method: "POST",
+    body: {
       tipo: "denuncia",
       contenidoTipo: tipo,
       contenidoId,
@@ -40,13 +19,13 @@ export async function avisarDenunciaASoporte({
       autor,
       motivo,
       detalle,
-      descripcion,
-      asunto,
-      message,
-      to_email: DESTINO_EMAIL,
+      nombreUsuario,
+      url: window.location.href,
     },
-    PUBLIC_KEY
-  );
+  });
+  const resultado = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(resultado.error || "No se pudo notificar a soporte.");
+  return resultado;
 }
 
 

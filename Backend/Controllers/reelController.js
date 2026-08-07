@@ -13,10 +13,8 @@ const {
   notificarSeguidores,
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
-
-let esquemaComentariosListo = null;
-let esquemaCompartidosListo = null;
-let esquemaVisitasListo = null;
+const { generoReelValido, normalizarGenero } = require('../domain/catalogos');
+const { enteroLimitado, textoLimitado } = require('../domain/validacion');
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -74,74 +72,20 @@ async function asegurarUsuarioPublico(user) {
      ON CONFLICT (id) DO UPDATE
      SET email = EXCLUDED.email
      RETURNING id`,
-    [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
+    [user.id, email, usernameSeguro, 'musico']
   );
 }
 
 async function asegurarEsquemaComentarios() {
-  if (!esquemaComentariosListo) {
-    esquemaComentariosListo = (async () => {
-      await pool.query('ALTER TABLE reel_comments ADD COLUMN IF NOT EXISTS responde_a text');
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS reel_comment_likes (
-          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          comment_id bigint NOT NULL REFERENCES reel_comments(id) ON DELETE CASCADE,
-          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-          CONSTRAINT reel_comment_likes_pkey PRIMARY KEY (user_id, comment_id)
-        )
-      `);
-      await pool.query(
-        'CREATE INDEX IF NOT EXISTS idx_reel_comment_likes_comment_id ON reel_comment_likes(comment_id)'
-      );
-    })().catch((error) => {
-      esquemaComentariosListo = null;
-      throw error;
-    });
-  }
-
-  return esquemaComentariosListo;
+  return undefined;
 }
 
 async function asegurarEsquemaCompartidos() {
-  if (!esquemaCompartidosListo) {
-    esquemaCompartidosListo = (async () => {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS reel_shares (
-          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
-          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
-          CONSTRAINT reel_shares_pkey PRIMARY KEY (user_id, reel_id)
-        )
-      `);
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_shares_reel_id ON reel_shares(reel_id)');
-    })().catch((error) => {
-      esquemaCompartidosListo = null;
-      throw error;
-    });
-  }
-
-  return esquemaCompartidosListo;
+  return undefined;
 }
 
 async function asegurarEsquemaVisitas() {
-  if (!esquemaVisitasListo) {
-    esquemaVisitasListo = (async () => {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS reel_views (
-          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
-          created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
-          CONSTRAINT reel_views_pkey PRIMARY KEY (user_id, reel_id)
-        )
-      `);
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id ON reel_views(reel_id)');
-    })().catch((error) => {
-        esquemaVisitasListo = null;
-        throw error;
-      });
-  }
-
-  return esquemaVisitasListo;
+  return undefined;
 }
 
 function mapearReel(reel) {
@@ -157,7 +101,7 @@ function mapearReel(reel) {
     duracion: reel.duracion || '0:30',
     progreso: 0,
     likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
-    comentarios: '0',
+    comentarios: Number(reel.comentarios_calculados ?? 0),
     compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
     guardados: Number(reel.guardados_calculados ?? reel.guardados ?? 0),
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
@@ -293,6 +237,7 @@ const reelController = {
       const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
         ? longitudRecibida
         : null;
+      const limite = enteroLimitado(req.query?.limit, { predeterminado: 30, maximo: 50 });
       const result = await pool.query(`
         WITH senales_afinidad AS (
           SELECT ui.genre, 30::numeric AS peso
@@ -338,10 +283,11 @@ const reelController = {
         )
         SELECT
           r.*,
-          (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
-          (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
-          (SELECT COUNT(*)::int FROM reel_saves rg WHERE rg.reel_id = r.id) AS guardados_calculados,
-          (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
+          metricas.likes AS likes_calculados,
+          metricas.compartidos AS compartidos_calculados,
+          metricas.guardados AS guardados_calculados,
+          metricas.visitas AS visitas_calculadas,
+          metricas.comentarios AS comentarios_calculados,
           COALESCE(ag.puntaje, 0)::float AS afinidad_score,
           (f.follower_id IS NOT NULL) AS sigue_creador,
           (visto.user_id IS NOT NULL) AS ya_visto,
@@ -360,9 +306,9 @@ const reelController = {
               END
             + LEAST(
                 18,
-                LN(1 + (SELECT COUNT(*) FROM reel_likes rl WHERE rl.reel_id = r.id)) * 5
-                + LN(1 + (SELECT COUNT(*) FROM reel_saves rs WHERE rs.reel_id = r.id)) * 6
-                + LN(1 + (SELECT COUNT(*) FROM reel_views rv WHERE rv.reel_id = r.id)) * 2
+                LN(1 + metricas.likes) * 5
+                + LN(1 + metricas.guardados) * 6
+                + LN(1 + metricas.visitas) * 2
               )
             + GREATEST(0, 18 - EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400)
             - CASE WHEN visto.user_id IS NOT NULL THEN 10 ELSE 0 END
@@ -388,6 +334,14 @@ const reelController = {
         LEFT JOIN afinidad_generos ag ON ag.genre = lower(r.genero)
         LEFT JOIN follows f ON f.follower_id = $1 AND f.following_id = r.creador_id
         LEFT JOIN reel_views visto ON visto.user_id = $1 AND visto.reel_id = r.id
+        LEFT JOIN LATERAL (
+          SELECT
+            (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes,
+            (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos,
+            (SELECT COUNT(*)::int FROM reel_saves rg WHERE rg.reel_id = r.id) AS guardados,
+            (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas,
+            (SELECT COUNT(*)::int FROM reel_comments rc WHERE rc.reel_id = r.id) AS comentarios
+        ) metricas ON true
         LEFT JOIN LATERAL (
           SELECT COUNT(DISTINCT senal.user_id)::int AS personas
           FROM (
@@ -424,7 +378,8 @@ const reelController = {
              OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
         )
         ORDER BY recomendacion_score DESC, r.created_at DESC, r.id DESC
-      `, [viewerId, viewerLat, viewerLng]);
+        LIMIT $4
+      `, [viewerId, viewerLat, viewerLng, limite]);
 
       const reelsOrdenados = diversificarReels(result.rows);
 
@@ -520,7 +475,8 @@ const reelController = {
       res.json(resultado);
     } catch (error) {
       console.error('Error al denunciar reel:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el reel.' });
+      const status = error.status || 500;
+      res.status(status).json({ error: status >= 500 ? 'No se pudo denunciar el reel.' : error.message });
     }
   },
 
@@ -530,6 +486,7 @@ const reelController = {
     try {
       await asegurarEsquemaComentarios();
       const viewerId = await obtenerViewerId(req);
+      const limite = enteroLimitado(req.query.limit, { predeterminado: 100, maximo: 200 });
       const acceso = await buscarAccesoReel(id);
       if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
       const result = await pool.query(
@@ -548,8 +505,9 @@ const reelController = {
         FROM reel_comments rc
         LEFT JOIN users u ON u.id = rc.user_id
         WHERE rc.reel_id = $1
-        ORDER BY rc.created_at ASC, rc.id ASC`,
-        [id, viewerId]
+        ORDER BY rc.created_at ASC, rc.id ASC
+        LIMIT $3`,
+        [id, viewerId, limite]
       );
 
       res.json(anidarComentarios(result.rows));
@@ -566,11 +524,13 @@ const reelController = {
   crearComentario: async (req, res) => {
     const { id } = req.params;
     const { texto, parentId, respondeA } = req.body;
-    const textoLimpio = texto?.trim();
-    const respondeALimpio = respondeA?.trim() || null;
+    const textoValidado = textoLimitado(texto, { minimo: 1, maximo: 2000, campo: 'El comentario' });
+    const respondeAValidado = textoLimitado(respondeA, { minimo: 0, maximo: 40, campo: 'La mencion' });
+    const textoLimpio = textoValidado.texto;
+    const respondeALimpio = respondeAValidado.texto || null;
 
-    if (!textoLimpio) {
-      return res.status(400).json({ error: 'El comentario no puede estar vacio.' });
+    if (textoValidado.error || respondeAValidado.error) {
+      return res.status(400).json({ error: textoValidado.error || respondeAValidado.error });
     }
 
     try {
@@ -578,6 +538,15 @@ const reelController = {
       await asegurarEsquemaComentarios();
       const acceso = await buscarAccesoReel(id);
       if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
+      if (parentId) {
+        const padre = await pool.query(
+          'SELECT id FROM reel_comments WHERE id = $1 AND reel_id = $2',
+          [parentId, id]
+        );
+        if (padre.rowCount === 0) {
+          return res.status(400).json({ error: 'El comentario padre no pertenece a este reel.' });
+        }
+      }
 
       const result = await pool.query(
         `INSERT INTO reel_comments (reel_id, user_id, parent_id, texto, responde_a)
@@ -662,8 +631,20 @@ const reelController = {
     let portadaSubida = null;
     let audioSubido = null;
 
+    const temaValidado = textoLimitado(tema, { minimo: 1, maximo: 50, campo: 'El tema' });
+    const albumValidado = textoLimitado(album, { minimo: 1, maximo: 60, campo: 'El album' });
+    const descripcionValidada = textoLimitado(descripcion, { minimo: 0, maximo: 180, campo: 'La descripcion' });
+    const generoNormalizado = normalizarGenero(genero);
+    const duracionNormalizada = /^\d{1,3}:[0-5]\d$/.test(String(duracion || '')) ? String(duracion) : '0:30';
+
     if (!tema || !album || !genero || !audioFile) {
       return res.status(400).json({ error: 'Faltan datos obligatorios del reel.' });
+    }
+    if (temaValidado.error || albumValidado.error || descripcionValidada.error) {
+      return res.status(400).json({ error: temaValidado.error || albumValidado.error || descripcionValidada.error });
+    }
+    if (!generoReelValido(generoNormalizado)) {
+      return res.status(400).json({ error: 'El genero del reel no es valido.' });
     }
 
     try {
@@ -679,24 +660,17 @@ const reelController = {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *`,
         [
-          tema,
-          album,
-          genero,
-          descripcion || 'Nuevo reel publicado en SONDAR.',
-          duracion || '0:30',
+          temaValidado.texto,
+          albumValidado.texto,
+          generoNormalizado,
+          descripcionValidada.texto || 'Nuevo reel publicado en SONDAR.',
+          duracionNormalizada,
           portadaSubida?.publicUrl || null,
           portadaSubida?.path || null,
           audioSubido.publicUrl,
           audioSubido.path,
           req.user.id
         ]
-      );
-
-      const usuarioResult = await pool.query(
-        `SELECT u.profile_img_url
-         FROM users u
-         WHERE u.id = $1`,
-        [req.user.id]
       );
 
       const actorName = nombreActor(req.user);
@@ -711,7 +685,7 @@ const reelController = {
         uniquePrefix: `new-reel:${result.rows[0].id}`,
       });
       await notificarMenciones({
-        texto: descripcion,
+        texto: descripcionValidada.texto,
         actorId: req.user.id,
         actorName,
         targetUrl: `/descubrir?lanzamiento=db-${result.rows[0].id}`,
@@ -723,13 +697,16 @@ const reelController = {
         ...result.rows[0],
         creador_nombre: req.user.user_metadata?.username || req.user.email?.split('@')[0],
         creador_email: req.user.email,
-        creador_avatar: usuarioResult.rows[0]?.profile_img_url || '',
+        creador_avatar: req.user.user_metadata?.avatar_url || '',
       }));
     } catch (error) {
       await eliminarArchivoReel(portadaSubida?.path).catch(() => null);
       await eliminarArchivoReel(audioSubido?.path).catch(() => null);
+      if (error.code === 'ARCHIVO_INVALIDO') {
+        return res.status(400).json({ error: error.message });
+      }
       console.error('Error al crear reel:', error);
-      res.status(500).json({ error: error.message || 'No se pudo guardar el reel.' });
+      res.status(500).json({ error: 'No se pudo guardar el reel.' });
     }
   },
 

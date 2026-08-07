@@ -1457,6 +1457,14 @@
 
 .eventos-sheet-tags::-webkit-scrollbar { display: none; }
 
+.eventos-sheet-tags-separador {
+  width: 1px;
+  height: 20px;
+  flex: 0 0 1px;
+  margin-inline: 3px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
 .eventos-sheet-tags button {
   min-height: 27px;
   flex: 0 0 auto;

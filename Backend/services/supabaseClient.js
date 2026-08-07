@@ -1,10 +1,8 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '..', '..', 'Frontend', '.env') });
 const { createClient } = require('@supabase/supabase-js');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 const supabaseTimeoutMs = Number(process.env.SUPABASE_TIMEOUT_MS || 12000);
 
 if (!supabaseUrl || !supabaseServiceRoleKey) {

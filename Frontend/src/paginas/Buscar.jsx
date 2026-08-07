@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../hooks/usePreferencias";
 import "./buscar.css";
 
 const TABS = [
@@ -103,9 +103,9 @@ export default function Buscar({ usuario }) {
         const encodedQuery = encodeURIComponent(query);
 
         const [usuariosResult, reelsResult, eventosResult] = await Promise.allSettled([
-          apiRequest(`/api/usuarios?query=${encodedQuery}`, { headers }),
-          apiRequest("/api/reels", { headers }),
-          apiRequest("/api/eventos", { headers }),
+          apiRequest(`/api/usuarios?query=${encodedQuery}`, { auth: false, headers }),
+          apiRequest("/api/reels", { auth: false, headers }),
+          apiRequest("/api/eventos", { auth: false, headers }),
         ]);
 
         const usuariosData =
