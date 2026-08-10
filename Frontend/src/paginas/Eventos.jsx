@@ -24,7 +24,7 @@ const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
-const LOGO_EVENTO_PREDETERMINADO = "/sondar-logo.png";
+const LOGO_EVENTO_PREDETERMINADO = "/sondar-logo.png?v=7";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
   month: "long",
@@ -542,7 +542,7 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-logo.png'" />
+                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-logo.png?v=7'" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>
@@ -1013,7 +1013,7 @@ export default function Eventos({ usuario }) {
                 <IconoPanel nombre="izquierda" />
               </button>
               <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
-                <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
+                <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=7"; }} />
                 <span>
                   <strong>{detalleEvento.titulo}</strong>
                   <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
@@ -1133,7 +1133,7 @@ export default function Eventos({ usuario }) {
 
             {previewSeleccionada ? (
               <div className="evento-preview-reproductor" aria-live="polite" key={previewSeleccionada.id}>
-                <img src={previewSeleccionada.portada || "/sondar-icon.png"} alt={`Portada de ${previewSeleccionada.tema}`} />
+                <img src={previewSeleccionada.portada || "/sondar-icon.png?v=7"} alt={`Portada de ${previewSeleccionada.tema}`} />
                 <div className="evento-preview-reproductor-cuerpo">
                   <div className="evento-preview-reproductor-info">
                     <span>{previewSeleccionada.genero || "Reel"}</span>

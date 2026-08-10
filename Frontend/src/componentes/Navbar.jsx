@@ -277,7 +277,7 @@ function Navbar({ usuario }) {
     <>
       <nav className="custom-navbar">
         <Link to="/" className="navbar-brand">
-          <img src="/sondar-logo.png" alt="SONDAR" className="logo" />
+          <img src="/sondar-logo.png?v=7" alt="SONDAR" className="logo" />
         </Link>
 
         <div className="navbar-center">
