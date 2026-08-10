@@ -1,13 +1,13 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="a" x1="72" y1="430" x2="432" y2="68" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ff3d00"/><stop offset="0.25" stop-color="#ff5a00"/><stop offset="0.48" stop-color="#ff8f00"/><stop offset="0.72" stop-color="#ffd600"/><stop offset="1" stop-color="#fff000"/>
+      <stop offset="0" stop-color="#ff5a00"/><stop offset="0.25" stop-color="#ff2d3d"/><stop offset="0.48" stop-color="#8f2ed2"/><stop offset="0.72" stop-color="#ff8a16"/><stop offset="1" stop-color="#b12bdf"/>
     </linearGradient>
     <linearGradient id="b" x1="118" y1="120" x2="390" y2="390" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#fff000"/><stop offset="0.42" stop-color="#ffc400"/><stop offset="0.74" stop-color="#ff8500"/><stop offset="1" stop-color="#ff3d00"/>
+      <stop offset="0" stop-color="#ffb31a"/><stop offset="0.42" stop-color="#ff5a00"/><stop offset="0.74" stop-color="#b531dc"/><stop offset="1" stop-color="#ff6b00"/>
     </linearGradient>
     <radialGradient id="c" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 254) rotate(90) scale(66)">
-      <stop offset="0" stop-color="#ffd21a"/><stop offset="0.35" stop-color="#ff9c00"/><stop offset="0.72" stop-color="#ff6900"/><stop offset="1" stop-color="#ff4100"/>
+      <stop offset="0" stop-color="#ffb31a"/><stop offset="0.35" stop-color="#ff4d00"/><stop offset="0.72" stop-color="#c62bd7"/><stop offset="1" stop-color="#4a155e"/>
     </radialGradient>
   </defs>
   <circle cx="256" cy="256" r="214" fill="#050505" stroke="url(#a)" stroke-width="13"/>
@@ -23,5 +23,5 @@
   </g>
   <circle cx="256" cy="256" r="58" fill="url(#c)"/>
   <circle cx="256" cy="256" r="18" fill="#151515"/>
-  <circle cx="256" cy="256" r="7" fill="#050505"/>
+  <circle cx="256" cy="256" r="7" fill="#a9a9a9"/>
 </svg>
