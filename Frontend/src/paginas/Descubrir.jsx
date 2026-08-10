@@ -325,6 +325,47 @@ const GENEROS_REEL = [
   "otros",
 ];
 const GENEROS_REEL_SET = new Set(GENEROS_REEL);
+const MAX_PORTADA_REEL_BYTES = 5 * 1024 * 1024;
+const MAX_AUDIO_REEL_BYTES = 20 * 1024 * 1024;
+const MIME_PORTADA_POR_EXTENSION = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+};
+const MIME_AUDIO_POR_EXTENSION = {
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  webm: "audio/webm",
+  m4a: "audio/mp4",
+};
+const ACCEPT_PORTADA_REEL = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
+const ACCEPT_AUDIO_REEL = ".mp3,.wav,.ogg,.webm,.m4a,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4";
+
+function prepararArchivoReel(archivo, tiposPorExtension, maxBytes, etiqueta) {
+  const extension = archivo.name.split(".").pop()?.toLowerCase() || "";
+  const mimeEsperado = tiposPorExtension[extension];
+  if (!mimeEsperado) {
+    throw new Error(`El formato de ${etiqueta} no esta permitido.`);
+  }
+  if (archivo.size > maxBytes) {
+    const maxMb = Math.round(maxBytes / (1024 * 1024));
+    throw new Error(`El ${etiqueta} no puede superar los ${maxMb}MB.`);
+  }
+
+  const tiposCompatibles = new Set(Object.values(tiposPorExtension));
+  const aliasesCompatibles = etiqueta === "audio"
+    ? new Set(["audio/mp3", "audio/x-wav", "audio/wave", "audio/x-m4a"])
+    : new Set();
+  if (archivo.type && !tiposCompatibles.has(archivo.type) && !aliasesCompatibles.has(archivo.type)) {
+    throw new Error(`El tipo declarado del ${etiqueta} no coincide con su extension.`);
+  }
+
+  if (archivo.type === mimeEsperado) return archivo;
+  return new File([archivo], archivo.name, { type: mimeEsperado, lastModified: archivo.lastModified });
+}
 
 function normalizarGeneroReel(genero) {
   const valor = genero?.trim().toLowerCase() || "";
@@ -661,11 +702,28 @@ export default function Descubrir({ usuario }) {
         if (!response.ok) throw new Error("No se pudieron cargar los reels.");
 
         const data = await response.json();
-        const reelsBackend = data.map((reel) => ({
+        let reelsBackend = data.map((reel) => ({
           ...reel,
           id: `db-${reel.id}`,
           backendId: reel.backendId || reel.id,
         }));
+
+        const reelCompartidoBackendId = String(lanzamientoCompartido || "").replace(/^db-/, "");
+        const faltaReelCompartido = /^\d+$/.test(reelCompartidoBackendId)
+          && !reelsBackend.some((reel) => String(reel.backendId) === reelCompartidoBackendId);
+        if (faltaReelCompartido) {
+          const reelResponse = await apiRequest(`/api/reels/${reelCompartidoBackendId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (reelResponse.ok) {
+            const reel = await reelResponse.json();
+            reelsBackend = [{
+              ...reel,
+              id: `db-${reel.id}`,
+              backendId: reel.backendId || reel.id,
+            }, ...reelsBackend];
+          }
+        }
 
         if (activo) {
           setLanzamientos(reelsBackend);
@@ -741,7 +799,7 @@ export default function Descubrir({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [usuario?.id, posicionUsuario]);
+  }, [lanzamientoCompartido, usuario?.id, posicionUsuario]);
 
   function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
@@ -1055,16 +1113,27 @@ export default function Descubrir({ usuario }) {
     });
 
   const cambiarPortadaReel = async (event) => {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
+    const seleccionado = event.target.files?.[0];
+    if (!seleccionado) return;
 
-    const portada = await leerArchivo(archivo);
-    setNuevoReel((actual) => ({
-      ...actual,
-      portada,
-      portadaFile: archivo,
-      nombrePortada: archivo.name,
-    }));
+    try {
+      const archivo = prepararArchivoReel(
+        seleccionado,
+        MIME_PORTADA_POR_EXTENSION,
+        MAX_PORTADA_REEL_BYTES,
+        "portada"
+      );
+      const portada = await leerArchivo(archivo);
+      setNuevoReel((actual) => ({
+        ...actual,
+        portada,
+        portadaFile: archivo,
+        nombrePortada: archivo.name,
+      }));
+    } catch (error) {
+      if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
+      mostrarAviso(error.message || "No se pudo leer la portada seleccionada.");
+    }
   };
 
   const limpiarPortadaReel = () => {
@@ -1078,11 +1147,35 @@ export default function Descubrir({ usuario }) {
   };
 
   const cambiarAudioReel = async (event) => {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
+    const seleccionado = event.target.files?.[0];
+    if (!seleccionado) return;
+
+    let archivo;
+    try {
+      archivo = prepararArchivoReel(
+        seleccionado,
+        MIME_AUDIO_POR_EXTENSION,
+        MAX_AUDIO_REEL_BYTES,
+        "audio"
+      );
+    } catch (error) {
+      if (audioReelInputRef.current) audioReelInputRef.current.value = "";
+      mostrarAviso(error.message || "No se pudo leer el audio seleccionado.");
+      return;
+    }
 
     const audio = URL.createObjectURL(archivo);
     const elementoAudio = new Audio(audio);
+    setNuevoReel((actual) => {
+      if (actual.audio?.startsWith("blob:")) URL.revokeObjectURL(actual.audio);
+      return {
+        ...actual,
+        audio,
+        audioFile: archivo,
+        nombreAudio: archivo.name,
+        duracion: "0:30",
+      };
+    });
     elementoAudio.addEventListener(
       "loadedmetadata",
       () => {
@@ -1091,19 +1184,23 @@ export default function Descubrir({ usuario }) {
           : 30;
         const minutos = Math.floor(segundosTotales / 60);
         const segundos = String(segundosTotales % 60).padStart(2, "0");
-        setNuevoReel((actual) => {
-          if (actual.audio?.startsWith("blob:")) {
-            URL.revokeObjectURL(actual.audio);
-          }
-
-          return {
-            ...actual,
-            audio,
-            audioFile: archivo,
-            nombreAudio: archivo.name,
-            duracion: `${minutos}:${segundos}`,
-          };
-        });
+        setNuevoReel((actual) => actual.audio === audio
+          ? { ...actual, duracion: `${minutos}:${segundos}` }
+          : actual
+        );
+      },
+      { once: true }
+    );
+    elementoAudio.addEventListener(
+      "error",
+      () => {
+        URL.revokeObjectURL(audio);
+        if (audioReelInputRef.current) audioReelInputRef.current.value = "";
+        setNuevoReel((actual) => actual.audio === audio
+          ? { ...actual, audio: "", audioFile: null, nombreAudio: "", duracion: "0:30" }
+          : actual
+        );
+        mostrarAviso("El archivo no contiene un audio reproducible.");
       },
       { once: true }
     );
@@ -1533,6 +1630,7 @@ export default function Descubrir({ usuario }) {
           autor: lanzamiento.usuario || lanzamiento.artista,
           motivo: etiquetaMotivoDenuncia(motivo),
           detalle,
+          url: crearEnlaceLanzamiento(lanzamiento),
         });
         mostrarAviso("Reel denunciado. Soporte fue notificado.");
       } catch (emailError) {
@@ -2726,8 +2824,8 @@ export default function Descubrir({ usuario }) {
                   <div className="crear-reel-archivo-grupo">
                     <label className="crear-reel-archivo">
                       <span>Seleccionar portada</span>
-                      <small>{nuevoReel.nombrePortada || "JPG, PNG o WEBP"}</small>
-                      <input ref={portadaReelInputRef} type="file" accept="image/*" onChange={cambiarPortadaReel} />
+                      <small>{nuevoReel.nombrePortada || "JPG, PNG, WEBP o GIF (max. 5MB)"}</small>
+                      <input ref={portadaReelInputRef} type="file" accept={ACCEPT_PORTADA_REEL} onChange={cambiarPortadaReel} />
                     </label>
                     {nuevoReel.nombrePortada ? (
                       <button className="crear-reel-limpiar" type="button" onClick={limpiarPortadaReel}>
@@ -2738,8 +2836,8 @@ export default function Descubrir({ usuario }) {
                   <div className="crear-reel-archivo-grupo">
                     <label className="crear-reel-archivo">
                       <span>Seleccionar audio</span>
-                      <small>{nuevoReel.nombreAudio || "MP3, WAV u OGG"}</small>
-                      <input ref={audioReelInputRef} type="file" accept="audio/*" onChange={cambiarAudioReel} required />
+                      <small>{nuevoReel.nombreAudio || "MP3, WAV, OGG, WEBM o M4A (max. 20MB)"}</small>
+                      <input ref={audioReelInputRef} type="file" accept={ACCEPT_AUDIO_REEL} onChange={cambiarAudioReel} required />
                     </label>
                     {nuevoReel.nombreAudio ? (
                       <button className="crear-reel-limpiar" type="button" onClick={limpiarAudioReel}>

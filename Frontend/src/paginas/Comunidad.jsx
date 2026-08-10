@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
+import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import "./comunidad.css";
 
@@ -135,59 +137,6 @@ const comunidadesPorGenero = [
   },
 ];
 
-const hilosIniciales = [
-  {
-    id: 1,
-    comunidadId: "rock",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "destacado",
-    titulo: "Que bandas nuevas de rock estan siguiendo?",
-    texto: "Armen una lista con artistas para descubrir esta semana.",
-    etiqueta: "rock",
-    votos: 24,
-    likes: 24,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 2 h",
-    comentarios: [
-      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Marea Gris viene sonando fuerte.", votos: 8, likes: 8, respuestas: [] },
-    ],
-  },
-  {
-    id: 2,
-    comunidadId: "trap",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "preguntas",
-    titulo: "Productores de trap para colaborar",
-    texto: "Dejen beats, referencias o busquedas de feats para conectar con otros usuarios.",
-    etiqueta: "trap",
-    votos: 18,
-    likes: 18,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 4 h",
-    comentarios: [],
-  },
-  {
-    id: 3,
-    comunidadId: "edm",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "popular",
-    titulo: "Sets favoritos para estudiar produccion",
-    texto: "Compartan sets o tracks que sirvan para analizar transiciones, drops y mezcla.",
-    etiqueta: "edm",
-    votos: 31,
-    likes: 31,
-    liked: false,
-    guardado: true,
-    tiempo: "hace 1 d",
-    comentarios: [],
-  },
-];
-
 const crearHeadersJson = (token) => ({
   "Content-Type": "application/json",
   ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -207,40 +156,74 @@ const formatearFechaCorta = (fecha) => {
   return valor.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
 };
 
+const normalizarComentario = (comentario) => ({
+  ...comentario,
+  votos: Number(comentario.votos ?? comentario.likes ?? 0),
+  likes: Number(comentario.likes ?? comentario.votos ?? 0),
+  liked: Boolean(comentario.liked),
+  respuestas: (comentario.respuestas || []).map(normalizarComentario),
+});
+
 const normalizarHilo = (hilo) => ({
   ...hilo,
   votos: Number(hilo.votos ?? hilo.likes ?? 0),
   likes: Number(hilo.likes ?? hilo.votos ?? 0),
-  comentarios: (hilo.comentarios || []).map((comentario) => ({
+  comentarios: (hilo.comentarios || []).map(normalizarComentario),
+});
+
+const contarComentarios = (comentarios = []) => comentarios.reduce(
+  (total, comentario) => total + 1 + contarComentarios(comentario.respuestas),
+  0
+);
+
+const agregarComentario = (comentarios, parentId, nuevoComentario) => {
+  if (!parentId) return [...comentarios, nuevoComentario];
+  return comentarios.map((comentario) => {
+    if (String(comentario.id) === String(parentId)) {
+      return { ...comentario, respuestas: [...comentario.respuestas, nuevoComentario] };
+    }
+    return {
+      ...comentario,
+      respuestas: agregarComentario(comentario.respuestas, parentId, nuevoComentario),
+    };
+  });
+};
+
+const actualizarComentario = (comentarios, comentarioId, actualizar) => comentarios.map((comentario) => {
+  if (String(comentario.id) === String(comentarioId)) return actualizar(comentario);
+  return {
     ...comentario,
-    votos: Number(comentario.votos ?? comentario.likes ?? 0),
-    likes: Number(comentario.likes ?? comentario.votos ?? 0),
-    respuestas: comentario.respuestas || [],
-  })),
+    respuestas: actualizarComentario(comentario.respuestas, comentarioId, actualizar),
+  };
 });
 
 export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
   const publicandoRef = useRef(false);
   const comentariosEnviandoRef = useRef(new Set());
+  const likesComentariosEnviandoRef = useRef(new Set());
   const filtroRef = useRef(null);
   const audioAsociadoRef = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
+  const comentarioCompartido = searchParams.get("comentario");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
   const [comunidadActivaId, setComunidadActivaId] = useState("pop");
   const [filtroActivo, setFiltroActivo] = useState("destacado");
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [hilos, setHilos] = useState(hilosIniciales.map(normalizarHilo));
-  const [cargandoHilos, setCargandoHilos] = useState(false);
+  const [hilos, setHilos] = useState([]);
+  const [cargandoHilos, setCargandoHilos] = useState(true);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestas, setRespuestas] = useState({});
+  const [respuestaActiva, setRespuestaActiva] = useState(null);
   const [aviso, setAviso] = useState("");
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
+  const [likesComentariosEnviando, setLikesComentariosEnviando] = useState(new Set());
+  const [denunciaPendiente, setDenunciaPendiente] = useState(null);
+  const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
   const [eventosAsociables, setEventosAsociables] = useState([]);
@@ -434,10 +417,7 @@ export default function Comunidad({ usuario }) {
         }
       } catch (error) {
         if (!cancelado) {
-          const locales = hilosIniciales
-            .map(normalizarHilo)
-            .filter((hilo) => hilo.comunidadId === comunidadActiva.id);
-          setHilos(locales);
+          setHilos([]);
           mostrarAviso(error.message || "No se pudieron cargar las publicaciones.");
         }
       } finally {
@@ -487,7 +467,7 @@ export default function Comunidad({ usuario }) {
   }, [busqueda, hilosConAsociaciones, publicacionCompartida]);
 
   const totalComentarios = useMemo(
-    () => hilosFiltrados.reduce((total, hilo) => total + hilo.comentarios.length, 0),
+    () => hilosFiltrados.reduce((total, hilo) => total + contarComentarios(hilo.comentarios), 0),
     [hilosFiltrados]
   );
 
@@ -500,6 +480,21 @@ export default function Comunidad({ usuario }) {
       });
     }, 120);
   }, [cargandoHilos, hilos, publicacionCompartida]);
+
+  useEffect(() => {
+    if (!publicacionCompartida || !comentarioCompartido || cargandoHilos) return;
+    const publicacionId = Number(publicacionCompartida);
+    setRespuestasAbiertas((abiertas) => abiertas.includes(publicacionId)
+      ? abiertas
+      : [...abiertas, publicacionId]
+    );
+    window.setTimeout(() => {
+      document.getElementById(`comentario-${comentarioCompartido}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 180);
+  }, [cargandoHilos, comentarioCompartido, hilos, publicacionCompartida]);
 
   const handleChange = (e) => {
     setNuevoHilo({
@@ -587,11 +582,12 @@ export default function Comunidad({ usuario }) {
     copiarEnlace(url.toString(), "Enlace del foro copiado");
   };
 
-  const compartirPublicacion = (hilo) => {
+  const crearEnlaceContenido = (hiloId, comentarioId = null) => {
     const url = new URL("/comunidad", window.location.origin);
     url.searchParams.set("comunidad", comunidadActiva.id);
-    url.searchParams.set("publicacion", hilo.id);
-    copiarEnlace(url.toString(), "Enlace de la publicacion copiado");
+    url.searchParams.set("publicacion", hiloId);
+    if (comentarioId) url.searchParams.set("comentario", comentarioId);
+    return url.toString();
   };
 
   const actualizarHilo = (id, actualizar) => {
@@ -749,15 +745,15 @@ export default function Comunidad({ usuario }) {
     );
   };
 
-  const responder = async (hiloId) => {
-    const claveEnvio = String(hiloId);
+  const responder = async (hiloId, parentId = null) => {
+    const claveEnvio = `${hiloId}:${parentId || "principal"}`;
     if (comentariosEnviandoRef.current.has(claveEnvio)) return;
     if (!usuario) {
       pedirLogin();
       return;
     }
 
-    const texto = respuestas[hiloId]?.trim();
+    const texto = respuestas[claveEnvio]?.trim();
     if (!texto) return;
 
     comentariosEnviandoRef.current.add(claveEnvio);
@@ -768,7 +764,7 @@ export default function Comunidad({ usuario }) {
       const response = await apiRequest(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {
         method: "POST",
         headers: crearHeadersJson(token),
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({ texto, parentId }),
       });
 
       if (!response.ok) {
@@ -777,42 +773,121 @@ export default function Comunidad({ usuario }) {
       }
 
       const comentarioGuardado = await response.json();
+      const comentarioNormalizado = normalizarComentario(comentarioGuardado);
       setHilos((actuales) =>
         actuales.map((hilo) =>
           hilo.id === hiloId
             ? {
                 ...hilo,
-                comentarios: [...hilo.comentarios, normalizarHilo({ comentarios: [comentarioGuardado] }).comentarios[0]],
+                comentarios: agregarComentario(hilo.comentarios, parentId, comentarioNormalizado),
               }
             : hilo
         )
       );
+      setRespuestas((actuales) => ({ ...actuales, [claveEnvio]: "" }));
+      if (parentId) setRespuestaActiva(null);
     } catch (error) {
-      const comentarioLocal = {
-        id: siguienteComentarioId.current,
-        autor: usuario?.user_metadata?.username || usuario?.email?.split("@")[0] || "Usuario SONDAR",
-        usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
-        texto,
-        votos: 0,
-        likes: 0,
-        respuestas: [],
-      };
-      siguienteComentarioId.current += 1;
-      setHilos((actuales) =>
-        actuales.map((hilo) =>
-          hilo.id === hiloId
-            ? { ...hilo, comentarios: [...hilo.comentarios, comentarioLocal] }
-            : hilo
-        )
-      );
-      mostrarAviso(error.message || "Comentario local hasta reconectar.");
+      mostrarAviso(error.message || "No se pudo guardar el comentario.");
     } finally {
       comentariosEnviandoRef.current.delete(claveEnvio);
       setComentariosEnviando(new Set(comentariosEnviandoRef.current));
     }
 
-    setRespuestas({ ...respuestas, [hiloId]: "" });
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
+  };
+
+  const votarComentario = async (hiloId, comentarioId) => {
+    const clave = String(comentarioId);
+    if (likesComentariosEnviandoRef.current.has(clave)) return;
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hiloAnterior = hilos.find((hilo) => hilo.id === hiloId);
+    likesComentariosEnviandoRef.current.add(clave);
+    setLikesComentariosEnviando(new Set(likesComentariosEnviandoRef.current));
+    actualizarHilo(hiloId, (hilo) => ({
+      ...hilo,
+      comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => {
+        const liked = !comentario.liked;
+        const likes = Math.max(0, comentario.likes + (liked ? 1 : -1));
+        return { ...comentario, liked, likes, votos: likes };
+      }),
+    }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(`/api/comunidades/comentarios/${comentarioId}/like`, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo actualizar el me gusta.");
+      actualizarHilo(hiloId, (hilo) => ({
+        ...hilo,
+        comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+          ...comentario,
+          liked: body.liked,
+          likes: body.likes,
+          votos: body.votos ?? body.likes,
+        })),
+      }));
+    } catch (error) {
+      if (hiloAnterior) actualizarHilo(hiloId, () => hiloAnterior);
+      mostrarAviso(error.message || "No se pudo actualizar el me gusta.");
+    } finally {
+      likesComentariosEnviandoRef.current.delete(clave);
+      setLikesComentariosEnviando(new Set(likesComentariosEnviandoRef.current));
+    }
+  };
+
+  const denunciarContenido = async ({ motivo, detalle }) => {
+    if (!denunciaPendiente || !usuario) return;
+    const { tipo, hilo, comentario } = denunciaPendiente;
+    const esComentario = tipo === "comentario";
+    const contenidoId = esComentario ? comentario.id : hilo.id;
+    const endpoint = esComentario
+      ? `/api/comunidades/comentarios/${contenidoId}/denunciar`
+      : `/api/comunidades/publicaciones/${contenidoId}/denunciar`;
+
+    setEnviandoDenuncia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(endpoint, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+        body: JSON.stringify({ reason: motivo, detail: detalle }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo registrar la denuncia.");
+      setDenunciaPendiente(null);
+      if (body.nuevaDenuncia === false) {
+        mostrarAviso("Ya habias denunciado este contenido.");
+        return;
+      }
+
+      try {
+        await avisarDenunciaASoporte({
+          tipo: esComentario ? "comentario de comunidad" : "publicacion de comunidad",
+          contenidoId,
+          titulo: esComentario ? `Comentario en ${hilo.titulo}` : hilo.titulo,
+          autor: esComentario ? comentario.usuario || comentario.autor : hilo.usuario || hilo.op,
+          motivo: etiquetaMotivoDenuncia(motivo),
+          detalle,
+          nombreUsuario: usuario.user_metadata?.username || usuario.email?.split("@")[0],
+          url: crearEnlaceContenido(hilo.id, esComentario ? comentario.id : null),
+        });
+        mostrarAviso("Denuncia registrada y enviada a soporte.");
+      } catch (emailError) {
+        console.error("Email de denuncia de comunidad:", emailError);
+        mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email.");
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo registrar la denuncia.");
+    } finally {
+      setEnviandoDenuncia(false);
+    }
   };
 
   const irARecursoForo = (recursoId) => {
@@ -845,6 +920,86 @@ export default function Comunidad({ usuario }) {
     audio.play()
       .then(() => setReelAsociadoActivo(reel.id))
       .catch(() => mostrarAviso("No se pudo reproducir este reel."));
+  };
+
+  const renderizarComentario = (hilo, comentario, nivel = 0) => {
+    const claveRespuesta = `${hilo.id}:${comentario.id}`;
+    const esPropio = usuario?.id && comentario.userId === usuario.id;
+    const esDestino = String(comentario.id) === String(comentarioCompartido);
+    return (
+      <article
+        className={`respuesta-card ${esDestino ? "notificacion-destino" : ""}`}
+        id={`comentario-${comentario.id}`}
+        key={comentario.id}
+        style={{ "--nivel-respuesta": Math.min(nivel, 3) }}
+      >
+        <div className="respuesta-linea" />
+        <div className="respuesta-contenido">
+          <div className="respuesta-meta">
+            <strong>{comentario.usuario}</strong>
+            <span>{comentario.autor}</span>
+            <span>{comentario.tiempo || "ahora"}</span>
+          </div>
+          <p><TextoConMenciones texto={comentario.texto} /></p>
+          <div className="respuesta-acciones">
+            <button
+              className={`respuesta-like ${comentario.liked ? "activo" : ""}`}
+              type="button"
+              aria-pressed={Boolean(comentario.liked)}
+              onClick={() => votarComentario(hilo.id, comentario.id)}
+              disabled={likesComentariosEnviando.has(String(comentario.id))}
+            >
+              <span aria-hidden="true">{comentario.liked ? "♥" : "♡"}</span>
+              {comentario.likes}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!usuario) return pedirLogin();
+                setRespuestaActiva((actual) => actual === claveRespuesta ? null : claveRespuesta);
+              }}
+            >
+              Responder
+            </button>
+            {!esPropio ? (
+              <button
+                className="respuesta-denunciar"
+                type="button"
+                onClick={() => {
+                  if (!usuario) return pedirLogin();
+                  setDenunciaPendiente({ tipo: "comentario", hilo, comentario });
+                }}
+              >
+                Denunciar
+              </button>
+            ) : null}
+          </div>
+
+          {respuestaActiva === claveRespuesta ? (
+            <div className="respuesta-form respuesta-form-anidada">
+              <CampoMenciones
+                placeholder={`Responder a ${comentario.usuario}`}
+                value={respuestas[claveRespuesta] || ""}
+                onChange={(texto) => setRespuestas((actuales) => ({ ...actuales, [claveRespuesta]: texto }))}
+              />
+              <button
+                type="button"
+                onClick={() => responder(hilo.id, comentario.id)}
+                disabled={comentariosEnviando.has(claveRespuesta)}
+              >
+                {comentariosEnviando.has(claveRespuesta) ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          ) : null}
+
+          {comentario.respuestas.length > 0 ? (
+            <div className="respuestas-anidadas">
+              {comentario.respuestas.map((respuesta) => renderizarComentario(hilo, respuesta, nivel + 1))}
+            </div>
+          ) : null}
+        </div>
+      </article>
+    );
   };
 
   return (
@@ -924,7 +1079,7 @@ export default function Comunidad({ usuario }) {
           <div className="comunidad-toolbar">
             <div className="comunidad-filtro-dropdown" ref={filtroRef}>
               <button
-                className="comunidad-filtro-trigger"
+                className={`comunidad-filtro-trigger filtro-${filtroActivo}`}
                 type="button"
                 aria-haspopup="menu"
                 aria-expanded={mostrarFiltros}
@@ -946,7 +1101,12 @@ export default function Comunidad({ usuario }) {
                         setMostrarFiltros(false);
                       }}
                     >
-                      <strong>{filtro.label}</strong>
+                      <strong>
+                        <span className="filtro-check" aria-hidden="true">
+                          {filtroActivo === filtro.id ? "✓" : ""}
+                        </span>
+                        {filtro.label}
+                      </strong>
                       <span>
                         {filtro.id === "destacado" && "Ordena por relevancia y actividad"}
                         {filtro.id === "reciente" && "Ordena de nuevas a antiguas"}
@@ -994,7 +1154,15 @@ export default function Comunidad({ usuario }) {
                       <span>{hilo.op}</span>
                       <span>{hilo.tiempo || "ahora"}</span>
                     </div>
-                    <button className="post-menu" type="button" aria-label={`Copiar enlace de ${hilo.titulo}`} onClick={() => compartirPublicacion(hilo)}>Compartir</button>
+                    {usuario?.id && hilo.userId !== usuario.id ? (
+                      <button
+                        className="post-menu post-denunciar"
+                        type="button"
+                        onClick={() => setDenunciaPendiente({ tipo: "publicacion", hilo })}
+                      >
+                        Denunciar
+                      </button>
+                    ) : null}
                   </div>
 
                   <div className="publicacion-meta etiquetas-row">
@@ -1048,12 +1216,13 @@ export default function Comunidad({ usuario }) {
 
                   <div className="publicacion-acciones">
                     <button
-                      className={hilo.liked ? "activo" : ""}
+                      className={`publicacion-like ${hilo.liked ? "activo" : ""}`}
                       type="button"
                       onClick={() => votar(hilo.id)}
                       aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
+                      aria-pressed={Boolean(hilo.liked)}
                     >
-                      <span aria-hidden="true">^</span>
+                      <span className="like-icon" aria-hidden="true">{hilo.liked ? "♥" : "♡"}</span>
                       {hilo.votos}
                     </button>
                     <button
@@ -1061,7 +1230,7 @@ export default function Comunidad({ usuario }) {
                       type="button"
                       onClick={() => toggleRespuestas(hilo.id)}
                     >
-                      {hilo.comentarios.length} respuestas
+                      {contarComentarios(hilo.comentarios)} respuestas
                     </button>
                     <button
                       className={hilo.guardado ? "activo" : ""}
@@ -1074,28 +1243,19 @@ export default function Comunidad({ usuario }) {
 
                   {respuestasAbiertas.includes(hilo.id) && (
                     <section className="hilo-respuestas">
-                      {hilo.comentarios.map((comentario) => (
-                        <article className="respuesta-card" key={comentario.id}>
-                          <div className="respuesta-linea"></div>
-                          <div>
-                            <div className="respuesta-meta">
-                              <strong>{comentario.usuario}</strong>
-                              <span>{comentario.autor}</span>
-                              <span>{comentario.votos} votos</span>
-                            </div>
-                            <p><TextoConMenciones texto={comentario.texto} /></p>
-                          </div>
-                        </article>
-                      ))}
+                      {hilo.comentarios.map((comentario) => renderizarComentario(hilo, comentario))}
 
                       <div className="respuesta-form">
                         <CampoMenciones
                           placeholder="Responde o menciona con @usuario"
-                          value={respuestas[hilo.id] || ""}
-                          onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
+                          value={respuestas[`${hilo.id}:principal`] || ""}
+                          onChange={(texto) => setRespuestas((actuales) => ({
+                            ...actuales,
+                            [`${hilo.id}:principal`]: texto,
+                          }))}
                         />
-                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosEnviando.has(String(hilo.id))}>
-                          {comentariosEnviando.has(String(hilo.id)) ? "Enviando..." : "Responder"}
+                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosEnviando.has(`${hilo.id}:principal`)}>
+                          {comentariosEnviando.has(`${hilo.id}:principal`) ? "Enviando..." : "Responder"}
                         </button>
                       </div>
                     </section>
@@ -1214,6 +1374,14 @@ export default function Comunidad({ usuario }) {
       )}
 
       <audio ref={audioAsociadoRef} onEnded={() => setReelAsociadoActivo(null)} />
+
+      <DenunciaModal
+        abierto={Boolean(denunciaPendiente)}
+        titulo={denunciaPendiente?.comentario?.texto || denunciaPendiente?.hilo?.titulo}
+        enviando={enviandoDenuncia}
+        onClose={() => setDenunciaPendiente(null)}
+        onConfirm={denunciarContenido}
+      />
 
       {aviso && (
         <div className="comunidad-toast" role="status">

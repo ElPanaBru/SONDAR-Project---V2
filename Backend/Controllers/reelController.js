@@ -466,6 +466,60 @@ const reelController = {
     }
   },
 
+  obtenerReel: async (req, res) => {
+    const reelId = String(req.params.id || '').replace(/^db-/, '');
+    if (!/^\d+$/.test(reelId)) {
+      return res.status(400).json({ error: 'El identificador del reel no es valido.' });
+    }
+
+    try {
+      await asegurarEsquemaModeracion();
+      const viewerId = await obtenerViewerId(req);
+      const result = await pool.query(
+        `SELECT
+           r.*,
+           (SELECT COUNT(*)::int FROM reel_likes rl_count WHERE rl_count.reel_id = r.id) AS likes_calculados,
+           (SELECT COUNT(*)::int FROM reel_shares rs_count WHERE rs_count.reel_id = r.id) AS compartidos_calculados,
+           (SELECT COUNT(*)::int FROM reel_saves rg_count WHERE rg_count.reel_id = r.id) AS guardados_calculados,
+           (SELECT COUNT(*)::int FROM reel_views rv_count WHERE rv_count.reel_id = r.id) AS visitas_calculadas,
+           EXISTS (
+             SELECT 1 FROM reel_likes rl
+             WHERE rl.reel_id = r.id AND rl.user_id = $2::uuid
+           ) AS liked,
+           EXISTS (
+             SELECT 1 FROM reel_saves rs
+             WHERE rs.reel_id = r.id AND rs.user_id = $2::uuid
+           ) AS guardado,
+           EXISTS (
+             SELECT 1 FROM follows f
+             WHERE f.following_id = r.creador_id AND f.follower_id = $2::uuid
+           ) AS siguiendo,
+           COALESCE(u.username, u.email) AS creador_nombre,
+           u.email AS creador_email,
+           u.profile_img_url AS creador_avatar
+         FROM reels r
+         LEFT JOIN users u ON u.id = r.creador_id
+         WHERE r.id = $1`,
+        [reelId, viewerId]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Reel no encontrado.' });
+      }
+
+      const reel = result.rows[0];
+      return res.json({
+        ...mapearReel(reel),
+        liked: Boolean(reel.liked),
+        guardado: Boolean(reel.guardado),
+        siguiendo: Boolean(reel.siguiendo),
+      });
+    } catch (error) {
+      console.error('Error al obtener el reel:', error);
+      return res.status(500).json({ error: 'No se pudo cargar el reel.' });
+    }
+  },
+
   registrarVisita: async (req, res) => {
     const { id } = req.params;
     const client = await pool.connect();
@@ -729,7 +783,7 @@ const reelController = {
       await eliminarArchivoReel(portadaSubida?.path).catch(() => null);
       await eliminarArchivoReel(audioSubido?.path).catch(() => null);
       console.error('Error al crear reel:', error);
-      res.status(500).json({ error: error.message || 'No se pudo guardar el reel.' });
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo guardar el reel.' });
     }
   },
 

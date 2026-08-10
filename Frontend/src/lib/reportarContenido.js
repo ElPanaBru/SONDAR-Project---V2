@@ -14,7 +14,9 @@ export async function avisarDenunciaASoporte({
   motivo,
   detalle,
   nombreUsuario,
+  url,
 }) {
+  const urlContenido = url || window.location.href;
   const descripcion = `${nombreUsuario || "Usuario"} denuncio un ${tipo || "contenido"}`;
   const asunto = `${nombreUsuario || "Usuario"} denuncio ${tipo || "contenido"}`;
   const message = [
@@ -24,7 +26,7 @@ export async function avisarDenunciaASoporte({
     `ContenidoId: ${contenidoId || ""}`,
     titulo ? `Titulo: ${titulo}` : null,
     autor ? `Autor: ${autor}` : null,
-    `URL: ${window.location.href}`,
+    `URL: ${urlContenido}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -43,6 +45,7 @@ export async function avisarDenunciaASoporte({
       descripcion,
       asunto,
       message,
+      url: urlContenido,
       to_email: DESTINO_EMAIL,
     },
     PUBLIC_KEY

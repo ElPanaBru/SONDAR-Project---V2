@@ -7,6 +7,7 @@ const {
   notificarMenciones,
   notificarSeguidores,
 } = require('../services/notificationService');
+const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
 const COMUNIDADES_GENERO = [
   {
@@ -685,6 +686,16 @@ const comunidadController = {
         return res.status(404).json({ error: 'Publicacion no encontrada.' });
       }
 
+      const parentResult = parentId
+        ? await pool.query(
+          'SELECT user_id FROM comunidad_comentarios WHERE id = $1 AND publicacion_id = $2',
+          [parentId, publicacionId]
+        )
+        : { rows: [], rowCount: 0 };
+      if (parentId && parentResult.rowCount === 0) {
+        return res.status(400).json({ error: 'El comentario respondido no pertenece a esta publicacion.' });
+      }
+
       const result = await pool.query(
         `INSERT INTO comunidad_comentarios (publicacion_id, user_id, parent_id, texto)
          VALUES ($1, $2, $3, $4)
@@ -699,14 +710,11 @@ const comunidadController = {
         [req.user.id]
       );
 
-      const parentResult = parentId
-        ? await pool.query('SELECT user_id FROM comunidad_comentarios WHERE id = $1', [parentId])
-        : { rows: [] };
       const receptorId = parentId
         ? parentResult.rows[0]?.user_id
         : publicacion.rows[0].user_id;
       const actorName = nombreActor(req.user);
-      const targetUrl = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`;
+      const targetUrl = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}&comentario=${result.rows[0].id}`;
       await crearNotificacion({
         userId: receptorId,
         actorId: req.user.id,
@@ -910,7 +918,7 @@ const comunidadController = {
           type: 'community_comment_like',
           title: `${nombreActor(req.user)} indico que le gusta tu comentario`,
           body: comentario.rows[0].texto || '',
-          targetUrl: `/comunidad?comunidad=${comentario.rows[0].comunidad_id}&publicacion=${comentario.rows[0].publicacion_id}`,
+          targetUrl: `/comunidad?comunidad=${comentario.rows[0].comunidad_id}&publicacion=${comentario.rows[0].publicacion_id}&comentario=${comentarioId}`,
           entityType: 'community_comment',
           entityId: comentarioId,
           uniqueKey: `community-comment-like:${req.user.id}:${comentarioId}`,
@@ -939,6 +947,77 @@ const comunidadController = {
       res.status(500).json({ error: 'No se pudo actualizar el me gusta.' });
     } finally {
       client.release();
+    }
+  },
+
+  denunciarPublicacion: async (req, res) => {
+    const { publicacionId } = req.params;
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await asegurarEsquemaModeracion();
+      const publicacion = await pool.query(
+        `SELECT id, user_id, titulo, comunidad_id
+         FROM comunidad_publicaciones
+         WHERE id = $1`,
+        [publicacionId]
+      );
+      if (publicacion.rowCount === 0) {
+        return res.status(404).json({ error: 'Publicacion no encontrada.' });
+      }
+
+      const resultado = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: publicacion.rows[0].user_id,
+        contentType: 'community_post',
+        contentId: publicacionId,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      return res.json({
+        ...resultado,
+        comunidadId: publicacion.rows[0].comunidad_id,
+        titulo: publicacion.rows[0].titulo,
+      });
+    } catch (error) {
+      console.error('Error al denunciar publicacion de comunidad:', error);
+      return res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar la publicacion.' });
+    }
+  },
+
+  denunciarComentario: async (req, res) => {
+    const { comentarioId } = req.params;
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await asegurarEsquemaModeracion();
+      const comentario = await pool.query(
+        `SELECT cc.id, cc.user_id, cc.texto, cc.publicacion_id, cp.comunidad_id
+         FROM comunidad_comentarios cc
+         JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
+         WHERE cc.id = $1`,
+        [comentarioId]
+      );
+      if (comentario.rowCount === 0) {
+        return res.status(404).json({ error: 'Comentario no encontrado.' });
+      }
+
+      const resultado = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: comentario.rows[0].user_id,
+        contentType: 'community_comment',
+        contentId: comentarioId,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      return res.json({
+        ...resultado,
+        comunidadId: comentario.rows[0].comunidad_id,
+        publicacionId: Number(comentario.rows[0].publicacion_id),
+      });
+    } catch (error) {
+      console.error('Error al denunciar comentario de comunidad:', error);
+      return res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el comentario.' });
     }
   },
 };

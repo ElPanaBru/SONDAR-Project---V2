@@ -99,10 +99,13 @@ export default function Auth() {
 
     try {
       if (modo === "login") {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPassword
-        });
+        const { data, error } = await esperarConTimeout(
+          supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword
+          }),
+          "El inicio de sesion tardo demasiado. Proba de nuevo."
+        );
 
         if (error) throw error;
 
