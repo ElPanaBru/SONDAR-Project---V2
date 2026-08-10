@@ -1047,7 +1047,7 @@ export default function Comunidad({ usuario }) {
 
                   {hilo.reelAsociado ? (
                     <div className="publicacion-asociada publicacion-asociada-reel">
-                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png"} alt="" />
+                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png?v=7"} alt="" />
                       <span>
                         <small>Tema asociado</small>
                         <strong>{hilo.reelAsociado.tema || hilo.reelAsociado.album}</strong>
