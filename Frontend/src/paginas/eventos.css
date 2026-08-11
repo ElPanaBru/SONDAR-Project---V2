@@ -1595,6 +1595,18 @@
   transform: translateY(-1px);
 }
 
+.eventos-sheet-acciones .evento-guardar:hover,
+.eventos-sheet-acciones .evento-guardar.activo {
+  color: #ff8a00;
+  background: #171717;
+  border-color: rgba(255, 138, 0, 0.42);
+}
+
+.evento-guardar.activo svg path,
+.evento-guardar.guardado svg path {
+  fill: currentColor;
+}
+
 .eventos-sheet-expandir {
   color: #0a0a0a !important;
   background: linear-gradient(135deg, #ffae00, #ff5e00) !important;
@@ -1755,6 +1767,13 @@
   color: #0a0a0a;
   background: linear-gradient(135deg, #ffae00, #ff5e00);
   border-color: transparent;
+}
+
+.evento-sheet-acciones-superiores > button.evento-guardar:hover,
+.evento-sheet-acciones-superiores > button.evento-guardar.guardado {
+  color: #ff8a00;
+  background: #171717;
+  border-color: rgba(255, 138, 0, 0.42);
 }
 
 .evento-sheet-titulo > div:first-child > span,

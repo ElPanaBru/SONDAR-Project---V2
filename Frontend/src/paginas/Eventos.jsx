@@ -147,6 +147,8 @@ export default function Eventos({ usuario }) {
   const mapInstance = useRef(null);
   const markersLayer = useRef(null);
   const avisoTimer = useRef(null);
+  const eventoCompartidoProcesadoRef = useRef(null);
+  const firmaEncuadreEventosRef = useRef(null);
   
   // Referencias para el MINI MAPA del modal (Picker)
   const miniMapRef = useRef(null);
@@ -376,10 +378,19 @@ export default function Eventos({ usuario }) {
   }, [loading]);
 
   useEffect(() => {
-    if (!eventoCompartido || loading || eventos.length === 0) return;
+    if (!eventoCompartido) {
+      eventoCompartidoProcesadoRef.current = null;
+      return;
+    }
+    if (
+      loading ||
+      eventos.length === 0 ||
+      eventoCompartidoProcesadoRef.current === String(eventoCompartido)
+    ) return;
     const eventoDestino = eventos.find((evento) => String(evento.id) === String(eventoCompartido));
     if (!eventoDestino) return;
 
+    eventoCompartidoProcesadoRef.current = String(eventoCompartido);
     const generoDestino = normalizarGenero(eventoDestino.genero);
     setGenerosVisibles((actuales) =>
       actuales.includes(generoDestino)
@@ -551,7 +562,17 @@ export default function Eventos({ usuario }) {
 
   // 5. Encuadre automático del mapa principal
   useEffect(() => {
-    if (!mapInstance.current || eventosConCoordenadas.length === 0) return;
+    if (!mapInstance.current) return;
+
+    const firmaEncuadre = eventosConCoordenadas
+      .map((evento) => `${evento.id}:${evento.coords[0]}:${evento.coords[1]}`)
+      .sort()
+      .join("|");
+
+    if (firmaEncuadreEventosRef.current === firmaEncuadre) return;
+    firmaEncuadreEventosRef.current = firmaEncuadre;
+
+    if (eventosConCoordenadas.length === 0) return;
 
     const coordsValidas = eventosConCoordenadas.map((evento) => evento.coords);
 
@@ -1010,7 +1031,7 @@ export default function Eventos({ usuario }) {
                 <IconoPanel nombre="derecha" />
               </button>
               <div className="eventos-sheet-acciones">
-                <button className={detalleEvento.guardado ? "activo" : ""} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} onClick={() => toggleGuardar(detalleEvento.id)}>
+                <button className={`evento-guardar ${detalleEvento.guardado ? "activo" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}>
                   <IconoPanel nombre="guardar" />
                 </button>
                 <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}>
@@ -1050,7 +1071,7 @@ export default function Eventos({ usuario }) {
                   <h2>{detalleEvento.titulo}</h2>
                 </div>
                 <div className="evento-sheet-acciones-superiores">
-                  <button className={detalleEvento.guardado ? "guardado" : ""} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} onClick={() => toggleGuardar(detalleEvento.id)}><IconoPanel nombre="guardar" /></button>
+                  <button className={`evento-guardar ${detalleEvento.guardado ? "guardado" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}><IconoPanel nombre="guardar" /></button>
                   <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}><IconoPanel nombre="compartir" /></button>
                   <div className="evento-detalle-menu">
                     <button className="evento-detalle-menu-btn" type="button" aria-label="Opciones del evento" aria-expanded={menuEventoAbierto} onClick={() => setMenuEventoAbierto((actual) => !actual)}>
