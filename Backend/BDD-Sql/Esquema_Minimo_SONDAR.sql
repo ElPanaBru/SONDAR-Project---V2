@@ -234,6 +234,8 @@ CREATE TABLE public.comunidades (
 CREATE TABLE public.comunidad_miembros (
   comunidad_id text NOT NULL REFERENCES public.comunidades(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  nivel_notificaciones text NOT NULL DEFAULT 'todas'
+    CHECK (nivel_notificaciones IN ('todas', 'relevantes', 'silenciadas')),
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   PRIMARY KEY (comunidad_id, user_id)
 );

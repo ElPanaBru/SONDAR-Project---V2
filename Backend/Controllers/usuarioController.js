@@ -477,7 +477,7 @@ function mapearEventoPerfil(evento) {
     tipo: 'evento',
     nombre: evento.titulo,
     detalle: evento.lugar || 'Evento',
-    imagen: '/sondar-logo.png',
+    imagen: '/sondar-icon.png',
     fecha: evento.fecha,
     genero: evento.genero || '',
     creadorId: evento.creador_id,

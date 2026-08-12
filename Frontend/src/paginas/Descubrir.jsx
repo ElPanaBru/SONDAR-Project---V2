@@ -503,7 +503,7 @@ export default function Descubrir({ usuario }) {
   const comentarioCompartido = searchParams.get("comentario");
   const crearReelParam = searchParams.get("crear");
   const [lanzamientos, setLanzamientos] = useState([]);
-  const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
+  const [reproduciendo, setReproduciendo] = useState(null);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
@@ -2191,6 +2191,7 @@ export default function Descubrir({ usuario }) {
         ) : null}
         {lanzamientosFiltrados.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
+          const estaSeleccionado = String(lanzamientoCompartido || '') === String(lanzamiento.id);
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
           const puedeEliminar = usuarioPuedeEliminarLanzamiento(lanzamiento);
 
@@ -2198,9 +2199,10 @@ export default function Descubrir({ usuario }) {
             <article
               id={`reel-${lanzamiento.id}`}
               data-reel-id={lanzamiento.id}
-              className={`feed-item ${estaReproduciendo ? "sonando" : ""} ${
+              className={`feed-item ${estaReproduciendo ? "sonando" : ""} ${estaSeleccionado ? "seleccionado" : ""} ${
                 comentariosAbiertos === lanzamiento.id ? "comentarios-activos" : ""
               }`}
+              aria-current={estaSeleccionado ? "true" : undefined}
               key={lanzamiento.id}
               style={{
                 "--tono-a": lanzamiento.colorA,

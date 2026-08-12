@@ -13,7 +13,7 @@ const poolFalso = {
     const consulta = String(sql).replace(/\s+/g, ' ').trim();
     if (consulta.startsWith('SELECT cm.user_id FROM comunidad_miembros')) {
       consultaMiembros = consulta;
-      assert.deepEqual(params, ['pop', actorId]);
+      assert.deepEqual(params, ['pop', actorId, 'todas']);
       return {
         rows: [{ user_id: miembroUno }, { user_id: miembroDos }],
         rowCount: 2,
@@ -47,6 +47,7 @@ test('una publicacion nueva notifica a cada miembro de la comunidad excepto al a
 
   assert.equal(cantidad, 2);
   assert.match(consultaMiembros, /cm\.user_id <> \$2/);
+  assert.match(consultaMiembros, /nivel_notificaciones/);
   assert.deepEqual(inserciones.map(({ params }) => params[0]), [miembroUno, miembroDos]);
   assert.deepEqual(
     inserciones.map(({ params }) => params[6]),

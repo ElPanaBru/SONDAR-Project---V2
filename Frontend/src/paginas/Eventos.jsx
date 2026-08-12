@@ -23,7 +23,7 @@ const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
-const LOGO_EVENTO_PREDETERMINADO = "/sondar-logo.png";
+const LOGO_EVENTO_PREDETERMINADO = "/sondar-icon.png";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
   month: "long",
@@ -399,7 +399,7 @@ export default function Eventos({ usuario }) {
     );
     setUltimoEventoDetalle(eventoDestino);
     setEventoActivo(eventoDestino.id);
-    setDetalleExpandido(true);
+    setDetalleExpandido(false);
     if (eventoDestino.coords && mapInstance.current) {
       mapInstance.current.flyTo(eventoDestino.coords, 16, {
         duration: DURACION_ACERCAMIENTO_MAPA,
@@ -536,7 +536,7 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-logo.png'" />
+                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png'" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>

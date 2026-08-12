@@ -7,6 +7,8 @@ const test = require('node:test');
 let miembroActivo = false;
 let siguientePublicacionId = 41;
 let notificacionesAMiembros = [];
+let nivelNotificaciones = 'todas';
+let publicacionConLike = false;
 
 const comunidadRow = {
   id: 'pop',
@@ -29,7 +31,17 @@ async function ejecutarQuery(sql, params = []) {
 
   if (consulta.includes('SELECT c.*') && consulta.includes('FROM comunidades c')) {
     const viewerEsMiembro = miembroActivo && params[1] === '11111111-1111-4111-8111-111111111111';
-    return resultado([{ ...comunidadRow, unido: viewerEsMiembro, miembros: miembroActivo ? 1 : 0 }]);
+    return resultado([{
+      ...comunidadRow,
+      unido: viewerEsMiembro,
+      miembros: miembroActivo ? 1 : 0,
+      nivel_notificaciones: viewerEsMiembro ? nivelNotificaciones : null,
+    }]);
+  }
+  if (consulta.startsWith('UPDATE comunidad_miembros SET nivel_notificaciones')) {
+    if (!miembroActivo) return resultado();
+    nivelNotificaciones = params[2];
+    return resultado([{ comunidad_id: params[0], nivel_notificaciones: nivelNotificaciones }]);
   }
   if (consulta.startsWith('SELECT id, genero, titulo FROM comunidades')) {
     return resultado([{ id: 'pop', genero: 'pop', titulo: 'Pop' }]);
@@ -70,6 +82,7 @@ const poolFalso = {
         }
         if (consulta.startsWith('INSERT INTO comunidad_miembros')) {
           miembroActivo = true;
+          nivelNotificaciones = 'todas';
           return resultado();
         }
         if (consulta.startsWith('DELETE FROM comunidad_miembros')) {
@@ -78,6 +91,32 @@ const poolFalso = {
         }
         if (consulta.startsWith('SELECT COUNT(*)::int AS miembros')) {
           return resultado([{ miembros: miembroActivo ? 1 : 0 }]);
+        }
+        if (consulta.startsWith('SELECT cp.id, cp.user_id')) {
+          return resultado([{
+            id: 41,
+            user_id: usuarioPrueba.id,
+            titulo: 'Publicacion relevante',
+            comunidad_id: 'pop',
+            comunidad_titulo: 'Pop',
+          }]);
+        }
+        if (consulta.startsWith('SELECT 1 FROM comunidad_publicacion_likes')) {
+          return resultado(publicacionConLike ? [{ '?column?': 1 }] : []);
+        }
+        if (consulta.startsWith('INSERT INTO comunidad_publicacion_likes')) {
+          publicacionConLike = true;
+          return resultado();
+        }
+        if (consulta.startsWith('DELETE FROM comunidad_publicacion_likes')) {
+          publicacionConLike = false;
+          return resultado();
+        }
+        if (consulta.startsWith('SELECT COUNT(*)::int AS likes,')) {
+          return resultado([{
+            likes: publicacionConLike ? 5 : 4,
+            likes_semana: publicacionConLike ? 5 : 4,
+          }]);
         }
         return resultado();
       },
@@ -157,11 +196,21 @@ test('unirse y salir del foro actualiza el estado persistido', async () => {
 
   const ingreso = crearRespuesta();
   await comunidadController.alternarMembresia(req, ingreso);
-  assert.deepEqual(ingreso.body, { comunidadId: 'pop', unido: true, miembros: 1 });
+  assert.deepEqual(ingreso.body, {
+    comunidadId: 'pop',
+    unido: true,
+    miembros: 1,
+    nivelNotificaciones: 'todas',
+  });
 
   const salida = crearRespuesta();
   await comunidadController.alternarMembresia(req, salida);
-  assert.deepEqual(salida.body, { comunidadId: 'pop', unido: false, miembros: 0 });
+  assert.deepEqual(salida.body, {
+    comunidadId: 'pop',
+    unido: false,
+    miembros: 0,
+    nivelNotificaciones: null,
+  });
 });
 
 test('la membresia se conserva al volver a cargar con la sesion restaurada', async () => {
@@ -178,6 +227,28 @@ test('la membresia se conserva al volver a cargar con la sesion restaurada', asy
   assert.equal(recarga.statusCode, 200);
   assert.equal(recarga.body[0].unido, true);
   assert.equal(recarga.body[0].miembros, 1);
+  assert.equal(recarga.body[0].nivelNotificaciones, 'todas');
+});
+
+test('un miembro puede elegir notificaciones relevantes o silenciar la comunidad', async () => {
+  miembroActivo = true;
+  nivelNotificaciones = 'todas';
+
+  const relevantes = crearRespuesta();
+  await comunidadController.actualizarNotificaciones({
+    params: { comunidadId: 'pop' },
+    user: usuarioPrueba,
+    body: { nivel: 'relevantes' },
+  }, relevantes);
+  assert.deepEqual(relevantes.body, { comunidadId: 'pop', nivelNotificaciones: 'relevantes' });
+
+  const silenciadas = crearRespuesta();
+  await comunidadController.actualizarNotificaciones({
+    params: { comunidadId: 'pop' },
+    user: usuarioPrueba,
+    body: { nivel: 'silenciadas' },
+  }, silenciadas);
+  assert.deepEqual(silenciadas.body, { comunidadId: 'pop', nivelNotificaciones: 'silenciadas' });
 });
 
 test('crear una publicacion exige membresia en el foro', async () => {
@@ -212,7 +283,24 @@ test('un miembro puede crear una publicacion', async () => {
   assert.match(notificacionesAMiembros[0].targetUrl, /comunidad=pop&publicacion=/);
 });
 
-test('eventos ya no acepta ni procesa imagenes y usa el logo predeterminado', () => {
+test('el umbral de likes semanal notifica a quienes eligieron contenido relevante', async () => {
+  publicacionConLike = false;
+  notificacionesAMiembros = [];
+  const res = crearRespuesta();
+
+  await comunidadController.alternarLikePublicacion({
+    params: { publicacionId: '41' },
+    user: usuarioPrueba,
+  }, res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.likes, 5);
+  assert.equal(notificacionesAMiembros.length, 1);
+  assert.equal(notificacionesAMiembros[0].nivel, 'relevantes');
+  assert.match(notificacionesAMiembros[0].title, /Publicacion relevante/);
+});
+
+test('eventos ya no acepta imagenes y usa el icono compacto predeterminado', () => {
   const raiz = path.join(__dirname, '..', '..');
   const rutaEventos = fs.readFileSync(path.join(raiz, 'Backend', 'routes', 'eventos.js'), 'utf8');
   const controladorEventos = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'eventoController.js'), 'utf8');
@@ -222,12 +310,43 @@ test('eventos ya no acepta ni procesa imagenes y usa el logo predeterminado', ()
 
   assert.doesNotMatch(rutaEventos, /multer|upload\.single\(['"]imagen['"]\)/);
   assert.doesNotMatch(controladorEventos, /subirImagenEvento|req\.file/);
-  assert.match(paginaEventos, /LOGO_EVENTO_PREDETERMINADO = ["']\/sondar-logo\.png["']/);
+  assert.match(paginaEventos, /LOGO_EVENTO_PREDETERMINADO = ["']\/sondar-icon\.png["']/);
   assert.doesNotMatch(paginaEventos, /type=["']file["']/);
   assert.doesNotMatch(paginaEventos, /new FormData\(\)/);
   assert.match(paginaEventos, /body:\s*datosEvento/);
-  assert.match(controladorUsuarios, /imagen:\s*["']\/sondar-logo\.png["']/);
-  assert.match(paginaBuscar, /img:\s*["']\/sondar-logo\.png["']/);
+  assert.match(controladorUsuarios, /imagen:\s*["']\/sondar-icon\.png["']/);
+  assert.match(paginaBuscar, /img:\s*["']\/sondar-icon\.png["']/);
+});
+
+test('los enlaces profundos seleccionan eventos y reels sin abrirlos automaticamente', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const paginaDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Descubrir.jsx'), 'utf8');
+
+  assert.match(
+    paginaEventos,
+    /setUltimoEventoDetalle\(eventoDestino\);\s*setEventoActivo\(eventoDestino\.id\);\s*setDetalleExpandido\(false\);/
+  );
+  assert.match(paginaDescubrir, /const \[reproduciendo, setReproduciendo\] = useState\(null\)/);
+  assert.match(paginaDescubrir, /const estaSeleccionado = String\(lanzamientoCompartido/);
+  assert.match(paginaDescubrir, /estaSeleccionado \? "seleccionado" : ""/);
+});
+
+test('las publicaciones usan banderin de guardado y la marca usa el logo organizado', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+  const navbar = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'Navbar.jsx'), 'utf8');
+  const auth = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Auth.jsx'), 'utf8');
+  const soporte = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Soporte.jsx'), 'utf8');
+  const logo = path.join(raiz, 'Frontend', 'public', 'logo', 'sondar-logo.png');
+
+  assert.match(paginaComunidad, /className={`publicacion-guardar/);
+  assert.match(paginaComunidad, /M6 3\.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4\.5/);
+  assert.match(paginaComunidad, /aria-pressed=\{Boolean\(hilo\.guardado\)\}/);
+  assert.match(navbar, /src="\/logo\/sondar-logo\.png"/);
+  assert.match(auth, /src="\/logo\/sondar-logo\.png"/);
+  assert.match(soporte, /src="\/logo\/sondar-logo\.png"/);
+  assert.ok(fs.statSync(logo).size > 0);
 });
 
 test('comunidad conserva la estructura, reglas y restricciones solicitadas', () => {
@@ -250,4 +369,22 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   assert.doesNotMatch(estilosComunidad, /@media \(max-width: 1180px\)[\s\S]*?\.subreddit-list\s*\{[^}]*display:\s*none;/);
   assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.comunidad_miembros/);
   assert.doesNotMatch(migracion, /DROP TABLE IF EXISTS public\.comunidad_miembros/);
+});
+
+test('comunidad comparte con icono y despliega recursos del genero en mini cards', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+  const estilosComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'comunidad.css'), 'utf8');
+
+  assert.match(paginaComunidad, /aria-label="Compartir comunidad"/);
+  assert.doesNotMatch(paginaComunidad, />\s*Compartir\s*<\/button>/);
+  assert.match(paginaComunidad, /aria-controls="recurso-eventos-genero"/);
+  assert.match(paginaComunidad, /aria-controls="recurso-reels-genero"/);
+  assert.match(paginaComunidad, /className="comunidad-recurso-card recurso-evento"/);
+  assert.match(paginaComunidad, /className="comunidad-recurso-card recurso-reel"/);
+  assert.match(paginaComunidad, /\?evento=\$\{encodeURIComponent\(evento\.id\)\}/);
+  assert.match(paginaComunidad, /\?lanzamiento=\$\{encodeURIComponent\(idReelParaNavegacion\(reel\)\)\}/);
+  assert.doesNotMatch(paginaComunidad, /const irARecursoForo/);
+  assert.match(estilosComunidad, /\.comunidad-recurso-contenido\s*\{[^}]*max-height:/s);
+  assert.match(estilosComunidad, /\.comunidad-recurso-abrir\s*\{[^}]*position:\s*absolute;[^}]*right:/s);
 });

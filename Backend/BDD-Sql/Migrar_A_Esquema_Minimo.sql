@@ -98,9 +98,14 @@ DROP TABLE IF EXISTS public.content_moderation_alerts;
 CREATE TABLE IF NOT EXISTS public.comunidad_miembros (
   comunidad_id text NOT NULL REFERENCES public.comunidades(id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  nivel_notificaciones text NOT NULL DEFAULT 'todas'
+    CHECK (nivel_notificaciones IN ('todas', 'relevantes', 'silenciadas')),
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   PRIMARY KEY (comunidad_id, user_id)
 );
+
+ALTER TABLE public.comunidad_miembros
+  ADD COLUMN IF NOT EXISTS nivel_notificaciones text NOT NULL DEFAULT 'todas';
 
 CREATE INDEX IF NOT EXISTS comunidad_miembros_user_idx
   ON public.comunidad_miembros (user_id, created_at DESC);

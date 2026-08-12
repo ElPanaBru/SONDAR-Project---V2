@@ -130,16 +130,19 @@ async function notificarMiembrosComunidad({
   body = '',
   targetUrl = '',
   uniquePrefix,
+  nivel = 'todas',
 }, client = pool) {
   try {
     if (!comunidadId || !actorId || !uniquePrefix) return 0;
+    if (!['todas', 'relevantes'].includes(nivel)) return 0;
 
     const miembros = await client.query(
       `SELECT cm.user_id
        FROM comunidad_miembros cm
        WHERE cm.comunidad_id = $1
-         AND cm.user_id <> $2`,
-      [comunidadId, actorId]
+         AND cm.user_id <> $2
+         AND COALESCE(cm.nivel_notificaciones, 'todas') = $3`,
+      [comunidadId, actorId, nivel]
     );
 
     const creadas = await Promise.all(miembros.rows.map((miembro) => crearNotificacion({

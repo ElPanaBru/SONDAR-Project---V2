@@ -7,7 +7,6 @@ const {
   nombreActor,
   notificarMiembrosComunidad,
   notificarMenciones,
-  notificarSeguidores,
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
@@ -86,6 +85,15 @@ const COMUNIDADES_GENERO = [
   },
 ];
 
+const DIAS_RELEVANCIA_COMUNIDAD = Math.max(
+  1,
+  Number.parseInt(process.env.COMMUNITY_RELEVANT_DAYS || '7', 10) || 7
+);
+const UMBRAL_LIKES_RELEVANCIA_COMUNIDAD = Math.max(
+  1,
+  Number.parseInt(process.env.COMMUNITY_RELEVANT_LIKES || '5', 10) || 5
+);
+
 let esquemaComunidadesListo = null;
 
 async function obtenerViewerId(req) {
@@ -160,11 +168,14 @@ async function asegurarEsquemaComunidades() {
         CREATE TABLE IF NOT EXISTS comunidad_miembros (
           comunidad_id text NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,
           user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          nivel_notificaciones text NOT NULL DEFAULT 'todas'
+            CHECK (nivel_notificaciones IN ('todas', 'relevantes', 'silenciadas')),
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
           CONSTRAINT comunidad_miembros_pkey PRIMARY KEY (comunidad_id, user_id)
         )
       `);
 
+      await pool.query("ALTER TABLE comunidad_miembros ADD COLUMN IF NOT EXISTS nivel_notificaciones text NOT NULL DEFAULT 'todas'");
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS evento_asociado_id text');
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS reel_asociado_id text');
 
@@ -306,6 +317,11 @@ function mapearComunidad(row) {
       : 'Sin publicaciones todavia',
     portada: row.portada_url,
     unido: Boolean(row.unido),
+    nivelNotificaciones: row.unido ? (row.nivel_notificaciones || 'todas') : null,
+    criterioRelevancia: {
+      likes: UMBRAL_LIKES_RELEVANCIA_COMUNIDAD,
+      dias: DIAS_RELEVANCIA_COMUNIDAD,
+    },
   };
 }
 
@@ -427,7 +443,13 @@ const comunidadController = {
             FROM comunidad_miembros cm_viewer
             WHERE cm_viewer.comunidad_id = c.id
               AND cm_viewer.user_id = $2::uuid
-          ) AS unido
+          ) AS unido,
+          (
+            SELECT cm_viewer.nivel_notificaciones
+            FROM comunidad_miembros cm_viewer
+            WHERE cm_viewer.comunidad_id = c.id
+              AND cm_viewer.user_id = $2::uuid
+          ) AS nivel_notificaciones
         FROM comunidades c
         LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id
         LEFT JOIN comunidad_miembros cm ON cm.comunidad_id = c.id
@@ -490,6 +512,7 @@ const comunidadController = {
         comunidadId,
         unido,
         miembros: Number(total.rows[0]?.miembros || 0),
+        nivelNotificaciones: unido ? 'todas' : null,
       });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
@@ -497,6 +520,40 @@ const comunidadController = {
       res.status(500).json({ error: 'No se pudo actualizar tu membresia del foro.' });
     } finally {
       client.release();
+    }
+  },
+
+  actualizarNotificaciones: async (req, res) => {
+    const { comunidadId } = req.params;
+    const nivel = String(req.body?.nivel || '').toLowerCase();
+    const nivelesPermitidos = ['todas', 'relevantes', 'silenciadas'];
+
+    if (!nivelesPermitidos.includes(nivel)) {
+      return res.status(400).json({ error: 'Selecciona un nivel de notificaciones valido.' });
+    }
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      const membresia = await pool.query(
+        `UPDATE comunidad_miembros
+         SET nivel_notificaciones = $3
+         WHERE comunidad_id = $1 AND user_id = $2
+         RETURNING comunidad_id, nivel_notificaciones`,
+        [comunidadId, req.user.id, nivel]
+      );
+
+      if (membresia.rowCount === 0) {
+        return res.status(403).json({ error: 'Unite a esta comunidad para configurar sus notificaciones.' });
+      }
+
+      return res.json({
+        comunidadId: membresia.rows[0].comunidad_id,
+        nivelNotificaciones: membresia.rows[0].nivel_notificaciones,
+      });
+    } catch (error) {
+      console.error('Error al actualizar notificaciones de la comunidad:', error);
+      return res.status(500).json({ error: 'No se pudieron actualizar las notificaciones de la comunidad.' });
     }
   },
 
@@ -647,14 +704,6 @@ const comunidadController = {
         targetUrl,
         uniquePrefix,
       });
-      await notificarSeguidores({
-        actorId: req.user.id,
-        type: 'new_community_post',
-        title: notificationTitle,
-        body: `${actorName}: ${titulo}`,
-        targetUrl,
-        uniquePrefix,
-      });
       await notificarMenciones({
         texto,
         actorId: req.user.id,
@@ -771,7 +820,11 @@ const comunidadController = {
       await client.query('BEGIN');
 
       const publicacion = await client.query(
-        'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',
+        `SELECT cp.id, cp.user_id, cp.titulo, cp.comunidad_id,
+                c.titulo AS comunidad_titulo
+         FROM comunidad_publicaciones cp
+         JOIN comunidades c ON c.id = cp.comunidad_id
+         WHERE cp.id = $1`,
         [publicacionId]
       );
       if (publicacion.rowCount === 0) {
@@ -814,16 +867,40 @@ const comunidadController = {
       }
 
       const counts = await client.query(
-        'SELECT COUNT(*)::int AS likes FROM comunidad_publicacion_likes WHERE publicacion_id = $1',
-        [publicacionId]
+        `SELECT
+           COUNT(*)::int AS likes,
+           COUNT(*) FILTER (
+             WHERE created_at >= now() - ($2::int * interval '1 day')
+           )::int AS likes_semana
+         FROM comunidad_publicacion_likes
+         WHERE publicacion_id = $1`,
+        [publicacionId, DIAS_RELEVANCIA_COMUNIDAD]
       );
+      const totalLikes = Number(counts.rows[0]?.likes || 0);
+      const likesRecientes = Number(counts.rows[0]?.likes_semana || 0);
+
+      if (
+        liked
+        && likesRecientes >= UMBRAL_LIKES_RELEVANCIA_COMUNIDAD
+      ) {
+        await notificarMiembrosComunidad({
+          comunidadId: publicacion.rows[0].comunidad_id,
+          actorId: publicacion.rows[0].user_id,
+          type: 'new_community_post',
+          title: `Publicacion relevante en ${publicacion.rows[0].comunidad_titulo}`,
+          body: `${publicacion.rows[0].titulo} recibio ${likesRecientes} likes en los ultimos ${DIAS_RELEVANCIA_COMUNIDAD} dias.`,
+          targetUrl: `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`,
+          uniquePrefix: `new-community-post:${publicacionId}`,
+          nivel: 'relevantes',
+        }, client);
+      }
       await client.query('COMMIT');
 
       res.json({
         id: Number(publicacionId),
         liked,
-        likes: Number(counts.rows[0]?.likes || 0),
-        votos: Number(counts.rows[0]?.likes || 0),
+        likes: totalLikes,
+        votos: totalLikes,
       });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
