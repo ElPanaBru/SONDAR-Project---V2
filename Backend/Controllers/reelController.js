@@ -722,8 +722,8 @@ const reelController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
-      portadaSubida = await subirPortadaReel(portadaFile);
-      audioSubido = await subirAudioReel(audioFile);
+      portadaSubida = await subirPortadaReel(portadaFile, req.user.id, req.accessToken);
+      audioSubido = await subirAudioReel(audioFile, req.user.id, req.accessToken);
 
       const result = await pool.query(
         `INSERT INTO reels (
@@ -780,8 +780,8 @@ const reelController = {
         creador_avatar: usuarioResult.rows[0]?.profile_img_url || '',
       }));
     } catch (error) {
-      await eliminarArchivoReel(portadaSubida?.path).catch(() => null);
-      await eliminarArchivoReel(audioSubido?.path).catch(() => null);
+      await eliminarArchivoReel(portadaSubida?.path, req.accessToken).catch(() => null);
+      await eliminarArchivoReel(audioSubido?.path, req.accessToken).catch(() => null);
       console.error('Error al crear reel:', error);
       res.status(error.status || 500).json({ error: error.message || 'No se pudo guardar el reel.' });
     }
@@ -800,8 +800,8 @@ const reelController = {
         return res.status(404).json({ error: 'Reel no encontrado o sin permiso para eliminarlo.' });
       }
 
-      await eliminarArchivoReel(result.rows[0].portada_path).catch(() => null);
-      await eliminarArchivoReel(result.rows[0].audio_path).catch(() => null);
+      await eliminarArchivoReel(result.rows[0].portada_path, req.accessToken).catch(() => null);
+      await eliminarArchivoReel(result.rows[0].audio_path, req.accessToken).catch(() => null);
       res.json({ ok: true, id: result.rows[0].id });
     } catch (error) {
       console.error('Error al eliminar reel:', error);

@@ -28,6 +28,7 @@ async function authMiddleware(req, res, next) {
     }
 
     req.user = data.user;
+    req.accessToken = token;
     next();
   } catch (error) {
     console.error('Error al validar token:', error);
@@ -58,6 +59,7 @@ authMiddleware.opcional = async function authOpcional(req, res, next) {
     }
 
     req.user = data.user;
+    req.accessToken = token;
     next();
   } catch (error) {
     console.error('Error al validar token opcional:', error);

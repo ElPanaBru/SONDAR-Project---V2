@@ -54,25 +54,50 @@ function crearFetchConTimeout(timeoutMs) {
   };
 }
 
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  global: {
-    fetch: crearFetchConTimeout(supabaseTimeoutMs)
-  }
-});
+function esJwtCompacto(valor) {
+  return typeof valor === 'string' && valor.split('.').length === 3;
+}
 
-const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey || supabaseServiceRoleKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
-  },
-  global: {
-    fetch: crearFetchConTimeout(supabaseTimeoutMs)
+function opcionesServidor({ headers = {}, accessToken } = {}) {
+  return {
+    ...(accessToken ? { accessToken: async () => accessToken } : {}),
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    },
+    global: {
+      headers,
+      fetch: crearFetchConTimeout(supabaseTimeoutMs)
+    }
+  };
+}
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, opcionesServidor());
+
+const supabaseAuth = createClient(
+  supabaseUrl,
+  supabaseAnonKey || supabaseServiceRoleKey,
+  opcionesServidor()
+);
+
+function crearStorageAutenticado(accessToken) {
+  if (!esJwtCompacto(accessToken)) {
+    if (esJwtCompacto(supabaseServiceRoleKey)) return supabaseAdmin.storage;
+
+    const error = new Error(
+      'Storage requiere el token JWT del usuario cuando SUPABASE_SERVICE_ROLE_KEY usa una clave sb_secret.'
+    );
+    error.code = 'SUPABASE_STORAGE_TOKEN_REQUIRED';
+    throw error;
   }
-});
+
+  return createClient(
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    opcionesServidor({ accessToken })
+  ).storage;
+}
 
 module.exports = supabaseAdmin;
 module.exports.authClient = supabaseAuth;
+module.exports.crearStorageAutenticado = crearStorageAutenticado;

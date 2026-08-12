@@ -181,12 +181,12 @@ function esErrorStorageNoBloqueante(error) {
     || mensaje.includes('no se pudo subir');
 }
 
-async function subirAvatarOpcional(file, userId, contexto) {
+async function subirAvatarOpcional(file, userId, contexto, accessToken) {
   if (!file) return { avatar: null, advertencia: null };
 
   try {
     return {
-      avatar: await subirAvatarUsuario(file, userId),
+      avatar: await subirAvatarUsuario(file, userId, accessToken),
       advertencia: null,
     };
   } catch (error) {
@@ -1018,7 +1018,7 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'onboarding');
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'onboarding', req.accessToken);
       avatarSubido = avatarOpcional.avatar;
       avatarAdvertencia = avatarOpcional.advertencia;
 
@@ -1052,7 +1052,7 @@ const usuariosController = {
 
       const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
       if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
-        await eliminarAvatarUsuario(avatarAnteriorPath).catch(() => null);
+        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch(() => null);
       }
 
       res.json({
@@ -1070,7 +1070,7 @@ const usuariosController = {
       });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
-      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
       if (esErrorValidacionArchivo(error)) {
         return res.status(400).json({ error: error.message });
       }
@@ -1138,7 +1138,7 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'perfil');
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'perfil', req.accessToken);
       avatarSubido = avatarOpcional.avatar;
       avatarAdvertencia = avatarOpcional.advertencia;
       const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
@@ -1162,7 +1162,7 @@ const usuariosController = {
 
       const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
       if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
-        await eliminarAvatarUsuario(avatarAnteriorPath).catch((error) => {
+        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch((error) => {
           console.error('No se pudo eliminar el avatar anterior:', error);
         });
       }
@@ -1173,7 +1173,7 @@ const usuariosController = {
       });
     } catch (error) {
       if (avatarSubido?.path) {
-        await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+        await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
       }
 
       if (esErrorValidacionArchivo(error)) {
@@ -1535,14 +1535,16 @@ const usuariosController = {
       const eliminacionesStorage = [
         eliminarAvatarUsuario(
           perfil.rows[0]?.profile_img_path
-            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET)
+            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET),
+          req.accessToken
         ),
         ...eventos.rows.map((evento) => eliminarImagenEvento(
-          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET)
+          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET),
+          req.accessToken
         )),
         ...reels.rows.flatMap((reel) => [
-          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET)),
-          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET)),
+          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET), req.accessToken),
+          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET), req.accessToken),
         ]),
       ];
       await Promise.all(eliminacionesStorage);

@@ -1,9 +1,11 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
 const {
   crearNotificacion,
   eliminarNotificacion,
   nombreActor,
+  notificarMiembrosComunidad,
   notificarMenciones,
   notificarSeguidores,
 } = require('../services/notificationService');
@@ -87,6 +89,8 @@ const COMUNIDADES_GENERO = [
 let esquemaComunidadesListo = null;
 
 async function obtenerViewerId(req) {
+  if (req.user?.id) return req.user.id;
+
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
     ? authorization.slice('Bearer '.length)
@@ -94,7 +98,7 @@ async function obtenerViewerId(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
 }
@@ -593,7 +597,7 @@ const comunidadController = {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComunidades();
 
-      const comunidad = await pool.query('SELECT id, genero FROM comunidades WHERE id = $1 AND activa = true', [comunidadId]);
+      const comunidad = await pool.query('SELECT id, genero, titulo FROM comunidades WHERE id = $1 AND activa = true', [comunidadId]);
       if (comunidad.rowCount === 0) {
         return res.status(404).json({ error: 'Comunidad no encontrada.' });
       }
@@ -631,21 +635,31 @@ const comunidadController = {
       );
 
       const actorName = nombreActor(req.user);
+      const targetUrl = `/comunidad?comunidad=${comunidadId}&publicacion=${result.rows[0].id}`;
+      const notificationTitle = `Nueva publicacion en ${comunidad.rows[0].titulo || comunidadId}`;
+      const uniquePrefix = `new-community-post:${result.rows[0].id}`;
+      await notificarMiembrosComunidad({
+        comunidadId,
+        actorId: req.user.id,
+        type: 'new_community_post',
+        title: notificationTitle,
+        body: `${actorName}: ${titulo}`,
+        targetUrl,
+        uniquePrefix,
+      });
       await notificarSeguidores({
         actorId: req.user.id,
         type: 'new_community_post',
-        title: `${actorName} publico en una comunidad`,
-        body: titulo,
-        targetUrl: `/comunidad?comunidad=${comunidadId}&publicacion=${result.rows[0].id}`,
-        entityType: 'community_post',
-        entityId: result.rows[0].id,
-        uniquePrefix: `new-community-post:${result.rows[0].id}`,
+        title: notificationTitle,
+        body: `${actorName}: ${titulo}`,
+        targetUrl,
+        uniquePrefix,
       });
       await notificarMenciones({
         texto,
         actorId: req.user.id,
         actorName,
-        targetUrl: `/comunidad?comunidad=${comunidadId}&publicacion=${result.rows[0].id}`,
+        targetUrl,
         entityType: 'community_post',
         entityId: result.rows[0].id,
       });

@@ -6,6 +6,7 @@ const test = require('node:test');
 
 let miembroActivo = false;
 let siguientePublicacionId = 41;
+let notificacionesAMiembros = [];
 
 const comunidadRow = {
   id: 'pop',
@@ -23,14 +24,15 @@ function resultado(rows = []) {
   return { rows, rowCount: rows.length };
 }
 
-async function ejecutarQuery(sql) {
+async function ejecutarQuery(sql, params = []) {
   const consulta = String(sql).replace(/\s+/g, ' ').trim();
 
   if (consulta.includes('SELECT c.*') && consulta.includes('FROM comunidades c')) {
-    return resultado([{ ...comunidadRow, unido: miembroActivo, miembros: miembroActivo ? 1 : 0 }]);
+    const viewerEsMiembro = miembroActivo && params[1] === '11111111-1111-4111-8111-111111111111';
+    return resultado([{ ...comunidadRow, unido: viewerEsMiembro, miembros: miembroActivo ? 1 : 0 }]);
   }
-  if (consulta.startsWith('SELECT id, genero FROM comunidades')) {
-    return resultado([{ id: 'pop', genero: 'pop' }]);
+  if (consulta.startsWith('SELECT id, genero, titulo FROM comunidades')) {
+    return resultado([{ id: 'pop', genero: 'pop', titulo: 'Pop' }]);
   }
   if (consulta.startsWith('SELECT 1 FROM comunidad_miembros')) {
     return resultado(miembroActivo ? [{ '?column?': 1 }] : []);
@@ -88,13 +90,27 @@ const originalLoad = Module._load;
 Module._load = function cargarModulo(request, parent, isMain) {
   if (request === '../Pool_DB') return poolFalso;
   if (request === '../services/supabaseClient') {
-    return { auth: { getUser: async () => ({ data: { user: null }, error: null }) } };
+    return {
+      auth: { getUser: async () => ({ data: { user: null }, error: null }) },
+      authClient: {
+        auth: {
+          getUser: async (token) => ({
+            data: { user: token === 'token-prueba' ? usuarioPrueba : null },
+            error: null,
+          }),
+        },
+      },
+    };
   }
   if (request === '../services/notificationService') {
     return {
       crearNotificacion: async () => null,
       eliminarNotificacion: async () => null,
       nombreActor: () => 'Tester',
+      notificarMiembrosComunidad: async (datos) => {
+        notificacionesAMiembros.push(datos);
+        return 1;
+      },
       notificarMenciones: async () => null,
       notificarSeguidores: async () => null,
     };
@@ -148,6 +164,22 @@ test('unirse y salir del foro actualiza el estado persistido', async () => {
   assert.deepEqual(salida.body, { comunidadId: 'pop', unido: false, miembros: 0 });
 });
 
+test('la membresia se conserva al volver a cargar con la sesion restaurada', async () => {
+  miembroActivo = false;
+  const reqMembresia = { params: { comunidadId: 'pop' }, user: usuarioPrueba };
+  await comunidadController.alternarMembresia(reqMembresia, crearRespuesta());
+
+  const recarga = crearRespuesta();
+  await comunidadController.listarComunidades({
+    headers: { authorization: 'Bearer token-prueba' },
+    query: {},
+  }, recarga);
+
+  assert.equal(recarga.statusCode, 200);
+  assert.equal(recarga.body[0].unido, true);
+  assert.equal(recarga.body[0].miembros, 1);
+});
+
 test('crear una publicacion exige membresia en el foro', async () => {
   miembroActivo = false;
   const res = crearRespuesta();
@@ -163,6 +195,7 @@ test('crear una publicacion exige membresia en el foro', async () => {
 
 test('un miembro puede crear una publicacion', async () => {
   miembroActivo = true;
+  notificacionesAMiembros = [];
   const res = crearRespuesta();
   await comunidadController.crearPublicacion({
     params: { comunidadId: 'pop' },
@@ -173,6 +206,10 @@ test('un miembro puede crear una publicacion', async () => {
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.comunidadId, 'pop');
   assert.equal(res.body.titulo, 'Publicacion de prueba');
+  assert.equal(notificacionesAMiembros.length, 1);
+  assert.equal(notificacionesAMiembros[0].comunidadId, 'pop');
+  assert.equal(notificacionesAMiembros[0].type, 'new_community_post');
+  assert.match(notificacionesAMiembros[0].targetUrl, /comunidad=pop&publicacion=/);
 });
 
 test('eventos ya no acepta ni procesa imagenes y usa el logo predeterminado', () => {

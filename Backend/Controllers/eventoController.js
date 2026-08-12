@@ -368,7 +368,7 @@ const eventoController = {
         return res.status(404).json({ error: 'Evento no encontrado o sin permiso para eliminarlo.' });
       }
 
-      await eliminarImagenEvento(result.rows[0].img_path).catch((error) => {
+      await eliminarImagenEvento(result.rows[0].img_path, req.accessToken).catch((error) => {
         console.error('No se pudo eliminar la imagen del evento:', error);
       });
 

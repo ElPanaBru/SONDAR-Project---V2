@@ -147,7 +147,15 @@ const mostrarGenero = (genero) => {
   return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
 };
 
-const normalizarGenero = (genero) => genero?.trim().toLowerCase() || "";
+const normalizarBusqueda = (valor) => String(valor || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
+const coincideBusqueda = (item, campos, busqueda) => {
+  const termino = normalizarBusqueda(busqueda).trim();
+  return !termino || campos.some((campo) => normalizarBusqueda(item?.[campo]).includes(termino));
+};
 
 const formatearFechaCorta = (fecha) => {
   if (!fecha) return "Sin fecha";
@@ -228,6 +236,8 @@ export default function Comunidad({ usuario }) {
   const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
   const [eventosAsociables, setEventosAsociables] = useState([]);
   const [reelsAsociables, setReelsAsociables] = useState([]);
+  const [busquedaEventoAsociado, setBusquedaEventoAsociado] = useState("");
+  const [busquedaReelAsociado, setBusquedaReelAsociado] = useState("");
   const [reelAsociadoActivo, setReelAsociadoActivo] = useState(null);
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
@@ -248,20 +258,28 @@ export default function Comunidad({ usuario }) {
     [filtroActivo]
   );
 
-  const eventosDelGenero = useMemo(
-    () =>
-      eventosAsociables.filter(
-        (evento) => normalizarGenero(evento.genero) === normalizarGenero(comunidadActiva?.genero)
-      ),
-    [comunidadActiva?.genero, eventosAsociables]
+  const eventosDisponibles = useMemo(
+    () => eventosAsociables.filter((evento) =>
+      String(evento.id) === String(nuevoHilo.eventoAsociadoId)
+      || coincideBusqueda(
+        evento,
+        ["titulo", "genero", "lugar", "ubicacion", "creador"],
+        busquedaEventoAsociado
+      )
+    ),
+    [busquedaEventoAsociado, eventosAsociables, nuevoHilo.eventoAsociadoId]
   );
 
-  const reelsDelGenero = useMemo(
-    () =>
-      reelsAsociables.filter(
-        (reel) => normalizarGenero(reel.genero || reel.tag || reel.etiqueta) === normalizarGenero(comunidadActiva?.genero)
-      ),
-    [comunidadActiva?.genero, reelsAsociables]
+  const reelsDisponibles = useMemo(
+    () => reelsAsociables.filter((reel) =>
+      String(reel.id) === String(nuevoHilo.reelAsociadoId)
+      || coincideBusqueda(
+        reel,
+        ["tema", "album", "artista", "usuario", "genero", "descripcion"],
+        busquedaReelAsociado
+      )
+    ),
+    [busquedaReelAsociado, nuevoHilo.reelAsociadoId, reelsAsociables]
   );
 
   const eventoAsociadoSeleccionado = useMemo(
@@ -332,7 +350,7 @@ export default function Comunidad({ usuario }) {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [usuario?.id]);
 
   useEffect(() => {
     let cancelado = false;
@@ -656,6 +674,8 @@ export default function Comunidad({ usuario }) {
         eventoAsociadoId: "",
         reelAsociadoId: "",
       });
+      setBusquedaEventoAsociado("");
+      setBusquedaReelAsociado("");
     } catch (error) {
       mostrarAviso(error.message || "No se pudo publicar en la comunidad.");
     } finally {
@@ -1330,28 +1350,101 @@ export default function Comunidad({ usuario }) {
                     <option value="preguntas">Pregunta</option>
                   </select>
                 </label>
-                <label>
-                  <span>Evento asociado (opcional)</span>
-                  <select name="eventoAsociadoId" value={nuevoHilo.eventoAsociadoId} onChange={handleChange}>
-                    <option value="">Sin evento asociado</option>
-                    {eventosDelGenero.map((evento) => (
-                      <option key={evento.id} value={evento.id}>
-                        {evento.titulo}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>Tema asociado (opcional)</span>
-                  <select name="reelAsociadoId" value={nuevoHilo.reelAsociadoId} onChange={handleChange}>
-                    <option value="">Sin tema asociado</option>
-                    {reelsDelGenero.map((reel) => (
-                      <option key={reel.id} value={reel.id}>
-                        {reel.tema || reel.album || reel.artista}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="comunidad-asociacion-selector">
+                  <span className="comunidad-asociacion-titulo">Evento asociado (opcional)</span>
+                  <input
+                    type="search"
+                    value={busquedaEventoAsociado}
+                    onChange={(event) => setBusquedaEventoAsociado(event.target.value)}
+                    placeholder="Buscar por evento, lugar, creador o genero"
+                    aria-label="Buscar entre todos los eventos de SONDAR"
+                  />
+                  <div className="comunidad-asociacion-resultados" aria-label="Eventos disponibles">
+                    {eventosDisponibles.length === 0 ? (
+                      <p className="comunidad-asociacion-vacio">No encontramos eventos con esa búsqueda.</p>
+                    ) : eventosDisponibles.map((evento) => {
+                      const seleccionado = String(evento.id) === String(nuevoHilo.eventoAsociadoId);
+                      return (
+                        <button
+                          className={`comunidad-asociacion-card evento ${seleccionado ? "seleccionada" : ""}`}
+                          type="button"
+                          key={evento.id}
+                          aria-pressed={seleccionado}
+                          onClick={() => setNuevoHilo((actual) => ({
+                            ...actual,
+                            eventoAsociadoId: seleccionado ? "" : evento.id,
+                          }))}
+                        >
+                          <span className="comunidad-asociacion-imagen">
+                            <img
+                              src="/sondar-icon.png"
+                              alt=""
+                            />
+                            <i>Evento</i>
+                          </span>
+                          <span className="comunidad-asociacion-datos">
+                            <strong>{evento.titulo || "Evento de SONDAR"}</strong>
+                            <small>{evento.creador || "SONDAR"} · {mostrarGenero(evento.genero) || "Sin género"}</small>
+                            <em>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</em>
+                            <time>{formatearFechaCorta(evento.fecha)}</time>
+                          </span>
+                          <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <small className="comunidad-asociacion-ayuda">
+                    {eventoAsociadoSeleccionado ? "Evento seleccionado. Tocá la card para quitarlo." : `${eventosAsociables.length} eventos disponibles`}
+                  </small>
+                </div>
+                <div className="comunidad-asociacion-selector">
+                  <span className="comunidad-asociacion-titulo">Tema asociado (opcional)</span>
+                  <input
+                    type="search"
+                    value={busquedaReelAsociado}
+                    onChange={(event) => setBusquedaReelAsociado(event.target.value)}
+                    placeholder="Buscar por tema, artista, reel o genero"
+                    aria-label="Buscar entre todos los temas de SONDAR"
+                  />
+                  <div className="comunidad-asociacion-resultados" aria-label="Temas disponibles">
+                    {reelsDisponibles.length === 0 ? (
+                      <p className="comunidad-asociacion-vacio">No encontramos temas con esa búsqueda.</p>
+                    ) : reelsDisponibles.map((reel) => {
+                      const seleccionado = String(reel.id) === String(nuevoHilo.reelAsociadoId);
+                      return (
+                        <button
+                          className={`comunidad-asociacion-card reel ${seleccionado ? "seleccionada" : ""}`}
+                          type="button"
+                          key={reel.id}
+                          aria-pressed={seleccionado}
+                          onClick={() => setNuevoHilo((actual) => ({
+                            ...actual,
+                            reelAsociadoId: seleccionado ? "" : reel.id,
+                          }))}
+                        >
+                          <span className="comunidad-asociacion-imagen">
+                            <img
+                              src={reel.portada || "/sondar-icon.png"}
+                              alt=""
+                              onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }}
+                            />
+                            <i>Reel</i>
+                          </span>
+                          <span className="comunidad-asociacion-datos">
+                            <strong>{reel.tema || "Tema de SONDAR"}</strong>
+                            <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero) || "Sin género"}</small>
+                            <em>{reel.album || "Reel musical"}</em>
+                            <time>{reel.duracion || "0:30"}</time>
+                          </span>
+                          <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <small className="comunidad-asociacion-ayuda">
+                    {reelAsociadoSeleccionado ? "Tema seleccionado. Tocá la card para quitarlo." : `${reelsAsociables.length} temas disponibles`}
+                  </small>
+                </div>
               </div>
 
               <label className="comunidad-post-campo">

@@ -122,6 +122,43 @@ async function notificarSeguidores({
   }
 }
 
+async function notificarMiembrosComunidad({
+  comunidadId,
+  actorId,
+  type = 'new_community_post',
+  title,
+  body = '',
+  targetUrl = '',
+  uniquePrefix,
+}, client = pool) {
+  try {
+    if (!comunidadId || !actorId || !uniquePrefix) return 0;
+
+    const miembros = await client.query(
+      `SELECT cm.user_id
+       FROM comunidad_miembros cm
+       WHERE cm.comunidad_id = $1
+         AND cm.user_id <> $2`,
+      [comunidadId, actorId]
+    );
+
+    const creadas = await Promise.all(miembros.rows.map((miembro) => crearNotificacion({
+      userId: miembro.user_id,
+      actorId,
+      type,
+      title,
+      body,
+      targetUrl,
+      uniqueKey: `${uniquePrefix}:${miembro.user_id}`,
+    }, client)));
+
+    return creadas.filter(Boolean).length;
+  } catch (error) {
+    console.error('No se pudo notificar a los miembros de la comunidad:', error);
+    return 0;
+  }
+}
+
 async function notificarMenciones({
   texto,
   actorId,
@@ -160,6 +197,7 @@ module.exports = {
   crearNotificacion,
   eliminarNotificacion,
   nombreActor,
+  notificarMiembrosComunidad,
   notificarMenciones,
   notificarSeguidores,
 };

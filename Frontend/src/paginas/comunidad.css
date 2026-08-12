@@ -908,7 +908,7 @@
 }
 
 .comunidad-modal {
-  width: min(100%, 720px);
+  width: min(100%, 860px);
   max-height: calc(100vh - 24px);
   overflow-y: auto;
   color: #ffffff;
@@ -1008,20 +1008,173 @@
 
 .comunidad-asociaciones-form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
-.comunidad-asociaciones-form label {
+.comunidad-asociaciones-form > label,
+.comunidad-asociacion-selector {
   display: grid;
   gap: 7px;
 }
 
-.comunidad-asociaciones-form span {
+.comunidad-asociaciones-form > label > span,
+.comunidad-asociacion-titulo {
   color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.comunidad-asociaciones-form > label:first-child {
+  max-width: 340px;
+}
+
+.comunidad-asociacion-resultados {
+  max-height: 252px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+  scrollbar-color: rgba(255, 138, 28, 0.72) #171717;
+  scrollbar-width: thin;
+}
+
+.comunidad-asociacion-card {
+  min-width: 0;
+  min-height: 84px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 10px;
+  color: #ffffff;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.comunidad-asociacion-card:hover {
+  background: #202020;
+  border-color: rgba(255, 174, 0, 0.62);
+  transform: translateY(-1px);
+}
+
+.comunidad-asociacion-card.seleccionada {
+  background: linear-gradient(135deg, rgba(255, 174, 0, 0.16), rgba(255, 94, 0, 0.1));
+  border-color: #ff9b18;
+  box-shadow: 0 0 0 2px rgba(255, 138, 28, 0.12);
+}
+
+.comunidad-asociacion-imagen {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  overflow: hidden;
+  background: #090909;
+  border-radius: 8px;
+}
+
+.comunidad-asociacion-imagen img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.comunidad-asociacion-imagen i {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  color: #080808;
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  border-radius: 999px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.comunidad-asociacion-datos {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 8px;
+}
+
+.comunidad-asociacion-datos strong,
+.comunidad-asociacion-datos small,
+.comunidad-asociacion-datos em {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comunidad-asociacion-datos strong {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.comunidad-asociacion-datos small,
+.comunidad-asociacion-datos em,
+.comunidad-asociacion-datos time,
+.comunidad-asociacion-ayuda {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.comunidad-asociacion-datos em {
+  grid-column: 1;
+}
+
+.comunidad-asociacion-datos time {
+  grid-column: 2;
+  justify-self: end;
+  color: #ffae00;
+  font-weight: 900;
+}
+
+.comunidad-asociacion-check {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  color: #080808;
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 50%;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.comunidad-asociacion-card.seleccionada .comunidad-asociacion-check {
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+}
+
+.comunidad-asociacion-ayuda {
+  padding-left: 2px;
+}
+
+.comunidad-asociacion-vacio {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.6);
+  background: #171717;
+  border: 1px dashed rgba(255, 174, 0, 0.35);
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
 }
 
 .comunidad-modal input,
@@ -1190,6 +1343,10 @@
   .comunidad-modal-botones {
     grid-template-columns: 1fr;
     margin-left: 0;
+  }
+
+  .comunidad-asociacion-resultados {
+    grid-template-columns: 1fr;
   }
 
   .publicacion-asociada,

@@ -84,6 +84,35 @@ test('comunidad expone respuestas, likes y denuncias sin compartir publicaciones
   assert.match(rutas, /comentarios\/:comentarioId\/denunciar/);
 });
 
+test('comunidad permite buscar referencias en todo el catalogo publico', () => {
+  const pagina = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+
+  assert.match(pagina, /Buscar entre todos los eventos de SONDAR/);
+  assert.match(pagina, /Buscar entre todos los temas de SONDAR/);
+  assert.match(pagina, /eventosDisponibles\.map/);
+  assert.match(pagina, /reelsDisponibles\.map/);
+  assert.match(pagina, /comunidad-asociacion-card evento/);
+  assert.match(pagina, /comunidad-asociacion-card reel/);
+  assert.match(pagina, /evento\.lugar \|\| evento\.ubicacion/);
+  assert.match(pagina, /reel\.album \|\| "Reel musical"/);
+  assert.match(pagina, /src="\/sondar-icon\.png"/);
+  assert.doesNotMatch(pagina, /eventosDelGenero\.map|reelsDelGenero\.map/);
+});
+
+test('storage usa el JWT del usuario cuando el backend tiene una clave sb_secret', () => {
+  const cliente = fs.readFileSync(path.join(raiz, 'Backend', 'services', 'supabaseClient.js'), 'utf8');
+  const middleware = fs.readFileSync(path.join(raiz, 'Backend', 'middlewares', 'authMiddleware.js'), 'utf8');
+  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'reelController.js'), 'utf8');
+  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Permitir_Storage_Por_Usuario.sql'), 'utf8');
+
+  assert.match(cliente, /crearStorageAutenticado/);
+  assert.match(cliente, /accessToken: async \(\) => accessToken/);
+  assert.match(middleware, /req\.accessToken = token/);
+  assert.match(controlador, /subirAudioReel\(audioFile, req\.user\.id, req\.accessToken\)/);
+  assert.match(migracion, /sondar_reels_insert_own/);
+  assert.match(migracion, /storage\.foldername\(name\)\)\[3\]/);
+});
+
 test('el login manual usa el mismo limite de espera que el inicio automatico', () => {
   const auth = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Auth.jsx'), 'utf8');
   assert.match(auth, /esperarConTimeout\(\s*supabase\.auth\.signInWithPassword/);
