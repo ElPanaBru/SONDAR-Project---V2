@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "./firebaseConfig";
+import { Link } from "react-router-dom";
+import { register } from "./localAuth";
 
 export default function Register({ onSwitch }) {
   const [email, setEmail] = useState("");
@@ -8,41 +8,24 @@ export default function Register({ onSwitch }) {
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = async (e) => {
+  const handleRegister = (e) => {
     e.preventDefault();
     setMensaje("");
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
+      const user = register({
+        email: email.trim(),
+        password: password.trim(),
+        username: email.trim().split("@")[0],
+      });
 
-      setMensaje(`Usuario ${userCredential.user.email} creado con éxito`);
+      setMensaje(`Usuario ${user.email} creado con exito`);
       setEmail("");
       setPassword("");
-
     } catch (error) {
       console.error(error);
-
-      switch (error.code) {
-        case "auth/email-already-in-use":
-          setMensaje("El correo ya está registrado");
-          break;
-        case "auth/weak-password":
-          setMensaje("La contraseña debe tener al menos 6 caracteres");
-          break;
-        case "auth/invalid-email":
-          setMensaje("Correo inválido");
-          break;
-        case "auth/too-many-requests":
-          setMensaje("Demasiados intentos. Probá más tarde");
-          break;
-        default:
-          setMensaje("Error: " + error.message);
-      }
+      setMensaje("Error: " + error.message);
     } finally {
       setLoading(false);
     }
@@ -64,7 +47,7 @@ export default function Register({ onSwitch }) {
 
         <input
           type="password"
-          placeholder="Contraseña"
+          placeholder="Contrasena"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
@@ -72,17 +55,23 @@ export default function Register({ onSwitch }) {
         />
 
         <button type="submit" disabled={loading} style={styles.btn}>
-          <Link to="/inicio">Registrarse</Link>
+          {loading ? "Registrando..." : "Registrarse"}
         </button>
       </form>
 
       <p style={styles.msg}>{mensaje}</p>
 
       <p>
-        ¿Ya tenés cuenta?{" "}
-        <button onClick={onSwitch} style={styles.linkBtn}>
-          Iniciar sesión
-        </button>
+        Ya tenes cuenta?{" "}
+        {onSwitch ? (
+          <button onClick={onSwitch} style={styles.linkBtn}>
+            Iniciar sesion
+          </button>
+        ) : (
+          <Link to="/auth?modo=login" style={styles.link}>
+            Iniciar sesion
+          </Link>
+        )}
       </p>
     </div>
   );
@@ -116,6 +105,10 @@ const styles = {
     border: "none",
     color: "#1976d2",
     cursor: "pointer",
+    textDecoration: "underline",
+  },
+  link: {
+    color: "#1976d2",
     textDecoration: "underline",
   },
   msg: {

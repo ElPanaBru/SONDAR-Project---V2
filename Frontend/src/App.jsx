@@ -1,7 +1,6 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./paginas/firebaseConfig";
+import { subscribeToAuthChanges } from "./paginas/localAuth";
 import "./App.css";
 
 import Navbar from "./componentes/Navbar";
@@ -17,13 +16,7 @@ function App() {
   const location = useLocation();
   const [usuario, setUsuario] = useState(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUsuario(user);
-    });
-
-    return () => unsubscribe();
-  }, []);
+  useEffect(() => subscribeToAuthChanges(setUsuario), []);
 
   const hideNavbarRoutes = ["/auth", "/login", "/registro"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);

@@ -1,6 +1,6 @@
 -- 1. Creamos la tabla de usuarios
 CREATE TABLE users (
-    id VARCHAR(255) PRIMARY KEY, -- Aquí se guardará el UID de Firebase
+    id VARCHAR(255) PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
     user_type VARCHAR(20) DEFAULT 'oyente',

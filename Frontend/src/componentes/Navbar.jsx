@@ -1,7 +1,6 @@
 import { NavLink, Link, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
-import { signOut } from "firebase/auth";
-import { auth } from "../paginas/firebaseConfig";
+import { logout } from "../paginas/localAuth";
 import "./navbar.css";
 
 function Navbar({ usuario }) {
@@ -34,7 +33,7 @@ function Navbar({ usuario }) {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      logout();
       navigate("/", { replace: true });
     } catch (error) {
       console.error("Error al cerrar sesion:", error);
