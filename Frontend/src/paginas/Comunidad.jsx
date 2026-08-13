@@ -234,7 +234,7 @@ export default function Comunidad({ usuario }) {
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [recursoAbierto, setRecursoAbierto] = useState(null);
+  const [eventosAbiertos, setEventosAbiertos] = useState(false);
   const [mostrarNotificacionesComunidad, setMostrarNotificacionesComunidad] = useState(false);
   const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
   const [actualizandoNotificaciones, setActualizandoNotificaciones] = useState(false);
@@ -292,13 +292,6 @@ export default function Comunidad({ usuario }) {
       (evento) => normalizarBusqueda(evento.genero).trim() === genero
     );
   }, [comunidadActiva?.genero, eventosAsociables]);
-
-  const reelsRecursoGenero = useMemo(() => {
-    const genero = normalizarBusqueda(comunidadActiva?.genero).trim();
-    return reelsAsociables.filter(
-      (reel) => normalizarBusqueda(reel.genero || reel.tag || reel.etiqueta).trim() === genero
-    );
-  }, [comunidadActiva?.genero, reelsAsociables]);
 
   const eventoAsociadoSeleccionado = useMemo(
     () => eventosAsociables.find((evento) => String(evento.id) === String(nuevoHilo.eventoAsociadoId)) || null,
@@ -1109,7 +1102,7 @@ export default function Comunidad({ usuario }) {
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
                 <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
-                <p>{comunidadActiva.descripcion}</p>
+                {comunidadActiva.descripcion ? <p>{comunidadActiva.descripcion}</p> : null}
                 <div className="comunidad-miembros">
                   <strong>{comunidadActiva.miembros || 0}</strong>
                   <span>miembros</span>
@@ -1264,13 +1257,6 @@ export default function Comunidad({ usuario }) {
           </div>
 
           <div className="comunidad-feed">
-            <section className="comunidad-highlights">
-              <div className="highlight-card">
-                <strong>Bienvenido a s/{mostrarGenero(comunidadActiva.genero)}</strong>
-                <p>Comparte lanzamientos, eventos, dudas y recomendaciones para que este foro se mantenga util para la escena.</p>
-              </div>
-            </section>
-
             {cargandoHilos && (
               <div className="comunidad-vacio">
                 Cargando publicaciones...
@@ -1418,29 +1404,20 @@ export default function Comunidad({ usuario }) {
 
         <aside className="comunidad-sidebar detalle-comunidad">
           <section className="comunidad-panel">
-            <h2>Reglas del foro</h2>
-            <ol className="comunidad-reglas">
-              {reglasForo.map((regla) => (
-                <li key={regla}>{regla}</li>
-              ))}
-            </ol>
-          </section>
-
-          <section className="comunidad-panel">
             <h2>Recursos</h2>
             <div className="comunidad-bookmarks">
-              <section className={`comunidad-recurso ${recursoAbierto === "eventos" ? "abierto" : ""}`}>
+              <section className={`comunidad-recurso ${eventosAbiertos ? "abierto" : ""}`}>
                 <button
                   className="comunidad-recurso-trigger"
                   type="button"
-                  aria-expanded={recursoAbierto === "eventos"}
+                  aria-expanded={eventosAbiertos}
                   aria-controls="recurso-eventos-genero"
-                  onClick={() => setRecursoAbierto((actual) => actual === "eventos" ? null : "eventos")}
+                  onClick={() => setEventosAbiertos((actual) => !actual)}
                 >
                   <span>Eventos del género</span>
                   <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
                 </button>
-                {recursoAbierto === "eventos" ? (
+                {eventosAbiertos ? (
                   <div className="comunidad-recurso-contenido" id="recurso-eventos-genero">
                     {eventosRecursoGenero.length === 0 ? (
                       <p className="comunidad-recurso-vacio">Todavía no hay eventos de este género.</p>
@@ -1468,50 +1445,26 @@ export default function Comunidad({ usuario }) {
                 ) : null}
               </section>
 
-              <section className={`comunidad-recurso ${recursoAbierto === "reels" ? "abierto" : ""}`}>
+              <section className="comunidad-recurso">
                 <button
-                  className="comunidad-recurso-trigger"
+                  className="comunidad-recurso-enlace"
                   type="button"
-                  aria-expanded={recursoAbierto === "reels"}
-                  aria-controls="recurso-reels-genero"
-                  onClick={() => setRecursoAbierto((actual) => actual === "reels" ? null : "reels")}
+                  onClick={() => navigate(`/descubrir?genero=${encodeURIComponent(comunidadActiva.genero)}`)}
                 >
                   <span>Reels del género</span>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4h9v9M16 4 5 15" /></svg>
                 </button>
-                {recursoAbierto === "reels" ? (
-                  <div className="comunidad-recurso-contenido" id="recurso-reels-genero">
-                    {reelsRecursoGenero.length === 0 ? (
-                      <p className="comunidad-recurso-vacio">Todavía no hay reels de este género.</p>
-                    ) : reelsRecursoGenero.map((reel) => (
-                      <article className="comunidad-recurso-card recurso-reel" key={reel.id}>
-                        <img
-                          className="comunidad-recurso-imagen"
-                          src={reel.portada || "/sondar-icon.png"}
-                          alt=""
-                          onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }}
-                        />
-                        <div className="comunidad-recurso-datos">
-                          <strong>{reel.tema || "Reel de SONDAR"}</strong>
-                          <span>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero)}</span>
-                          <small>{reel.album || "Lanzamiento independiente"}</small>
-                          <time>{reel.duracion || "0:30"} · {Number(reel.likes || 0)} likes</time>
-                        </div>
-                        <button
-                          className="comunidad-recurso-abrir"
-                          type="button"
-                          aria-label={`Abrir reel ${reel.tema || "de SONDAR"}`}
-                          title="Ver reel"
-                          onClick={() => navigate(`/descubrir?lanzamiento=${encodeURIComponent(idReelParaNavegacion(reel))}`)}
-                        >
-                          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4h9v9M16 4 5 15" /></svg>
-                        </button>
-                      </article>
-                    ))}
-                  </div>
-                ) : null}
               </section>
             </div>
+          </section>
+
+          <section className="comunidad-panel">
+            <h2>Reglas del foro</h2>
+            <ol className="comunidad-reglas">
+              {reglasForo.map((regla) => (
+                <li key={regla}>{regla}</li>
+              ))}
+            </ol>
           </section>
         </aside>
       </section>

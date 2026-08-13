@@ -115,6 +115,7 @@ export default function MiPerfil({ usuario }) {
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
+  const [avatarArrastrado, setAvatarArrastrado] = useState(false);
 
   const opcionesPerfil = useMemo(
     () => [
@@ -212,15 +213,26 @@ export default function MiPerfil({ usuario }) {
     });
   };
 
-  const handleAvatar = (event) => {
-    const file = event.target.files[0];
+  const seleccionarAvatar = (file) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setAviso("Arrastra un archivo de imagen valido.");
+      return;
+    }
 
     setAvatarArchivo(file);
     setPerfilEditado((prev) => ({
       ...prev,
       avatar: URL.createObjectURL(file),
     }));
+  };
+
+  const handleAvatar = (event) => seleccionarAvatar(event.target.files?.[0]);
+
+  const soltarAvatar = (event) => {
+    event.preventDefault();
+    setAvatarArrastrado(false);
+    seleccionarAvatar(event.dataTransfer.files?.[0]);
   };
 
   const guardarPerfil = async (event) => {
@@ -383,8 +395,16 @@ export default function MiPerfil({ usuario }) {
                   )}
                 </div>
 
-                <label className="perfil-avatar-upload">
-                  Cambiar foto
+                <label
+                  className={`perfil-avatar-upload ${avatarArrastrado ? "arrastrando" : ""}`}
+                  onDragEnter={(event) => { event.preventDefault(); setAvatarArrastrado(true); }}
+                  onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setAvatarArrastrado(false);
+                  }}
+                  onDrop={soltarAvatar}
+                >
+                  Elegir o arrastrar foto
                   <input type="file" accept="image/*" onChange={handleAvatar} />
                 </label>
               </div>

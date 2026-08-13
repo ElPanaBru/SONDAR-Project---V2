@@ -492,6 +492,19 @@
   border-radius: 8px;
   font-weight: 900;
   cursor: pointer;
+  outline: 2px dashed transparent;
+  outline-offset: -5px;
+  transition: filter 0.18s ease, outline-color 0.18s ease, transform 0.18s ease;
+}
+
+.perfil-avatar-upload:hover,
+.perfil-avatar-upload.arrastrando {
+  filter: brightness(1.08);
+  outline-color: rgba(5, 5, 5, 0.58);
+}
+
+.perfil-avatar-upload.arrastrando {
+  transform: translateY(-2px);
 }
 
 .perfil-avatar-upload input {

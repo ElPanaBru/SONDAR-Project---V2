@@ -158,7 +158,6 @@ export default function Eventos({ usuario }) {
 
   // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
-  const [ultimoEventoDetalle, setUltimoEventoDetalle] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [detalleExpandido, setDetalleExpandido] = useState(false);
   const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
@@ -283,7 +282,7 @@ export default function Eventos({ usuario }) {
     [eventos, eventoActivo]
   );
 
-  const detalleEvento = eventoSeleccionado || ultimoEventoDetalle;
+  const detalleEvento = eventoSeleccionado;
 
   const reelsDelEvento = useMemo(() => {
     if (!detalleEvento) return [];
@@ -334,7 +333,6 @@ export default function Eventos({ usuario }) {
     if (generosVisibles.includes(normalizarGenero(detalleEvento.genero))) return;
 
     setEventoActivo(null);
-    setUltimoEventoDetalle(null);
     setDetalleExpandido(false);
   }, [detalleEvento, generosVisibles]);
 
@@ -356,8 +354,15 @@ export default function Eventos({ usuario }) {
       bounds: [[-85, -180], [85, 180]]
     }).addTo(map);
 
-    L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.control.zoom({ position: "topright" }).addTo(map);
     map.on("zoomend", () => setZoomMapa(map.getZoom()));
+    map.on("click", (event) => {
+      const objetivo = event.originalEvent?.target;
+      if (objetivo?.closest?.(".evento-pin-wrapper, .evento-cluster-wrapper")) return;
+      setEventoActivo(null);
+      setDetalleExpandido(false);
+      setMenuEventoAbierto(false);
+    });
     markersLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
 
@@ -397,7 +402,6 @@ export default function Eventos({ usuario }) {
         ? actuales
         : GENEROS_PERMITIDOS.filter((genero) => [...actuales, generoDestino].includes(genero))
     );
-    setUltimoEventoDetalle(eventoDestino);
     setEventoActivo(eventoDestino.id);
     setDetalleExpandido(false);
     if (eventoDestino.coords && mapInstance.current) {
@@ -547,7 +551,6 @@ export default function Eventos({ usuario }) {
       });
 
       marker.on("click", () => {
-        setUltimoEventoDetalle(evento);
         setEventoActivo(evento.id);
         setDetalleExpandido(false);
         mapInstance.current.flyTo(posicionFinal, 16, {
@@ -614,9 +617,6 @@ export default function Eventos({ usuario }) {
       setEventos((actuales) => actuales.map((evento) =>
         evento.id === id ? { ...evento, guardado: dataGuardado.guardado } : evento
       ));
-      setUltimoEventoDetalle((actual) =>
-        actual?.id === id ? { ...actual, guardado: dataGuardado.guardado } : actual
-      );
     } catch (error) {
       console.error(error);
       mostrarAviso(error.message || "No se pudo actualizar el guardado.");
@@ -624,7 +624,6 @@ export default function Eventos({ usuario }) {
   };
 
   const seleccionarEvento = useCallback((evento, expandir = false) => {
-    setUltimoEventoDetalle(evento);
     setEventoActivo(evento.id);
     setDetalleExpandido(expandir);
     if (tieneCoordenadasValidas(evento) && mapInstance.current) {
@@ -804,7 +803,6 @@ export default function Eventos({ usuario }) {
 
       setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
       setEventoActivo(null);
-      setUltimoEventoDetalle(null);
       setDetalleExpandido(false);
       setMenuEventoAbierto(false);
       mostrarAviso("Evento eliminado");
@@ -952,7 +950,6 @@ export default function Eventos({ usuario }) {
       const eventoParaMapa = mapearEvento(eventoGuardado);
 
       setEventos((actuales) => [eventoParaMapa, ...actuales]);
-      setUltimoEventoDetalle(eventoParaMapa);
       setEventoActivo(eventoParaMapa.id);
       setGenerosVisibles(GENEROS_PERMITIDOS);
       setDetalleExpandido(true);
@@ -998,7 +995,8 @@ export default function Eventos({ usuario }) {
         </div>
       )}
 
-      <section className={`eventos-sheet ${detalleExpandido ? "expandido" : ""}`} aria-live="polite">
+      {detalleEvento ? (
+        <section className={`eventos-sheet ${detalleExpandido ? "expandido" : ""}`} aria-live="polite">
         <button
           className="eventos-sheet-handle"
           type="button"
@@ -1011,43 +1009,34 @@ export default function Eventos({ usuario }) {
         </button>
 
         <div className="eventos-sheet-resumen">
-          {detalleEvento ? (
-            <>
-              <button className="eventos-sheet-flecha" type="button" aria-label="Evento anterior" onClick={() => navegarEntreEventos(-1)} disabled={eventosFiltrados.length < 2}>
-                <IconoPanel nombre="izquierda" />
-              </button>
-              <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
-                <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
-                <span>
-                  <strong>{detalleEvento.titulo}</strong>
-                  <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
-                  <em>
-                    {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
-                    {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
-                  </em>
-                </span>
-              </button>
-              <button className="eventos-sheet-flecha" type="button" aria-label="Evento siguiente" onClick={() => navegarEntreEventos(1)} disabled={eventosFiltrados.length < 2}>
-                <IconoPanel nombre="derecha" />
-              </button>
-              <div className="eventos-sheet-acciones">
-                <button className={`evento-guardar ${detalleEvento.guardado ? "activo" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}>
-                  <IconoPanel nombre="guardar" />
-                </button>
-                <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}>
-                  <IconoPanel nombre="compartir" />
-                </button>
-                <button className="eventos-sheet-expandir" type="button" aria-label="Abrir detalle" onClick={() => setDetalleExpandido(true)}>
-                  <IconoPanel nombre="subir" />
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="eventos-sheet-vacio">
-              <span className="eventos-sheet-vacio-icono"><IconoPanel nombre="ubicacion" /></span>
-              <span><strong>Explorá el mapa</strong><small>Elegí un evento para ver su información y escuchar a quienes participan.</small></span>
-            </div>
-          )}
+          <button className="eventos-sheet-flecha" type="button" aria-label="Evento anterior" onClick={() => navegarEntreEventos(-1)} disabled={eventosFiltrados.length < 2}>
+            <IconoPanel nombre="izquierda" />
+          </button>
+          <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
+            <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
+            <span>
+              <strong>{detalleEvento.titulo}</strong>
+              <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
+              <em>
+                {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
+                {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
+              </em>
+            </span>
+          </button>
+          <button className="eventos-sheet-flecha" type="button" aria-label="Evento siguiente" onClick={() => navegarEntreEventos(1)} disabled={eventosFiltrados.length < 2}>
+            <IconoPanel nombre="derecha" />
+          </button>
+          <div className="eventos-sheet-acciones">
+            <button className={`evento-guardar ${detalleEvento.guardado ? "activo" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}>
+              <IconoPanel nombre="guardar" />
+            </button>
+            <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}>
+              <IconoPanel nombre="compartir" />
+            </button>
+            <button className="eventos-sheet-expandir" type="button" aria-label="Abrir detalle" onClick={() => setDetalleExpandido(true)}>
+              <IconoPanel nombre="subir" />
+            </button>
+          </div>
         </div>
 
         {!detalleExpandido ? (
@@ -1061,7 +1050,7 @@ export default function Eventos({ usuario }) {
           </div>
         ) : null}
 
-        {detalleExpandido && detalleEvento ? (
+        {detalleExpandido ? (
           <div className="eventos-sheet-contenido">
             <div className="evento-sheet-info">
               <div className="evento-sheet-titulo">
@@ -1189,7 +1178,8 @@ export default function Eventos({ usuario }) {
           onDurationChange={(event) => setDuracionPreview(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
           onEnded={() => setReelActivo(null)}
         />
-      </section>
+        </section>
+      ) : null}
 
       <DenunciaModal
         abierto={Boolean(denunciaPendiente)}

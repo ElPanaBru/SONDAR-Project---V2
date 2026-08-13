@@ -31,6 +31,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
   const [generos, setGeneros] = useState([]);
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
+  const [avatarArrastrado, setAvatarArrastrado] = useState(false);
   const preview = useMemo(() => avatar ? URL.createObjectURL(avatar) : "", [avatar]);
 
   useEffect(() => () => {
@@ -45,26 +46,35 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
     };
   }, []);
 
-  const seleccionarAvatar = (event) => {
-    const archivo = event.target.files?.[0] || null;
+  const seleccionarArchivoAvatar = (archivo, input = null) => {
     if (!archivo) {
       setAvatar(null);
       return;
     }
     if (!AVATAR_TYPES.has(archivo.type)) {
-      event.target.value = "";
+      if (input) input.value = "";
       setAvatar(null);
       setMensaje("Usa una foto JPG, PNG, WebP o GIF.");
       return;
     }
     if (archivo.size > AVATAR_MAX_BYTES) {
-      event.target.value = "";
+      if (input) input.value = "";
       setAvatar(null);
       setMensaje("La foto no puede superar los 5 MB.");
       return;
     }
     setAvatar(archivo);
     setMensaje("");
+  };
+
+  const seleccionarAvatar = (event) => {
+    seleccionarArchivoAvatar(event.target.files?.[0] || null, event.target);
+  };
+
+  const soltarAvatar = (event) => {
+    event.preventDefault();
+    setAvatarArrastrado(false);
+    seleccionarArchivoAvatar(event.dataTransfer.files?.[0] || null);
   };
 
   const guardar = async (event) => {
@@ -123,7 +133,15 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
         <p className="onboarding-intro">Tu foto ayuda a que te reconozcan. Tu fecha de nacimiento nunca será pública.</p>
 
         <form onSubmit={guardar} className="onboarding-form">
-          <label className="onboarding-avatar-picker">
+          <label
+            className={`onboarding-avatar-picker ${avatarArrastrado ? "arrastrando" : ""}`}
+            onDragEnter={(event) => { event.preventDefault(); setAvatarArrastrado(true); }}
+            onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+            onDragLeave={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setAvatarArrastrado(false);
+            }}
+            onDrop={soltarAvatar}
+          >
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
@@ -133,7 +151,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
               {preview ? <img src={preview} alt="Vista previa del perfil" /> : <strong>{String(username || "S").charAt(0).toUpperCase()}</strong>}
               <span className="onboarding-camera" aria-hidden="true">+</span>
             </span>
-            <span>{avatar ? "Cambiar foto" : "Agregar foto de perfil (opcional)"}</span>
+            <span>{avatar ? "Cambiar o arrastrar otra foto" : "Elegir o arrastrar foto (opcional)"}</span>
             <small>JPG, PNG, WebP o GIF · máximo 5 MB</small>
           </label>
 

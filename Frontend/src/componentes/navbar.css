@@ -962,6 +962,19 @@
   background: linear-gradient(90deg, #ffae00, #ff5e00);
   border-radius: 8px;
   cursor: pointer;
+  outline: 2px dashed transparent;
+  outline-offset: -5px;
+  transition: filter 0.18s ease, outline-color 0.18s ease, transform 0.18s ease;
+}
+
+.profile-edit-file:hover,
+.profile-edit-file.arrastrando {
+  filter: brightness(1.08);
+  outline-color: rgba(5, 5, 5, 0.58);
+}
+
+.profile-edit-file.arrastrando {
+  transform: translateY(-2px);
 }
 
 .profile-edit-file input {

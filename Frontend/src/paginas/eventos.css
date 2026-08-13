@@ -86,6 +86,19 @@
   filter: brightness(1.45) contrast(0.98) saturate(1.08);
 }
 
+.eventos-mapa .leaflet-top.leaflet-right {
+  top: 50%;
+  right: clamp(14px, 3vw, 42px);
+  transform: translateY(-50%);
+}
+
+.eventos-mapa .leaflet-control-zoom a {
+  width: 52px;
+  height: 52px;
+  font-size: 30px;
+  line-height: 50px;
+}
+
 .eventos-panel {
   position: absolute;
   top: 18px;
@@ -1380,7 +1393,7 @@
   left: 50%;
   bottom: 16px;
   z-index: 720;
-  width: min(760px, calc(100% - 34px));
+  width: min(900px, calc(100% - 34px));
   overflow: hidden;
   color: #fff;
   background: rgba(8, 8, 8, 0.96);
@@ -1393,7 +1406,7 @@
 }
 
 .eventos-sheet.expandido {
-  width: min(640px, calc(100% - 28px));
+  width: min(760px, calc(100% - 28px));
   max-height: calc(100% - 28px);
   overflow-y: auto;
   border-color: rgba(255, 126, 0, 0.34);
@@ -1434,7 +1447,7 @@
 }
 
 .eventos-sheet-resumen {
-  min-height: 70px;
+  min-height: 88px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -1523,9 +1536,9 @@
 }
 
 .eventos-sheet-identidad > img {
-  width: 54px;
-  height: 54px;
-  flex: 0 0 54px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   object-fit: contain;
   padding: 5px;
   background: #050505;
@@ -1544,7 +1557,7 @@
 
 .eventos-sheet-identidad strong {
   overflow: hidden;
-  font-size: 15px;
+  font-size: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1552,16 +1565,22 @@
 .eventos-sheet-identidad small {
   overflow: hidden;
   color: rgba(255, 255, 255, 0.59);
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .eventos-sheet-identidad em {
   color: #ff9a36;
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 850;
+}
+
+.evento-pin:not(.compacto) strong {
+  max-width: 168px;
+  font-size: 15px;
+  line-height: 1.2;
 }
 
 .eventos-sheet-acciones {
@@ -1804,8 +1823,8 @@
 
 .evento-sheet-titulo h2 {
   margin: 4px 0 0;
-  font-size: clamp(25px, 5vw, 38px);
-  line-height: 1;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.05;
 }
 
 .evento-sheet-titulo .evento-detalle-menu {
@@ -1991,7 +2010,7 @@
   align-items: center;
   gap: 6px;
   color: rgba(255, 255, 255, 0.65);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -2000,7 +2019,7 @@
 .evento-sheet-descripcion {
   margin: 16px 0 0;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
@@ -2015,7 +2034,7 @@
 .evento-sheet-organizadores > span {
   margin-right: 2px;
   color: rgba(255, 255, 255, 0.43);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -2031,7 +2050,7 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -2264,6 +2283,17 @@
 }
 
 @media (max-width: 700px) {
+  .eventos-mapa .leaflet-top.leaflet-right {
+    right: 10px;
+  }
+
+  .eventos-mapa .leaflet-control-zoom a {
+    width: 46px;
+    height: 46px;
+    font-size: 27px;
+    line-height: 44px;
+  }
+
   .eventos-sheet {
     bottom: 8px;
     width: calc(100% - 14px);

@@ -97,6 +97,20 @@
   font-weight: 900;
   line-height: 1.25;
   cursor: pointer;
+  border: 2px dashed transparent;
+  border-radius: 14px;
+  padding: 10px;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.onboarding-avatar-picker:hover,
+.onboarding-avatar-picker.arrastrando {
+  border-color: rgba(255, 174, 0, 0.72);
+  background: rgba(255, 174, 0, 0.08);
+}
+
+.onboarding-avatar-picker.arrastrando {
+  transform: scale(0.985);
 }
 
 .onboarding-avatar-picker > input {

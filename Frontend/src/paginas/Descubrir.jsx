@@ -497,13 +497,13 @@ const reelVacio = {
 
 export default function Descubrir({ usuario }) {
   const { t } = usePreferencias();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const lanzamientoCompartido = searchParams.get("lanzamiento");
   const comentarioCompartido = searchParams.get("comentario");
   const crearReelParam = searchParams.get("crear");
   const [lanzamientos, setLanzamientos] = useState([]);
-  const [reproduciendo, setReproduciendo] = useState(null);
+  const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
@@ -518,6 +518,7 @@ export default function Descubrir({ usuario }) {
   const [animacionesLike, setAnimacionesLike] = useState({});
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
   const [subiendoReel, setSubiendoReel] = useState(false);
+  const [archivoArrastrado, setArchivoArrastrado] = useState(null);
   const [nuevoReel, setNuevoReel] = useState(reelVacio);
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
@@ -569,6 +570,21 @@ export default function Descubrir({ usuario }) {
   const idsLanzamientosFiltrados = lanzamientosFiltrados
     .map((lanzamiento) => lanzamiento.id)
     .join(",");
+
+  const cambiarFiltroGenero = (genero) => {
+    const siguientesParametros = new URLSearchParams(searchParams);
+
+    if (genero) siguientesParametros.set("genero", genero);
+    else siguientesParametros.delete("genero");
+
+    siguientesParametros.delete("lanzamiento");
+    siguientesParametros.delete("comentario");
+    setSearchParams(siguientesParametros);
+    setReproduciendo(null);
+    setComentariosAbiertos(null);
+    comentariosAbiertosRef.current = null;
+    document.querySelector(".feed-pista")?.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   const guardarTiempoAudioActual = () => {
     const audio = audioReelRef.current;
@@ -1112,8 +1128,7 @@ export default function Descubrir({ usuario }) {
       reader.readAsDataURL(archivo);
     });
 
-  const cambiarPortadaReel = async (event) => {
-    const seleccionado = event.target.files?.[0];
+  const seleccionarPortadaReel = async (seleccionado) => {
     if (!seleccionado) return;
 
     try {
@@ -1136,6 +1151,10 @@ export default function Descubrir({ usuario }) {
     }
   };
 
+  const cambiarPortadaReel = (event) => {
+    seleccionarPortadaReel(event.target.files?.[0]);
+  };
+
   const limpiarPortadaReel = () => {
     if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
     setNuevoReel((actual) => ({
@@ -1146,8 +1165,7 @@ export default function Descubrir({ usuario }) {
     }));
   };
 
-  const cambiarAudioReel = async (event) => {
-    const seleccionado = event.target.files?.[0];
+  const seleccionarAudioReel = (seleccionado) => {
     if (!seleccionado) return;
 
     let archivo;
@@ -1204,6 +1222,34 @@ export default function Descubrir({ usuario }) {
       },
       { once: true }
     );
+  };
+
+  const cambiarAudioReel = (event) => {
+    seleccionarAudioReel(event.target.files?.[0]);
+  };
+
+  const prepararZonaArrastre = (event, tipo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setArchivoArrastrado(tipo);
+  };
+
+  const salirZonaArrastre = (event, tipo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setArchivoArrastrado((actual) => actual === tipo ? null : actual);
+    }
+  };
+
+  const soltarArchivoReel = (event, tipo) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setArchivoArrastrado(null);
+    const archivo = event.dataTransfer.files?.[0];
+    if (tipo === "portada") seleccionarPortadaReel(archivo);
+    if (tipo === "audio") seleccionarAudioReel(archivo);
   };
 
   const limpiarAudioReel = () => {
@@ -2175,12 +2221,23 @@ export default function Descubrir({ usuario }) {
       }`}
       aria-label="Descubrir musica"
     >
-      {generoFiltro ? (
-        <div className="descubrir-filtro-activo" role="status">
-          <span>Filtro</span>
-          <strong>{generoFiltroNombre}</strong>
-        </div>
-      ) : null}
+      <div className={`descubrir-filtro-genero ${generoFiltro ? "activo" : ""}`}>
+        <label htmlFor="filtro-genero-reels">Género</label>
+        <span className="descubrir-filtro-select">
+          <select
+            id="filtro-genero-reels"
+            value={generoFiltro}
+            onChange={(event) => cambiarFiltroGenero(event.target.value)}
+            aria-label="Filtrar reels por género"
+          >
+            <option value="">Todos los géneros</option>
+            {GENEROS_REEL.map((genero) => (
+              <option key={genero} value={genero}>{mostrarGeneroReel(genero)}</option>
+            ))}
+          </select>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+        </span>
+      </div>
       <div className={`feed-pista ${lanzamientosFiltrados.length === 0 ? "sin-resultados" : ""}`}>
         {lanzamientosFiltrados.length === 0 ? (
           <div className="descubrir-vacio" role="status">
@@ -2754,8 +2811,12 @@ export default function Descubrir({ usuario }) {
 
             <div className="crear-reel-contenido">
               <div
-                className={`crear-reel-preview ${nuevoReel.portada ? "con-portada" : ""}`}
+                className={`crear-reel-preview ${nuevoReel.portada ? "con-portada" : ""} ${archivoArrastrado === "portada" ? "archivo-arrastrado" : ""}`}
                 style={nuevoReel.portada ? { backgroundImage: `url(${nuevoReel.portada})` } : undefined}
+                onDragEnter={(event) => prepararZonaArrastre(event, "portada")}
+                onDragOver={(event) => prepararZonaArrastre(event, "portada")}
+                onDragLeave={(event) => salirZonaArrastre(event, "portada")}
+                onDrop={(event) => soltarArchivoReel(event, "portada")}
               >
                 {nuevoReel.genero ? (
                   <span className="crear-reel-sello">{mostrarGeneroReel(nuevoReel.genero)}</span>
@@ -2824,8 +2885,14 @@ export default function Descubrir({ usuario }) {
 
                 <div className="crear-reel-archivos">
                   <div className="crear-reel-archivo-grupo">
-                    <label className="crear-reel-archivo">
-                      <span>Seleccionar portada</span>
+                    <label
+                      className={`crear-reel-archivo ${archivoArrastrado === "portada" ? "archivo-arrastrado" : ""}`}
+                      onDragEnter={(event) => prepararZonaArrastre(event, "portada")}
+                      onDragOver={(event) => prepararZonaArrastre(event, "portada")}
+                      onDragLeave={(event) => salirZonaArrastre(event, "portada")}
+                      onDrop={(event) => soltarArchivoReel(event, "portada")}
+                    >
+                      <span>Elegir o arrastrar portada</span>
                       <small>{nuevoReel.nombrePortada || "JPG, PNG, WEBP o GIF (max. 5MB)"}</small>
                       <input ref={portadaReelInputRef} type="file" accept={ACCEPT_PORTADA_REEL} onChange={cambiarPortadaReel} />
                     </label>
@@ -2836,10 +2903,16 @@ export default function Descubrir({ usuario }) {
                     ) : null}
                   </div>
                   <div className="crear-reel-archivo-grupo">
-                    <label className="crear-reel-archivo">
-                      <span>Seleccionar audio</span>
+                    <label
+                      className={`crear-reel-archivo ${archivoArrastrado === "audio" ? "archivo-arrastrado" : ""}`}
+                      onDragEnter={(event) => prepararZonaArrastre(event, "audio")}
+                      onDragOver={(event) => prepararZonaArrastre(event, "audio")}
+                      onDragLeave={(event) => salirZonaArrastre(event, "audio")}
+                      onDrop={(event) => soltarArchivoReel(event, "audio")}
+                    >
+                      <span>Elegir o arrastrar audio</span>
                       <small>{nuevoReel.nombreAudio || "MP3, WAV, OGG, WEBM o M4A (max. 20MB)"}</small>
-                      <input ref={audioReelInputRef} type="file" accept={ACCEPT_AUDIO_REEL} onChange={cambiarAudioReel} required />
+                      <input ref={audioReelInputRef} type="file" accept={ACCEPT_AUDIO_REEL} onChange={cambiarAudioReel} aria-required="true" />
                     </label>
                     {nuevoReel.nombreAudio ? (
                       <button className="crear-reel-limpiar" type="button" onClick={limpiarAudioReel}>

@@ -39,6 +39,7 @@ function Navbar({ usuario }) {
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilGuardado(usuario));
   const [avatarArchivo, setAvatarArchivo] = useState(null);
+  const [avatarArrastrado, setAvatarArrastrado] = useState(false);
   const crearRef = useRef(null);
   const notificacionesRef = useRef(null);
   const perfilRef = useRef(null);
@@ -214,15 +215,23 @@ function Navbar({ usuario }) {
     });
   };
 
-  const handleAvatar = (e) => {
-    const file = e.target.files?.[0];
+  const seleccionarAvatar = (file) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) return;
 
     setAvatarArchivo(file);
     setPerfilEditado((prev) => ({
       ...prev,
       avatar: URL.createObjectURL(file),
     }));
+  };
+
+  const handleAvatar = (event) => seleccionarAvatar(event.target.files?.[0]);
+
+  const soltarAvatar = (event) => {
+    event.preventDefault();
+    setAvatarArrastrado(false);
+    seleccionarAvatar(event.dataTransfer.files?.[0]);
   };
 
   const guardarPerfil = async (e) => {
@@ -444,8 +453,16 @@ function Navbar({ usuario }) {
                 )}
               </div>
 
-              <label className="profile-edit-file">
-                Cambiar foto
+              <label
+                className={`profile-edit-file ${avatarArrastrado ? "arrastrando" : ""}`}
+                onDragEnter={(event) => { event.preventDefault(); setAvatarArrastrado(true); }}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setAvatarArrastrado(false);
+                }}
+                onDrop={soltarAvatar}
+              >
+                Elegir o arrastrar foto
                 <input type="file" accept="image/*" onChange={handleAvatar} />
               </label>
 
