@@ -52,6 +52,15 @@ body {
   min-width: 0;
 }
 
+.sondar-brand-image {
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 857 / 214;
+  display: block;
+  object-fit: contain;
+  object-position: center;
+}
+
 body.sondar-reducir-movimiento *,
 body.sondar-reducir-movimiento *::before,
 body.sondar-reducir-movimiento *::after {

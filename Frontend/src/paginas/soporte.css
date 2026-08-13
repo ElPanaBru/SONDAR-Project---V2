@@ -295,7 +295,7 @@
 
 @media (max-width: 620px) {
   .soporte-page {
-    margin: -20px;
+    margin: -20px -20px -20px 0;
     padding: 18px 12px;
   }
 
@@ -308,7 +308,8 @@
 
   .soporte-brand {
     order: -1;
-    width: min(260px, 78vw);
+    width: min(220px, 72vw);
+    margin-bottom: 4px;
   }
 
   .soporte-faq,
