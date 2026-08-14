@@ -133,7 +133,7 @@ export default function Buscar({ usuario }) {
           eventosData
             .map((evento) => ({
               ...evento,
-              img: "/sondar-icon.png",
+              img: "/sondar-icon.png?v=19",
             }))
             .filter((evento) =>
               coincide(evento, ["titulo", "genero", "lugar", "ubicacion", "creador"], query)

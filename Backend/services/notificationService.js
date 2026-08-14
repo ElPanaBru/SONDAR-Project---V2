@@ -32,12 +32,30 @@ async function crearNotificacion({
   body = '',
   targetUrl = '',
   uniqueKey = null,
+  communityId = null,
 }, client = pool) {
   if (!userId || userId === actorId) return null;
   try {
     const columnaPreferencia = PREFERENCIA_POR_TIPO[type];
     const condicionPreferencia = columnaPreferencia
       ? `AND COALESCE((SELECT ${columnaPreferencia} FROM user_settings WHERE user_id = $1), true)`
+      : '';
+    const params = [
+      userId,
+      actorId || null,
+      type,
+      String(title || '').slice(0, 120),
+      String(body || '').slice(0, 500),
+      targetUrl,
+      uniqueKey,
+    ];
+    const condicionComunidad = communityId
+      ? `AND COALESCE((
+          SELECT cm.nivel_notificaciones <> 'silenciadas'
+          FROM comunidad_miembros cm
+          WHERE cm.comunidad_id = $${params.push(communityId)}
+            AND cm.user_id = $1
+        ), true)`
       : '';
     const result = await client.query(
     `INSERT INTO notifications (
@@ -49,21 +67,14 @@ async function crearNotificacion({
        true
      )
        ${condicionPreferencia}
+       ${condicionComunidad}
        AND NOT EXISTS (
          SELECT 1 FROM notification_mutes
          WHERE user_id = $1 AND muted_user_id = $2
        )
      ON CONFLICT (unique_key) DO NOTHING
      RETURNING id`,
-    [
-      userId,
-      actorId || null,
-      type,
-      String(title || '').slice(0, 120),
-      String(body || '').slice(0, 500),
-      targetUrl,
-      uniqueKey,
-    ]
+    params
   );
 
     return result.rows[0] || null;
@@ -169,6 +180,7 @@ async function notificarMenciones({
   targetUrl,
   entityType,
   entityId,
+  communityId = null,
 }, client = pool) {
   const usernames = [...new Set(
     [...String(texto || '').matchAll(/@([a-zA-Z0-9_.-]{1,40})/g)]
@@ -189,6 +201,7 @@ async function notificarMenciones({
       title: `${actorName} te menciono`,
       body: 'Toca para ver la conversacion.',
       targetUrl,
+      communityId,
       uniqueKey: `mention:${entityType}:${entityId}:${usuario.id}`,
     }, client)));
   } catch (error) {

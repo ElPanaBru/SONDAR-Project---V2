@@ -711,6 +711,7 @@ const comunidadController = {
         targetUrl,
         entityType: 'community_post',
         entityId: result.rows[0].id,
+        communityId: comunidadId,
       });
 
       res.status(201).json(mapearPublicacion({
@@ -725,6 +726,62 @@ const comunidadController = {
     } catch (error) {
       console.error('Error al crear publicacion de comunidad:', error);
       res.status(500).json({ error: 'No se pudo publicar en la comunidad.' });
+    }
+  },
+
+  eliminarPublicacion: async (req, res) => {
+    const { publicacionId } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await client.query('BEGIN');
+
+      const publicacion = await client.query(
+        `SELECT id, comunidad_id, user_id
+         FROM comunidad_publicaciones
+         WHERE id = $1`,
+        [publicacionId]
+      );
+
+      if (publicacion.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Publicacion no encontrada.' });
+      }
+
+      if (String(publicacion.rows[0].user_id) !== String(req.user.id)) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'Solo podes eliminar tus propias publicaciones.' });
+      }
+
+      const targetBase = `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`;
+      await client.query(
+        `DELETE FROM notifications
+         WHERE target_url = $1
+            OR target_url LIKE $2
+            OR unique_key LIKE $3
+            OR unique_key LIKE $4
+            OR unique_key LIKE $5`,
+        [
+          targetBase,
+          `${targetBase}&%`,
+          `new-community-post:${publicacionId}:%`,
+          `community-like:%:${publicacionId}`,
+          `mention:community_post:${publicacionId}:%`,
+        ]
+      );
+
+      await client.query('DELETE FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);
+      await client.query('COMMIT');
+
+      return res.status(204).send();
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al eliminar publicacion de comunidad:', error);
+      return res.status(500).json({ error: 'No se pudo eliminar la publicacion.' });
+    } finally {
+      client.release();
     }
   },
 
@@ -787,6 +844,7 @@ const comunidadController = {
         targetUrl,
         entityType: 'community_comment',
         entityId: result.rows[0].id,
+        communityId: publicacion.rows[0].comunidad_id,
         uniqueKey: `community-comment:${result.rows[0].id}:${receptorId}`,
       });
       await notificarMenciones({
@@ -796,6 +854,7 @@ const comunidadController = {
         targetUrl,
         entityType: 'community_comment',
         entityId: result.rows[0].id,
+        communityId: publicacion.rows[0].comunidad_id,
       });
 
       res.status(201).json(mapearComentario({
@@ -858,6 +917,7 @@ const comunidadController = {
           targetUrl: `/comunidad?comunidad=${publicacion.rows[0].comunidad_id}&publicacion=${publicacionId}`,
           entityType: 'community_post',
           entityId: publicacionId,
+          communityId: publicacion.rows[0].comunidad_id,
           uniqueKey: `community-like:${req.user.id}:${publicacionId}`,
         }, client);
       }
@@ -1012,6 +1072,7 @@ const comunidadController = {
           targetUrl: `/comunidad?comunidad=${comentario.rows[0].comunidad_id}&publicacion=${comentario.rows[0].publicacion_id}&comentario=${comentarioId}`,
           entityType: 'community_comment',
           entityId: comentarioId,
+          communityId: comentario.rows[0].comunidad_id,
           uniqueKey: `community-comment-like:${req.user.id}:${comentarioId}`,
         }, client);
       }

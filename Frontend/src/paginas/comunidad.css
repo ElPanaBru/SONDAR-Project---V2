@@ -627,7 +627,12 @@
   color: #ff9a8f;
 }
 
-.post-denunciar:hover {
+.post-eliminar {
+  color: #ffb08f;
+}
+
+.post-denunciar:hover,
+.post-eliminar:hover {
   color: #ffffff;
   background: rgba(214, 56, 56, 0.32);
 }

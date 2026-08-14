@@ -5,6 +5,7 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./descubrir.css";
@@ -2256,7 +2257,7 @@ export default function Descubrir({ usuario }) {
             <article
               id={`reel-${lanzamiento.id}`}
               data-reel-id={lanzamiento.id}
-              className={`feed-item ${estaReproduciendo ? "sonando" : ""} ${estaSeleccionado ? "seleccionado" : ""} ${
+              className={`feed-item ${lanzamiento.portada ? "con-portada-reel" : ""} ${estaReproduciendo ? "sonando" : ""} ${estaSeleccionado ? "seleccionado" : ""} ${
                 comentariosAbiertos === lanzamiento.id ? "comentarios-activos" : ""
               }`}
               aria-current={estaSeleccionado ? "true" : undefined}
@@ -2268,6 +2269,13 @@ export default function Descubrir({ usuario }) {
                 "--progreso": `${progresos[lanzamiento.id] ?? lanzamiento.progreso}%`,
               }}
             >
+              {lanzamiento.portada ? (
+                <span
+                  className="feed-fondo-portada"
+                  style={{ backgroundImage: `url(${lanzamiento.portada})` }}
+                  aria-hidden="true"
+                />
+              ) : null}
               <div className="album-centro">
                 <div
                   className={`album-portada ${lanzamiento.portada ? "con-imagen" : ""}`}
@@ -2670,11 +2678,7 @@ export default function Descubrir({ usuario }) {
         })}
       </div>
 
-      {aviso ? (
-        <div className="descubrir-toast" role="status">
-          {aviso}
-        </div>
-      ) : null}
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
 
       {compartirActivo ? (
         <div className="compartir-overlay" role="presentation" onMouseDown={() => setCompartirActivo(null)}>

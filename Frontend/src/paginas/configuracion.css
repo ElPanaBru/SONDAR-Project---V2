@@ -454,72 +454,52 @@
 
 .config-toast {
   position: fixed;
-  z-index: 2200;
-  right: 24px;
-  bottom: 24px;
-  width: min(430px, calc(100vw - 32px));
+  top: 50%;
+  left: 50%;
+  z-index: 30000;
+  width: min(420px, calc(100vw - 36px));
+  min-height: 62px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 13px;
-  padding: 16px;
-  color: #ffffff;
-  background: #151515;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-left: 4px solid #ffae00;
-  border-radius: 10px;
-  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.58);
-  animation: config-toast-in 0.28s ease-out;
+  place-items: center;
+  padding: 12px 18px;
+  color: rgba(255, 255, 255, 0.94);
+  text-align: center;
+  background: rgba(0, 0, 0, 0.86);
+  border: 1px solid rgba(255, 94, 0, 0.46);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+  transform: translate(-50%, -50%);
+  animation: config-toast-in 2.4s ease both;
+  backdrop-filter: blur(12px);
 }
 
 .config-toast.success {
-  border-left-color: #37d77f;
+  border-color: rgba(255, 94, 0, 0.46);
 }
 
 .config-toast.error {
-  border-left-color: #ff6262;
+  border-color: rgba(255, 94, 0, 0.46);
 }
 
-.config-toast-icon {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  color: #07150d;
-  background: #37d77f;
-  border-radius: 50%;
-  font-size: 19px;
-  font-weight: 900;
-}
-
-.config-toast.error .config-toast-icon {
-  color: #ffffff;
-  background: #b52d2d;
-}
-
+.config-toast-icon,
 .config-toast strong,
-.config-toast p {
-  display: block;
-  margin: 0;
-}
-
-.config-toast p {
-  margin-top: 3px;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 13px;
-}
-
 .config-toast > button {
-  padding: 4px;
-  color: rgba(255, 255, 255, 0.65);
-  background: transparent;
-  border: 0;
-  font-size: 26px;
-  cursor: pointer;
+  display: none;
+}
+
+.config-toast p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.94);
+  overflow-wrap: anywhere;
+  font-size: clamp(14px, 1.8vw, 17px);
+  font-weight: 950;
+  line-height: 1.28;
 }
 
 @keyframes config-toast-in {
-  from { opacity: 0; transform: translateY(14px); }
+  0% { opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(0.98); }
+  8%, 88% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 6px)) scale(0.99); }
 }
 
 .config-savebar .config-message.success {
@@ -769,8 +749,8 @@
   }
 
   .config-toast {
-    right: 16px;
-    bottom: 16px;
+    right: auto;
+    bottom: auto;
   }
 }
 .config-bloqueados {

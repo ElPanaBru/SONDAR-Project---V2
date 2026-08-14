@@ -24,10 +24,7 @@ export default function PerfilToast({ mensaje, onClose, duracion = 5000 }) {
       aria-live="polite"
       style={{ "--perfil-toast-duracion": `${duracion}ms` }}
     >
-      <span className="perfil-toast-icono" aria-hidden="true">i</span>
       <span className="perfil-toast-mensaje">{mensaje}</span>
-      <button type="button" onClick={onClose} aria-label="Cerrar aviso">×</button>
-      <span className="perfil-toast-progreso" aria-hidden="true" />
     </div>,
     document.body
   );

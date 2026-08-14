@@ -5,6 +5,7 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import "./comunidad.css";
 
@@ -780,6 +781,35 @@ export default function Comunidad({ usuario }) {
     }
   };
 
+  const eliminarPublicacion = async (hilo) => {
+    if (!usuario || String(hilo.userId) !== String(usuario.id)) return;
+
+    try {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${hilo.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo eliminar la publicacion.");
+      }
+
+      setHilos((actuales) => actuales.filter((item) => item.id !== hilo.id));
+      setComunidades((actuales) => actuales.map((comunidad) => (
+        comunidad.id === hilo.comunidadId
+          ? { ...comunidad, publicaciones: Math.max(0, Number(comunidad.publicaciones || 0) - 1) }
+          : comunidad
+      )));
+      setRespuestasAbiertas((abiertas) => abiertas.filter((id) => id !== hilo.id));
+      setRespuestas((actuales) => Object.fromEntries(
+        Object.entries(actuales).filter(([clave]) => !clave.startsWith(`${hilo.id}:`))
+      ));
+      mostrarAviso("Publicacion eliminada");
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo eliminar la publicacion.");
+    }
+  };
+
   const toggleRespuestas = (id) => {
     setRespuestasAbiertas((abiertas) =>
       abiertas.includes(id)
@@ -1279,7 +1309,15 @@ export default function Comunidad({ usuario }) {
                       <span>{hilo.op}</span>
                       <span>{hilo.tiempo || "ahora"}</span>
                     </div>
-                    {usuario?.id && hilo.userId !== usuario.id ? (
+                    {usuario?.id && String(hilo.userId) === String(usuario.id) ? (
+                      <button
+                        className="post-menu post-eliminar"
+                        type="button"
+                        onClick={() => eliminarPublicacion(hilo)}
+                      >
+                        Eliminar
+                      </button>
+                    ) : usuario?.id ? (
                       <button
                         className="post-menu post-denunciar"
                         type="button"
@@ -1315,7 +1353,7 @@ export default function Comunidad({ usuario }) {
 
                   {hilo.reelAsociado ? (
                     <div className="publicacion-asociada publicacion-asociada-reel">
-                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png"} alt="" />
+                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png?v=19"} alt="" />
                       <span>
                         <small>Tema asociado</small>
                         <strong>{hilo.reelAsociado.tema || hilo.reelAsociado.album}</strong>
@@ -1423,7 +1461,7 @@ export default function Comunidad({ usuario }) {
                       <p className="comunidad-recurso-vacio">Todavía no hay eventos de este género.</p>
                     ) : eventosRecursoGenero.map((evento) => (
                       <article className="comunidad-recurso-card recurso-evento" key={evento.id}>
-                        <img className="comunidad-recurso-imagen evento" src="/sondar-icon.png" alt="" />
+                        <img className="comunidad-recurso-imagen evento" src="/sondar-icon.png?v=19" alt="" />
                         <div className="comunidad-recurso-datos">
                           <strong>{evento.titulo || "Evento de SONDAR"}</strong>
                           <span>{evento.creador || "SONDAR"} · {mostrarGenero(evento.genero)}</span>
@@ -1531,7 +1569,7 @@ export default function Comunidad({ usuario }) {
                         >
                           <span className="comunidad-asociacion-imagen">
                             <img
-                              src="/sondar-icon.png"
+                              src="/sondar-icon.png?v=19"
                               alt=""
                             />
                             <i>Evento</i>
@@ -1578,9 +1616,9 @@ export default function Comunidad({ usuario }) {
                         >
                           <span className="comunidad-asociacion-imagen">
                             <img
-                              src={reel.portada || "/sondar-icon.png"}
+                              src={reel.portada || "/sondar-icon.png?v=19"}
                               alt=""
-                              onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }}
+                              onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }}
                             />
                             <i>Reel</i>
                           </span>
@@ -1630,11 +1668,7 @@ export default function Comunidad({ usuario }) {
         onConfirm={denunciarContenido}
       />
 
-      {aviso && (
-        <div className="comunidad-toast" role="status">
-          {aviso}
-        </div>
-      )}
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
     </main>
   );
 }

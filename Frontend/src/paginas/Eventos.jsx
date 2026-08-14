@@ -9,21 +9,26 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import PerfilToast from "../componentes/PerfilToast";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
 
 const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
-  "cumbia", "trap", "metal", "folklore", "otros"
+  "cumbia", "trap", "folklore", "otros"
 ];
 const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
+const ETIQUETAS_GENERO = {
+  edm: "Electronica",
+  trap: "Urbano",
+};
 
 const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
-const LOGO_EVENTO_PREDETERMINADO = "/sondar-icon.png";
+const LOGO_EVENTO_PREDETERMINADO = "/sondar-icon.png?v=19";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
   month: "long",
@@ -60,9 +65,14 @@ const normalizarGenero = (genero) => {
   return GENEROS_PERMITIDOS_SET.has(gen) ? gen : "otros";
 };
 
+const normalizarBusqueda = (valor) => String(valor || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
 const mostrarGenero = (genero) => {
   const valor = normalizarGenero(genero);
-  return valor === "edm" ? "EDM" : valor.charAt(0).toUpperCase() + valor.slice(1);
+  return ETIQUETAS_GENERO[valor] || valor.charAt(0).toUpperCase() + valor.slice(1);
 };
 
 const escaparHtml = (valor) =>
@@ -161,6 +171,7 @@ export default function Eventos({ usuario }) {
   const [mostrarModal, setMostrarModal] = useState(false);
   const [detalleExpandido, setDetalleExpandido] = useState(false);
   const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
+  const [busquedaEventos, setBusquedaEventos] = useState("");
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
@@ -317,16 +328,42 @@ export default function Eventos({ usuario }) {
     setMenuEventoAbierto(false);
   }, [eventoActivo]);
 
-  const eventosFiltrados = useMemo(
-    () => eventos.filter((evento) => generosVisibles.includes(normalizarGenero(evento.genero))),
-    [eventos, generosVisibles]
-  );
+  const eventosFiltrados = useMemo(() => {
+    const termino = normalizarBusqueda(busquedaEventos).trim();
+    return eventos.filter((evento) => {
+      const generoVisible = generosVisibles.includes(normalizarGenero(evento.genero));
+      if (!generoVisible) return false;
+      if (!termino) return true;
+
+      return [
+        evento.titulo,
+        evento.descripcion,
+        evento.lugar,
+        evento.ubicacion,
+        evento.creador,
+        evento.genero,
+      ].some((campo) => normalizarBusqueda(campo).includes(termino));
+    });
+  }, [busquedaEventos, eventos, generosVisibles]);
 
   const eventosConCoordenadas = useMemo(
     () => eventosFiltrados.filter(tieneCoordenadasValidas),
     [eventosFiltrados]
   );
   const todosGenerosVisibles = generosVisibles.length === GENEROS_PERMITIDOS.length;
+
+  const seleccionarEventoEnMapa = useCallback((evento, expandir = false) => {
+    if (!evento) return;
+    setEventoActivo(evento.id);
+    setDetalleExpandido(expandir);
+    setMenuEventoAbierto(false);
+    if (evento.coords && mapInstance.current) {
+      mapInstance.current.flyTo(evento.coords, 16, {
+        duration: DURACION_ACERCAMIENTO_MAPA,
+        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (!detalleEvento) return;
@@ -402,15 +439,8 @@ export default function Eventos({ usuario }) {
         ? actuales
         : GENEROS_PERMITIDOS.filter((genero) => [...actuales, generoDestino].includes(genero))
     );
-    setEventoActivo(eventoDestino.id);
-    setDetalleExpandido(false);
-    if (eventoDestino.coords && mapInstance.current) {
-      mapInstance.current.flyTo(eventoDestino.coords, 16, {
-        duration: DURACION_ACERCAMIENTO_MAPA,
-        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
-      });
-    }
-  }, [eventoCompartido, eventos, loading]);
+    seleccionarEventoEnMapa(eventoDestino);
+  }, [eventoCompartido, eventos, loading, seleccionarEventoEnMapa]);
 
   useEffect(() => {
     if (crearEventoParam !== "evento") return;
@@ -540,7 +570,7 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png'" />
+                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png?v=19'" />
               </span>
               <strong>${escaparHtml(evento.titulo)}</strong>
             </button>
@@ -550,18 +580,11 @@ export default function Eventos({ usuario }) {
         })
       });
 
-      marker.on("click", () => {
-        setEventoActivo(evento.id);
-        setDetalleExpandido(false);
-        mapInstance.current.flyTo(posicionFinal, 16, {
-          duration: DURACION_ACERCAMIENTO_MAPA,
-          easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
-        });
-      });
+      marker.on("click", () => seleccionarEventoEnMapa(evento));
 
       marker.addTo(markersLayer.current);
     });
-  }, [eventosConCoordenadas, eventoActivo, zoomMapa]);
+  }, [eventosConCoordenadas, eventoActivo, seleccionarEventoEnMapa, zoomMapa]);
 
   // 5. Encuadre automático del mapa principal
   useEffect(() => {
@@ -985,15 +1008,38 @@ export default function Eventos({ usuario }) {
         </div>
       )}
 
-      {aviso && (
-        <div
-          className="eventos-toast"
-          role="status"
-          style={{ zIndex: 200000 }}
-        >
-          {aviso}
+      <section className={`eventos-explorador ${detalleEvento ? "con-detalle" : ""} ${detalleExpandido ? "oculto" : ""}`} aria-label="Buscar y filtrar eventos">
+        <header className="eventos-explorador-header">
+          <span className="eventos-explorador-icono" aria-hidden="true">
+            <img src={LOGO_EVENTO_PREDETERMINADO} alt="" />
+        </span>
+        <span className="eventos-explorador-texto">
+          <strong>Explora el mapa</strong>
+          <small>Elegi un evento para ver su informacion y escuchar a quienes participan.</small>
+        </span>
+          <em>{eventosFiltrados.length} eventos</em>
+        </header>
+        <label className="eventos-explorador-busqueda">
+          <span aria-hidden="true" className="eventos-explorador-lupa"></span>
+          <input
+            type="search"
+            value={busquedaEventos}
+            onChange={(event) => setBusquedaEventos(event.target.value)}
+            placeholder="Buscar eventos, lugares o artistas..."
+            aria-label="Buscar eventos"
+          />
+        </label>
+        <div className="eventos-explorador-generos" aria-label="Filtrar eventos por genero">
+          <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+          {GENEROS_PERMITIDOS.map((genero) => (
+            <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
+              {mostrarGenero(genero)}
+            </button>
+          ))}
         </div>
-      )}
+      </section>
+
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
 
       {detalleEvento ? (
         <section className={`eventos-sheet ${detalleExpandido ? "expandido" : ""}`} aria-live="polite">
@@ -1013,7 +1059,7 @@ export default function Eventos({ usuario }) {
             <IconoPanel nombre="izquierda" />
           </button>
           <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
-            <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png"; }} />
+            <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }} />
             <span>
               <strong>{detalleEvento.titulo}</strong>
               <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
@@ -1040,13 +1086,25 @@ export default function Eventos({ usuario }) {
         </div>
 
         {!detalleExpandido ? (
-          <div className="eventos-sheet-tags" aria-label="Filtrar eventos por género">
-            <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
-            {GENEROS_PERMITIDOS.map((genero) => (
-              <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
-                {mostrarGenero(genero)}
-              </button>
-            ))}
+          <div className="eventos-sheet-filtros">
+            <label className="eventos-explorador-busqueda eventos-sheet-busqueda">
+              <span aria-hidden="true" className="eventos-explorador-lupa"></span>
+              <input
+                type="search"
+                value={busquedaEventos}
+                onChange={(event) => setBusquedaEventos(event.target.value)}
+                placeholder="Buscar eventos, lugares o artistas..."
+                aria-label="Buscar eventos"
+              />
+            </label>
+            <div className="eventos-explorador-generos eventos-sheet-tags" aria-label="Filtrar eventos por genero">
+              <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+              {GENEROS_PERMITIDOS.map((genero) => (
+                <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
+                  {mostrarGenero(genero)}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
 
@@ -1091,17 +1149,26 @@ export default function Eventos({ usuario }) {
               {detalleEvento.descripcion ? <p className="evento-sheet-descripcion">{detalleEvento.descripcion}</p> : null}
 
               <div className="evento-sheet-organizadores">
-                <span>Invitados y bandas invitadas</span>
-                <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
-                  {detalleEvento.avatar ? <img src={detalleEvento.avatar} alt="" /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
-                  {detalleEvento.creador || "Anónimo"}
-                </button>
-                {(detalleEvento.organizadores || []).map((organizador) => (
-                  <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
-                    {organizador.avatar ? <img src={organizador.avatar} alt="" /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
-                    {organizador.nombre || organizador.username}
+                <div className="evento-sheet-organizador-grupo">
+                  <span>MÚSICO</span>
+                  <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
+                    {detalleEvento.avatar ? <img src={detalleEvento.avatar} alt="" /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
+                    {detalleEvento.creador || "Anónimo"}
                   </button>
-                ))}
+                </div>
+                {(detalleEvento.organizadores || []).length > 0 ? (
+                  <div className="evento-sheet-organizador-grupo invitados">
+                    <span>INVITADOS</span>
+                    <div className="evento-sheet-organizador-lista">
+                      {(detalleEvento.organizadores || []).map((organizador) => (
+                        <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
+                          {organizador.avatar ? <img src={organizador.avatar} alt="" /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
+                          {organizador.nombre || organizador.username}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {detalleEvento.link ? (
@@ -1113,7 +1180,7 @@ export default function Eventos({ usuario }) {
 
             {previewSeleccionada ? (
               <div className="evento-preview-reproductor" aria-live="polite" key={previewSeleccionada.id}>
-                <img src={previewSeleccionada.portada || "/sondar-icon.png"} alt={`Portada de ${previewSeleccionada.tema}`} />
+                <img src={previewSeleccionada.portada || "/sondar-icon.png?v=19"} alt={`Portada de ${previewSeleccionada.tema}`} />
                 <div className="evento-preview-reproductor-cuerpo">
                   <div className="evento-preview-reproductor-info">
                     <span>{previewSeleccionada.genero || "Reel"}</span>
@@ -1206,7 +1273,6 @@ export default function Eventos({ usuario }) {
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
               <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
-
               <textarea
                 className="evento-descripcion"
                 value={nuevoEvento.descripcion}
