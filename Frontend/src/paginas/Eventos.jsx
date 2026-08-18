@@ -38,8 +38,6 @@ const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
 });
 
 const crearEventoVacio = () => ({
-  titulo: "",
-  descripcion: "",
   organizadorBusqueda: "",
   organizadores: [],
   genero: "",
@@ -288,6 +286,16 @@ export default function Eventos({ usuario }) {
     return () => { activo = false; };
   }, [usuario?.id]);
 
+  useEffect(() => {
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setReels((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
+  }, []);
+
   const eventoSeleccionado = useMemo(
     () => eventos.find((evento) => evento.id === eventoActivo),
     [eventos, eventoActivo]
@@ -336,8 +344,6 @@ export default function Eventos({ usuario }) {
       if (!termino) return true;
 
       return [
-        evento.titulo,
-        evento.descripcion,
         evento.lugar,
         evento.ubicacion,
         evento.creador,
@@ -568,11 +574,11 @@ export default function Eventos({ usuario }) {
         icon: L.divIcon({
           className: "evento-pin-wrapper",
           html: `
-            <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
+            <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(`Evento de ${evento.creador || "Artista SONDAR"} en ${evento.lugar || evento.ubicacion || "ubicacion a confirmar"}`)}">
               <span class="evento-pin-pulse">
                 <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png?v=19'" />
               </span>
-              <strong>${escaparHtml(evento.titulo)}</strong>
+              <strong>${escaparHtml(evento.creador || "Artista SONDAR")}</strong>
             </button>
           `,
           iconSize: [150, 92],
@@ -689,7 +695,11 @@ export default function Eventos({ usuario }) {
     enlace.searchParams.set("evento", evento.id);
     try {
       if (navigator.share) {
-        await navigator.share({ title: evento.titulo, text: evento.descripcion || evento.titulo, url: enlace.toString() });
+        await navigator.share({
+          title: `Evento de ${evento.creador || "Artista SONDAR"}`,
+          text: `${mostrarGenero(evento.genero)} · ${evento.lugar || evento.ubicacion || "Lugar a confirmar"}`,
+          url: enlace.toString(),
+        });
       } else {
         await navigator.clipboard.writeText(enlace.toString());
         mostrarAviso("Enlace del evento copiado");
@@ -783,7 +793,7 @@ export default function Eventos({ usuario }) {
           usuario,
           tipo: "evento",
           contenidoId: evento.id,
-          titulo: evento.titulo,
+          titulo: `Evento de ${evento.creador || "Artista SONDAR"}`,
           autor: evento.creador,
           motivo: etiquetaMotivoDenuncia(motivo),
           detalle,
@@ -934,8 +944,6 @@ export default function Eventos({ usuario }) {
     subiendoRef.current = true;
 
     const datosEvento = {
-      titulo: nuevoEvento.titulo,
-      descripcion: nuevoEvento.descripcion,
       organizadores: JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id)),
       genero: normalizarGenero(nuevoEvento.genero),
       ubicacion: nuevoEvento.lugar,
@@ -1061,8 +1069,8 @@ export default function Eventos({ usuario }) {
           <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
             <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }} />
             <span>
-              <strong>{detalleEvento.titulo}</strong>
-              <small>{formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
+              <strong>{detalleEvento.creador || "Artista SONDAR"}</strong>
+              <small>{mostrarGenero(detalleEvento.genero)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
               <em>
                 {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
                 {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
@@ -1115,7 +1123,7 @@ export default function Eventos({ usuario }) {
                 <div>
                   <span className="evento-sheet-genero">{mostrarGenero(detalleEvento.genero)}</span>
                   <span className="evento-sheet-eyebrow">EVENTO</span>
-                  <h2>{detalleEvento.titulo}</h2>
+                  <h2>{detalleEvento.creador || "Artista SONDAR"}</h2>
                 </div>
                 <div className="evento-sheet-acciones-superiores">
                   <button className={`evento-guardar ${detalleEvento.guardado ? "guardado" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}><IconoPanel nombre="guardar" /></button>
@@ -1146,8 +1154,6 @@ export default function Eventos({ usuario }) {
                 <span><IconoPanel nombre="ubicacion" size={17} />{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</span>
                 <span><IconoPanel nombre="calendario" size={17} />{formatearFechaVisible(detalleEvento.fecha)}</span>
               </div>
-              {detalleEvento.descripcion ? <p className="evento-sheet-descripcion">{detalleEvento.descripcion}</p> : null}
-
               <div className="evento-sheet-organizadores">
                 <div className="evento-sheet-organizador-grupo">
                   <span>MÚSICO</span>
@@ -1185,7 +1191,7 @@ export default function Eventos({ usuario }) {
                   <div className="evento-preview-reproductor-info">
                     <span>{previewSeleccionada.genero || "Reel"}</span>
                     <strong>{previewSeleccionada.tema}</strong>
-                    <small>{previewSeleccionada.artista} · {previewSeleccionada.album || "Demo"}</small>
+                    <small>{previewSeleccionada.artista} · {mostrarGenero(previewSeleccionada.genero)}</small>
                   </div>
                   <div className="evento-preview-controles" aria-label="Controles de preview">
                     <button type="button" aria-label="Preview anterior" onClick={() => cambiarPreview(-1)} disabled={reelsDelEvento.length < 2}>
@@ -1229,7 +1235,7 @@ export default function Eventos({ usuario }) {
                   {reelsDelEvento.map((reel) => (
                     <button className={reel.id === previewSeleccionada?.id ? "seleccionado" : ""} type="button" key={reel.id} onClick={() => alternarPreview(reel)}>
                       <span className="evento-preview-icono"><IconoPanel nombre={reel.id === reelActivo ? "pausa" : "musica"} size={18} /></span>
-                      <span><strong>{reel.tema}</strong><small>{reel.artista} · {reel.album || reel.genero || "Reel"}</small></span>
+                      <span><strong>{reel.tema}</strong><small>{reel.artista} · {mostrarGenero(reel.genero)}</small></span>
                       <time>{reel.duracion || "0:30"}</time>
                     </button>
                   ))}
@@ -1250,7 +1256,7 @@ export default function Eventos({ usuario }) {
 
       <DenunciaModal
         abierto={Boolean(denunciaPendiente)}
-        titulo={denunciaPendiente?.titulo}
+        titulo={denunciaPendiente ? `Evento de ${denunciaPendiente.creador || "Artista SONDAR"}` : ""}
         enviando={enviandoDenuncia}
         onClose={() => setDenunciaPendiente(null)}
         onConfirm={(datos) => denunciarEvento(denunciaPendiente, datos)}
@@ -1272,17 +1278,6 @@ export default function Eventos({ usuario }) {
             </header>
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
-              <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
-              <textarea
-                className="evento-descripcion"
-                value={nuevoEvento.descripcion}
-                onChange={(event) => setNuevoEvento((actual) => ({ ...actual, descripcion: event.target.value }))}
-                maxLength={1000}
-                rows={3}
-                placeholder="Descripcion del evento (opcional)"
-                aria-label="Descripcion del evento"
-              />
-
               <section className="evento-organizadores-selector" aria-label="Invitados y bandas invitadas del evento">
                 <div className="evento-organizadores-encabezado">
                   <span>Invitados o bandas invitadas</span>

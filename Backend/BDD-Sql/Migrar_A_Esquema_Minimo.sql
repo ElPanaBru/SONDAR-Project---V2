@@ -55,12 +55,50 @@ ALTER TABLE public.user_settings
 
 -- Las metricas se derivan de reel_likes/reel_saves/reel_shares/reel_views.
 ALTER TABLE public.reels
+  ADD COLUMN IF NOT EXISTS color_principal text,
   DROP COLUMN IF EXISTS likes,
   DROP COLUMN IF EXISTS compartidos,
   DROP COLUMN IF EXISTS guardados,
   DROP COLUMN IF EXISTS visitas,
   DROP COLUMN IF EXISTS status,
   DROP COLUMN IF EXISTS external_url;
+
+-- Desactivar requisitos heredados sin borrar datos. El backend deja de
+-- escribirlos en cuanto la base admite el contrato simplificado.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'reels' AND column_name = 'album'
+  ) THEN
+    ALTER TABLE public.reels ALTER COLUMN album DROP NOT NULL;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'reels' AND column_name = 'descripcion'
+  ) THEN
+    ALTER TABLE public.reels ALTER COLUMN descripcion DROP NOT NULL;
+  END IF;
+END $$;
+
+UPDATE public.reels
+SET color_principal = NULL
+WHERE color_principal IS NOT NULL
+  AND color_principal !~ '^#[0-9a-fA-F]{6}$';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'reels_color_principal_formato_check'
+      AND conrelid = 'public.reels'::regclass
+  ) THEN
+    ALTER TABLE public.reels
+      ADD CONSTRAINT reels_color_principal_formato_check
+      CHECK (color_principal IS NULL OR color_principal ~ '^#[0-9a-fA-F]{6}$');
+  END IF;
+END $$;
 
 DROP FUNCTION IF EXISTS public.handle_reel_share_counter() CASCADE;
 
@@ -79,6 +117,33 @@ ALTER TABLE public.comunidad_comentarios
   DROP COLUMN IF EXISTS likes,
   DROP COLUMN IF EXISTS status,
   DROP COLUMN IF EXISTS updated_at;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'eventos'
+      AND column_name = 'titulo'
+  ) THEN
+    ALTER TABLE public.eventos
+      ALTER COLUMN titulo DROP NOT NULL,
+      ALTER COLUMN titulo DROP DEFAULT;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'eventos'
+      AND column_name = 'descripcion'
+  ) THEN
+    ALTER TABLE public.eventos
+      ALTER COLUMN descripcion DROP NOT NULL,
+      ALTER COLUMN descripcion DROP DEFAULT;
+  END IF;
+END $$;
 
 ALTER TABLE public.eventos
   DROP COLUMN IF EXISTS status,

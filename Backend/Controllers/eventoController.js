@@ -31,11 +31,13 @@ async function buscarAccesoEvento(eventoId) {
 
 function mapearEvento(evento) {
   if (!evento) return evento;
-
-  return {
+  const resultado = {
     ...evento,
     creador: evento.creador || null
   };
+  delete resultado.titulo;
+  delete resultado.descripcion;
+  return resultado;
 }
 
 async function asegurarUsuarioPublico(user) {
@@ -56,6 +58,37 @@ async function asegurarUsuarioPublico(user) {
      RETURNING id`,
     [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
   );
+}
+
+function primerValorDisponible(...valores) {
+  return valores.find((valor) => valor !== undefined
+    && valor !== null
+    && (typeof valor !== 'string' || valor.trim() !== ''));
+}
+
+function normalizarCoordenada(valor) {
+  if (typeof valor === 'string' && !valor.trim()) return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function normalizarDatosEvento(body = {}) {
+  const genero = String(primerValorDisponible(body.genero, body.genre) || '').trim().toLowerCase();
+  const ubicacion = String(primerValorDisponible(body.ubicacion, body.lugar, body.location) || '').trim();
+  const fecha = String(primerValorDisponible(body.fecha, body.date) || '').trim();
+  const latitud = normalizarCoordenada(primerValorDisponible(body.latitud, body.lat));
+  const longitud = normalizarCoordenada(primerValorDisponible(body.longitud, body.lng, body.lon));
+
+  return {
+    genero,
+    ubicacion,
+    fecha,
+    precio: body.precio,
+    link: body.link,
+    latitud,
+    longitud,
+    organizadores: body.organizadores,
+  };
 }
 
 const eventoController = {
@@ -160,7 +193,7 @@ const eventoController = {
       `, [viewerId, viewerLat, viewerLng]);
 
       if (!viewerId || result.rows.length === 0) {
-        return res.json(result.rows);
+        return res.json(result.rows.map(mapearEvento));
       }
 
       try {
@@ -170,13 +203,13 @@ const eventoController = {
         );
         const guardadoSet = new Set(guardados.rows.map((row) => String(row.event_id)));
 
-        return res.json(result.rows.map((evento) => ({
+        return res.json(result.rows.map((evento) => mapearEvento({
           ...evento,
           guardado: guardadoSet.has(String(evento.id)),
         })));
       } catch (error) {
         if (error.code !== '42P01') throw error;
-        return res.json(result.rows);
+        return res.json(result.rows.map(mapearEvento));
       }
     } catch (error) {
       console.error('Error al listar eventos:', error);
@@ -206,7 +239,16 @@ const eventoController = {
   },
 
   crearEvento: async (req, res) => {
-    const { titulo, descripcion, genero, ubicacion, fecha, precio, link, latitud, longitud, organizadores } = req.body;
+    const {
+      genero,
+      ubicacion,
+      fecha,
+      precio,
+      link,
+      latitud,
+      longitud,
+      organizadores,
+    } = normalizarDatosEvento(req.body);
     const creadorId = req.user.id;
     let dbClient = null;
     let transaccionActiva = false;
@@ -218,17 +260,36 @@ const eventoController = {
       'Anonimo';
 
 
-    if (!titulo || !genero || !ubicacion || !fecha || !latitud || !longitud) {
-      return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
+    const camposFaltantes = [
+      !genero && 'genero',
+      !ubicacion && 'ubicacion',
+      !fecha && 'fecha',
+      latitud === null && 'latitud',
+      longitud === null && 'longitud',
+    ].filter(Boolean);
+
+    if (camposFaltantes.length > 0) {
+      return res.status(400).json({
+        error: `Faltan datos obligatorios del evento: ${camposFaltantes.join(', ')}.`,
+        camposFaltantes,
+      });
     }
 
-    if (String(descripcion || '').length > 1000) {
-      return res.status(400).json({ error: 'La descripcion no puede superar los 1000 caracteres.' });
+    if (Math.abs(latitud) > 90 || Math.abs(longitud) > 180) {
+      return res.status(400).json({ error: 'La ubicacion seleccionada no es valida.' });
+    }
+
+    if (Number.isNaN(Date.parse(fecha))) {
+      return res.status(400).json({ error: 'La fecha del evento no es valida.' });
     }
 
     let organizadorIds = [];
     try {
-      const recibidos = organizadores ? JSON.parse(organizadores) : [];
+      const recibidos = Array.isArray(organizadores)
+        ? organizadores
+        : organizadores
+          ? JSON.parse(organizadores)
+          : [];
       if (!Array.isArray(recibidos)) throw new Error('Formato invalido');
       organizadorIds = [...new Set(recibidos
         .map((id) => String(id || '').trim())
@@ -246,7 +307,9 @@ const eventoController = {
       return res.status(400).json({ error: 'Hay un invitado invalido.' });
     }
 
-    const precioNormalizado = precio === '' || precio === undefined ? null : Number(precio);
+    const precioNormalizado = precio === '' || precio === undefined || precio === null
+      ? null
+      : Number(precio);
 
     if (precioNormalizado !== null && (!Number.isFinite(precioNormalizado) || precioNormalizado < 0)) {
       return res.status(400).json({ error: 'El precio de entrada no es valido.' });
@@ -270,13 +333,11 @@ const eventoController = {
       transaccionActiva = true;
 
       const query = `
-        INSERT INTO eventos (titulo, descripcion, genero, lugar, fecha, precio, link, creador_id, latitud, longitud)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        INSERT INTO eventos (genero, lugar, fecha, precio, link, creador_id, latitud, longitud)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *`;
 
       const values = [
-        titulo,
-        String(descripcion || '').trim(),
         genero,
         ubicacion,
         fecha,
@@ -319,7 +380,7 @@ const eventoController = {
         actorId: creadorId,
         type: 'new_event',
         title: `${actorName} creo un nuevo evento`,
-        body: titulo,
+        body: `${genero} - ${ubicacion}`,
         targetUrl: `/?evento=${result.rows[0].id}`,
         entityType: 'event',
         entityId: result.rows[0].id,
@@ -332,7 +393,7 @@ const eventoController = {
           actorId: creadorId,
           type: 'event_coorganizer',
           title: `${actorName} te agrego como invitado a un evento`,
-          body: titulo,
+          body: `${genero} - ${ubicacion}`,
           targetUrl: `/?evento=${result.rows[0].id}`,
           entityType: 'event',
           entityId: result.rows[0].id,

@@ -16,12 +16,14 @@ import OtroPerfil from "./paginas/OtroPerfil";
 import Configuracion from "./paginas/Configuracion";
 import SidebarNav from "./componentes/SidebarNav";
 import OnboardingPerfilModal from "./componentes/OnboardingPerfilModal";
+import CrearReelModal from "./componentes/CrearReelModal";
 import { PreferenciasProvider } from "./contextos/PreferenciasContext";
 
 function App() {
   const location = useLocation();
   const [usuario, setUsuario] = useState(null);
   const [onboardingToken, setOnboardingToken] = useState(null);
+  const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -62,7 +64,7 @@ function App() {
   return (
     <PreferenciasProvider usuario={usuario}>
     <div className="app-container">
-      {!shouldHideNavbar && <Navbar usuario={usuario} />}
+      {!shouldHideNavbar && <Navbar usuario={usuario} onCrearReel={() => setMostrarCrearReel(true)} />}
       {!shouldHideNavbar && <SidebarNav usuario={usuario} />}
 
       <div
@@ -95,6 +97,13 @@ function App() {
             window.localStorage.removeItem("sondar:onboarding-pending");
             setOnboardingToken(null);
           }}
+        />
+      ) : null}
+      {usuario && location.pathname !== "/auth" ? (
+        <CrearReelModal
+          abierto={mostrarCrearReel}
+          usuario={usuario}
+          onClose={() => setMostrarCrearReel(false)}
         />
       ) : null}
     </div>

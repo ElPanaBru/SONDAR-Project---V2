@@ -126,7 +126,7 @@ export default function Buscar({ usuario }) {
         setUsuarios(usuariosData);
         setReels(
           reelsData.filter((reel) =>
-            coincide(reel, ["tema", "album", "artista", "usuario", "genero", "descripcion"], query)
+            coincide(reel, ["tema", "artista", "usuario", "genero"], query)
           )
         );
         setEventos(
@@ -136,7 +136,7 @@ export default function Buscar({ usuario }) {
               img: "/sondar-icon.png?v=19",
             }))
             .filter((evento) =>
-              coincide(evento, ["titulo", "genero", "lugar", "ubicacion", "creador"], query)
+              coincide(evento, ["genero", "lugar", "ubicacion", "creador"], query)
             )
         );
       } catch (err) {
@@ -218,15 +218,15 @@ export default function Buscar({ usuario }) {
   const renderEvento = (item) => (
     <article className="buscar-row" key={`evento-${item.id}`}>
       <button className="buscar-row-main" type="button" onClick={() => abrirEvento(item)}>
-        {renderImagen(item.img, item.titulo)}
+        {renderImagen(item.img, item.creador || "Artista SONDAR")}
         <span>
-          <strong>{item.titulo}</strong>
-          <small>{item.lugar || item.ubicacion || "Lugar sin definir"} - {mostrarGenero(item.genero)}</small>
+          <strong>{item.creador || "Artista SONDAR"}</strong>
+          <small>{mostrarGenero(item.genero)} · {item.lugar || item.ubicacion || "Lugar sin definir"}</small>
         </span>
       </button>
       <span className="buscar-tag">Evento</span>
       <small className="buscar-meta">{formatearFecha(item.fecha)}</small>
-      <button className="buscar-icon-action" type="button" onClick={() => abrirEvento(item)} aria-label={`Abrir ${item.titulo}`}>
+      <button className="buscar-icon-action" type="button" onClick={() => abrirEvento(item)} aria-label={`Abrir evento de ${item.creador || "Artista SONDAR"}`}>
         <IconoBuscar nombre="evento" />
       </button>
     </article>
@@ -288,11 +288,11 @@ export default function Buscar({ usuario }) {
           >
             {resultadoDestacado.tipo === "usuario"
               ? renderImagen(resultadoDestacado.item.avatar, resultadoDestacado.item.nombre, "usuario grande")
-              : renderImagen(resultadoDestacado.item.portada || resultadoDestacado.item.img, resultadoDestacado.item.tema || resultadoDestacado.item.titulo, "grande")}
+              : renderImagen(resultadoDestacado.item.portada || resultadoDestacado.item.img, resultadoDestacado.item.tema || resultadoDestacado.item.creador || "Artista SONDAR", "grande")}
             <span>
               <small>Mejor resultado</small>
               <strong>
-                {resultadoDestacado.item.tema || resultadoDestacado.item.nombre || resultadoDestacado.item.titulo}
+                {resultadoDestacado.item.tema || resultadoDestacado.item.nombre || resultadoDestacado.item.creador || "Artista SONDAR"}
               </strong>
               <em>
                 {resultadoDestacado.tipo === "reel"

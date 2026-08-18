@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
+import {
+  COLOR_PORTADA_PREDETERMINADO,
+  extraerColorDominanteDesdeUrl,
+  mezclarColores,
+  normalizarColorPortada,
+} from "../lib/colorPortada";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
@@ -326,46 +332,28 @@ const GENEROS_REEL = [
   "otros",
 ];
 const GENEROS_REEL_SET = new Set(GENEROS_REEL);
-const MAX_PORTADA_REEL_BYTES = 5 * 1024 * 1024;
-const MAX_AUDIO_REEL_BYTES = 20 * 1024 * 1024;
-const MIME_PORTADA_POR_EXTENSION = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  webp: "image/webp",
-  gif: "image/gif",
-};
-const MIME_AUDIO_POR_EXTENSION = {
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  ogg: "audio/ogg",
-  webm: "audio/webm",
-  m4a: "audio/mp4",
-};
-const ACCEPT_PORTADA_REEL = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
-const ACCEPT_AUDIO_REEL = ".mp3,.wav,.ogg,.webm,.m4a,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4";
+const coloresPortadaCache = new Map();
 
-function prepararArchivoReel(archivo, tiposPorExtension, maxBytes, etiqueta) {
-  const extension = archivo.name.split(".").pop()?.toLowerCase() || "";
-  const mimeEsperado = tiposPorExtension[extension];
-  if (!mimeEsperado) {
-    throw new Error(`El formato de ${etiqueta} no esta permitido.`);
-  }
-  if (archivo.size > maxBytes) {
-    const maxMb = Math.round(maxBytes / (1024 * 1024));
-    throw new Error(`El ${etiqueta} no puede superar los ${maxMb}MB.`);
-  }
+async function obtenerColorPortada(url, signal) {
+  const colorGuardado = coloresPortadaCache.get(url);
+  if (colorGuardado) return colorGuardado;
 
-  const tiposCompatibles = new Set(Object.values(tiposPorExtension));
-  const aliasesCompatibles = etiqueta === "audio"
-    ? new Set(["audio/mp3", "audio/x-wav", "audio/wave", "audio/x-m4a"])
-    : new Set();
-  if (archivo.type && !tiposCompatibles.has(archivo.type) && !aliasesCompatibles.has(archivo.type)) {
-    throw new Error(`El tipo declarado del ${etiqueta} no coincide con su extension.`);
-  }
+  const color = await extraerColorDominanteDesdeUrl(url, {
+    signal,
+    usarRespaldoEnError: false,
+  });
+  coloresPortadaCache.set(url, color);
+  return color;
+}
 
-  if (archivo.type === mimeEsperado) return archivo;
-  return new File([archivo], archivo.name, { type: mimeEsperado, lastModified: archivo.lastModified });
+function crearVariablesFondoReel(color) {
+  const principal = normalizarColorPortada(color);
+
+  return {
+    "--fondo-reel-color": principal,
+    "--fondo-reel-medio": mezclarColores(principal, "#191922", 0.48),
+    "--fondo-reel-profundo": mezclarColores(principal, "#12131a", 0.7),
+  };
 }
 
 function normalizarGeneroReel(genero) {
@@ -436,11 +424,6 @@ function IconoPersona() {
   );
 }
 
-function duracionASegundos(duracion) {
-  const [minutos, segundos] = duracion.split(":").map(Number);
-  return minutos * 60 + segundos;
-}
-
 function formatearConteo(numero) {
   return new Intl.NumberFormat("es-AR").format(numero);
 }
@@ -482,29 +465,15 @@ function buscarAvatarEnComentarios(comentarios, userId) {
   return "";
 }
 
-const reelVacio = {
-  tema: "",
-  album: "",
-  genero: "",
-  descripcion: "",
-  portada: "",
-  portadaFile: null,
-  audio: "",
-  audioFile: null,
-  nombrePortada: "",
-  nombreAudio: "",
-  duracion: "0:30",
-};
-
 export default function Descubrir({ usuario }) {
   const { t } = usePreferencias();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const lanzamientoCompartido = searchParams.get("lanzamiento");
   const comentarioCompartido = searchParams.get("comentario");
-  const crearReelParam = searchParams.get("crear");
   const [lanzamientos, setLanzamientos] = useState([]);
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
+  const [reelVisibleId, setReelVisibleId] = useState(lanzamientoCompartido || null);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
@@ -517,20 +486,22 @@ export default function Descubrir({ usuario }) {
   const [respuestaTexto, setRespuestaTexto] = useState("");
   const [aviso, setAviso] = useState("");
   const [animacionesLike, setAnimacionesLike] = useState({});
-  const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
-  const [subiendoReel, setSubiendoReel] = useState(false);
-  const [archivoArrastrado, setArchivoArrastrado] = useState(null);
-  const [nuevoReel, setNuevoReel] = useState(reelVacio);
+  const [seguimientosPendientes, setSeguimientosPendientes] = useState(() => new Set());
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [compartirActivo, setCompartirActivo] = useState(null);
   const [perfilVista, setPerfilVista] = useState(null);
-  const [progresos, setProgresos] = useState({});
   const [posicionUsuario, setPosicionUsuario] = useState(null);
+  const [capasFondoReel, setCapasFondoReel] = useState(() => [
+    { id: null, color: COLOR_PORTADA_PREDETERMINADO },
+    { id: null, color: COLOR_PORTADA_PREDETERMINADO },
+  ]);
+  const [indiceFondoReelActivo, setIndiceFondoReelActivo] = useState(0);
   const reproduciendoRef = useRef(reproduciendo);
+  const reelVisibleIdRef = useRef(reelVisibleId);
   const comentariosAbiertosRef = useRef(comentariosAbiertos);
-  const lanzamientosFiltradosRef = useRef([]);
+  const lanzamientosVisiblesRef = useRef([]);
   const ruedaAcumuladaRef = useRef(0);
   const ultimoMovimientoRuedaRef = useRef(0);
   const toqueInicioRef = useRef(null);
@@ -541,14 +512,15 @@ export default function Descubrir({ usuario }) {
   const tiemposReelRef = useRef({});
   const reelPausadoPorUsuarioRef = useRef(null);
   const visitasRegistradasRef = useRef(new Set());
-  const portadaReelInputRef = useRef(null);
-  const audioReelInputRef = useRef(null);
-  const subiendoReelRef = useRef(false);
+  const seguimientosPendientesRef = useRef(new Set());
   const enviandoComentarioRef = useRef(false);
   const respuestasEnviandoRef = useRef(new Set());
-  const query = searchParams.get("query")?.trim().toLowerCase() || "";
-  const generoFiltro = normalizarGeneroReel(searchParams.get("genero"));
-  const generoFiltroNombre = mostrarGeneroReel(generoFiltro);
+  const fondoReelEstadoRef = useRef({
+    inicializado: false,
+    indice: 0,
+    id: null,
+    color: COLOR_PORTADA_PREDETERMINADO,
+  });
   const usuarioComentario = obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
   const inicialUsuario = usuario ? usuarioComentario.charAt(1).toUpperCase() : "";
@@ -556,36 +528,33 @@ export default function Descubrir({ usuario }) {
     (lanzamiento) => lanzamiento.id === reproduciendo
   )?.audio;
 
-  const lanzamientosFiltrados = useMemo(() => {
-    return lanzamientos.filter((lanzamiento) => {
-      const coincideGenero = !generoFiltro || normalizarGeneroReel(lanzamiento.genero || lanzamiento.tag || lanzamiento.etiqueta) === generoFiltro;
-      if (!coincideGenero) return false;
-
-      if (!query) return true;
-
-      const contenido =
-        `${lanzamiento.artista} ${lanzamiento.usuario} ${lanzamiento.tema} ${lanzamiento.album} ${lanzamiento.descripcion}`.toLowerCase();
-      return contenido.includes(query);
-    });
-  }, [generoFiltro, lanzamientos, query]);
-  const idsLanzamientosFiltrados = lanzamientosFiltrados
+  const idsLanzamientosVisibles = lanzamientos
     .map((lanzamiento) => lanzamiento.id)
     .join(",");
-
-  const cambiarFiltroGenero = (genero) => {
-    const siguientesParametros = new URLSearchParams(searchParams);
-
-    if (genero) siguientesParametros.set("genero", genero);
-    else siguientesParametros.delete("genero");
-
-    siguientesParametros.delete("lanzamiento");
-    siguientesParametros.delete("comentario");
-    setSearchParams(siguientesParametros);
-    setReproduciendo(null);
-    setComentariosAbiertos(null);
-    comentariosAbiertosRef.current = null;
-    document.querySelector(".feed-pista")?.scrollTo({ top: 0, behavior: "auto" });
-  };
+  const indiceColorActivo = Math.max(
+    0,
+    lanzamientos.findIndex(
+      (lanzamiento) => String(lanzamiento.id) === String(reelVisibleId)
+    )
+  );
+  const reelParaFondo = lanzamientos[indiceColorActivo] || null;
+  const reelFondoId = reelParaFondo?.id ?? null;
+  const colorFondoVisible = normalizarColorPortada(
+    reelParaFondo?.colorPrincipal ||
+      reelParaFondo?.colorA ||
+      COLOR_PORTADA_PREDETERMINADO
+  );
+  const reelsCercanosParaColor = lanzamientos
+    .slice(indiceColorActivo, indiceColorActivo + 2)
+    .filter((lanzamiento) => lanzamiento.portada)
+    .map((lanzamiento) => ({
+      id: lanzamiento.id,
+      portada: lanzamiento.portada,
+      colorPrincipal: lanzamiento.colorPrincipal,
+    }));
+  const claveVentanaColores = reelsCercanosParaColor
+    .map(({ id, portada }) => `${id}:${portada}`)
+    .join("|");
 
   const guardarTiempoAudioActual = () => {
     const audio = audioReelRef.current;
@@ -599,6 +568,10 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     reproduciendoRef.current = reproduciendo;
   }, [reproduciendo]);
+
+  useEffect(() => {
+    reelVisibleIdRef.current = reelVisibleId;
+  }, [reelVisibleId]);
 
   useEffect(() => {
     const lanzamiento = lanzamientos.find((item) => item.id === reproduciendo);
@@ -639,8 +612,104 @@ export default function Descubrir({ usuario }) {
   }, [comentariosAbiertos]);
 
   useEffect(() => {
-    lanzamientosFiltradosRef.current = lanzamientosFiltrados;
-  }, [lanzamientosFiltrados]);
+    lanzamientosVisiblesRef.current = lanzamientos;
+  }, [lanzamientos]);
+
+  useEffect(() => {
+    if (reelFondoId === null) return;
+
+    const estado = fondoReelEstadoRef.current;
+    const esElMismoReel = String(estado.id) === String(reelFondoId);
+
+    // El primer color se aplica sin animacion. Luego el tema queda congelado
+    // mientras el mismo reel sea visible, incluso si su color termina de
+    // analizarse en segundo plano. El fundido se reserva al cambio de reel.
+    if (esElMismoReel) return;
+
+    if (!estado.inicializado) {
+
+      setCapasFondoReel((capas) =>
+        capas.map((capa, indice) =>
+          indice === estado.indice
+            ? { id: reelFondoId, color: colorFondoVisible }
+            : capa
+        )
+      );
+      fondoReelEstadoRef.current = {
+        inicializado: true,
+        indice: estado.indice,
+        id: reelFondoId,
+        color: colorFondoVisible,
+      };
+      return;
+    }
+
+    const siguienteIndice = estado.indice === 0 ? 1 : 0;
+    setCapasFondoReel((capas) =>
+      capas.map((capa, indice) =>
+        indice === siguienteIndice
+          ? { id: reelFondoId, color: colorFondoVisible }
+          : capa
+      )
+    );
+    setIndiceFondoReelActivo(siguienteIndice);
+    fondoReelEstadoRef.current = {
+      inicializado: true,
+      indice: siguienteIndice,
+      id: reelFondoId,
+      color: colorFondoVisible,
+    };
+  }, [colorFondoVisible, reelFondoId]);
+
+  useEffect(() => {
+    const pendientes = reelsCercanosParaColor.filter((reel) => !reel.colorPrincipal);
+    if (!pendientes.length) return undefined;
+
+    let activo = true;
+    const controlador = new AbortController();
+    const solicitudesLocales = new Map();
+
+    const aplicarColor = (id, colorPrincipal) => {
+      if (!activo) return;
+      setLanzamientos((actuales) =>
+        actuales.map((lanzamiento) => {
+          if (lanzamiento.id !== id || lanzamiento.colorPrincipal) return lanzamiento;
+          return {
+            ...lanzamiento,
+            colorPrincipal,
+            colorA: colorPrincipal,
+            colorB: mezclarColores(colorPrincipal),
+            colorC: "#080808",
+          };
+        })
+      );
+    };
+
+    pendientes.forEach(({ id, portada }) => {
+      let solicitud = solicitudesLocales.get(portada);
+      if (!solicitud) {
+        solicitud = obtenerColorPortada(portada, controlador.signal);
+        solicitudesLocales.set(portada, solicitud);
+      }
+
+      solicitud
+        .then((colorPrincipal) => {
+          aplicarColor(id, colorPrincipal);
+        })
+        .catch((error) => {
+          if (error?.name !== "AbortError") {
+            aplicarColor(id, COLOR_PORTADA_PREDETERMINADO);
+          }
+        });
+    });
+
+    return () => {
+      activo = false;
+      controlador.abort();
+    };
+    // La clave cambia al mover la ventana visible, no al aplicar cada color.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveVentanaColores]);
 
   useEffect(() => {
     if (!lanzamientoCompartido) return;
@@ -649,7 +718,7 @@ export default function Descubrir({ usuario }) {
     if (!destino) return;
 
     destino.scrollIntoView({ block: "start" });
-  }, [lanzamientoCompartido, idsLanzamientosFiltrados]);
+  }, [lanzamientoCompartido, idsLanzamientosVisibles]);
 
   useEffect(() => {
     if (!lanzamientoCompartido || !comentarioCompartido) return;
@@ -686,15 +755,19 @@ export default function Descubrir({ usuario }) {
   }, []);
 
   useEffect(() => {
-    const abrirCreador = () => ejecutarConSesion(() => setMostrarCrearReel(true));
-    window.addEventListener("sondar:crear-reel", abrirCreador);
-    return () => window.removeEventListener("sondar:crear-reel", abrirCreador);
-  });
-
-  useEffect(() => {
-    if (crearReelParam !== "reel") return;
-    ejecutarConSesion(() => setMostrarCrearReel(true));
-  }, [crearReelParam, usuario]);
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setLanzamientos((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+      setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
+      setReproduciendo(reel.id);
+      window.setTimeout(() => {
+        document.getElementById(`reel-${reel.id}`)?.scrollIntoView({ block: "start" });
+      }, 0);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
+  }, []);
 
   useEffect(() => {
     let activo = true;
@@ -803,7 +876,19 @@ export default function Descubrir({ usuario }) {
           }
 
           if (activo) {
-            setLanzamientos(reelsConAvatar);
+            setLanzamientos((actuales) =>
+              reelsConAvatar.map((reel) => {
+                const reelActual = actuales.find((item) => item.id === reel.id);
+                if (!reelActual?.colorPrincipal || reel.colorPrincipal) return reel;
+                return {
+                  ...reel,
+                  colorPrincipal: reelActual.colorPrincipal,
+                  colorA: reelActual.colorA,
+                  colorB: reelActual.colorB,
+                  colorC: reelActual.colorC,
+                };
+              })
+            );
             setComentariosPorLanzamiento(comentariosPorReel);
           }
         }
@@ -834,44 +919,77 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     const pista = document.querySelector(".feed-pista");
     if (!pista) return undefined;
+    const ratiosReels = new Map();
+
+    const activarReel = (id) => {
+      reelVisibleIdRef.current = id;
+      setReelVisibleId(id);
+      if (String(reproduciendoRef.current) === String(id)) return;
+      if (String(reelPausadoPorUsuarioRef.current) === String(id)) return;
+
+      reelPausadoPorUsuarioRef.current = null;
+      reproduciendoRef.current = id;
+      setReproduciendo(id);
+      if (comentariosAbiertosRef.current !== null) {
+        setComentariosAnimando(false);
+        clearTimeout(comentariosAnimacionTimer.current);
+        comentariosAbiertosRef.current = id;
+        setComentariosAbiertos(id);
+      }
+    };
 
     const observer = new IntersectionObserver(
       (entradas) => {
-        const visible = entradas
-          .filter((entrada) => entrada.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        entradas.forEach((entrada) => {
+          const idRaw = entrada.target.getAttribute("data-reel-id");
+          const id = idRaw?.startsWith("db-") ? idRaw : Number(idRaw);
+          if (!id) return;
+          ratiosReels.set(String(id), {
+            id,
+            ratio: entrada.isIntersecting ? entrada.intersectionRatio : 0,
+          });
+        });
 
-        if (!visible) return;
+        const candidato = [...ratiosReels.values()].sort(
+          (a, b) => b.ratio - a.ratio
+        )[0];
+        if (!candidato) return;
 
-        const idRaw = visible.target.getAttribute("data-reel-id");
-        const id = idRaw?.startsWith("db-") ? idRaw : Number(idRaw);
-        if (!id || reproduciendoRef.current === id) return;
-        if (reelPausadoPorUsuarioRef.current === id) return;
-
-        reelPausadoPorUsuarioRef.current = null;
-        reproduciendoRef.current = id;
-        setReproduciendo(id);
-        if (comentariosAbiertosRef.current !== null) {
-          setComentariosAnimando(false);
-          clearTimeout(comentariosAnimacionTimer.current);
-          comentariosAbiertosRef.current = id;
-          setComentariosAbiertos(id);
+        const idActual = reelVisibleIdRef.current;
+        if (idActual === null) {
+          if (candidato.ratio >= 0.46) activarReel(candidato.id);
+          return;
         }
-        setProgresos((prev) => (prev[id] === undefined ? { ...prev, [id]: 0 } : prev));
+        if (String(candidato.id) === String(idActual)) return;
+
+        const ratioActual = ratiosReels.get(String(idActual))?.ratio || 0;
+        const tieneVentajaClara = candidato.ratio - ratioActual >= 0.12;
+        const actualYaSalioDelCentro = ratioActual < 0.46;
+
+        // La histeresis evita alternancias cuando dos reels rondan el 50%.
+        if (
+          candidato.ratio >= 0.56 &&
+          (tieneVentajaClara || actualYaSalioDelCentro)
+        ) {
+          activarReel(candidato.id);
+        }
       },
       {
         root: pista,
-        threshold: [0.58, 0.72, 0.9],
+        threshold: [0, 0.3, 0.46, 0.5, 0.56, 0.62, 0.72, 0.82, 0.9],
       }
     );
 
-    idsLanzamientosFiltrados.split(",").forEach((id) => {
+    idsLanzamientosVisibles.split(",").forEach((id) => {
       const reel = document.getElementById(`reel-${id}`);
       if (reel) observer.observe(reel);
     });
 
-    return () => observer.disconnect();
-  }, [idsLanzamientosFiltrados]);
+    return () => {
+      observer.disconnect();
+      ratiosReels.clear();
+    };
+  }, [idsLanzamientosVisibles]);
 
   useEffect(() => {
     const pista = document.querySelector(".feed-pista");
@@ -909,7 +1027,7 @@ export default function Descubrir({ usuario }) {
       if (intensidad < 54 || ahora - ultimoMovimientoRuedaRef.current < 420) return;
 
       const direccion = ruedaAcumuladaRef.current > 0 ? "abajo" : "arriba";
-      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const idActual = reproduciendoRef.current ?? lanzamientosVisiblesRef.current[0]?.id;
       const seMovio = desplazarReel(idActual, direccion);
 
       if (seMovio) {
@@ -953,7 +1071,7 @@ export default function Descubrir({ usuario }) {
       }
 
       const direccion = deltaY < 0 ? "abajo" : "arriba";
-      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const idActual = reproduciendoRef.current ?? lanzamientosVisiblesRef.current[0]?.id;
       const seMovio = desplazarReel(idActual, direccion);
 
       if (seMovio) {
@@ -971,30 +1089,6 @@ export default function Descubrir({ usuario }) {
       pista.removeEventListener("touchend", manejarToqueFin);
     };
   }, []);
-
-  useEffect(() => {
-    if (reproduciendo === null) return undefined;
-
-    const lanzamientoActual = lanzamientos.find((lanzamiento) => lanzamiento.id === reproduciendo);
-    if (!lanzamientoActual) return undefined;
-    if (lanzamientoActual.audio) return undefined;
-
-    const intervaloMs = 250;
-    const paso = 100 / (duracionASegundos(lanzamientoActual.duracion) * (1000 / intervaloMs));
-
-    const intervalo = window.setInterval(() => {
-      setProgresos((prev) => {
-        const actual = prev[reproduciendo] ?? 0;
-        const siguiente = actual + paso;
-        return {
-          ...prev,
-          [reproduciendo]: siguiente >= 100 ? 0 : siguiente,
-        };
-      });
-    }, intervaloMs);
-
-    return () => window.clearInterval(intervalo);
-  }, [lanzamientos, reproduciendo]);
 
   useEffect(() => {
     if (!audioReproduciendo || reproduciendo === null) {
@@ -1024,22 +1118,12 @@ export default function Descubrir({ usuario }) {
       }
     };
 
-    const actualizarProgreso = () => {
-      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
-      tiemposReel[idReel] = audio.currentTime;
-      setProgresos((actuales) => ({
-        ...actuales,
-        [idReel]: (audio.currentTime / audio.duration) * 100,
-      }));
-    };
-
     try {
       restaurarTiempoGuardado();
     } catch {
       audio.addEventListener("loadedmetadata", restaurarTiempoGuardado, { once: true });
     }
 
-    audio.addEventListener("timeupdate", actualizarProgreso);
     audio.play().catch(() => setReproduciendo(null));
 
     return () => {
@@ -1047,7 +1131,6 @@ export default function Descubrir({ usuario }) {
         tiemposReel[idReel] = audio.currentTime;
       }
       audio.pause();
-      audio.removeEventListener("timeupdate", actualizarProgreso);
       audio.removeEventListener("loadedmetadata", restaurarTiempoGuardado);
       if (audioReelRef.current === audio) {
         audioReelRef.current = null;
@@ -1109,250 +1192,6 @@ export default function Descubrir({ usuario }) {
     }
 
     return token;
-  };
-
-  const cerrarCreadorReel = () => {
-    if (nuevoReel.audio?.startsWith("blob:")) {
-      URL.revokeObjectURL(nuevoReel.audio);
-    }
-    if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
-    if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-    setMostrarCrearReel(false);
-    setNuevoReel(reelVacio);
-  };
-
-  const leerArchivo = (archivo) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = reject;
-      reader.readAsDataURL(archivo);
-    });
-
-  const seleccionarPortadaReel = async (seleccionado) => {
-    if (!seleccionado) return;
-
-    try {
-      const archivo = prepararArchivoReel(
-        seleccionado,
-        MIME_PORTADA_POR_EXTENSION,
-        MAX_PORTADA_REEL_BYTES,
-        "portada"
-      );
-      const portada = await leerArchivo(archivo);
-      setNuevoReel((actual) => ({
-        ...actual,
-        portada,
-        portadaFile: archivo,
-        nombrePortada: archivo.name,
-      }));
-    } catch (error) {
-      if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
-      mostrarAviso(error.message || "No se pudo leer la portada seleccionada.");
-    }
-  };
-
-  const cambiarPortadaReel = (event) => {
-    seleccionarPortadaReel(event.target.files?.[0]);
-  };
-
-  const limpiarPortadaReel = () => {
-    if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
-    setNuevoReel((actual) => ({
-      ...actual,
-      portada: "",
-      portadaFile: null,
-      nombrePortada: "",
-    }));
-  };
-
-  const seleccionarAudioReel = (seleccionado) => {
-    if (!seleccionado) return;
-
-    let archivo;
-    try {
-      archivo = prepararArchivoReel(
-        seleccionado,
-        MIME_AUDIO_POR_EXTENSION,
-        MAX_AUDIO_REEL_BYTES,
-        "audio"
-      );
-    } catch (error) {
-      if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-      mostrarAviso(error.message || "No se pudo leer el audio seleccionado.");
-      return;
-    }
-
-    const audio = URL.createObjectURL(archivo);
-    const elementoAudio = new Audio(audio);
-    setNuevoReel((actual) => {
-      if (actual.audio?.startsWith("blob:")) URL.revokeObjectURL(actual.audio);
-      return {
-        ...actual,
-        audio,
-        audioFile: archivo,
-        nombreAudio: archivo.name,
-        duracion: "0:30",
-      };
-    });
-    elementoAudio.addEventListener(
-      "loadedmetadata",
-      () => {
-        const segundosTotales = Number.isFinite(elementoAudio.duration)
-          ? Math.max(1, Math.round(elementoAudio.duration))
-          : 30;
-        const minutos = Math.floor(segundosTotales / 60);
-        const segundos = String(segundosTotales % 60).padStart(2, "0");
-        setNuevoReel((actual) => actual.audio === audio
-          ? { ...actual, duracion: `${minutos}:${segundos}` }
-          : actual
-        );
-      },
-      { once: true }
-    );
-    elementoAudio.addEventListener(
-      "error",
-      () => {
-        URL.revokeObjectURL(audio);
-        if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-        setNuevoReel((actual) => actual.audio === audio
-          ? { ...actual, audio: "", audioFile: null, nombreAudio: "", duracion: "0:30" }
-          : actual
-        );
-        mostrarAviso("El archivo no contiene un audio reproducible.");
-      },
-      { once: true }
-    );
-  };
-
-  const cambiarAudioReel = (event) => {
-    seleccionarAudioReel(event.target.files?.[0]);
-  };
-
-  const prepararZonaArrastre = (event, tipo) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = "copy";
-    setArchivoArrastrado(tipo);
-  };
-
-  const salirZonaArrastre = (event, tipo) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setArchivoArrastrado((actual) => actual === tipo ? null : actual);
-    }
-  };
-
-  const soltarArchivoReel = (event, tipo) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setArchivoArrastrado(null);
-    const archivo = event.dataTransfer.files?.[0];
-    if (tipo === "portada") seleccionarPortadaReel(archivo);
-    if (tipo === "audio") seleccionarAudioReel(archivo);
-  };
-
-  const limpiarAudioReel = () => {
-    if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-    setNuevoReel((actual) => {
-      if (actual.audio?.startsWith("blob:")) {
-        URL.revokeObjectURL(actual.audio);
-      }
-
-      return {
-        ...actual,
-        audio: "",
-        audioFile: null,
-        nombreAudio: "",
-        duracion: "0:30",
-      };
-    });
-  };
-
-  const publicarReel = async (event) => {
-    event.preventDefault();
-    if (subiendoReelRef.current) return;
-
-    if (
-      !nuevoReel.tema.trim() ||
-      !nuevoReel.album.trim() ||
-      !nuevoReel.genero ||
-      !nuevoReel.audioFile
-    ) {
-      mostrarAviso("Completa el titulo, el nombre, el genero y selecciona un audio");
-      return;
-    }
-
-    subiendoReelRef.current = true;
-    setSubiendoReel(true);
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      if (!token) {
-        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("tema", nuevoReel.tema.trim());
-      formData.append("album", nuevoReel.album.trim());
-      formData.append("genero", nuevoReel.genero);
-      formData.append("descripcion", nuevoReel.descripcion.trim());
-      formData.append("duracion", nuevoReel.duracion);
-      formData.append("audio", nuevoReel.audioFile);
-      if (nuevoReel.portadaFile) {
-        formData.append("portada", nuevoReel.portadaFile);
-      }
-
-      const response = await apiRequest("/api/reels/crear", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo guardar el reel.");
-      }
-
-      const reelGuardado = await response.json();
-      let reel = {
-        ...reelGuardado,
-        id: `db-${reelGuardado.id}`,
-        backendId: reelGuardado.backendId || reelGuardado.id,
-      };
-
-      if (!reel.avatar) {
-        const perfilResponse = await apiRequest("/api/usuarios/me/perfil", {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null);
-        if (perfilResponse?.ok) {
-          const perfilData = await perfilResponse.json();
-          reel = { ...reel, avatar: perfilData.perfil?.avatar || "" };
-        }
-      }
-
-      setLanzamientos((actuales) => [reel, ...actuales]);
-      setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
-      setProgresos((actuales) => ({ ...actuales, [reel.id]: 0 }));
-      setReproduciendo(reel.id);
-      cerrarCreadorReel();
-      mostrarAviso("Reel publicado");
-      window.setTimeout(() => {
-        document.getElementById(`reel-${reel.id}`)?.scrollIntoView({ block: "start" });
-      }, 0);
-    } catch (error) {
-      console.error(error);
-      mostrarAviso(error.message || "No se pudo guardar el reel.");
-    } finally {
-      subiendoReelRef.current = false;
-      setSubiendoReel(false);
-    }
   };
 
   const copiarEnlace = async (enlace) => {
@@ -1489,6 +1328,10 @@ export default function Descubrir({ usuario }) {
         return;
       }
 
+      if (seguimientosPendientesRef.current.has(lanzamiento.creadorId)) return;
+      seguimientosPendientesRef.current.add(lanzamiento.creadorId);
+      setSeguimientosPendientes(new Set(seguimientosPendientesRef.current));
+
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
@@ -1519,6 +1362,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo seguir el perfil.");
         return;
+      } finally {
+        seguimientosPendientesRef.current.delete(lanzamiento.creadorId);
+        setSeguimientosPendientes(new Set(seguimientosPendientesRef.current));
       }
     }
 
@@ -1717,11 +1563,6 @@ export default function Descubrir({ usuario }) {
 
       setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
       setComentariosPorLanzamiento((prev) => {
-        const siguiente = { ...prev };
-        delete siguiente[lanzamiento.id];
-        return siguiente;
-      });
-      setProgresos((prev) => {
         const siguiente = { ...prev };
         delete siguiente[lanzamiento.id];
         return siguiente;
@@ -2222,37 +2063,34 @@ export default function Descubrir({ usuario }) {
       }`}
       aria-label="Descubrir musica"
     >
-      <div className={`descubrir-filtro-genero ${generoFiltro ? "activo" : ""}`}>
-        <label htmlFor="filtro-genero-reels">Género</label>
-        <span className="descubrir-filtro-select">
-          <select
-            id="filtro-genero-reels"
-            value={generoFiltro}
-            onChange={(event) => cambiarFiltroGenero(event.target.value)}
-            aria-label="Filtrar reels por género"
-          >
-            <option value="">Todos los géneros</option>
-            {GENEROS_REEL.map((genero) => (
-              <option key={genero} value={genero}>{mostrarGeneroReel(genero)}</option>
-            ))}
-          </select>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
-        </span>
+      <div className="reel-fondos-globales" aria-hidden="true">
+        {capasFondoReel.map((capa, indice) => (
+          <div
+            className={`reel-fondo-global ${
+              indice === indiceFondoReelActivo ? "activo" : ""
+            }`}
+            data-reel-fondo-id={capa.id ?? ""}
+            key={indice}
+            style={crearVariablesFondoReel(capa.color)}
+          />
+        ))}
       </div>
-      <div className={`feed-pista ${lanzamientosFiltrados.length === 0 ? "sin-resultados" : ""}`}>
-        {lanzamientosFiltrados.length === 0 ? (
+      <div className={`feed-pista ${lanzamientos.length === 0 ? "sin-resultados" : ""}`}>
+        {lanzamientos.length === 0 ? (
           <div className="descubrir-vacio" role="status">
             <span aria-hidden="true">♫</span>
-            <strong>{query || generoFiltro ? t("No encontramos música") : t("No hay nada que descubrir")}</strong>
-            <p>{generoFiltro ? `No hay reels de ${generoFiltroNombre} por ahora.` : query ? "Proba con otra busqueda." : "Cuando haya nuevos reels van a aparecer aca."}</p>
+            <strong>{t("No hay nada que descubrir")}</strong>
+            <p>Cuando haya nuevos reels van a aparecer aca.</p>
           </div>
         ) : null}
-        {lanzamientosFiltrados.map((lanzamiento) => {
+        {lanzamientos.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
           const estaSeleccionado = String(lanzamientoCompartido || '') === String(lanzamiento.id);
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
           const puedeEliminar = usuarioPuedeEliminarLanzamiento(lanzamiento);
-
+          const colorPrincipal = normalizarColorPortada(
+            lanzamiento.colorPrincipal || lanzamiento.colorA || COLOR_PORTADA_PREDETERMINADO
+          );
           return (
             <article
               id={`reel-${lanzamiento.id}`}
@@ -2263,19 +2101,12 @@ export default function Descubrir({ usuario }) {
               aria-current={estaSeleccionado ? "true" : undefined}
               key={lanzamiento.id}
               style={{
-                "--tono-a": lanzamiento.colorA,
-                "--tono-b": lanzamiento.colorB,
-                "--tono-c": lanzamiento.colorC,
-                "--progreso": `${progresos[lanzamiento.id] ?? lanzamiento.progreso}%`,
+                "--tono-principal": colorPrincipal,
+                "--tono-a": colorPrincipal,
+                "--tono-b": mezclarColores(colorPrincipal, "#17171a", 0.46),
+                "--tono-c": mezclarColores(colorPrincipal, "#121216", 0.68),
               }}
             >
-              {lanzamiento.portada ? (
-                <span
-                  className="feed-fondo-portada"
-                  style={{ backgroundImage: `url(${lanzamiento.portada})` }}
-                  aria-hidden="true"
-                />
-              ) : null}
               <div className="album-centro">
                 <div
                   className={`album-portada ${lanzamiento.portada ? "con-imagen" : ""}`}
@@ -2298,143 +2129,118 @@ export default function Descubrir({ usuario }) {
                       aria-hidden="true"
                     />
                   ) : null}
-                  {lanzamiento.genero ? (
-                    <span className="album-sello">{mostrarGeneroReel(lanzamiento.genero)}</span>
-                  ) : null}
-                  {lanzamiento.recomendacion ? (
-                    <span className="album-recomendacion">{lanzamiento.recomendacion}</span>
-                  ) : null}
                   <span className="album-brillo" />
                   <span className="album-disco" />
                   <span className="estado-reproduccion" aria-hidden="true">
                     <Icono nombre="play" />
                   </span>
-                  <span className="album-titulo">{lanzamiento.album}</span>
-                  <span className="album-artista">{lanzamiento.artista}</span>
-                  <div
-                    className="album-meta"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
+
+                </div>
+
+                <div
+                  className="reel-info-inferior"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <strong className="reel-titulo" title={lanzamiento.tema}>
+                    {lanzamiento.tema}
+                  </strong>
+                  <div className="reel-identidad">
                     <button
-                      className="artista-avatar"
+                      className={`artista-avatar ${lanzamiento.avatar ? "" : "sin-avatar"}`}
                       type="button"
                       onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
                       aria-label={`Ver perfil de ${lanzamiento.artista}`}
                     >
+                      <span className="avatar-inicial" aria-hidden="true">
+                        {inicialAvatar(lanzamiento.artista || lanzamiento.usuario)}
+                      </span>
                       {lanzamiento.avatar ? (
-                        <img src={lanzamiento.avatar} alt="" />
-                      ) : (
-                        inicialAvatar(lanzamiento.artista || lanzamiento.usuario)
-                      )}
+                        <img
+                          src={lanzamiento.avatar}
+                          alt=""
+                          onError={(event) => {
+                            event.currentTarget.hidden = true;
+                            event.currentTarget.style.display = "none";
+                            event.currentTarget.parentElement?.classList.add("sin-avatar");
+                          }}
+                        />
+                      ) : null}
                     </button>
-                    <div className="album-copy">
-                      <div className="album-linea">
-                        <button
-                          className="artista-nombre"
-                          type="button"
-                          onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
-                        >
-                          {lanzamiento.usuario}
-                        </button>
-                        {!puedeEliminar ? (
-                          <button
-                            className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
-                            type="button"
-                            onClick={() =>
-                              ejecutarConSesion(() => actualizarLanzamiento(lanzamiento, "siguiendo"))
-                            }
-                          >
-                            {lanzamiento.siguiendo ? "Siguiendo" : "Seguir"}
-                          </button>
-                        ) : null}
-                      </div>
-                      <p><TextoConMenciones texto={lanzamiento.descripcion} /></p>
-                    </div>
+                    <button
+                      className="artista-nombre"
+                      type="button"
+                      onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
+                      title={lanzamiento.usuario}
+                    >
+                      {lanzamiento.usuario}
+                    </button>
+                    {!puedeEliminar ? (
+                      <button
+                        className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
+                        type="button"
+                        aria-pressed={lanzamiento.siguiendo}
+                        aria-busy={seguimientosPendientes.has(lanzamiento.creadorId)}
+                        aria-label={`${lanzamiento.siguiendo ? "Dejar de seguir a" : "Seguir a"} ${lanzamiento.artista}`}
+                        disabled={seguimientosPendientes.has(lanzamiento.creadorId)}
+                        onClick={() =>
+                          ejecutarConSesion(() => actualizarLanzamiento(lanzamiento, "siguiendo"))
+                        }
+                      >
+                        {seguimientosPendientes.has(lanzamiento.creadorId)
+                          ? "Actualizando"
+                          : lanzamiento.siguiendo
+                            ? "Siguiendo"
+                            : "Seguir"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-                <input
-                  className="reel-progress"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={progresos[lanzamiento.id] ?? lanzamiento.progreso}
-                  aria-label={`Avanzar o retroceder ${lanzamiento.tema}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    setProgresos((prev) => {
-                      const valor = Number(event.target.value);
-                      if (
-                        lanzamiento.audio &&
-                        reproduciendo === lanzamiento.id &&
-                        audioReelRef.current &&
-                        Number.isFinite(audioReelRef.current.duration)
-                      ) {
-                        audioReelRef.current.currentTime =
-                          (valor / 100) * audioReelRef.current.duration;
-                      }
-                      return { ...prev, [lanzamiento.id]: valor };
-                    })
-                  }
-                />
-              </div>
 
-              <div className="acciones-verticales" aria-label={`Acciones de ${lanzamiento.tema}`}>
-                <div className="accion-item">
-                  <button
-                  className={`accion-boton ${lanzamiento.liked ? "activo" : ""} ${animacionesLike[lanzamiento.id] || ""}`}
-                    type="button"
-                    aria-label={lanzamiento.liked ? "Quitar me gusta" : "Me gusta"}
-                    onClick={() =>
-                    ejecutarConSesion(() => alternarLikeLanzamiento(lanzamiento))
-                    }
-                  >
-                    <Icono nombre="corazon" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.likes)}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                    className={`accion-boton ${comentariosAbiertos === lanzamiento.id ? "activo" : ""}`}
-                    type="button"
-                    aria-label="Comentar"
-                    onClick={() =>
-                      cambiarComentariosConAnimacion(
-                        comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
-                      )
-                    }
-                  >
-                    <Icono nombre="comentario" />
-                  </button>
-                  <span>{comentariosDelLanzamiento.length}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                  className="accion-boton"
-                  type="button"
-                  aria-label="Compartir"
-                  onClick={() => abrirCompartirLanzamiento(lanzamiento)}
-                >
-                    <Icono nombre="compartir" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.compartidos)}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                    className={`accion-boton ${lanzamiento.guardado ? "activo" : ""}`}
-                    type="button"
-                    aria-label={lanzamiento.guardado ? "Quitar de guardados" : "Guardar"}
-                    onClick={() =>
-                      ejecutarConSesion(() => alternarGuardadoLanzamiento(lanzamiento))
-                    }
-                  >
-                    <Icono nombre="guardar" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.guardados)}</span>
-                </div>
-                <div className="accion-item accion-menu-item">
+                <div className="acciones-laterales" aria-label={`Acciones de ${lanzamiento.tema}`}>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton ${lanzamiento.liked ? "activo" : ""} ${animacionesLike[lanzamiento.id] || ""}`}
+                      type="button"
+                      aria-label={lanzamiento.liked ? "Quitar me gusta" : "Me gusta"}
+                      onClick={() =>
+                        ejecutarConSesion(() => alternarLikeLanzamiento(lanzamiento))
+                      }
+                    >
+                      <Icono nombre="corazon" />
+                    </button>
+                    <small>{formatearConteo(lanzamiento.likes)}</small>
+                    <span>Me gusta</span>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton ${comentariosAbiertos === lanzamiento.id ? "activo" : ""}`}
+                      type="button"
+                      aria-label="Comentar"
+                      onClick={() =>
+                        cambiarComentariosConAnimacion(
+                          comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
+                        )
+                      }
+                    >
+                      <Icono nombre="comentario" />
+                    </button>
+                    <small>{comentariosDelLanzamiento.length}</small>
+                    <span>Comentarios</span>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className="accion-boton"
+                      type="button"
+                      aria-label="Compartir"
+                      onClick={() => abrirCompartirLanzamiento(lanzamiento)}
+                    >
+                      <Icono nombre="compartir" />
+                    </button>
+                    <small>{formatearConteo(lanzamiento.compartidos)}</small>
+                    <span>Compartir</span>
+                  </div>
+                  <div className="accion-item accion-menu-item">
                     <button
                       className={`accion-boton accion-boton-menu ${menuLanzamientoAbierto === lanzamiento.id ? "activo" : ""}`}
                       type="button"
@@ -2448,8 +2254,21 @@ export default function Descubrir({ usuario }) {
                     >
                       <Icono nombre="mas" />
                     </button>
+                    <span>Mas</span>
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
+                        <button
+                          className="reel-menu-guardar"
+                          type="button"
+                          onClick={() =>
+                            ejecutarConSesion(() => {
+                              setMenuLanzamientoAbierto(null);
+                              return alternarGuardadoLanzamiento(lanzamiento);
+                            })
+                          }
+                        >
+                          {lanzamiento.guardado ? "Quitar de guardados" : "Guardar reel"}
+                        </button>
                         {puedeEliminar ? (
                           <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
                             Eliminar
@@ -2470,6 +2289,7 @@ export default function Descubrir({ usuario }) {
                       </div>
                     ) : null}
                   </div>
+                </div>
               </div>
 
               <aside
@@ -2654,25 +2474,6 @@ export default function Descubrir({ usuario }) {
                 </form>
               </aside>
 
-              <nav className="reel-nav" aria-label="Navegar reels">
-                <button
-                  type="button"
-                  aria-label="Reel anterior"
-                  onClick={() => moverReel(lanzamiento.id, "arriba")}
-                  disabled={lanzamientosFiltrados[0]?.id === lanzamiento.id}
-                >
-                  <Icono nombre="subir" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Siguiente reel"
-                  onClick={() => moverReel(lanzamiento.id, "abajo")}
-                  disabled={lanzamientosFiltrados[lanzamientosFiltrados.length - 1]?.id === lanzamiento.id}
-                >
-                  <Icono nombre="bajar" />
-                </button>
-              </nav>
-
             </article>
           );
         })}
@@ -2792,152 +2593,6 @@ export default function Descubrir({ usuario }) {
         onClose={() => setDenunciaPendiente(null)}
         onConfirm={(datos) => denunciarLanzamiento(denunciaPendiente, datos)}
       />
-
-      {mostrarCrearReel ? (
-        <div className="crear-reel-overlay" role="presentation">
-          <form
-            className="crear-reel-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="crear-reel-titulo"
-            onSubmit={publicarReel}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className="crear-reel-header">
-              <div>
-                <span>DESCUBRIR</span>
-                <h2 id="crear-reel-titulo">{t("Crear nuevo reel")}</h2>
-              </div>
-              <button type="button" onClick={cerrarCreadorReel} aria-label="Cerrar" disabled={subiendoReel}>
-                <Icono nombre="cerrar" />
-              </button>
-            </header>
-
-            <div className="crear-reel-contenido">
-              <div
-                className={`crear-reel-preview ${nuevoReel.portada ? "con-portada" : ""} ${archivoArrastrado === "portada" ? "archivo-arrastrado" : ""}`}
-                style={nuevoReel.portada ? { backgroundImage: `url(${nuevoReel.portada})` } : undefined}
-                onDragEnter={(event) => prepararZonaArrastre(event, "portada")}
-                onDragOver={(event) => prepararZonaArrastre(event, "portada")}
-                onDragLeave={(event) => salirZonaArrastre(event, "portada")}
-                onDrop={(event) => soltarArchivoReel(event, "portada")}
-              >
-                {nuevoReel.genero ? (
-                  <span className="crear-reel-sello">{mostrarGeneroReel(nuevoReel.genero)}</span>
-                ) : null}
-                <div className="crear-reel-preview-copy">
-                  <strong>{nuevoReel.album || "Nombre del reel"}</strong>
-                  <span>{nuevoReel.tema || "Titulo de la cancion"}</span>
-                  <small>{obtenerUsuarioActual(usuario)}</small>
-                </div>
-              </div>
-
-              <div className="crear-reel-campos">
-                <label>
-                  Titulo de la cancion
-                  <input
-                    value={nuevoReel.tema}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, tema: event.target.value }))
-                    }
-                    maxLength="50"
-                    placeholder="Ej: Neon de madrugada"
-                    required
-                  />
-                </label>
-                <label>
-                  Nombre del reel
-                  <input
-                    value={nuevoReel.album}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, album: event.target.value }))
-                    }
-                    maxLength="60"
-                    placeholder="El texto principal de la portada"
-                    required
-                  />
-                </label>
-                <label>
-                  Genero musical
-                  <select
-                    value={nuevoReel.genero}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, genero: event.target.value }))
-                    }
-                    required
-                  >
-                    <option value="" disabled>Seleccionar genero</option>
-                    {GENEROS_REEL.map((genero) => (
-                      <option key={genero} value={genero}>
-                        {mostrarGeneroReel(genero)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Descripcion
-                  <CampoMenciones
-                    value={nuevoReel.descripcion}
-                    onChange={(descripcion) =>
-                      setNuevoReel((actual) => ({ ...actual, descripcion }))
-                    }
-                    maxLength="180"
-                    rows="3"
-                    placeholder="Contá algo y mencioná personas con @usuario..."
-                  />
-                </label>
-
-                <div className="crear-reel-archivos">
-                  <div className="crear-reel-archivo-grupo">
-                    <label
-                      className={`crear-reel-archivo ${archivoArrastrado === "portada" ? "archivo-arrastrado" : ""}`}
-                      onDragEnter={(event) => prepararZonaArrastre(event, "portada")}
-                      onDragOver={(event) => prepararZonaArrastre(event, "portada")}
-                      onDragLeave={(event) => salirZonaArrastre(event, "portada")}
-                      onDrop={(event) => soltarArchivoReel(event, "portada")}
-                    >
-                      <span>Elegir o arrastrar portada</span>
-                      <small>{nuevoReel.nombrePortada || "JPG, PNG, WEBP o GIF (max. 5MB)"}</small>
-                      <input ref={portadaReelInputRef} type="file" accept={ACCEPT_PORTADA_REEL} onChange={cambiarPortadaReel} />
-                    </label>
-                    {nuevoReel.nombrePortada ? (
-                      <button className="crear-reel-limpiar" type="button" onClick={limpiarPortadaReel}>
-                        Quitar portada
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="crear-reel-archivo-grupo">
-                    <label
-                      className={`crear-reel-archivo ${archivoArrastrado === "audio" ? "archivo-arrastrado" : ""}`}
-                      onDragEnter={(event) => prepararZonaArrastre(event, "audio")}
-                      onDragOver={(event) => prepararZonaArrastre(event, "audio")}
-                      onDragLeave={(event) => salirZonaArrastre(event, "audio")}
-                      onDrop={(event) => soltarArchivoReel(event, "audio")}
-                    >
-                      <span>Elegir o arrastrar audio</span>
-                      <small>{nuevoReel.nombreAudio || "MP3, WAV, OGG, WEBM o M4A (max. 20MB)"}</small>
-                      <input ref={audioReelInputRef} type="file" accept={ACCEPT_AUDIO_REEL} onChange={cambiarAudioReel} aria-required="true" />
-                    </label>
-                    {nuevoReel.nombreAudio ? (
-                      <button className="crear-reel-limpiar" type="button" onClick={limpiarAudioReel}>
-                        Quitar audio
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {nuevoReel.audio ? (
-                  <audio className="crear-reel-audio" src={nuevoReel.audio} controls />
-                ) : null}
-
-                <button className="crear-reel-publicar" type="submit" disabled={subiendoReel}>
-                  {subiendoReel ? "Creando..." : "Publicar reel"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </section>
   );
 }

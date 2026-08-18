@@ -52,18 +52,22 @@ test('storage acepta un WAV real y rechaza contenido que solo declara ser audio'
 
 test('reels conserva portada opcional, audio obligatorio y enlace individual', () => {
   const pagina = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Descubrir.jsx'), 'utf8');
+  const creador = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'CrearReelModal.jsx'), 'utf8');
   const emailDenuncia = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'lib', 'reportarContenido.js'), 'utf8');
   const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'reelController.js'), 'utf8');
   const rutas = fs.readFileSync(path.join(raiz, 'Backend', 'routes', 'reels.js'), 'utf8');
 
-  assert.match(pagina, /if \(nuevoReel\.portadaFile\)/);
-  assert.match(pagina, /!nuevoReel\.audioFile/);
+  assert.match(creador, /if \(nuevoReel\.portadaFile\)/);
+  assert.match(creador, /!nuevoReel\.audioFile/);
   assert.match(pagina, /url: crearEnlaceLanzamiento\(lanzamiento\)/);
   assert.match(pagina, /api\/reels\/\$\{reelCompartidoBackendId\}/);
   assert.match(emailDenuncia, /const urlContenido = url \|\| window\.location\.href/);
   assert.match(emailDenuncia, /url: urlContenido/);
   assert.match(controlador, /obtenerReel: async/);
-  assert.match(controlador, /!tema \|\| !album \|\| !genero \|\| !audioFile/);
+  assert.match(controlador, /!titulo && 'titulo'/);
+  assert.match(controlador, /!genero && 'genero'/);
+  assert.match(controlador, /!audioFile && 'audio'/);
+  assert.match(controlador, /camposFaltantes/);
   assert.match(rutas, /router\.get\('\/:id', reelController\.obtenerReel\)/);
   assert.match(rutas, /procesarArchivosReel/);
 });
@@ -94,8 +98,8 @@ test('comunidad permite buscar referencias en todo el catalogo publico', () => {
   assert.match(pagina, /comunidad-asociacion-card evento/);
   assert.match(pagina, /comunidad-asociacion-card reel/);
   assert.match(pagina, /evento\.lugar \|\| evento\.ubicacion/);
-  assert.match(pagina, /reel\.album \|\| "Reel musical"/);
-  assert.match(pagina, /src="\/sondar-icon\.png"/);
+  assert.match(pagina, /mostrarGenero\(reel\.genero\) \|\| "Reel musical"/);
+  assert.match(pagina, /src="\/sondar-icon\.png(?:\?v=19)?"/);
   assert.doesNotMatch(pagina, /eventosDelGenero\.map|reelsDelGenero\.map/);
 });
 

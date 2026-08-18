@@ -280,7 +280,7 @@ export default function Comunidad({ usuario }) {
       String(reel.id) === String(nuevoHilo.reelAsociadoId)
       || coincideBusqueda(
         reel,
-        ["tema", "album", "artista", "usuario", "genero", "descripcion"],
+        ["tema", "artista", "usuario", "genero"],
         busquedaReelAsociado
       )
     ),
@@ -410,6 +410,16 @@ export default function Comunidad({ usuario }) {
     return () => {
       cancelado = true;
     };
+  }, []);
+
+  useEffect(() => {
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setReelsAsociables((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
   }, []);
 
   useEffect(() => {
@@ -1345,8 +1355,8 @@ export default function Comunidad({ usuario }) {
                       <span className="asociada-icono">E</span>
                       <span>
                         <small>Evento asociado</small>
-                        <strong>{hilo.eventoAsociado.titulo}</strong>
-                        <em>{hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
+                        <strong>{hilo.eventoAsociado.creador || "Artista SONDAR"}</strong>
+                        <em>{mostrarGenero(hilo.eventoAsociado.genero)} · {hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
                       </span>
                     </button>
                   ) : null}
@@ -1356,8 +1366,8 @@ export default function Comunidad({ usuario }) {
                       <img src={hilo.reelAsociado.portada || "/sondar-icon.png?v=19"} alt="" />
                       <span>
                         <small>Tema asociado</small>
-                        <strong>{hilo.reelAsociado.tema || hilo.reelAsociado.album}</strong>
-                        <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {hilo.reelAsociado.album || mostrarGenero(hilo.reelAsociado.genero)}</em>
+                        <strong>{hilo.reelAsociado.tema}</strong>
+                        <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {mostrarGenero(hilo.reelAsociado.genero)}</em>
                       </span>
                       <button
                         type="button"
@@ -1463,15 +1473,15 @@ export default function Comunidad({ usuario }) {
                       <article className="comunidad-recurso-card recurso-evento" key={evento.id}>
                         <img className="comunidad-recurso-imagen evento" src="/sondar-icon.png?v=19" alt="" />
                         <div className="comunidad-recurso-datos">
-                          <strong>{evento.titulo || "Evento de SONDAR"}</strong>
-                          <span>{evento.creador || "SONDAR"} · {mostrarGenero(evento.genero)}</span>
+                          <strong>{evento.creador || "Artista SONDAR"}</strong>
+                          <span>{mostrarGenero(evento.genero)}</span>
                           <small>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</small>
                           <time>{formatearFechaCorta(evento.fecha)}</time>
                         </div>
                         <button
                           className="comunidad-recurso-abrir"
                           type="button"
-                          aria-label={`Abrir evento ${evento.titulo || "de SONDAR"}`}
+                          aria-label={`Abrir evento de ${evento.creador || "Artista SONDAR"}`}
                           title="Ver evento"
                           onClick={() => navigate(`/?evento=${encodeURIComponent(evento.id)}`)}
                         >
@@ -1483,16 +1493,6 @@ export default function Comunidad({ usuario }) {
                 ) : null}
               </section>
 
-              <section className="comunidad-recurso">
-                <button
-                  className="comunidad-recurso-enlace"
-                  type="button"
-                  onClick={() => navigate(`/descubrir?genero=${encodeURIComponent(comunidadActiva.genero)}`)}
-                >
-                  <span>Reels del género</span>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4h9v9M16 4 5 15" /></svg>
-                </button>
-              </section>
             </div>
           </section>
 
@@ -1575,8 +1575,8 @@ export default function Comunidad({ usuario }) {
                             <i>Evento</i>
                           </span>
                           <span className="comunidad-asociacion-datos">
-                            <strong>{evento.titulo || "Evento de SONDAR"}</strong>
-                            <small>{evento.creador || "SONDAR"} · {mostrarGenero(evento.genero) || "Sin género"}</small>
+                            <strong>{evento.creador || "Artista SONDAR"}</strong>
+                            <small>{mostrarGenero(evento.genero) || "Sin género"}</small>
                             <em>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</em>
                             <time>{formatearFechaCorta(evento.fecha)}</time>
                           </span>
@@ -1625,7 +1625,7 @@ export default function Comunidad({ usuario }) {
                           <span className="comunidad-asociacion-datos">
                             <strong>{reel.tema || "Tema de SONDAR"}</strong>
                             <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero) || "Sin género"}</small>
-                            <em>{reel.album || "Reel musical"}</em>
+                            <em>{mostrarGenero(reel.genero) || "Reel musical"}</em>
                             <time>{reel.duracion || "0:30"}</time>
                           </span>
                           <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>

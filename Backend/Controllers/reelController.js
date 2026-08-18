@@ -14,9 +14,15 @@ const {
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
+const COLOR_PRINCIPAL_REEL_FALLBACK = '#ffae00';
+const PATRON_COLOR_HEX_COMPLETO = /^#[0-9a-fA-F]{6}$/;
+const VIGENCIA_COLUMNAS_REELS_MS = 60 * 1000;
+
 let esquemaComentariosListo = null;
 let esquemaCompartidosListo = null;
 let esquemaVisitasListo = null;
+let columnasReelsPromesa = null;
+let columnasReelsExpiranEn = 0;
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
@@ -75,6 +81,134 @@ async function asegurarUsuarioPublico(user) {
      SET email = EXCLUDED.email
      RETURNING id`,
     [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
+  );
+}
+
+function normalizarColorPrincipal(valor) {
+  if (typeof valor !== 'string') return null;
+  const color = valor.trim();
+  return PATRON_COLOR_HEX_COMPLETO.test(color) ? color.toLowerCase() : null;
+}
+
+function primerValorDisponible(...valores) {
+  return valores.find((valor) => valor !== undefined
+    && valor !== null
+    && (typeof valor !== 'string' || valor.trim() !== ''));
+}
+
+function obtenerArchivoReel(req, campo) {
+  const archivosPorCampo = req.files?.[campo];
+  if (Array.isArray(archivosPorCampo) && archivosPorCampo[0]) return archivosPorCampo[0];
+
+  if (Array.isArray(req.files)) {
+    const archivo = req.files.find((item) => item?.fieldname === campo);
+    if (archivo) return archivo;
+  }
+
+  return req.file?.fieldname === campo ? req.file : null;
+}
+
+function normalizarDatosCreacionReel(req) {
+  const body = req.body || {};
+
+  return {
+    titulo: String(primerValorDisponible(body.titulo, body.tema) || '').trim(),
+    genero: String(primerValorDisponible(body.genero, body.genre) || '').trim().toLowerCase(),
+    duracion: body.duracion,
+    colorPrincipalRecibido: body.color_principal,
+    portadaFile: obtenerArchivoReel(req, 'portada'),
+    audioFile: obtenerArchivoReel(req, 'audio'),
+  };
+}
+
+function oscurecerColorHex(color, factor = 0.35) {
+  const colorSeguro = normalizarColorPrincipal(color) || COLOR_PRINCIPAL_REEL_FALLBACK;
+  const componentes = colorSeguro.slice(1).match(/.{2}/g) || [];
+  const hexOscuro = componentes
+    .map((componente) => Math.round(Number.parseInt(componente, 16) * factor)
+      .toString(16)
+      .padStart(2, '0'))
+    .join('');
+
+  return hexOscuro.length === 6 ? `#${hexOscuro}` : '#593d00';
+}
+
+async function obtenerColumnasCompatibilidadReels() {
+  const ahora = Date.now();
+
+  if (!columnasReelsPromesa || ahora >= columnasReelsExpiranEn) {
+    columnasReelsExpiranEn = ahora + VIGENCIA_COLUMNAS_REELS_MS;
+    columnasReelsPromesa = pool.query(
+      `SELECT column_name, is_nullable, column_default
+       FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'reels'
+         AND column_name IN ('album', 'descripcion', 'color_principal')`
+    ).then((result) => new Map(result.rows.map((columna) => [columna.column_name, columna])))
+      .catch((error) => {
+        columnasReelsPromesa = null;
+        columnasReelsExpiranEn = 0;
+        throw error;
+      });
+  }
+
+  return columnasReelsPromesa;
+}
+
+function requiereValorDeCompatibilidad(columna) {
+  return columna?.is_nullable === 'NO' && columna.column_default === null;
+}
+
+async function insertarReelCompatible({
+  titulo,
+  genero,
+  duracion,
+  portada,
+  audio,
+  creadorId,
+  colorPrincipal,
+}) {
+  const columnasDisponibles = await obtenerColumnasCompatibilidadReels();
+  const columnas = [
+    'titulo', 'genero', 'duracion', 'portada_url', 'portada_path',
+    'audio_url', 'audio_path', 'creador_id',
+  ];
+  const valores = [
+    titulo,
+    genero,
+    duracion || '0:30',
+    portada?.publicUrl || null,
+    portada?.path || null,
+    audio.publicUrl,
+    audio.path,
+    creadorId,
+  ];
+
+  const agregarColumna = (nombre, valor) => {
+    columnas.push(nombre);
+    valores.push(valor);
+  };
+
+  // Compatibilidad temporal: instalaciones antiguas pueden exigir estos
+  // campos aunque ya no formen parte del formulario ni del modelo visible.
+  const columnaAlbum = columnasDisponibles.get('album');
+  if (requiereValorDeCompatibilidad(columnaAlbum)) agregarColumna('album', titulo);
+
+  const columnaDescripcion = columnasDisponibles.get('descripcion');
+  if (requiereValorDeCompatibilidad(columnaDescripcion)) agregarColumna('descripcion', '');
+
+  // La ausencia de esta columna no debe impedir publicar. La migracion SQL la
+  // agrega de forma permanente y esta cache se renueva sin ejecutar DDL.
+  if (columnasDisponibles.has('color_principal') && portada) {
+    agregarColumna('color_principal', colorPrincipal);
+  }
+
+  const parametros = valores.map((_, indice) => `$${indice + 1}`).join(', ');
+  return pool.query(
+    `INSERT INTO reels (${columnas.join(', ')})
+     VALUES (${parametros})
+     RETURNING *`,
+    valores
   );
 }
 
@@ -145,15 +279,16 @@ async function asegurarEsquemaVisitas() {
 }
 
 function mapearReel(reel) {
+  const colorPrincipal = normalizarColorPrincipal(reel.color_principal);
+  const colorVisual = colorPrincipal || COLOR_PRINCIPAL_REEL_FALLBACK;
+
   return {
     id: reel.id,
     artista: reel.creador_nombre || reel.creador_email?.split('@')[0] || 'Artista SONDAR',
     usuario: reel.creador_nombre ? `@${String(reel.creador_nombre).replace(/^@/, '')}` : '@artista',
     oyentes: '0',
     tema: reel.titulo,
-    album: reel.album,
     genero: reel.genero,
-    descripcion: reel.descripcion,
     duracion: reel.duracion || '0:30',
     progreso: 0,
     likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
@@ -161,8 +296,9 @@ function mapearReel(reel) {
     compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
     guardados: Number(reel.guardados_calculados ?? reel.guardados ?? 0),
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
-    colorA: '#ffae00',
-    colorB: '#ff5e00',
+    colorPrincipal,
+    colorA: colorVisual,
+    colorB: oscurecerColorHex(colorVisual),
     colorC: '#111111',
     portada: reel.portada_url,
     audio: reel.audio_url,
@@ -710,14 +846,36 @@ const reelController = {
   },
 
   crearReel: async (req, res) => {
-    const { tema, album, genero, descripcion, duracion } = req.body;
-    const portadaFile = req.files?.portada?.[0];
-    const audioFile = req.files?.audio?.[0];
+    const {
+      titulo,
+      genero,
+      duracion,
+      colorPrincipalRecibido,
+      portadaFile,
+      audioFile,
+    } = normalizarDatosCreacionReel(req);
+    const colorPrincipal = normalizarColorPrincipal(colorPrincipalRecibido);
+    const colorPrincipalInformado = colorPrincipalRecibido !== undefined
+      && colorPrincipalRecibido !== null
+      && String(colorPrincipalRecibido).trim() !== '';
     let portadaSubida = null;
     let audioSubido = null;
 
-    if (!tema || !album || !genero || !audioFile) {
-      return res.status(400).json({ error: 'Faltan datos obligatorios del reel.' });
+    const camposFaltantes = [
+      !titulo && 'titulo',
+      !genero && 'genero',
+      !audioFile && 'audio',
+    ].filter(Boolean);
+
+    if (camposFaltantes.length > 0) {
+      return res.status(400).json({
+        error: `Faltan datos obligatorios del reel: ${camposFaltantes.join(', ')}.`,
+        camposFaltantes,
+      });
+    }
+
+    if (colorPrincipalInformado && !colorPrincipal) {
+      return res.status(400).json({ error: 'El color principal debe tener el formato hexadecimal #RRGGBB.' });
     }
 
     try {
@@ -725,26 +883,15 @@ const reelController = {
       portadaSubida = await subirPortadaReel(portadaFile, req.user.id, req.accessToken);
       audioSubido = await subirAudioReel(audioFile, req.user.id, req.accessToken);
 
-      const result = await pool.query(
-        `INSERT INTO reels (
-          titulo, album, genero, descripcion, duracion,
-          portada_url, portada_path, audio_url, audio_path, creador_id
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *`,
-        [
-          tema,
-          album,
-          genero,
-          descripcion || 'Nuevo reel publicado en SONDAR.',
-          duracion || '0:30',
-          portadaSubida?.publicUrl || null,
-          portadaSubida?.path || null,
-          audioSubido.publicUrl,
-          audioSubido.path,
-          req.user.id
-        ]
-      );
+      const result = await insertarReelCompatible({
+        titulo,
+        genero,
+        duracion,
+        portada: portadaSubida,
+        audio: audioSubido,
+        creadorId: req.user.id,
+        colorPrincipal,
+      });
 
       const usuarioResult = await pool.query(
         `SELECT u.profile_img_url
@@ -764,15 +911,6 @@ const reelController = {
         entityId: result.rows[0].id,
         uniquePrefix: `new-reel:${result.rows[0].id}`,
       });
-      await notificarMenciones({
-        texto: descripcion,
-        actorId: req.user.id,
-        actorName,
-        targetUrl: `/descubrir?lanzamiento=db-${result.rows[0].id}`,
-        entityType: 'reel',
-        entityId: result.rows[0].id,
-      });
-
       res.status(201).json(mapearReel({
         ...result.rows[0],
         creador_nombre: req.user.user_metadata?.username || req.user.email?.split('@')[0],

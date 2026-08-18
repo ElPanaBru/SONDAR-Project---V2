@@ -109,7 +109,6 @@ ALTER TABLE "event_saves" (
 
 ALTER TABLE "eventos" (
   "id" bigint NOT NULL,
-  "titulo" text NOT NULL,
   "genero" text,
   "lugar" text,
   "fecha" timestamp with time zone NOT NULL,
@@ -121,7 +120,6 @@ ALTER TABLE "eventos" (
   "created_at" timestamp with time zone DEFAULT timezone('utc'::text, now()),
   "precio" numeric,
   "img_path" text,
-  "descripcion" text DEFAULT ''::text NOT NULL,
   "status" USER-DEFINED DEFAULT 'pending'::content_moderation_status NOT NULL
 );
 
@@ -214,6 +212,7 @@ ALTER TABLE "reels" (
   "portada_path" text,
   "audio_url" text NOT NULL,
   "audio_path" text NOT NULL,
+  "color_principal" text,
   "likes" integer DEFAULT 0 NOT NULL,
   "compartidos" integer DEFAULT 0 NOT NULL,
   "guardados" integer DEFAULT 0 NOT NULL,

@@ -461,11 +461,10 @@ function mapearReelPerfil(reel) {
     id: reel.id,
     tipo: 'reel',
     nombre: reel.titulo,
-    detalle: `${reel.album || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
+    detalle: `${reel.genero || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
     imagen: reel.portada_url || '',
     audio: reel.audio_url || '',
     genero: reel.genero || '',
-    descripcion: reel.descripcion || '',
     creadorId: reel.creador_id,
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
   };
@@ -475,8 +474,8 @@ function mapearEventoPerfil(evento) {
   return {
     id: evento.id,
     tipo: 'evento',
-    nombre: evento.titulo,
-    detalle: evento.lugar || 'Evento',
+    nombre: evento.creador_nombre || evento.creador || 'Artista SONDAR',
+    detalle: `${evento.genero || 'Evento'}${evento.lugar ? ` - ${evento.lugar}` : ''}`,
     imagen: '/sondar-icon.png',
     fecha: evento.fecha,
     genero: evento.genero || '',
@@ -550,9 +549,11 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
       [targetUserId]
     ),
     pool.query(
-      `SELECT * FROM eventos
-       WHERE creador_id = $1
-       ORDER BY fecha DESC, id DESC`,
+      `SELECT e.*, COALESCE(u.display_name, u.username, 'Artista SONDAR') AS creador_nombre
+       FROM eventos e
+       LEFT JOIN users u ON u.id = e.creador_id
+       WHERE e.creador_id = $1
+       ORDER BY e.fecha DESC, e.id DESC`,
       [targetUserId]
     ),
     pool.query(
@@ -593,9 +594,10 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
       [targetUserId]
     ),
     consultarOpcional(
-      `SELECT e.*
+      `SELECT e.*, COALESCE(u.display_name, u.username, 'Artista SONDAR') AS creador_nombre
        FROM event_saves es
        JOIN eventos e ON e.id = es.event_id
+       LEFT JOIN users u ON u.id = e.creador_id
        WHERE es.user_id = $1
        ORDER BY es.created_at DESC`,
       [targetUserId]

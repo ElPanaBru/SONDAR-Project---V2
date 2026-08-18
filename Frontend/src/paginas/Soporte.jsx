@@ -15,7 +15,7 @@ const preguntas = [
     id: "reels",
     titulo: "Como publico un reel musical?",
     texto:
-      "Desde Descubrir podes crear un reel con portada, audio, genero y descripcion. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
+      "Desde cualquier pagina podes crear un reel con titulo, genero, portada y audio. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
   },
   {
     id: "cuenta",

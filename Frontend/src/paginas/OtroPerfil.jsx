@@ -55,7 +55,7 @@ function crearPerfilDesdeEstado(artista) {
     id: artista.creadorId || "",
     nombre: artista.artista,
     usuario: artista.usuario,
-    bio: artista.descripcion,
+    bio: "Artista en SONDAR.",
     avatar: artista.portada,
   };
 }

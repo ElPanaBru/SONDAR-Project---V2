@@ -29,7 +29,7 @@ const perfilGuardado = (usuario) => {
   };
 };
 
-function Navbar({ usuario }) {
+function Navbar({ usuario, onCrearReel }) {
   const { preferencias, t } = usePreferencias();
   const [busqueda, setBusqueda] = useState("");
   const [mostrarNotifs, setMostrarNotifs] = useState(false);
@@ -279,10 +279,7 @@ function Navbar({ usuario }) {
     }
 
     if (tipo === "demo") {
-      navigate("/descubrir?crear=reel");
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("sondar:crear-reel"));
-      }, 0);
+      onCrearReel();
       return;
     }
   };

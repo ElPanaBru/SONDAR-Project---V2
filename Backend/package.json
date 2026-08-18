@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start_server": "node index.js",
-    "dev,server": "nodemon index.js",
+    "dev:server": "nodemon index.js",
     "storage:orphans": "node scripts/limpiarStorageHuerfano.js",
     "storage:orphans:delete": "node scripts/limpiarStorageHuerfano.js --delete",
     "esteban": "aura",
