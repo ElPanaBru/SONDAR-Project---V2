@@ -352,7 +352,7 @@ function crearVariablesFondoReel(color) {
   return {
     "--fondo-reel-color": principal,
     "--fondo-reel-medio": mezclarColores(principal, "#191922", 0.48),
-    "--fondo-reel-profundo": mezclarColores(principal, "#12131a", 0.7),
+    "--fondo-reel-profundo": mezclarColores(principal, "#12131a", 0.55),
   };
 }
 

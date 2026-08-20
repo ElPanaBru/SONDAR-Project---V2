@@ -439,6 +439,34 @@ test('eventos se crean y muestran sin nombre ni descripcion', () => {
   assert.match(migracion, /ALTER COLUMN descripcion DROP DEFAULT/);
 });
 
+test('eventos reproduce reels asociados en filas compactas sin abrir una muestra completa', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const estilosEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'eventos.css'), 'utf8');
+  const reglasBarraPreview = estilosEventos.match(/\.evento-preview-item::after\s*\{([^}]*)\}/)?.[1] || '';
+
+  assert.match(paginaEventos, /className="evento-preview-lista" role="list"/);
+  assert.match(paginaEventos, /className={`evento-preview-item \$\{esReelActivo \? "reproduciendo" : ""\}`}/);
+  assert.match(paginaEventos, /className="evento-preview-accion"/);
+  assert.match(paginaEventos, /aria-pressed=\{esReelActivo\}/);
+  assert.match(paginaEventos, /className="evento-preview-ecualizador"><i \/><i \/><i \/><\/span>/);
+  assert.match(paginaEventos, /onPause=\{\(event\) => \{[\s\S]*?event\.currentTarget\.paused[\s\S]*?setReelActivo\(null\)/);
+  assert.match(paginaEventos, /onError=\{\(\) => \{[\s\S]*?setReelActivo\(null\)/);
+  assert.match(paginaEventos, /filaPreview\.style\.setProperty\("--preview-progreso", String\(progreso\)\)/);
+  assert.match(paginaEventos, /window\.requestAnimationFrame\(animarProgreso\)/);
+  assert.match(paginaEventos, /audio\.addEventListener\("timeupdate", actualizarProgreso\)/);
+  assert.doesNotMatch(paginaEventos, /setTiempoPreview|setDuracionPreview/);
+  assert.doesNotMatch(paginaEventos, /className="evento-preview-reproductor"/);
+  assert.doesNotMatch(paginaEventos, /previewSeleccionadaId|cambiarPreview|cambiarTiempoPreview/);
+  assert.match(estilosEventos, /\.evento-preview-item\s*\{[^}]*grid-template-columns:\s*38px minmax\(0, 1fr\) 44px;/s);
+  assert.match(estilosEventos, /\.evento-preview-accion\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*50%;/s);
+  assert.match(reglasBarraPreview, /transition:\s*opacity 0\.18s ease/);
+  assert.doesNotMatch(reglasBarraPreview, /transition:[^;]*transform/);
+  assert.match(estilosEventos, /\.evento-preview-item\.reproduciendo::after\s*\{[^}]*will-change:\s*transform;/s);
+  assert.match(estilosEventos, /@keyframes evento-preview-pulso/);
+  assert.match(estilosEventos, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.evento-preview-ecualizador i/s);
+});
+
 test('el creador global de reels conserva la pagina y pide solo titulo genero portada y audio', () => {
   const raiz = path.join(__dirname, '..', '..');
   const navbar = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'Navbar.jsx'), 'utf8');
@@ -527,6 +555,16 @@ test('reels usa un fondo dominante estatico y funde solo al cambiar el reel visi
   assert.match(
     estilosDescubrir,
     /\.reel-fondo-global::after\s*\{[^}]*radial-gradient\(ellipse at center[\s\S]*?linear-gradient/s
+  );
+  assert.match(estilosDescubrir, /ellipse at 50% 36%/);
+  assert.match(
+    estilosDescubrir,
+    /circle at 10% 72%,\s*color-mix\(in srgb, var\(--fondo-reel-medio, #8c6710\) 78%, #17171e 22%\)[\s\S]*?circle at 90% 72%,\s*color-mix\(in srgb, var\(--fondo-reel-medio, #8c6710\) 78%, #17171e 22%\)/s
+  );
+  assert.match(estilosDescubrir, /linear-gradient\(\s*180deg,/s);
+  assert.match(
+    estilosDescubrir,
+    /circle at 28% 24%, rgba\(255, 255, 255, 0\.04\)[\s\S]*?circle at 72% 24%, rgba\(255, 255, 255, 0\.04\)/s
   );
   assert.match(estilosDescubrir, /\.descubrir-feed \.feed-item\s*\{[^}]*background:\s*transparent;/s);
   assert.doesNotMatch(estilosDescubrir, /\.reel-fondo-global\s*\{[^}]*filter:/s);

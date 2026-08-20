@@ -2,6 +2,8 @@
 
 Fecha: 18 de agosto de 2026
 
+Última actualización visual: 20 de agosto de 2026
+
 ## Objetivo
 
 Crear en la pantalla de reels un ambiente visual inspirado en Spotify: la portada continúa siendo el elemento principal y el fondo recibe un resplandor oscuro basado en el color dominante de esa imagen. El flujo debía funcionar sin incorporar procesamiento pesado en cada reproducción y permitir que el creador corrigiera manualmente el color sugerido.
@@ -76,9 +78,11 @@ Los resultados correctos se almacenan en una caché en memoria indexada por URL.
 
 ### 5. Composición visual
 
-El color se expone mediante `--tono-principal`. Cada reel usa una base degradada entre el tono dominante y dos variantes que conservan la mayor parte de ese mismo color; por encima se combinan tres luces radiales difuminadas. No queda una base negra visible y tampoco se agranda ni duplica la imagen completa detrás de la portada.
+El color dominante se expone mediante variables CSS y alimenta dos capas globales persistentes. Cada capa combina gradientes fijos con zonas de distinta profundidad y una viñeta oscura en los bordes. No se anima el gradiente, no se desplaza su posición y tampoco se aplica un desenfoque que cambie durante la reproducción.
 
-En escritorio se usa un difuminado de 58 px con saturación alta y luminosidad completa. En móvil se reduce a 46 px, conservando el color fuerte con un costo gráfico menor. Los reels históricos hacen una entrada breve de opacidad cuando su color termina de resolverse; los reels que ya tienen color no animan capas fuera de pantalla. La transición se desactiva cuando el sistema solicita movimiento reducido.
+Mientras permanece visible el mismo reel, su ambiente queda congelado. Reproducir, pausar, cambiar el foco de la ventana o completar una detección tardía no modifica el fondo. Cuando el observador confirma que otro reel ocupa el centro, la capa inactiva recibe el nuevo color y entra mediante un único fundido de opacidad de 420 ms. Una histéresis de visibilidad evita alternancias cuando dos reels están cerca del punto medio.
+
+El ajuste final aumenta levemente la presencia del tono principal en el centro y el lateral, pero conserva las variantes profundas y la viñeta. El resultado mantiene un color reconocible sin perder el carácter oscuro ni competir con el título, el creador o las acciones. Con la preferencia de movimiento reducido, el intercambio de capas es instantáneo.
 
 ## Archivos del cambio
 
@@ -121,13 +125,13 @@ En escritorio se usa un difuminado de 58 px con saturación alta y luminosidad c
 ## Validación realizada
 
 - Compilación de producción con Vite: correcta.
-- ESLint sobre los tres módulos modificados del frontend: correcto.
+- El cambio visual no agrega errores nuevos de ESLint; el proyecto conserva advertencias anteriores ajenas a este fondo.
 - Comprobación de sintaxis de `reelController.js`: correcta.
 - Pruebas unitarias del color, fallback y cancelación: 3 aprobadas.
 - Pruebas focalizadas de integración visual y persistencia: aprobadas.
 - `git diff --check`: correcto; solo aparecen avisos informativos de conversión LF/CRLF.
 
-La suite backend completa ejecutó 31 pruebas: 31 aprobadas y 0 fallidas. Cuatro expectativas estáticas antiguas sobre recursos versionados, enlaces profundos y el orden de Comunidad se actualizaron para verificar el comportamiento vigente sin modificar producción.
+La suite backend completa ejecutó 35 pruebas: 35 aprobadas y 0 fallidas. La prueba focalizada comprueba además que existen las dos capas globales, que el único cambio animado es su opacidad y que no regresan las animaciones anteriores vinculadas a la reproducción.
 
 ## Migración aplicada en Supabase
 
@@ -141,4 +145,4 @@ La inspección automatizada en navegador no estuvo disponible durante esta sesi�
 
 ## Resultado esperado en pantalla
 
-Cada reel mantiene la portada cuadrada centrada. El color dominante ocupa toda la pantalla mediante un degradado continuo y recibe luces difuminadas alrededor de la portada, sin zonas negras en el fondo principal. El título, el creador y las acciones laterales conservan contraste blanco gracias a sombras localizadas y no reciben el desenfoque. El efecto acompaña la identidad de cada canción sin convertir la pantalla completa en una ampliación borrosa de la imagen.
+Cada reel mantiene la portada cuadrada centrada. El color dominante ocupa la pantalla mediante un degradado estático, con zonas apenas más oscuras y sombras fijas en los bordes. El título, el creador y las acciones laterales conservan contraste blanco gracias a sombras localizadas. Al cambiar de reel se percibe un fundido corto y natural hacia el siguiente color; una vez terminado, el ambiente permanece inmóvil.

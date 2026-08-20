@@ -113,11 +113,6 @@ const formatearDistancia = (distancia) => {
   return `${kilometros < 10 ? kilometros.toFixed(1) : Math.round(kilometros)} km`;
 };
 
-const formatearTiempoPreview = (segundos) => {
-  const total = Number.isFinite(Number(segundos)) ? Math.max(0, Math.floor(Number(segundos))) : 0;
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-};
-
 function IconoPanel({ nombre, size = 20 }) {
   const trazos = {
     calendario: <><path d="M7 2v3M17 2v3M3.5 9h17" /><rect x="3.5" y="4.5" width="17" height="16" rx="3" /></>,
@@ -143,7 +138,7 @@ function IconoPanel({ nombre, size = 20 }) {
 }
 
 export default function Eventos({ usuario }) {
-  const { t } = usePreferencias();
+  const { t, preferencias } = usePreferencias();
   const [searchParams] = useSearchParams();
   const eventoCompartido = searchParams.get("evento");
   const crearEventoParam = searchParams.get("crear");
@@ -163,6 +158,8 @@ export default function Eventos({ usuario }) {
   const miniMapInstance = useRef(null);
   const miniMarkerRef = useRef(null);
   const audioPreviewRef = useRef(null);
+  const previewSolicitudRef = useRef(0);
+  const previewItemsRef = useRef(new Map());
 
   // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
@@ -178,9 +175,6 @@ export default function Eventos({ usuario }) {
   const [reels, setReels] = useState([]);
   const [cargandoReels, setCargandoReels] = useState(true);
   const [reelActivo, setReelActivo] = useState(null);
-  const [previewSeleccionadaId, setPreviewSeleccionadaId] = useState(null);
-  const [tiempoPreview, setTiempoPreview] = useState(0);
-  const [duracionPreview, setDuracionPreview] = useState(0);
   const [posicionUsuario, setPosicionUsuario] = useState(null);
   
   const navigate = useNavigate();
@@ -312,14 +306,8 @@ export default function Eventos({ usuario }) {
     return reels.filter((reel) => participantes.has(String(reel.creadorId)));
   }, [detalleEvento, reels]);
 
-  const previewSeleccionada = previewSeleccionadaId
-    ? reelsDelEvento.find((reel) => reel.id === previewSeleccionadaId) || null
-    : null;
-  const indicePreviewSeleccionada = previewSeleccionada
-    ? reelsDelEvento.findIndex((reel) => reel.id === previewSeleccionada.id)
-    : -1;
-
   useEffect(() => {
+    previewSolicitudRef.current += 1;
     const audio = audioPreviewRef.current;
     if (audio) {
       audio.pause();
@@ -327,10 +315,54 @@ export default function Eventos({ usuario }) {
       audio.load();
     }
     setReelActivo(null);
-    setPreviewSeleccionadaId(null);
-    setTiempoPreview(0);
-    setDuracionPreview(0);
   }, [detalleEvento?.id, detalleExpandido]);
+
+  useEffect(() => {
+    const audio = audioPreviewRef.current;
+    if (!audio || reelActivo === null) return undefined;
+
+    const claveReel = String(reelActivo);
+    const filaPreview = previewItemsRef.current.get(claveReel);
+    if (!filaPreview) return undefined;
+    let animacionId = null;
+    const actualizarProgreso = () => {
+      const duracion = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : 0;
+      const progreso = duracion
+        ? Math.min(1, Math.max(0, audio.currentTime / duracion))
+        : 0;
+      filaPreview.style.setProperty("--preview-progreso", String(progreso));
+    };
+    const movimientoReducido = Boolean(
+      preferencias.reducirMovimiento ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    );
+
+    if (movimientoReducido) {
+      actualizarProgreso();
+      audio.addEventListener("timeupdate", actualizarProgreso);
+      audio.addEventListener("durationchange", actualizarProgreso);
+      return () => {
+        audio.removeEventListener("timeupdate", actualizarProgreso);
+        audio.removeEventListener("durationchange", actualizarProgreso);
+        filaPreview.style.setProperty("--preview-progreso", "0");
+      };
+    }
+
+    const animarProgreso = () => {
+      actualizarProgreso();
+      if (!audio.paused && !audio.ended) {
+        animacionId = window.requestAnimationFrame(animarProgreso);
+      }
+    };
+    animacionId = window.requestAnimationFrame(animarProgreso);
+
+    return () => {
+      if (animacionId !== null) window.cancelAnimationFrame(animacionId);
+      filaPreview.style.setProperty("--preview-progreso", "0");
+    };
+  }, [preferencias.reducirMovimiento, reelActivo]);
 
   useEffect(() => {
     setMenuEventoAbierto(false);
@@ -711,46 +743,39 @@ export default function Eventos({ usuario }) {
 
   const alternarPreview = async (reel) => {
     if (!detalleExpandido) return;
-    setPreviewSeleccionadaId(reel.id);
     const audio = audioPreviewRef.current;
     if (!audio) return;
+
     if (!reel?.audio) {
+      previewSolicitudRef.current += 1;
       audio.pause();
       setReelActivo(null);
       return;
     }
-    if (reelActivo === reel.id && !audio.paused) {
+
+    if (String(reelActivo) === String(reel.id) && !audio.paused) {
+      previewSolicitudRef.current += 1;
       audio.pause();
       setReelActivo(null);
       return;
     }
-    if (audio.src !== reel.audio) {
+
+    const solicitud = ++previewSolicitudRef.current;
+    if (audio.getAttribute("src") !== reel.audio) {
+      audio.pause();
       audio.src = reel.audio;
-      setTiempoPreview(0);
-      setDuracionPreview(0);
     }
+
+    setReelActivo(null);
     try {
       await audio.play();
+      if (solicitud !== previewSolicitudRef.current) return;
       setReelActivo(reel.id);
     } catch {
+      if (solicitud !== previewSolicitudRef.current) return;
+      setReelActivo(null);
       mostrarAviso("No se pudo reproducir esta preview");
     }
-  };
-
-  const cambiarPreview = (direccion) => {
-    if (reelsDelEvento.length < 2 || indicePreviewSeleccionada < 0) return;
-    const siguienteIndice = (
-      indicePreviewSeleccionada + direccion + reelsDelEvento.length
-    ) % reelsDelEvento.length;
-    alternarPreview(reelsDelEvento[siguienteIndice]);
-  };
-
-  const cambiarTiempoPreview = (event) => {
-    const tiempo = Number(event.target.value);
-    const audio = audioPreviewRef.current;
-    if (!audio || !Number.isFinite(tiempo)) return;
-    audio.currentTime = tiempo;
-    setTiempoPreview(tiempo);
   };
 
   const usuarioPuedeEliminarEvento = (evento) =>
@@ -1184,44 +1209,6 @@ export default function Eventos({ usuario }) {
               ) : null}
             </div>
 
-            {previewSeleccionada ? (
-              <div className="evento-preview-reproductor" aria-live="polite" key={previewSeleccionada.id}>
-                <img src={previewSeleccionada.portada || "/sondar-icon.png?v=19"} alt={`Portada de ${previewSeleccionada.tema}`} />
-                <div className="evento-preview-reproductor-cuerpo">
-                  <div className="evento-preview-reproductor-info">
-                    <span>{previewSeleccionada.genero || "Reel"}</span>
-                    <strong>{previewSeleccionada.tema}</strong>
-                    <small>{previewSeleccionada.artista} · {mostrarGenero(previewSeleccionada.genero)}</small>
-                  </div>
-                  <div className="evento-preview-controles" aria-label="Controles de preview">
-                    <button type="button" aria-label="Preview anterior" onClick={() => cambiarPreview(-1)} disabled={reelsDelEvento.length < 2}>
-                      <IconoPanel nombre="anterior" size={21} />
-                    </button>
-                    <button className="principal" type="button" aria-label={reelActivo === previewSeleccionada.id ? "Pausar preview" : "Reproducir preview"} onClick={() => alternarPreview(previewSeleccionada)} disabled={!previewSeleccionada.audio}>
-                      <IconoPanel nombre={reelActivo === previewSeleccionada.id ? "pausa" : "play"} size={23} />
-                    </button>
-                    <button type="button" aria-label="Preview siguiente" onClick={() => cambiarPreview(1)} disabled={reelsDelEvento.length < 2}>
-                      <IconoPanel nombre="siguiente" size={21} />
-                    </button>
-                  </div>
-                  <div className="evento-preview-progreso">
-                    <time>{formatearTiempoPreview(tiempoPreview)}</time>
-                    <input
-                      type="range"
-                      min="0"
-                      max={duracionPreview || 1}
-                      step="0.1"
-                      value={Math.min(tiempoPreview, duracionPreview || 1)}
-                      onChange={cambiarTiempoPreview}
-                      aria-label={`Progreso de ${previewSeleccionada.tema}`}
-                      style={{ "--preview-avance": `${duracionPreview ? (tiempoPreview / duracionPreview) * 100 : 0}%` }}
-                    />
-                    <time>{formatearTiempoPreview(duracionPreview)}</time>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
             <section className="evento-previews" aria-labelledby="evento-previews-titulo">
               <div className="evento-previews-encabezado">
                 <div><span>PREVIEWS</span><h3 id="evento-previews-titulo">Así suena este evento</h3></div>
@@ -1231,14 +1218,47 @@ export default function Eventos({ usuario }) {
               {cargandoReels ? <p className="evento-previews-estado">Cargando previews...</p> : null}
               {!cargandoReels && reelsDelEvento.length === 0 ? <p className="evento-previews-estado">Todavía no hay Reels publicados por quienes participan.</p> : null}
               {reelsDelEvento.length > 0 ? (
-                <div className="evento-preview-lista">
-                  {reelsDelEvento.map((reel) => (
-                    <button className={reel.id === previewSeleccionada?.id ? "seleccionado" : ""} type="button" key={reel.id} onClick={() => alternarPreview(reel)}>
-                      <span className="evento-preview-icono"><IconoPanel nombre={reel.id === reelActivo ? "pausa" : "musica"} size={18} /></span>
-                      <span><strong>{reel.tema}</strong><small>{reel.artista} · {mostrarGenero(reel.genero)}</small></span>
-                      <time>{reel.duracion || "0:30"}</time>
-                    </button>
-                  ))}
+                <div className="evento-preview-lista" role="list">
+                  {reelsDelEvento.map((reel) => {
+                    const esReelActivo = String(reel.id) === String(reelActivo);
+                    const tituloReel = reel.titulo || reel.tema || "Canción sin título";
+
+                    return (
+                      <article
+                        className={`evento-preview-item ${esReelActivo ? "reproduciendo" : ""}`}
+                        data-preview-reel-id={String(reel.id)}
+                        key={reel.id}
+                        ref={(elemento) => {
+                          const clave = String(reel.id);
+                          if (elemento) previewItemsRef.current.set(clave, elemento);
+                          else previewItemsRef.current.delete(clave);
+                        }}
+                        role="listitem"
+                      >
+                        <span className="evento-preview-indicador" aria-hidden="true">
+                          {esReelActivo ? (
+                            <span className="evento-preview-ecualizador"><i /><i /><i /></span>
+                          ) : (
+                            <IconoPanel nombre="musica" size={17} />
+                          )}
+                        </span>
+                        <span className="evento-preview-datos">
+                          <strong>{tituloReel}</strong>
+                          <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero)}</small>
+                        </span>
+                        <button
+                          className="evento-preview-accion"
+                          type="button"
+                          onClick={() => alternarPreview(reel)}
+                          disabled={!reel.audio}
+                          aria-pressed={esReelActivo}
+                          aria-label={`${esReelActivo ? "Pausar" : "Reproducir"} preview de ${tituloReel}`}
+                        >
+                          <IconoPanel nombre={esReelActivo ? "pausa" : "play"} size={19} />
+                        </button>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : null}
             </section>
@@ -1246,10 +1266,17 @@ export default function Eventos({ usuario }) {
         ) : null}
         <audio
           ref={audioPreviewRef}
-          onTimeUpdate={(event) => setTiempoPreview(event.currentTarget.currentTime || 0)}
-          onLoadedMetadata={(event) => setDuracionPreview(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
-          onDurationChange={(event) => setDuracionPreview(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
-          onEnded={() => setReelActivo(null)}
+          preload="metadata"
+          onPause={(event) => {
+            if (event.currentTarget.paused) setReelActivo(null);
+          }}
+          onError={() => {
+            setReelActivo(null);
+          }}
+          onEnded={() => {
+            previewSolicitudRef.current += 1;
+            setReelActivo(null);
+          }}
         />
         </section>
       ) : null}
