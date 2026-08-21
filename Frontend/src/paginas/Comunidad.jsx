@@ -4,6 +4,7 @@ import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
@@ -131,6 +132,54 @@ const comunidadesPorGenero = [
     actividad: "Sin publicaciones todavia",
     portada: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
   },
+  {
+    id: "alternativo",
+    nombre: "@alternativo",
+    titulo: "Alternativo",
+    genero: "alternativo",
+    descripcion: "Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.",
+    categoria: "alternativo",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "punk",
+    nombre: "@punk",
+    titulo: "Punk",
+    genero: "punk",
+    descripcion: "Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.",
+    categoria: "punk",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "reggae",
+    nombre: "@reggae",
+    titulo: "Reggae",
+    genero: "reggae",
+    descripcion: "Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.",
+    categoria: "reggae",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
+  },
+  {
+    id: "latina",
+    nombre: "@latina",
+    titulo: "Latina",
+    genero: "latina",
+    descripcion: "Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.",
+    categoria: "latina",
+    miembros: 0,
+    publicaciones: 0,
+    actividad: "Sin publicaciones todavia",
+    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
+  },
 ];
 
 const crearHeadersJson = (token) => ({
@@ -142,6 +191,16 @@ const mostrarGenero = (genero) => {
   if (!genero) return "";
   return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
 };
+
+const generosDeEvento = (evento) => (
+  Array.isArray(evento?.generos) && evento.generos.length > 0
+    ? evento.generos
+    : [evento?.genero].filter(Boolean)
+);
+
+const mostrarGenerosEvento = (evento) => (
+  [...new Set(generosDeEvento(evento))].map(mostrarGenero).join(" / ")
+);
 
 const normalizarBusqueda = (valor) => String(valor || "")
   .normalize("NFD")
@@ -221,6 +280,7 @@ export default function Comunidad({ usuario }) {
   const comentarioCompartido = searchParams.get("comentario");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
   const [comunidadActivaId, setComunidadActivaId] = useState("pop");
+  const [comunidadCompartir, setComunidadCompartir] = useState(null);
   const [filtroActivo, setFiltroActivo] = useState("destacado");
   const [mostrarModal, setMostrarModal] = useState(false);
   const [hilos, setHilos] = useState([]);
@@ -268,7 +328,7 @@ export default function Comunidad({ usuario }) {
       String(evento.id) === String(nuevoHilo.eventoAsociadoId)
       || coincideBusqueda(
         evento,
-        ["titulo", "genero", "lugar", "ubicacion", "creador"],
+        ["titulo", "genero", "generos", "lugar", "ubicacion", "creador"],
         busquedaEventoAsociado
       )
     ),
@@ -290,7 +350,9 @@ export default function Comunidad({ usuario }) {
   const eventosRecursoGenero = useMemo(() => {
     const genero = normalizarBusqueda(comunidadActiva?.genero).trim();
     return eventosAsociables.filter(
-      (evento) => normalizarBusqueda(evento.genero).trim() === genero
+      (evento) => generosDeEvento(evento).some(
+        (generoEvento) => normalizarBusqueda(generoEvento).trim() === genero
+      )
     );
   }, [comunidadActiva?.genero, eventosAsociables]);
 
@@ -619,19 +681,10 @@ export default function Comunidad({ usuario }) {
     }
   };
 
-  const copiarEnlace = async (url, mensaje) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      mostrarAviso(mensaje);
-    } catch {
-      mostrarAviso("No se pudo copiar el enlace en este navegador.");
-    }
-  };
-
   const compartirForo = () => {
     const url = new URL("/comunidad", window.location.origin);
     url.searchParams.set("comunidad", comunidadActiva.id);
-    copiarEnlace(url.toString(), "Enlace del foro copiado");
+    setComunidadCompartir({ comunidad: comunidadActiva, enlace: url.toString() });
   };
 
   const crearEnlaceContenido = (hiloId, comentarioId = null) => {
@@ -1108,7 +1161,7 @@ export default function Comunidad({ usuario }) {
   return (
     <main className="comunidad-container">
       <section className="comunidad-layout reddit-layout">
-        <aside className="comunidad-sidebar subreddit-list">
+        <aside className="comunidad-sidebar subreddit-list" aria-label="Foros SONDAR">
           <section className="comunidad-panel comunidad-panel-lista">
             <h2>Foros SONDAR</h2>
             <div className="comunidades-lista">
@@ -1117,11 +1170,10 @@ export default function Comunidad({ usuario }) {
                   className={`comunidad-mini-card ${comunidadActivaId === comunidad.id ? "activa" : ""}`}
                   key={comunidad.id}
                   type="button"
+                  aria-pressed={comunidadActivaId === comunidad.id}
                   onClick={() => setComunidadActivaId(comunidad.id)}
                 >
-                  <div className="comunidad-mini-icon">
-                    {comunidad.titulo.charAt(0)}
-                  </div>
+                  <div className="comunidad-mini-icon">{comunidad.titulo.charAt(0)}</div>
                   <div>
                     <strong>s/{mostrarGenero(comunidad.genero)}</strong>
                     <span>{comunidad.publicaciones || 0} publicaciones</span>
@@ -1132,8 +1184,7 @@ export default function Comunidad({ usuario }) {
           </section>
         </aside>
 
-        <div className="comunidad-main">
-          <header className="comunidad-portada">
+        <header className="comunidad-portada">
             <div
               className="comunidad-cover"
               style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18)), url(${comunidadActiva.portada})` }}
@@ -1142,27 +1193,20 @@ export default function Comunidad({ usuario }) {
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
                 <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
-                {comunidadActiva.descripcion ? <p>{comunidadActiva.descripcion}</p> : null}
-                <div className="comunidad-miembros">
-                  <strong>{comunidadActiva.miembros || 0}</strong>
-                  <span>miembros</span>
-                  <strong>{comunidadActiva.publicaciones || 0}</strong>
-                  <span>publicaciones</span>
-                  <strong>{totalComentarios}</strong>
-                  <span>respuestas</span>
-                </div>
               </div>
               <div className="comunidad-header-actions">
-                <button
-                  className="comunidad-crear"
-                  type="button"
-                  onClick={abrirCrearHilo}
-                  disabled={!usuario || !comunidadActiva.unido}
-                  title={!usuario ? "Inicia sesion y unite al foro para publicar" : !comunidadActiva.unido ? "Unite al foro para publicar" : "Crear una publicacion"}
-                >
-                  <span aria-hidden="true">+</span>
-                  {comunidadActiva.unido ? "Crear post" : "Unite para publicar"}
-                </button>
+                {comunidadActiva.unido ? (
+                  <button
+                    className="comunidad-crear"
+                    type="button"
+                    onClick={abrirCrearHilo}
+                    disabled={!usuario}
+                    title="Crear una publicacion"
+                  >
+                    <span aria-hidden="true">+</span>
+                    Crear post
+                  </button>
+                ) : null}
                 <button
                   className={`comunidad-unirse ${comunidadActiva.unido ? "activa" : ""}`}
                   type="button"
@@ -1246,8 +1290,9 @@ export default function Comunidad({ usuario }) {
                 </button>
               </div>
             </div>
-          </header>
+        </header>
 
+        <div className="comunidad-main">
           <div className="comunidad-toolbar">
             <div className="comunidad-filtro-dropdown" ref={filtroRef}>
               <button
@@ -1356,7 +1401,7 @@ export default function Comunidad({ usuario }) {
                       <span>
                         <small>Evento asociado</small>
                         <strong>{hilo.eventoAsociado.creador || "Artista SONDAR"}</strong>
-                        <em>{mostrarGenero(hilo.eventoAsociado.genero)} · {hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
+                        <em>{mostrarGenerosEvento(hilo.eventoAsociado)} · {hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
                       </span>
                     </button>
                   ) : null}
@@ -1370,19 +1415,25 @@ export default function Comunidad({ usuario }) {
                         <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {mostrarGenero(hilo.reelAsociado.genero)}</em>
                       </span>
                       <button
+                        className="asociada-icono-accion asociada-reproducir"
                         type="button"
                         onClick={() => alternarReelAsociado(hilo.reelAsociado)}
                         disabled={!hilo.reelAsociado.audio}
                         aria-label={reelAsociadoActivo === hilo.reelAsociado.id ? "Pausar tema asociado" : "Reproducir tema asociado"}
+                        title={reelAsociadoActivo === hilo.reelAsociado.id ? "Pausar" : "Reproducir"}
                       >
-                        {reelAsociadoActivo === hilo.reelAsociado.id ? "II" : "Play"}
+                        <span className="material-symbols-rounded" aria-hidden="true">
+                          {reelAsociadoActivo === hilo.reelAsociado.id ? "pause" : "play_arrow"}
+                        </span>
                       </button>
                       <button
-                        className="asociada-abrir"
+                        className="asociada-abrir asociada-icono-accion"
                         type="button"
-                      onClick={() => navigate(`/descubrir?lanzamiento=${encodeURIComponent(idReelParaNavegacion(hilo.reelAsociado))}`)}
+                        aria-label={`Abrir tema asociado: ${hilo.reelAsociado.tema}`}
+                        title="Abrir tema asociado"
+                        onClick={() => navigate(`/descubrir?lanzamiento=${encodeURIComponent(idReelParaNavegacion(hilo.reelAsociado))}`)}
                       >
-                        Abrir
+                        <span className="material-symbols-rounded" aria-hidden="true">link</span>
                       </button>
                     </div>
                   ) : null}
@@ -1451,6 +1502,28 @@ export default function Comunidad({ usuario }) {
         </div>
 
         <aside className="comunidad-sidebar detalle-comunidad">
+          <section className="comunidad-panel comunidad-panel-info">
+            <header>
+              <span>Información del foro</span>
+              <h2>s/{mostrarGenero(comunidadActiva.genero)}</h2>
+            </header>
+            <p>{comunidadActiva.descripcion}</p>
+            <dl className="subreddit-stats">
+              <div>
+                <dt>miembros</dt>
+                <dd>{comunidadActiva.miembros || 0}</dd>
+              </div>
+              <div>
+                <dt>publicaciones</dt>
+                <dd>{comunidadActiva.publicaciones || 0}</dd>
+              </div>
+              <div>
+                <dt>respuestas</dt>
+                <dd>{totalComentarios}</dd>
+              </div>
+            </dl>
+          </section>
+
           <section className="comunidad-panel">
             <h2>Recursos</h2>
             <div className="comunidad-bookmarks">
@@ -1474,7 +1547,7 @@ export default function Comunidad({ usuario }) {
                         <img className="comunidad-recurso-imagen evento" src="/sondar-icon.png?v=19" alt="" />
                         <div className="comunidad-recurso-datos">
                           <strong>{evento.creador || "Artista SONDAR"}</strong>
-                          <span>{mostrarGenero(evento.genero)}</span>
+                          <span>{mostrarGenerosEvento(evento)}</span>
                           <small>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</small>
                           <time>{formatearFechaCorta(evento.fecha)}</time>
                         </div>
@@ -1576,7 +1649,7 @@ export default function Comunidad({ usuario }) {
                           </span>
                           <span className="comunidad-asociacion-datos">
                             <strong>{evento.creador || "Artista SONDAR"}</strong>
-                            <small>{mostrarGenero(evento.genero) || "Sin género"}</small>
+                            <small>{mostrarGenerosEvento(evento) || "Sin género"}</small>
                             <em>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</em>
                             <time>{formatearFechaCorta(evento.fecha)}</time>
                           </span>
@@ -1659,6 +1732,20 @@ export default function Comunidad({ usuario }) {
       )}
 
       <audio ref={audioAsociadoRef} onEnded={() => setReelAsociadoActivo(null)} />
+
+      {comunidadCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir comunidad"
+          nombre={`s/${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
+          detalle={comunidadCompartir.comunidad.descripcion}
+          imagen={comunidadCompartir.comunidad.portada}
+          enlace={comunidadCompartir.enlace}
+          textoCompartir={`Unite a s/${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
+          mensajeCopiado="Enlace de la comunidad copiado"
+          onClose={() => setComunidadCompartir(null)}
+          onAviso={mostrarAviso}
+        />
+      ) : null}
 
       <DenunciaModal
         abierto={Boolean(denunciaPendiente)}

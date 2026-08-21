@@ -65,6 +65,13 @@ function mostrarGenero(genero) {
   return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
 }
 
+function mostrarGenerosEvento(evento) {
+  const generos = Array.isArray(evento?.generos) && evento.generos.length > 0
+    ? evento.generos
+    : [evento?.genero];
+  return [...new Set(generos.filter(Boolean))].map(mostrarGenero).join(" / ") || "Sin genero";
+}
+
 export default function Buscar({ usuario }) {
   const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
@@ -136,7 +143,7 @@ export default function Buscar({ usuario }) {
               img: "/sondar-icon.png?v=19",
             }))
             .filter((evento) =>
-              coincide(evento, ["genero", "lugar", "ubicacion", "creador"], query)
+              coincide(evento, ["genero", "generos", "lugar", "ubicacion", "creador"], query)
             )
         );
       } catch (err) {
@@ -221,7 +228,7 @@ export default function Buscar({ usuario }) {
         {renderImagen(item.img, item.creador || "Artista SONDAR")}
         <span>
           <strong>{item.creador || "Artista SONDAR"}</strong>
-          <small>{mostrarGenero(item.genero)} · {item.lugar || item.ubicacion || "Lugar sin definir"}</small>
+          <small>{mostrarGenerosEvento(item)} · {item.lugar || item.ubicacion || "Lugar sin definir"}</small>
         </span>
       </button>
       <span className="buscar-tag">Evento</span>

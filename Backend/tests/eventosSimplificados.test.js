@@ -107,6 +107,7 @@ test('crear evento no requiere ni persiste titulo o descripcion heredados', asyn
   assert.equal(res.statusCode, 201);
   assert.equal(res.body.creador, 'banda-prueba');
   assert.equal(res.body.genero, 'rock');
+  assert.deepEqual(res.body.generos, ['rock']);
   assert.equal(res.body.titulo, undefined);
   assert.equal(res.body.descripcion, undefined);
 
@@ -124,6 +125,73 @@ test('crear evento no requiere ni persiste titulo o descripcion heredados', asyn
     -34.6037,
     -58.3816,
   ]);
+
+  const altaGeneros = consultasCliente.find(({ texto }) => /INSERT INTO evento_generos/.test(texto));
+  assert.ok(altaGeneros);
+  assert.deepEqual(altaGeneros.params, [81, ['rock']]);
+});
+
+test('crear evento persiste hasta tres generos ordenados y conserva el primero como principal', async () => {
+  const res = crearRespuesta();
+  const cantidadConsultasInicial = consultasCliente.length;
+
+  await eventoController.crearEvento({
+    user: {
+      id: '44444444-4444-4444-8444-444444444444',
+      email: 'festival@example.com',
+      user_metadata: { username: 'festival-prueba' },
+    },
+    body: {
+      generos: [' Alternativo ', 'punk', 'reggae', 'punk'],
+      ubicacion: 'La Plata',
+      fecha: '2026-09-23T20:00:00.000Z',
+      latitud: -34.9214,
+      longitud: -57.9544,
+      organizadores: [],
+    },
+  }, res);
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.genero, 'alternativo');
+  assert.deepEqual(res.body.generos, ['alternativo', 'punk', 'reggae']);
+
+  const nuevasConsultas = consultasCliente.slice(cantidadConsultasInicial);
+  const altaEvento = nuevasConsultas.find(({ texto }) => /INSERT INTO eventos/.test(texto));
+  const altaGeneros = nuevasConsultas.find(({ texto }) => /INSERT INTO evento_generos/.test(texto));
+  assert.equal(altaEvento.params[0], 'alternativo');
+  assert.deepEqual(altaGeneros.params, [81, ['alternativo', 'punk', 'reggae']]);
+});
+
+test('crear evento rechaza mas de tres generos o generos fuera del catalogo', async () => {
+  const reqBase = {
+    user: {
+      id: '55555555-5555-4555-8555-555555555555',
+      email: 'festival@example.com',
+      user_metadata: {},
+    },
+    body: {
+      ubicacion: 'Rosario',
+      fecha: '2026-09-24T20:00:00.000Z',
+      latitud: -32.9587,
+      longitud: -60.6939,
+    },
+  };
+
+  const demasiados = crearRespuesta();
+  await eventoController.crearEvento({
+    ...reqBase,
+    body: { ...reqBase.body, generos: ['rock', 'punk', 'reggae', 'latina'] },
+  }, demasiados);
+  assert.equal(demasiados.statusCode, 400);
+  assert.match(demasiados.body.error, /hasta 3 generos/);
+
+  const desconocido = crearRespuesta();
+  await eventoController.crearEvento({
+    ...reqBase,
+    body: { ...reqBase.body, generos: ['tango'] },
+  }, desconocido);
+  assert.equal(desconocido.statusCode, 400);
+  assert.match(desconocido.body.error, /Generos no permitidos: tango/);
 });
 
 test('crear evento acepta los nombres de ubicacion y coordenadas usados por clientes anteriores', async () => {

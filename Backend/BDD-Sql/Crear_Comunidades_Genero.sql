@@ -98,7 +98,11 @@ VALUES
   ('cumbia', '@cumbia', 'Cumbia', 'cumbia', 'Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80'),
   ('trap', '@trap', 'Trap', 'trap', 'Beats, barras, productores, lanzamientos y debates de la escena trap.', 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80'),
   ('metal', '@metal', 'Metal', 'metal', 'Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.', 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80'),
-  ('folklore', '@folklore', 'Folklore', 'folklore', 'Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.', 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80')
+  ('folklore', '@folklore', 'Folklore', 'folklore', 'Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.', 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80'),
+  ('alternativo', '@alternativo', 'Alternativo', 'alternativo', 'Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.', 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80'),
+  ('punk', '@punk', 'Punk', 'punk', 'Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.', 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80'),
+  ('reggae', '@reggae', 'Reggae', 'reggae', 'Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.', 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80'),
+  ('latina', '@latina', 'Latina', 'latina', 'Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.', 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80')
 ON CONFLICT (id) DO UPDATE
 SET nombre = EXCLUDED.nombre,
     titulo = EXCLUDED.titulo,
@@ -106,6 +110,10 @@ SET nombre = EXCLUDED.nombre,
     descripcion = EXCLUDED.descripcion,
     portada_url = EXCLUDED.portada_url,
     activa = true;
+
+UPDATE public.comunidades
+SET activa = false
+WHERE lower(id) = 'otros' OR lower(genero) = 'otros';
 
 ALTER TABLE public.comunidades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_miembros ENABLE ROW LEVEL SECURITY;

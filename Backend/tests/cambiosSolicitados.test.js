@@ -312,6 +312,10 @@ test('eventos ya no acepta imagenes y usa el icono compacto predeterminado', () 
   assert.doesNotMatch(rutaEventos, /multer|upload\.single\(['"]imagen['"]\)/);
   assert.doesNotMatch(controladorEventos, /subirImagenEvento|req\.file/);
   assert.match(paginaEventos, /LOGO_EVENTO_PREDETERMINADO = ["']\/sondar-icon\.png\?v=\d+["']/);
+  assert.match(paginaEventos, /const imagenEvento = LOGO_EVENTO_PREDETERMINADO/);
+  assert.match(paginaEventos, /iconSize: \[150, 92\]/);
+  assert.match(paginaEventos, /iconAnchor: \[75, 46\]/);
+  assert.doesNotMatch(paginaEventos, /ICONO_EVENTO_MAPA|evento-pin-sondar\.png/);
   assert.doesNotMatch(paginaEventos, /type=["']file["']/);
   assert.doesNotMatch(paginaEventos, /new FormData\(\)/);
   assert.match(paginaEventos, /body:\s*datosEvento/);
@@ -370,21 +374,66 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
   const estilosComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'comunidad.css'), 'utf8');
   const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Migrar_A_Esquema_Minimo.sql'), 'utf8');
+  const encabezado = paginaComunidad.match(/<header className="comunidad-portada">([\s\S]*?)<\/header>/)?.[1] || '';
 
   assert.match(paginaComunidad, /const reglasForo = \[/);
-  assert.match(paginaComunidad, /disabled=\{!usuario \|\| !comunidadActiva\.unido\}/);
+  assert.match(paginaComunidad, /\{comunidadActiva\.unido \? \([\s\S]*?Crear post[\s\S]*?\) : null\}/);
+  assert.doesNotMatch(paginaComunidad, /Unite para publicar/);
   assert.match(paginaComunidad, /Filtrar por:/);
+  assert.match(paginaComunidad, /className="comunidad-sidebar subreddit-list"/);
+  assert.match(paginaComunidad, /<h2>Foros SONDAR<\/h2>/);
+  assert.doesNotMatch(paginaComunidad, /className="comunidad-selector-menu"/);
+  assert.ok(paginaComunidad.indexOf('className="comunidad-portada"') < paginaComunidad.indexOf('className="comunidad-main"'));
+  assert.doesNotMatch(encabezado, /comunidadActiva\.descripcion|comunidad-miembros/);
+  assert.match(paginaComunidad, /className="comunidad-panel comunidad-panel-info"[\s\S]*?comunidadActiva\.descripcion[\s\S]*?className="subreddit-stats"/);
   assert.doesNotMatch(paginaComunidad, /Community highlights/i);
   assert.doesNotMatch(paginaComunidad, /Publicaciones guardadas/i);
 
   const posicionReglas = paginaComunidad.indexOf('<h2>Reglas del foro</h2>');
   const posicionRecursos = paginaComunidad.indexOf('<h2>Recursos</h2>');
   assert.ok(posicionRecursos > 0 && posicionReglas > posicionRecursos);
+  assert.match(estilosComunidad, /\.comunidad-layout\.reddit-layout\s*\{[^}]*grid-template-columns:\s*220px minmax\(0, 1fr\) 300px;/s);
+  assert.match(estilosComunidad, /\.subreddit-list\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1 \/ span 2;/s);
+  assert.match(estilosComunidad, /\.comunidad-portada\s*\{[^}]*grid-column:\s*2 \/ -1;/s);
+  assert.match(estilosComunidad, /\.comunidad-toolbar\s*\{[^}]*margin:\s*0;[^}]*background:\s*transparent;/s);
+  assert.match(estilosComunidad, /\.detalle-comunidad\s*\{[^}]*background:\s*#0d0d0d;/s);
+  assert.match(estilosComunidad, /\.detalle-comunidad\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;/s);
+  assert.match(estilosComunidad, /@media \(max-width: 900px\)[\s\S]*?\.detalle-comunidad\s*\{[^}]*position:\s*static;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
   assert.match(estilosComunidad, /\.comunidad-reglas\s*\{[^}]*color:\s*rgba\(255,\s*255,\s*255,/s);
   assert.doesNotMatch(estilosComunidad, /@media \(max-width: 900px\)[\s\S]*?\.detalle-comunidad\s*\{\s*display:\s*none;/);
-  assert.doesNotMatch(estilosComunidad, /@media \(max-width: 1180px\)[\s\S]*?\.subreddit-list\s*\{[^}]*display:\s*none;/);
   assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.comunidad_miembros/);
   assert.doesNotMatch(migracion, /DROP TABLE IF EXISTS public\.comunidad_miembros/);
+});
+
+test('comunidades incluye todos los generos vigentes y retira otros', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'comunidadController.js'), 'utf8');
+  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Actualizar_Comunidades_Generos.sql'), 'utf8');
+
+  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
+    assert.match(paginaComunidad, new RegExp(`id: "${genero}"`));
+    assert.match(controlador, new RegExp(`id: '${genero}'`));
+    assert.match(migracion, new RegExp(`\\('${genero}',`));
+  }
+  assert.doesNotMatch(paginaComunidad, /id: "otros"/);
+  assert.doesNotMatch(controlador, /id: 'otros'/);
+  assert.match(controlador, /AND c\.id = ANY\(\$1::text\[\]\)/);
+  assert.match(migracion, /SET activa = false[\s\S]*lower\(id\) = 'otros'[\s\S]*lower\(genero\) = 'otros'/);
+});
+
+test('los temas asociados de comunidad usan iconos para reproducir y abrir', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+  const estilosComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'comunidad.css'), 'utf8');
+  const html = fs.readFileSync(path.join(raiz, 'Frontend', 'index.html'), 'utf8');
+
+  assert.match(html, /family=Material\+Symbols\+Rounded/);
+  assert.match(paginaComunidad, /\? "pause" : "play_arrow"/);
+  assert.match(paginaComunidad, /material-symbols-rounded[^>]*>[\s\S]*?link[\s\S]*?<\/span>/);
+  assert.doesNotMatch(paginaComunidad, /\? "II" : "Play"/);
+  assert.doesNotMatch(paginaComunidad, />\s*Abrir\s*<\/button>/);
+  assert.match(estilosComunidad, /\.publicacion-asociada \.asociada-icono-accion\s*\{[^}]*width:\s*34px;[^}]*height:\s*34px;/s);
 });
 
 test('comunidad comparte con icono y muestra unicamente los eventos del genero', () => {
@@ -401,6 +450,26 @@ test('comunidad comparte con icono y muestra unicamente los eventos del genero',
   assert.doesNotMatch(paginaComunidad, /const irARecursoForo/);
   assert.match(estilosComunidad, /\.comunidad-recurso-contenido\s*\{[^}]*max-height:/s);
   assert.match(estilosComunidad, /\.comunidad-recurso-abrir\s*\{[^}]*position:\s*absolute;[^}]*right:/s);
+});
+
+test('eventos y comunidades comparten con el mismo modal social', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+  const modal = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'CompartirContenidoModal.jsx'), 'utf8');
+  const estilosModal = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'compartirContenidoModal.css'), 'utf8');
+
+  assert.match(paginaEventos, /import CompartirContenidoModal/);
+  assert.match(paginaEventos, /titulo="Compartir evento"/);
+  assert.doesNotMatch(paginaEventos, /navigator\.share/);
+  assert.match(paginaComunidad, /import CompartirContenidoModal/);
+  assert.match(paginaComunidad, /titulo="Compartir comunidad"/);
+  assert.match(modal, /Copiar[\s\S]*WhatsApp[\s\S]*Facebook[\s\S]*Instagram/);
+  assert.match(modal, /https:\/\/wa\.me\/\?text=/);
+  assert.match(modal, /facebook\.com\/sharer\/sharer\.php/);
+  assert.match(modal, /navigator\.clipboard\?\.writeText/);
+  assert.match(modal, /document\.execCommand\("copy"\)/);
+  assert.match(estilosModal, /\.compartir-contenido-acciones\s*\{[^}]*grid-template-columns:\s*repeat\(4,/s);
 });
 
 test('descubrir muestra todos los reels sin filtros de busqueda ni genero', () => {
@@ -423,7 +492,10 @@ test('eventos se crean y muestran sin nombre ni descripcion', () => {
   assert.doesNotMatch(paginaEventos, /name="titulo"|evento-descripcion|nuevoEvento\.(?:titulo|descripcion)/);
   assert.doesNotMatch(paginaEventos, /detalleEvento\.(?:titulo|descripcion)/);
   assert.match(paginaEventos, /<strong>\{detalleEvento\.creador \|\| "Artista SONDAR"\}<\/strong>/);
-  assert.match(paginaEventos, /<h2>\{detalleEvento\.creador \|\| "Artista SONDAR"\}<\/h2>/);
+  assert.doesNotMatch(paginaEventos, /<h2>\{detalleEvento\.creador \|\| "Artista SONDAR"\}<\/h2>/);
+  assert.match(paginaEventos, /className="evento-sheet-eyebrow">EVENTO<\/span>[\s\S]*?className="evento-sheet-meta"[\s\S]*?nombre="ubicacion"[\s\S]*?aria-hidden="true">-<\/i>[\s\S]*?nombre="calendario"[\s\S]*?<time/);
+  assert.match(paginaEventos, /className="evento-sheet-organizadores">\s*<span>MÚSICOS<\/span>/);
+  assert.doesNotMatch(paginaEventos, /<span>MÚSICO<\/span>|<span>INVITADOS<\/span>/);
   assert.doesNotMatch(paginaEventos, /<strong>\{mostrarGenero\(detalleEvento\.genero\)\}<\/strong>/);
   assert.match(controlador, /\} = normalizarDatosEvento\(req\.body\);/);
   assert.match(controlador, /body\.ubicacion, body\.lugar/);
@@ -448,6 +520,9 @@ test('eventos reproduce reels asociados en filas compactas sin abrir una muestra
   assert.match(paginaEventos, /className="evento-preview-lista" role="list"/);
   assert.match(paginaEventos, /className={`evento-preview-item \$\{esReelActivo \? "reproduciendo" : ""\}`}/);
   assert.match(paginaEventos, /className="evento-preview-accion"/);
+  assert.match(paginaEventos, /function IndicadorPreviewReel\(\{ portada, reproduciendo \}\)/);
+  assert.match(paginaEventos, /<img src=\{portada\} alt="" onError=\{\(\) => setPortadaFallida\(true\)\} \/>/);
+  assert.match(paginaEventos, /portada=\{reel\.portada\}/);
   assert.match(paginaEventos, /aria-pressed=\{esReelActivo\}/);
   assert.match(paginaEventos, /className="evento-preview-ecualizador"><i \/><i \/><i \/><\/span>/);
   assert.match(paginaEventos, /onPause=\{\(event\) => \{[\s\S]*?event\.currentTarget\.paused[\s\S]*?setReelActivo\(null\)/);
@@ -460,11 +535,67 @@ test('eventos reproduce reels asociados en filas compactas sin abrir una muestra
   assert.doesNotMatch(paginaEventos, /previewSeleccionadaId|cambiarPreview|cambiarTiempoPreview/);
   assert.match(estilosEventos, /\.evento-preview-item\s*\{[^}]*grid-template-columns:\s*38px minmax\(0, 1fr\) 44px;/s);
   assert.match(estilosEventos, /\.evento-preview-accion\s*\{[^}]*width:\s*44px;[^}]*border-radius:\s*50%;/s);
+  assert.match(estilosEventos, /\.evento-preview-indicador\.con-portada img\s*\{[^}]*object-fit:\s*cover;[^}]*object-position:\s*center;/s);
   assert.match(reglasBarraPreview, /transition:\s*opacity 0\.18s ease/);
   assert.doesNotMatch(reglasBarraPreview, /transition:[^;]*transform/);
   assert.match(estilosEventos, /\.evento-preview-item\.reproduciendo::after\s*\{[^}]*will-change:\s*transform;/s);
   assert.match(estilosEventos, /@keyframes evento-preview-pulso/);
   assert.match(estilosEventos, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.evento-preview-ecualizador i/s);
+});
+
+test('el genero del detalle de eventos usa texto negro sobre fondo naranja', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const estilosEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'eventos.css'), 'utf8');
+
+  assert.match(
+    estilosEventos,
+    /\.evento-sheet-titulo \.evento-sheet-genero\s*\{[^}]*color:\s*#080808;[^}]*background:\s*linear-gradient\(90deg, #ffae00, #ff5e00\);[^}]*font-weight:\s*800;/s
+  );
+});
+
+test('eventos admite hasta tres generos y la migracion agrega solo los solicitados', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'eventoController.js'), 'utf8');
+  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Agregar_Multiples_Generos_Eventos.sql'), 'utf8');
+
+  assert.match(paginaEventos, /const MAX_GENEROS_EVENTO = 3/);
+  assert.match(paginaEventos, /generos: nuevoEvento\.generos/);
+  assert.match(controlador, /INSERT INTO evento_generos \(event_id, genero, posicion\)/);
+  assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.evento_generos/);
+  assert.match(migracion, /CHECK \(posicion BETWEEN 1 AND 3\)/);
+  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
+    assert.match(migracion, new RegExp(`\\('${genero}',`));
+  }
+  assert.doesNotMatch(migracion, /\('tango',|\('funk',/);
+});
+
+test('los filtros de genero se pueden desplazar sin quedar cortados', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const estilosEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'eventos.css'), 'utf8');
+  const reglasFiltros = estilosEventos.match(/\.eventos-explorador-generos\s*\{([^}]*)\}/)?.[1] || '';
+
+  assert.equal((paginaEventos.match(/onWheel=\{desplazarFiltrosConRueda\}/g) || []).length, 2);
+  assert.match(reglasFiltros, /min-width:\s*0/);
+  assert.match(reglasFiltros, /max-width:\s*100%/);
+  assert.match(reglasFiltros, /overflow-x:\s*auto/);
+  assert.match(reglasFiltros, /scrollbar-width:\s*thin/);
+  assert.match(reglasFiltros, /touch-action:\s*pan-x/);
+  assert.doesNotMatch(estilosEventos, /\.eventos-(?:explorador-generos|sheet-tags)::\-webkit-scrollbar\s*\{[^}]*display:\s*none/s);
+});
+
+test('el explorador de eventos se pliega y deja visible su tirador', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const estilosEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'eventos.css'), 'utf8');
+
+  assert.match(paginaEventos, /const \[exploradorPlegado, setExploradorPlegado\] = useState\(false\)/);
+  assert.match(paginaEventos, /className="eventos-explorador-handle"[\s\S]*?aria-expanded=\{!exploradorPlegado\}/);
+  assert.match(paginaEventos, /setExploradorPlegado\(\(actual\) => !actual\)/);
+  assert.match(estilosEventos, /\.eventos-explorador\.plegado\s*\{[^}]*width:\s*132px;[^}]*max-height:\s*24px;/s);
+  assert.match(estilosEventos, /\.eventos-explorador\.plegado \.eventos-explorador-contenido\s*\{[^}]*visibility:\s*hidden;/s);
+  assert.match(estilosEventos, /\.evento-sheet-meta span\s*\{[^}]*flex-wrap:\s*nowrap;/s);
 });
 
 test('el creador global de reels conserva la pagina y pide solo titulo genero portada y audio', () => {

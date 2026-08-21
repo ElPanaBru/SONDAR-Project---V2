@@ -8,6 +8,12 @@ const {
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
+const MAX_GENEROS_EVENTO = 3;
+const GENEROS_EVENTO_PERMITIDOS = new Set([
+  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
+  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
+]);
+
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';
   const token = authorization.startsWith('Bearer ')
@@ -31,8 +37,15 @@ async function buscarAccesoEvento(eventoId) {
 
 function mapearEvento(evento) {
   if (!evento) return evento;
+  const generos = [...new Set(
+    (Array.isArray(evento.generos) ? evento.generos : [evento.genero])
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )].slice(0, MAX_GENEROS_EVENTO);
   const resultado = {
     ...evento,
+    genero: generos[0] || evento.genero || 'otros',
+    generos: generos.length > 0 ? generos : ['otros'],
     creador: evento.creador || null
   };
   delete resultado.titulo;
@@ -72,8 +85,43 @@ function normalizarCoordenada(valor) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+function normalizarGenerosEvento(body = {}) {
+  const valorMultiple = primerValorDisponible(body.generos, body.genres);
+  let recibidos = valorMultiple;
+
+  if (typeof recibidos === 'string') {
+    try {
+      recibidos = JSON.parse(recibidos);
+    } catch {
+      recibidos = [recibidos];
+    }
+  }
+
+  if (!Array.isArray(recibidos) || recibidos.length === 0) {
+    recibidos = [primerValorDisponible(body.genero, body.genre)].filter(Boolean);
+  }
+
+  const generos = [...new Set(
+    recibidos
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )];
+
+  if (generos.length > MAX_GENEROS_EVENTO) {
+    return { generos, error: `Podes elegir hasta ${MAX_GENEROS_EVENTO} generos por evento.` };
+  }
+
+  const noPermitidos = generos.filter((genero) => !GENEROS_EVENTO_PERMITIDOS.has(genero));
+  if (noPermitidos.length > 0) {
+    return { generos, error: `Generos no permitidos: ${noPermitidos.join(', ')}.` };
+  }
+
+  return { generos, error: null };
+}
+
 function normalizarDatosEvento(body = {}) {
-  const genero = String(primerValorDisponible(body.genero, body.genre) || '').trim().toLowerCase();
+  const generosNormalizados = normalizarGenerosEvento(body);
+  const genero = generosNormalizados.generos[0] || '';
   const ubicacion = String(primerValorDisponible(body.ubicacion, body.lugar, body.location) || '').trim();
   const fecha = String(primerValorDisponible(body.fecha, body.date) || '').trim();
   const latitud = normalizarCoordenada(primerValorDisponible(body.latitud, body.lat));
@@ -81,6 +129,8 @@ function normalizarDatosEvento(body = {}) {
 
   return {
     genero,
+    generos: generosNormalizados.generos,
+    errorGeneros: generosNormalizados.error,
     ubicacion,
     fecha,
     precio: body.precio,
@@ -119,7 +169,16 @@ const eventoController = {
             EXISTS (
               SELECT 1
               FROM user_interests ui
-              WHERE ui.user_id = $1 AND ui.genre = lower(e.genero)
+              WHERE ui.user_id = $1
+                AND (
+                  ui.genre = lower(e.genero)
+                  OR EXISTS (
+                    SELECT 1
+                    FROM evento_generos eg_interes
+                    WHERE eg_interes.event_id = e.id
+                      AND eg_interes.genero = ui.genre
+                  )
+                )
             ) AS coincide_interes,
             CASE
               WHEN $2::double precision IS NULL OR $3::double precision IS NULL THEN NULL
@@ -148,6 +207,7 @@ const eventoController = {
           e.img_url AS img,
           COALESCE(u.display_name, u.username, 'Anonimo') AS creador,
           u.profile_img_url AS avatar,
+          COALESCE(gen.generos, ARRAY[e.genero]) AS generos,
           COALESCE(org.organizadores, '[]'::jsonb) AS organizadores,
           ROUND((
             CASE WHEN e.coincide_interes THEN 45 ELSE 0 END
@@ -170,6 +230,11 @@ const eventoController = {
           END AS motivo_recomendacion
         FROM eventos_personalizados e
         LEFT JOIN users u ON u.id = e.creador_id
+        LEFT JOIN LATERAL (
+          SELECT array_agg(eg.genero ORDER BY eg.posicion) AS generos
+          FROM evento_generos eg
+          WHERE eg.event_id = e.id
+        ) gen ON true
         LEFT JOIN LATERAL (
           SELECT jsonb_agg(
             jsonb_build_object(
@@ -241,6 +306,8 @@ const eventoController = {
   crearEvento: async (req, res) => {
     const {
       genero,
+      generos,
+      errorGeneros,
       ubicacion,
       fecha,
       precio,
@@ -258,6 +325,10 @@ const eventoController = {
       req.user?.user_metadata?.username ||
       req.user?.email?.split('@')[0] ||
       'Anonimo';
+
+    if (errorGeneros) {
+      return res.status(400).json({ error: errorGeneros });
+    }
 
 
     const camposFaltantes = [
@@ -350,6 +421,13 @@ const eventoController = {
 
       const result = await dbClient.query(query, values);
 
+      await dbClient.query(
+        `INSERT INTO evento_generos (event_id, genero, posicion)
+         SELECT $1, seleccion.genero, seleccion.posicion::smallint
+         FROM unnest($2::text[]) WITH ORDINALITY AS seleccion(genero, posicion)`,
+        [result.rows[0].id, generos]
+      );
+
       if (organizadorIds.length > 0) {
         await dbClient.query(
           `INSERT INTO event_organizers (event_id, user_id, added_by)
@@ -380,7 +458,7 @@ const eventoController = {
         actorId: creadorId,
         type: 'new_event',
         title: `${actorName} creo un nuevo evento`,
-        body: `${genero} - ${ubicacion}`,
+        body: `${generos.join(', ')} - ${ubicacion}`,
         targetUrl: `/?evento=${result.rows[0].id}`,
         entityType: 'event',
         entityId: result.rows[0].id,
@@ -393,7 +471,7 @@ const eventoController = {
           actorId: creadorId,
           type: 'event_coorganizer',
           title: `${actorName} te agrego como invitado a un evento`,
-          body: `${genero} - ${ubicacion}`,
+          body: `${generos.join(', ')} - ${ubicacion}`,
           targetUrl: `/?evento=${result.rows[0].id}`,
           entityType: 'event',
           entityId: result.rows[0].id,
@@ -403,6 +481,7 @@ const eventoController = {
 
       res.status(201).json(mapearEvento({
         ...result.rows[0],
+        generos,
         creador: creadorNombre,
         organizadores: organizadoresResult.rows,
       }));

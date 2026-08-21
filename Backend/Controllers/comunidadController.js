@@ -83,6 +83,38 @@ const COMUNIDADES_GENERO = [
     descripcion: 'Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.',
     portada: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80',
   },
+  {
+    id: 'alternativo',
+    nombre: '@alternativo',
+    titulo: 'Alternativo',
+    genero: 'alternativo',
+    descripcion: 'Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.',
+    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
+  },
+  {
+    id: 'punk',
+    nombre: '@punk',
+    titulo: 'Punk',
+    genero: 'punk',
+    descripcion: 'Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.',
+    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
+  },
+  {
+    id: 'reggae',
+    nombre: '@reggae',
+    titulo: 'Reggae',
+    genero: 'reggae',
+    descripcion: 'Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.',
+    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
+  },
+  {
+    id: 'latina',
+    nombre: '@latina',
+    titulo: 'Latina',
+    genero: 'latina',
+    descripcion: 'Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.',
+    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
+  },
 ];
 
 const DIAS_RELEVANCIA_COMUNIDAD = Math.max(
@@ -274,6 +306,12 @@ async function asegurarEsquemaComunidades() {
           ]
         );
       }
+
+      await pool.query(`
+        UPDATE comunidades
+        SET activa = false
+        WHERE lower(id) = 'otros' OR lower(genero) = 'otros'
+      `);
     })().catch((error) => {
       esquemaComunidadesListo = null;
       throw error;
@@ -454,6 +492,7 @@ const comunidadController = {
         LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id
         LEFT JOIN comunidad_miembros cm ON cm.comunidad_id = c.id
         WHERE c.activa = true
+          AND c.id = ANY($1::text[])
         GROUP BY c.id
         ORDER BY array_position($1::text[], c.id)
       `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id), viewerId]);

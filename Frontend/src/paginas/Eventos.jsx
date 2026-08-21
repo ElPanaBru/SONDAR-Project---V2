@@ -8,6 +8,7 @@ import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -16,9 +17,11 @@ import "../componentes/eventoOrganizadorPopover.css";
 
 const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
-  "cumbia", "trap", "folklore", "otros"
+  "cumbia", "trap", "metal", "folklore", "alternativo",
+  "punk", "reggae", "latina", "otros"
 ];
 const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
+const MAX_GENEROS_EVENTO = 3;
 const ETIQUETAS_GENERO = {
   edm: "Electronica",
   trap: "Urbano",
@@ -40,19 +43,13 @@ const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
 const crearEventoVacio = () => ({
   organizadorBusqueda: "",
   organizadores: [],
-  genero: "",
+  generos: [],
   lugar: "",
   fecha: "",
   hora: "",
   precio: "",
   link: "",
   ...COORDENADAS_INICIALES,
-});
-
-const mapearEvento = (evento) => ({
-  ...evento,
-  img: LOGO_EVENTO_PREDETERMINADO,
-  coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
 });
 
 const tieneCoordenadasValidas = (evento) =>
@@ -71,6 +68,44 @@ const normalizarBusqueda = (valor) => String(valor || "")
 const mostrarGenero = (genero) => {
   const valor = normalizarGenero(genero);
   return ETIQUETAS_GENERO[valor] || valor.charAt(0).toUpperCase() + valor.slice(1);
+};
+
+const generosDeEvento = (evento) => {
+  const recibidos = Array.isArray(evento?.generos) && evento.generos.length > 0
+    ? evento.generos
+    : [evento?.genero];
+  const generos = [...new Set(recibidos.map(normalizarGenero))].slice(0, MAX_GENEROS_EVENTO);
+  return generos.length > 0 ? generos : ["otros"];
+};
+
+const mostrarGenerosEvento = (evento) => generosDeEvento(evento).map(mostrarGenero).join(" / ");
+
+const mapearEvento = (evento) => {
+  const generos = generosDeEvento(evento);
+  return {
+    ...evento,
+    genero: generos[0],
+    generos,
+    img: LOGO_EVENTO_PREDETERMINADO,
+    coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
+  };
+};
+
+const desplazarFiltrosConRueda = (event) => {
+  const contenedor = event.currentTarget;
+  if (contenedor.scrollWidth <= contenedor.clientWidth) return;
+
+  const desplazamiento = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+    ? event.deltaX
+    : event.deltaY;
+  const limiteDerecho = contenedor.scrollWidth - contenedor.clientWidth;
+  const puedeDesplazarse = desplazamiento > 0
+    ? contenedor.scrollLeft < limiteDerecho - 1
+    : contenedor.scrollLeft > 1;
+
+  if (!puedeDesplazarse) return;
+  event.preventDefault();
+  contenedor.scrollLeft += desplazamiento;
 };
 
 const escaparHtml = (valor) =>
@@ -137,6 +172,28 @@ function IconoPanel({ nombre, size = 20 }) {
   );
 }
 
+function IndicadorPreviewReel({ portada, reproduciendo }) {
+  const [portadaFallida, setPortadaFallida] = useState(false);
+
+  if (portada && !portadaFallida) {
+    return (
+      <span className="evento-preview-indicador con-portada" aria-hidden="true">
+        <img src={portada} alt="" onError={() => setPortadaFallida(true)} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="evento-preview-indicador" aria-hidden="true">
+      {reproduciendo ? (
+        <span className="evento-preview-ecualizador"><i /><i /><i /></span>
+      ) : (
+        <IconoPanel nombre="musica" size={17} />
+      )}
+    </span>
+  );
+}
+
 export default function Eventos({ usuario }) {
   const { t, preferencias } = usePreferencias();
   const [searchParams] = useSearchParams();
@@ -163,8 +220,10 @@ export default function Eventos({ usuario }) {
 
   // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
+  const [eventoCompartir, setEventoCompartir] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [detalleExpandido, setDetalleExpandido] = useState(false);
+  const [exploradorPlegado, setExploradorPlegado] = useState(false);
   const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
   const [busquedaEventos, setBusquedaEventos] = useState("");
   const [aviso, setAviso] = useState("");
@@ -371,7 +430,8 @@ export default function Eventos({ usuario }) {
   const eventosFiltrados = useMemo(() => {
     const termino = normalizarBusqueda(busquedaEventos).trim();
     return eventos.filter((evento) => {
-      const generoVisible = generosVisibles.includes(normalizarGenero(evento.genero));
+      const generosEvento = generosDeEvento(evento);
+      const generoVisible = generosEvento.some((genero) => generosVisibles.includes(genero));
       if (!generoVisible) return false;
       if (!termino) return true;
 
@@ -379,7 +439,7 @@ export default function Eventos({ usuario }) {
         evento.lugar,
         evento.ubicacion,
         evento.creador,
-        evento.genero,
+        generosEvento.join(" "),
       ].some((campo) => normalizarBusqueda(campo).includes(termino));
     });
   }, [busquedaEventos, eventos, generosVisibles]);
@@ -405,7 +465,7 @@ export default function Eventos({ usuario }) {
 
   useEffect(() => {
     if (!detalleEvento) return;
-    if (generosVisibles.includes(normalizarGenero(detalleEvento.genero))) return;
+    if (generosDeEvento(detalleEvento).some((genero) => generosVisibles.includes(genero))) return;
 
     setEventoActivo(null);
     setDetalleExpandido(false);
@@ -471,7 +531,7 @@ export default function Eventos({ usuario }) {
     if (!eventoDestino) return;
 
     eventoCompartidoProcesadoRef.current = String(eventoCompartido);
-    const generoDestino = normalizarGenero(eventoDestino.genero);
+    const generoDestino = generosDeEvento(eventoDestino)[0];
     setGenerosVisibles((actuales) =>
       actuales.includes(generoDestino)
         ? actuales
@@ -722,23 +782,10 @@ export default function Eventos({ usuario }) {
     });
   }, [filtroGeneroUrl]);
 
-  const compartirEvento = async (evento) => {
+  const compartirEvento = (evento) => {
     const enlace = new URL(window.location.origin);
     enlace.searchParams.set("evento", evento.id);
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Evento de ${evento.creador || "Artista SONDAR"}`,
-          text: `${mostrarGenero(evento.genero)} · ${evento.lugar || evento.ubicacion || "Lugar a confirmar"}`,
-          url: enlace.toString(),
-        });
-      } else {
-        await navigator.clipboard.writeText(enlace.toString());
-        mostrarAviso("Enlace del evento copiado");
-      }
-    } catch (error) {
-      if (error?.name !== "AbortError") mostrarAviso("No se pudo compartir el evento");
-    }
+    setEventoCompartir({ evento, enlace: enlace.toString() });
   };
 
   const alternarPreview = async (reel) => {
@@ -919,10 +966,25 @@ export default function Eventos({ usuario }) {
     }));
   };
 
+  const alternarGeneroNuevoEvento = (genero) => {
+    setNuevoEvento((actual) => {
+      if (actual.generos.includes(genero)) {
+        return { ...actual, generos: actual.generos.filter((item) => item !== genero) };
+      }
+      if (actual.generos.length >= MAX_GENEROS_EVENTO) return actual;
+      return { ...actual, generos: [...actual.generos, genero] };
+    });
+  };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (subiendoRef.current) return;
+
+    if (nuevoEvento.generos.length === 0) {
+      mostrarAviso("Elegí al menos un género para el evento.");
+      return;
+    }
 
     // Validaciones de fecha: no permitir en el pasado ni demasiado futuro.
     // - Pasado: fecha+hora debe ser >= ahora
@@ -970,7 +1032,8 @@ export default function Eventos({ usuario }) {
 
     const datosEvento = {
       organizadores: JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id)),
-      genero: normalizarGenero(nuevoEvento.genero),
+      genero: nuevoEvento.generos[0],
+      generos: nuevoEvento.generos,
       ubicacion: nuevoEvento.lugar,
       fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
       precio: nuevoEvento.precio,
@@ -1041,38 +1104,69 @@ export default function Eventos({ usuario }) {
         </div>
       )}
 
-      <section className={`eventos-explorador ${detalleEvento ? "con-detalle" : ""} ${detalleExpandido ? "oculto" : ""}`} aria-label="Buscar y filtrar eventos">
-        <header className="eventos-explorador-header">
-          <span className="eventos-explorador-icono" aria-hidden="true">
-            <img src={LOGO_EVENTO_PREDETERMINADO} alt="" />
-        </span>
-        <span className="eventos-explorador-texto">
-          <strong>Explora el mapa</strong>
-          <small>Elegi un evento para ver su informacion y escuchar a quienes participan.</small>
-        </span>
-          <em>{eventosFiltrados.length} eventos</em>
-        </header>
-        <label className="eventos-explorador-busqueda">
-          <span aria-hidden="true" className="eventos-explorador-lupa"></span>
-          <input
-            type="search"
-            value={busquedaEventos}
-            onChange={(event) => setBusquedaEventos(event.target.value)}
-            placeholder="Buscar eventos, lugares o artistas..."
-            aria-label="Buscar eventos"
-          />
-        </label>
-        <div className="eventos-explorador-generos" aria-label="Filtrar eventos por genero">
-          <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
-          {GENEROS_PERMITIDOS.map((genero) => (
-            <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
-              {mostrarGenero(genero)}
-            </button>
-          ))}
+      <section className={`eventos-explorador ${exploradorPlegado ? "plegado" : ""} ${detalleEvento ? "con-detalle" : ""} ${detalleExpandido ? "oculto" : ""}`} aria-label="Buscar y filtrar eventos">
+        <button
+          className="eventos-explorador-handle"
+          type="button"
+          aria-label={exploradorPlegado ? "Subir explorador de eventos" : "Bajar explorador de eventos"}
+          aria-expanded={!exploradorPlegado}
+          aria-controls="eventos-explorador-contenido"
+          onClick={() => setExploradorPlegado((actual) => !actual)}
+        >
+          <span></span>
+        </button>
+        <div
+          className="eventos-explorador-contenido"
+          id="eventos-explorador-contenido"
+          aria-hidden={exploradorPlegado}
+        >
+          <header className="eventos-explorador-header">
+            <span className="eventos-explorador-icono" aria-hidden="true">
+              <img src={LOGO_EVENTO_PREDETERMINADO} alt="" />
+            </span>
+            <span className="eventos-explorador-texto">
+              <strong>Explora el mapa</strong>
+              <small>Elegi un evento para ver su informacion y escuchar a quienes participan.</small>
+            </span>
+            <em>{eventosFiltrados.length} eventos</em>
+          </header>
+          <label className="eventos-explorador-busqueda">
+            <span aria-hidden="true" className="eventos-explorador-lupa"></span>
+            <input
+              type="search"
+              value={busquedaEventos}
+              onChange={(event) => setBusquedaEventos(event.target.value)}
+              placeholder="Buscar eventos, lugares o artistas..."
+              aria-label="Buscar eventos"
+            />
+          </label>
+          <div className="eventos-explorador-generos" aria-label="Filtrar eventos por genero" onWheel={desplazarFiltrosConRueda}>
+            <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+            {GENEROS_PERMITIDOS.map((genero) => (
+              <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
+                {mostrarGenero(genero)}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
       <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
+
+      {eventoCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir evento"
+          nombre={`Evento de ${eventoCompartir.evento.creador || "Artista SONDAR"}`}
+          detalle={`${mostrarGenerosEvento(eventoCompartir.evento)} · ${eventoCompartir.evento.lugar || eventoCompartir.evento.ubicacion || "Lugar a confirmar"}`}
+          imagen={LOGO_EVENTO_PREDETERMINADO}
+          imagenContenida
+          enlace={eventoCompartir.enlace}
+          textoCompartir={`Descubri este evento en SONDAR ${eventoCompartir.enlace}`}
+          mensajeCopiado="Enlace del evento copiado"
+          onClose={() => setEventoCompartir(null)}
+          onAviso={mostrarAviso}
+        />
+      ) : null}
 
       {detalleEvento ? (
         <section className={`eventos-sheet ${detalleExpandido ? "expandido" : ""}`} aria-live="polite">
@@ -1095,7 +1189,7 @@ export default function Eventos({ usuario }) {
             <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }} />
             <span>
               <strong>{detalleEvento.creador || "Artista SONDAR"}</strong>
-              <small>{mostrarGenero(detalleEvento.genero)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
+              <small>{mostrarGenerosEvento(detalleEvento)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
               <em>
                 {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
                 {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
@@ -1130,7 +1224,7 @@ export default function Eventos({ usuario }) {
                 aria-label="Buscar eventos"
               />
             </label>
-            <div className="eventos-explorador-generos eventos-sheet-tags" aria-label="Filtrar eventos por genero">
+            <div className="eventos-explorador-generos eventos-sheet-tags" aria-label="Filtrar eventos por genero" onWheel={desplazarFiltrosConRueda}>
               <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
               {GENEROS_PERMITIDOS.map((genero) => (
                 <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
@@ -1146,9 +1240,12 @@ export default function Eventos({ usuario }) {
             <div className="evento-sheet-info">
               <div className="evento-sheet-titulo">
                 <div>
-                  <span className="evento-sheet-genero">{mostrarGenero(detalleEvento.genero)}</span>
+                  <div className="evento-sheet-generos" aria-label="Géneros del evento">
+                    {generosDeEvento(detalleEvento).map((genero) => (
+                      <span className="evento-sheet-genero" key={genero}>{mostrarGenero(genero)}</span>
+                    ))}
+                  </div>
                   <span className="evento-sheet-eyebrow">EVENTO</span>
-                  <h2>{detalleEvento.creador || "Artista SONDAR"}</h2>
                 </div>
                 <div className="evento-sheet-acciones-superiores">
                   <button className={`evento-guardar ${detalleEvento.guardado ? "guardado" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}><IconoPanel nombre="guardar" /></button>
@@ -1176,30 +1273,29 @@ export default function Eventos({ usuario }) {
               </div>
 
               <div className="evento-sheet-meta">
-                <span><IconoPanel nombre="ubicacion" size={17} />{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</span>
-                <span><IconoPanel nombre="calendario" size={17} />{formatearFechaVisible(detalleEvento.fecha)}</span>
+                <span>
+                  <IconoPanel nombre="ubicacion" size={17} />
+                  <strong>{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</strong>
+                  <i aria-hidden="true">-</i>
+                  <IconoPanel nombre="calendario" size={17} />
+                  <time dateTime={detalleEvento.fecha}>{formatearFechaVisible(detalleEvento.fecha)}</time>
+                </span>
               </div>
+
               <div className="evento-sheet-organizadores">
-                <div className="evento-sheet-organizador-grupo">
-                  <span>MÚSICO</span>
+                <span>MÚSICOS</span>
+                <div className="evento-sheet-organizador-lista">
                   <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
                     {detalleEvento.avatar ? <img src={detalleEvento.avatar} alt="" /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
                     {detalleEvento.creador || "Anónimo"}
                   </button>
+                  {(detalleEvento.organizadores || []).map((organizador) => (
+                    <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
+                      {organizador.avatar ? <img src={organizador.avatar} alt="" /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
+                      {organizador.nombre || organizador.username}
+                    </button>
+                  ))}
                 </div>
-                {(detalleEvento.organizadores || []).length > 0 ? (
-                  <div className="evento-sheet-organizador-grupo invitados">
-                    <span>INVITADOS</span>
-                    <div className="evento-sheet-organizador-lista">
-                      {(detalleEvento.organizadores || []).map((organizador) => (
-                        <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
-                          {organizador.avatar ? <img src={organizador.avatar} alt="" /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
-                          {organizador.nombre || organizador.username}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
 
               {detalleEvento.link ? (
@@ -1235,13 +1331,11 @@ export default function Eventos({ usuario }) {
                         }}
                         role="listitem"
                       >
-                        <span className="evento-preview-indicador" aria-hidden="true">
-                          {esReelActivo ? (
-                            <span className="evento-preview-ecualizador"><i /><i /><i /></span>
-                          ) : (
-                            <IconoPanel nombre="musica" size={17} />
-                          )}
-                        </span>
+                        <IndicadorPreviewReel
+                          key={reel.portada || "sin-portada"}
+                          portada={reel.portada}
+                          reproduciendo={esReelActivo}
+                        />
                         <span className="evento-preview-datos">
                           <strong>{tituloReel}</strong>
                           <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero)}</small>
@@ -1353,17 +1447,32 @@ export default function Eventos({ usuario }) {
                 ) : null}
               </section>
 
-            <select
-              name="genero"
-              value={nuevoEvento.genero}
-              onChange={handleChange}
-              required
-            >
-              <option value="" disabled>Seleccionar genero</option>
-              {GENEROS_PERMITIDOS.map((genero) => (
-                <option key={genero} value={genero}>{mostrarGenero(genero)}</option>
-              ))}
-            </select>
+              <section className="evento-generos-selector" aria-labelledby="evento-generos-titulo">
+                <div className="evento-generos-encabezado">
+                  <span id="evento-generos-titulo">Géneros musicales</span>
+                  <small>{nuevoEvento.generos.length}/{MAX_GENEROS_EVENTO}</small>
+                </div>
+                <div className="evento-generos-opciones" role="group" aria-label="Seleccionar hasta tres géneros">
+                  {GENEROS_PERMITIDOS.map((genero) => {
+                    const seleccionado = nuevoEvento.generos.includes(genero);
+                    const limiteAlcanzado = nuevoEvento.generos.length >= MAX_GENEROS_EVENTO;
+                    return (
+                      <label
+                        className={`evento-genero-opcion ${seleccionado ? "seleccionado" : ""} ${!seleccionado && limiteAlcanzado ? "deshabilitado" : ""}`}
+                        key={genero}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={seleccionado}
+                          disabled={!seleccionado && limiteAlcanzado}
+                          onChange={() => alternarGeneroNuevoEvento(genero)}
+                        />
+                        <span>{mostrarGenero(genero)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
 
               <input
                 type="text"
