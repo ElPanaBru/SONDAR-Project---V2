@@ -1069,6 +1069,7 @@ export default function Eventos({ usuario }) {
       const eventoParaMapa = mapearEvento(eventoGuardado);
 
       setEventos((actuales) => [eventoParaMapa, ...actuales]);
+      window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
       setEventoActivo(eventoParaMapa.id);
       setGenerosVisibles(GENEROS_PERMITIDOS);
       setDetalleExpandido(true);

@@ -9,10 +9,12 @@ const PREFERENCIA_POR_TIPO = Object.freeze({
   reel_reply: 'notificar_comentarios',
   community_comment: 'notificar_comentarios',
   community_reply: 'notificar_comentarios',
+  profile_post_reply: 'notificar_comentarios',
   follow: 'notificar_seguidores',
   new_reel: 'notificar_publicaciones',
   new_event: 'notificar_publicaciones',
   new_community_post: 'notificar_publicaciones',
+  profile_post: 'notificar_publicaciones',
   mention: 'notificar_menciones',
   event_coorganizer: 'notificar_menciones',
 });

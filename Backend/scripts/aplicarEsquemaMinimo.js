@@ -4,6 +4,7 @@ const { Client } = require('pg');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const EXPECTED_TABLES = [
+  'content_reports',
   'comunidad_comentario_likes',
   'comunidad_comentarios',
   'comunidad_miembros',
@@ -11,17 +12,17 @@ const EXPECTED_TABLES = [
   'comunidad_publicacion_likes',
   'comunidad_publicaciones',
   'comunidades',
-  'content_reports',
   'event_organizers',
   'event_saves',
   'eventos',
   'follows',
   'notification_mutes',
   'notifications',
+  'perfil_comunidad_publicaciones',
+  'perfil_comunidad_respuestas',
   'reel_comment_likes',
   'reel_comments',
   'reel_likes',
-  'reel_saves',
   'reel_shares',
   'reel_views',
   'reels',
@@ -38,8 +39,6 @@ const REMOVED_COLUMNS = {
   ],
   reels: ['likes', 'compartidos', 'guardados', 'visitas', 'status', 'external_url'],
   reel_comments: ['likes', 'updated_at'],
-  comunidad_publicaciones: ['likes', 'guardados', 'status', 'updated_at'],
-  comunidad_comentarios: ['likes', 'status', 'updated_at'],
   eventos: ['status', 'updated_at'],
   notifications: ['entity_type', 'entity_id', 'metadata'],
 };
@@ -239,11 +238,14 @@ async function main() {
     const { backupPath, counts } = await crearRespaldo(client, tablesBefore);
     console.log(`Respaldo creado: ${backupPath}`);
 
-    const migrationPath = path.join(__dirname, '..', 'BDD-Sql', 'Migrar_A_Esquema_Minimo.sql');
-    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
-
     try {
-      await client.query(migrationSql);
+      for (const archivo of [
+        'Migrar_A_Esquema_Minimo.sql',
+        'Reemplazar_Foros_Por_Comunidad_Perfil.sql',
+      ]) {
+        const migrationPath = path.join(__dirname, '..', 'BDD-Sql', archivo);
+        await client.query(fs.readFileSync(migrationPath, 'utf8'));
+      }
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       throw error;

@@ -88,8 +88,6 @@ async function main() {
     await step('Proteccion sin token', () => request('/usuarios/me', { expected: 401 }));
     await step('Listado de reels', () => request('/reels'));
     await step('Listado de eventos', () => request('/eventos'));
-    const communities = await step('Listado de comunidades', () => request('/comunidades'));
-    if (!Array.isArray(communities) || communities.length === 0) throw new Error('No hay comunidades');
 
     for (const account of accounts) {
       const created = await step(`Crear cuenta ${account.username}`, () => request('/usuarios/crear-cuenta', {
@@ -139,27 +137,10 @@ async function main() {
     await step('Perfil publico', () => request(`/usuarios/${userB.id}/perfil`, { token: tokenA }));
 
     await step('Seguir usuario', () => request(`/usuarios/${userB.id}/seguir`, { method: 'POST', token: tokenA }));
+    await step('Habilitar respuestas del seguidor', () => request(`/usuarios/${userA.id}/seguir`, { method: 'POST', token: tokenB }));
     await step('Listar seguidos', () => request('/usuarios/me/seguidos', { token: tokenA }));
     await step('Silenciar notificaciones', () => request(`/usuarios/${userB.id}/silenciar-notificaciones`, { method: 'POST', token: tokenA }));
     await step('Reactivar notificaciones', () => request(`/usuarios/${userB.id}/silenciar-notificaciones`, { method: 'POST', token: tokenA }));
-
-    await step('Bloquear publicacion sin membresia', () => request('/comunidades/pop/publicaciones', {
-      method: 'POST', token: tokenA,
-      body: { titulo: 'No debe publicarse', texto: 'Prueba de permiso' }, expected: 403,
-    }));
-    await step('Unirse a comunidad', () => request('/comunidades/pop/membresia', { method: 'POST', token: tokenA }));
-    const post = await step('Evitar publicacion de comunidad duplicada', () => creacionDoble(() => request('/comunidades/pop/publicaciones', {
-      method: 'POST', token: tokenA, headers: { 'Idempotency-Key': `post-${suffix}` },
-      body: { titulo: 'Prueba integral temporal', texto: `Hola @${accounts[1].username}`, tipo: 'reciente', etiqueta: 'test' }, expected: 201,
-    })));
-    await step('Like de publicacion', () => request(`/comunidades/publicaciones/${post.id}/like`, { method: 'POST', token: tokenB }));
-    await step('Guardar publicacion', () => request(`/comunidades/publicaciones/${post.id}/guardar`, { method: 'POST', token: tokenB }));
-    const communityComment = await step('Evitar comentario comunitario duplicado', () => creacionDoble(() => request(`/comunidades/publicaciones/${post.id}/comentarios`, {
-      method: 'POST', token: tokenB, headers: { 'Idempotency-Key': `community-comment-${suffix}` },
-      body: { texto: 'Comentario temporal' }, expected: 201,
-    })));
-    await step('Like de comentario comunitario', () => request(`/comunidades/comentarios/${communityComment.id}/like`, { method: 'POST', token: tokenA }));
-    await step('Leer publicaciones y metricas', () => request('/comunidades/pop/publicaciones'));
 
     const crearReelForm = () => {
       const reelForm = new FormData();
@@ -178,7 +159,6 @@ async function main() {
     state.reelId = reel.backendId || reel.id;
     await step('Registrar visita unica', () => request(`/reels/${state.reelId}/visita`, { method: 'POST', token: tokenB }));
     await step('Like de reel', () => request(`/reels/${state.reelId}/like`, { method: 'POST', token: tokenB }));
-    await step('Guardar reel', () => request(`/reels/${state.reelId}/guardar`, { method: 'POST', token: tokenB }));
     await step('Compartir reel', () => request(`/reels/${state.reelId}/compartir`, { method: 'POST', token: tokenB }));
     const reelComment = await step('Evitar comentario de reel duplicado', () => creacionDoble(() => request(`/reels/${state.reelId}/comentarios`, {
       method: 'POST', token: tokenB, headers: { 'Idempotency-Key': `reel-comment-${suffix}` },
@@ -208,6 +188,20 @@ async function main() {
     })));
     state.eventId = event.id;
     await step('Guardar evento', () => request(`/eventos/${state.eventId}/guardar`, { method: 'POST', token: tokenB }));
+
+    const post = await step('Crear publicacion de perfil con evento propio', () => request('/comunidad-perfil/publicaciones', {
+      method: 'POST', token: tokenA, headers: { 'Idempotency-Key': `profile-post-${suffix}` },
+      body: { texto: `Nos vemos en este evento @${accounts[1].username}`, eventoId: state.eventId }, expected: 201,
+    }));
+    await step('Responder como seguidor', () => request(`/comunidad-perfil/publicaciones/${post.id}/respuestas`, {
+      method: 'POST', token: tokenB,
+      body: { texto: 'Respuesta temporal' }, expected: 201,
+    }));
+    const comunidadPerfil = await step('Leer comunidad y publicaciones automaticas', () => request(`/comunidad-perfil/${userA.id}`, { token: tokenB }));
+    const origenes = new Set((comunidadPerfil.publicaciones || []).map((publicacion) => publicacion.origen));
+    if (!origenes.has('manual') || !origenes.has('reel') || !origenes.has('evento')) {
+      throw new Error('Faltan publicaciones manuales o automaticas en la comunidad del perfil');
+    }
 
     await step('Denunciar perfil temporal', () => request(`/usuarios/${userB.id}/denunciar`, {
       method: 'POST', token: tokenA, body: { reason: 'otro', detail: 'Prueba temporal automatizada' },

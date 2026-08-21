@@ -294,7 +294,6 @@ function mapearReel(reel) {
     likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
     comentarios: '0',
     compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
-    guardados: Number(reel.guardados_calculados ?? reel.guardados ?? 0),
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
     colorPrincipal,
     colorA: colorVisual,
@@ -304,7 +303,6 @@ function mapearReel(reel) {
     audio: reel.audio_url,
     avatar: reel.creador_avatar || reel.profile_img_url || '',
     liked: false,
-    guardado: false,
     siguiendo: false,
     recomendado: Boolean(
       reel.afinidad_score > 0
@@ -443,7 +441,7 @@ const reelController = {
 
           UNION ALL
           SELECT lower(r.genero), 8::numeric
-          FROM reel_saves rs
+          FROM reel_shares rs
           JOIN reels r ON r.id = rs.reel_id
           WHERE rs.user_id = $1
 
@@ -476,7 +474,6 @@ const reelController = {
           r.*,
           (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
           (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
-          (SELECT COUNT(*)::int FROM reel_saves rg WHERE rg.reel_id = r.id) AS guardados_calculados,
           (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
           COALESCE(ag.puntaje, 0)::float AS afinidad_score,
           (f.follower_id IS NOT NULL) AS sigue_creador,
@@ -497,7 +494,7 @@ const reelController = {
             + LEAST(
                 18,
                 LN(1 + (SELECT COUNT(*) FROM reel_likes rl WHERE rl.reel_id = r.id)) * 5
-                + LN(1 + (SELECT COUNT(*) FROM reel_saves rs WHERE rs.reel_id = r.id)) * 6
+                + LN(1 + (SELECT COUNT(*) FROM reel_shares rs WHERE rs.reel_id = r.id)) * 4
                 + LN(1 + (SELECT COUNT(*) FROM reel_views rv WHERE rv.reel_id = r.id)) * 2
               )
             + GREATEST(0, 18 - EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400)
@@ -528,8 +525,6 @@ const reelController = {
           SELECT COUNT(DISTINCT senal.user_id)::int AS personas
           FROM (
             SELECT rl.user_id FROM reel_likes rl WHERE rl.reel_id = r.id
-            UNION ALL
-            SELECT rs.user_id FROM reel_saves rs WHERE rs.reel_id = r.id
             UNION ALL
             SELECT rv.user_id FROM reel_views rv WHERE rv.reel_id = r.id
           ) senal
@@ -570,14 +565,9 @@ const reelController = {
 
       const reelIds = reelsOrdenados.map((reel) => reel.id);
       const creadorIds = [...new Set(reelsOrdenados.map((reel) => reel.creador_id).filter(Boolean))];
-      const [likedSet, guardadoSet, siguiendoSet] = await Promise.all([
+      const [likedSet, siguiendoSet] = await Promise.all([
         consultarSetInteraccion(
           'SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',
-          [viewerId, reelIds],
-          'reel_id'
-        ),
-        consultarSetInteraccion(
-          'SELECT reel_id FROM reel_saves WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',
           [viewerId, reelIds],
           'reel_id'
         ),
@@ -593,7 +583,6 @@ const reelController = {
       res.json(reelsOrdenados.map((reel) => ({
         ...mapearReel(reel),
         liked: likedSet.has(String(reel.id)),
-        guardado: guardadoSet.has(String(reel.id)),
         siguiendo: siguiendoSet.has(String(reel.creador_id)),
       })));
     } catch (error) {
@@ -616,16 +605,11 @@ const reelController = {
            r.*,
            (SELECT COUNT(*)::int FROM reel_likes rl_count WHERE rl_count.reel_id = r.id) AS likes_calculados,
            (SELECT COUNT(*)::int FROM reel_shares rs_count WHERE rs_count.reel_id = r.id) AS compartidos_calculados,
-           (SELECT COUNT(*)::int FROM reel_saves rg_count WHERE rg_count.reel_id = r.id) AS guardados_calculados,
            (SELECT COUNT(*)::int FROM reel_views rv_count WHERE rv_count.reel_id = r.id) AS visitas_calculadas,
            EXISTS (
              SELECT 1 FROM reel_likes rl
              WHERE rl.reel_id = r.id AND rl.user_id = $2::uuid
            ) AS liked,
-           EXISTS (
-             SELECT 1 FROM reel_saves rs
-             WHERE rs.reel_id = r.id AND rs.user_id = $2::uuid
-           ) AS guardado,
            EXISTS (
              SELECT 1 FROM follows f
              WHERE f.following_id = r.creador_id AND f.follower_id = $2::uuid
@@ -647,7 +631,6 @@ const reelController = {
       return res.json({
         ...mapearReel(reel),
         liked: Boolean(reel.liked),
-        guardado: Boolean(reel.guardado),
         siguiendo: Boolean(reel.siguiendo),
       });
     } catch (error) {
@@ -1141,49 +1124,6 @@ const reelController = {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al registrar compartido:', error);
       res.status(500).json({ error: 'No se pudo registrar el compartido.' });
-    } finally {
-      client.release();
-    }
-  },
-
-  alternarGuardado: async (req, res) => {
-    const { id } = req.params;
-    const client = await pool.connect();
-
-    try {
-      await asegurarUsuarioPublico(req.user);
-      await client.query('BEGIN');
-
-      const reel = await buscarAccesoReel(id, client);
-      if (!reel) {
-        await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reel no encontrado.' });
-      }
-
-      const existe = await client.query(
-        'SELECT 1 FROM reel_saves WHERE user_id = $1 AND reel_id = $2',
-        [req.user.id, id]
-      );
-
-      let guardado = false;
-      if (existe.rowCount > 0) {
-        await client.query('DELETE FROM reel_saves WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);
-      } else {
-        await client.query('INSERT INTO reel_saves (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);
-        guardado = true;
-      }
-
-      const counts = await client.query('SELECT COUNT(*)::int AS guardados FROM reel_saves WHERE reel_id = $1', [id]);
-      await client.query('COMMIT');
-
-      res.json({
-        guardado,
-        guardados: Number(counts.rows[0]?.guardados || 0),
-      });
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => null);
-      console.error('Error al alternar guardado de reel:', error);
-      res.status(500).json({ error: 'No se pudo actualizar el guardado.' });
     } finally {
       client.release();
     }

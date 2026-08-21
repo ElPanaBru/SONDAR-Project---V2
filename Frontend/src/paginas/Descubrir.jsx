@@ -30,12 +30,10 @@ const lanzamientosIniciales = [
     likes: 27200,
     comentarios: "107",
     compartidos: 1177,
-    guardados: 2840,
     colorA: "#ffae00",
     colorB: "#ff5e00",
     colorC: "#1b1b1b",
     liked: false,
-    guardado: false,
     siguiendo: false,
   },
   {
@@ -51,12 +49,10 @@ const lanzamientosIniciales = [
     likes: 18400,
     comentarios: "89",
     compartidos: 640,
-    guardados: 1960,
     colorA: "#3cff00",
     colorB: "#023b22",
     colorC: "#111111",
     liked: true,
-    guardado: false,
     siguiendo: false,
   },
   {
@@ -72,12 +68,10 @@ const lanzamientosIniciales = [
     likes: 31900,
     comentarios: "214",
     compartidos: 2031,
-    guardados: 4210,
     colorA: "#aa3bff",
     colorB: "#3157ff",
     colorC: "#070707",
     liked: false,
-    guardado: true,
     siguiendo: true,
   },
   {
@@ -93,12 +87,10 @@ const lanzamientosIniciales = [
     likes: 9600,
     comentarios: "42",
     compartidos: 318,
-    guardados: 875,
     colorA: "#00d4ff",
     colorB: "#f3f6ff",
     colorC: "#13223a",
     liked: false,
-    guardado: false,
     siguiendo: false,
   },
   {
@@ -114,12 +106,10 @@ const lanzamientosIniciales = [
     likes: 22100,
     comentarios: "133",
     compartidos: 924,
-    guardados: 2310,
     colorA: "#ff5e00",
     colorB: "#ffd86b",
     colorC: "#15100b",
     liked: false,
-    guardado: false,
     siguiendo: false,
   },
 ];
@@ -1734,54 +1724,6 @@ export default function Descubrir({ usuario }) {
     );
   };
 
-  const alternarGuardadoLanzamiento = async (lanzamientoSeleccionado) => {
-    if (lanzamientoSeleccionado.backendId) {
-      try {
-        const token = await obtenerTokenSesion();
-        if (!token) return;
-
-        const response = await apiRequest(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo guardar el reel.");
-        }
-
-        const data = await response.json();
-        setLanzamientos((prev) =>
-          prev.map((lanzamiento) =>
-            lanzamiento.id === lanzamientoSeleccionado.id
-              ? { ...lanzamiento, guardado: data.guardado, guardados: data.guardados }
-              : lanzamiento
-          )
-        );
-        return;
-      } catch (error) {
-        console.error(error);
-        mostrarAviso(error.message || "No se pudo actualizar el guardado.");
-        return;
-      }
-    }
-
-    setLanzamientos((prev) =>
-      prev.map((lanzamiento) => {
-        if (lanzamiento.id !== lanzamientoSeleccionado.id) return lanzamiento;
-
-        const guardado = !lanzamiento.guardado;
-        return {
-          ...lanzamiento,
-          guardado,
-          guardados: Math.max(0, (lanzamiento.guardados || 0) + (guardado ? 1 : -1)),
-        };
-      })
-    );
-  };
-
   const alternarLikeLanzamiento = async (lanzamiento) => {
     const animacion = lanzamiento.liked ? "quitando-like" : "dando-like";
 
@@ -2257,18 +2199,6 @@ export default function Descubrir({ usuario }) {
                     <span>Mas</span>
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
-                        <button
-                          className="reel-menu-guardar"
-                          type="button"
-                          onClick={() =>
-                            ejecutarConSesion(() => {
-                              setMenuLanzamientoAbierto(null);
-                              return alternarGuardadoLanzamiento(lanzamiento);
-                            })
-                          }
-                        >
-                          {lanzamiento.guardado ? "Quitar de guardados" : "Guardar reel"}
-                        </button>
                         {puedeEliminar ? (
                           <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
                             Eliminar

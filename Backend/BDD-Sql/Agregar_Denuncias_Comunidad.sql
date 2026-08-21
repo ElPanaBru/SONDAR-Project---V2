@@ -5,6 +5,6 @@ ALTER TABLE public.content_reports
 
 ALTER TABLE public.content_reports
   ADD CONSTRAINT content_reports_content_type_check
-  CHECK (content_type IN ('reel', 'evento', 'perfil', 'community_post', 'community_comment'));
+  CHECK (content_type IN ('reel', 'evento', 'perfil', 'community_post', 'community_comment', 'profile_post', 'profile_post_reply'));
 
 COMMIT;

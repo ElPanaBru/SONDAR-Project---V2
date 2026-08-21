@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
+import PerfilComunidad from "../componentes/PerfilComunidad";
 import PerfilToast from "../componentes/PerfilToast";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
@@ -12,6 +13,7 @@ const iconosPerfil = {
   calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
   heart: "m480-120-58-52q-101-91-167-157T150-447q-39-51-54.5-94T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 50-15.5 93T810-447q-39 52-105 118T538-172l-58 52Z",
   bookmark: "M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Z",
+  community: "M80-160v-120q0-45 23.5-84.5T168-427q67-34 144.5-53.5T480-500q90 0 167.5 19.5T792-427q42 23 65 62.5t23 84.5v120H80Zm400-420q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47Z",
   share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
   lock: "M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm240-200q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80Z",
 };
@@ -61,6 +63,7 @@ function iconoTab(tab) {
   if (tab === "eventos") return "calendar";
   if (tab === "favoritos") return "heart";
   if (tab === "guardados") return "bookmark";
+  if (tab === "comunidad") return "community";
   return "grid";
 }
 
@@ -102,11 +105,12 @@ function tarjetaContenido(item, onAbrir) {
   );
 }
 
-export default function MiPerfil({ usuario }) {
+export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = usePreferencias();
   const [editando, setEditando] = useState(false);
-  const [tabActiva, setTabActiva] = useState("publicaciones");
+  const [tabActiva, setTabActiva] = useState(tabInicial);
   const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
   const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
   const [contenido, setContenido] = useState(contenidoInicial);
@@ -123,12 +127,18 @@ export default function MiPerfil({ usuario }) {
       { id: "eventos", label: t("Eventos"), mensaje: t("Aún no hay eventos.") },
       { id: "favoritos", label: t("Favoritos"), mensaje: t("Aún no hay favoritos.") },
       { id: "guardados", label: t("Guardados"), mensaje: t("Aún no hay guardados.") },
+      { id: "comunidad", label: t("Comunidad"), mensaje: t("Aún no hay publicaciones en la comunidad.") },
     ],
     [t]
   );
 
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
   const inicial = perfil.nombre.trim().charAt(0).toUpperCase() || "S";
+
+  useEffect(() => {
+    const tabSolicitada = new URLSearchParams(location.search).get("tab");
+    setTabActiva(tabSolicitada === "comunidad" ? "comunidad" : tabInicial);
+  }, [location.search, tabInicial]);
 
   useEffect(() => {
     const avatarPreview = perfilEditado.avatar;
@@ -310,6 +320,19 @@ export default function MiPerfil({ usuario }) {
           <h3>{t("Cargando perfil...")}</h3>
           <p>Estamos trayendo tu contenido desde Supabase.</p>
         </div>
+      );
+    }
+
+    if (tabActiva === "comunidad") {
+      return (
+        <PerfilComunidad
+          perfil={perfil}
+          usuarioActual={usuario}
+          esPropio
+          reelsPropios={contenido.publicaciones}
+          eventosPropios={contenido.eventos}
+          onAviso={setAviso}
+        />
       );
     }
 

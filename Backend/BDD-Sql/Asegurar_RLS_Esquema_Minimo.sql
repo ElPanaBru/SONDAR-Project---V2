@@ -15,7 +15,6 @@ ALTER TABLE public.event_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reel_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;
@@ -26,6 +25,8 @@ ALTER TABLE public.comunidad_publicacion_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_publicacion_guardados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_comentarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comunidad_comentario_likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.perfil_comunidad_publicaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.perfil_comunidad_respuestas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
 

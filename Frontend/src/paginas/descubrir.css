@@ -3288,14 +3288,6 @@
   min-width: 180px;
 }
 
-.acciones-laterales .reel-opciones-menu .reel-menu-guardar {
-  color: #ffffff;
-}
-
-.acciones-laterales .reel-opciones-menu .reel-menu-guardar:hover {
-  color: #050505;
-}
-
 .descubrir-feed .comentarios-panel {
   top: calc(var(--nav-alto) + 14px);
   right: 18px;

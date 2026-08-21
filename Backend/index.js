@@ -4,9 +4,9 @@ const express = require('express');
 const cors = require('cors');
 const usuariosRoutes = require('./routes/usuarios');
 const eventosRoutes = require('./routes/eventos');
-const postsRoutes = require('./routes/posts');
 const reelsRoutes = require('./routes/reels');
 const comunidadesRoutes = require('./routes/comunidades');
+const perfilComunidadRoutes = require('./routes/perfilComunidad');
 const notificacionesRoutes = require('./routes/notificaciones');
 const soporteRoutes = require('./routes/soporte');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
@@ -68,9 +68,9 @@ app.get('/api/health', (req, res) => {
 // Rutas Globales de la API
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/eventos', eventosRoutes);
-app.use('/api/posts', postsRoutes);
 app.use('/api/reels', reelsRoutes);
 app.use('/api/comunidades', comunidadesRoutes);
+app.use('/api/comunidad-perfil', perfilComunidadRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/soporte', soporteRoutes);
 

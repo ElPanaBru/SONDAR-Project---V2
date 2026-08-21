@@ -628,8 +628,8 @@ test('reels muestra portada cuadrada, pie superpuesto, creador y acciones latera
   assert.match(paginaDescubrir, /aria-pressed=\{lanzamiento\.siguiendo\}/);
   assert.match(paginaDescubrir, /disabled=\{seguimientosPendientes\.has\(lanzamiento\.creadorId\)\}/);
   assert.match(paginaDescubrir, /className="acciones-laterales"/);
-  assert.match(paginaDescubrir, /className="reel-menu-guardar"/);
-  assert.match(paginaDescubrir, /Guardar reel/);
+  assert.doesNotMatch(paginaDescubrir, /className="reel-menu-guardar"/);
+  assert.doesNotMatch(paginaDescubrir, /Guardar reel|Quitar de guardados/);
   assert.match(paginaDescubrir, /Denunciar publicacion/);
   assert.doesNotMatch(
     paginaDescubrir,

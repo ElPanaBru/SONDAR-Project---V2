@@ -53,7 +53,7 @@ ALTER TABLE public.user_settings
   DROP COLUMN IF EXISTS zona_horaria,
   DROP COLUMN IF EXISTS perfil_privado;
 
--- Las metricas se derivan de reel_likes/reel_saves/reel_shares/reel_views.
+-- Las metricas se derivan de reel_likes/reel_shares/reel_views.
 ALTER TABLE public.reels
   ADD COLUMN IF NOT EXISTS color_principal text,
   DROP COLUMN IF EXISTS likes,
@@ -227,7 +227,6 @@ ALTER TABLE public.event_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.reel_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_comment_likes ENABLE ROW LEVEL SECURITY;

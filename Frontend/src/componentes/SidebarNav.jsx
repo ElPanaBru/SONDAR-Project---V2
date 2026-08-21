@@ -25,7 +25,7 @@ function Icono({ nombre }) {
 const links = [
   { to: "/", label: "Eventos", icon: "eventos", end: true },
   { to: "/descubrir", label: "Descubrir", icon: "descubrir" },
-  { to: "/comunidad", label: "Comunidad", icon: "comunidad" },
+  { to: "/comunidad", label: "Foros", icon: "comunidad" },
 ];
 
 export default function SidebarNav({ usuario }) {

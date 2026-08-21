@@ -566,7 +566,6 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
 
   const [
     favoritosResult,
-    reelsGuardadosResult,
     eventosGuardadosResult,
     seguidoresStatsResult,
     seguidosStatsResult,
@@ -582,15 +581,6 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
        JOIN reels r ON r.id = rl.reel_id
        WHERE rl.user_id = $1
        ORDER BY rl.created_at DESC`,
-      [targetUserId]
-    ),
-    consultarOpcional(
-      `SELECT r.*,
-              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
-       FROM reel_saves rs
-       JOIN reels r ON r.id = rs.reel_id
-       WHERE rs.user_id = $1
-       ORDER BY rs.created_at DESC`,
       [targetUserId]
     ),
     consultarOpcional(
@@ -649,10 +639,6 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const seguidosStats = seguidosStatsResult.rows[0] || {};
   const reels = contenidoBloqueado ? [] : reelsResult.rows.map(mapearReelPerfil);
   const eventos = contenidoBloqueado ? [] : eventosResult.rows.map(mapearEventoPerfil);
-  const reelsGuardados = reelsGuardadosResult.rows.map((reel) => ({
-    ...mapearReelPerfil(reel),
-    guardadoTipo: 'reel',
-  }));
   const eventosGuardados = eventosGuardadosResult.rows.map((evento) => ({
     ...mapearEventoPerfil(evento),
     guardadoTipo: 'evento',
@@ -669,7 +655,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     publicaciones: reels,
     eventos,
     favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
-    guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
+    guardados: esPropio ? eventosGuardados : [],
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
@@ -950,15 +936,16 @@ const usuariosController = {
         eventos: ['SELECT * FROM eventos WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],
         seguimientos: ['SELECT * FROM follows WHERE follower_id = $1 OR following_id = $1', [req.user.id]],
         reels_que_gustan: ['SELECT * FROM reel_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        reels_guardados: ['SELECT * FROM reel_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         reels_compartidos: ['SELECT * FROM reel_shares WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         eventos_guardados: ['SELECT * FROM event_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         comentarios_reels: ['SELECT * FROM reel_comments WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        publicaciones_comunidad: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        membresias_comunidad: ['SELECT * FROM comunidad_miembros WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        comentarios_comunidad: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        likes_comunidad: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        guardados_comunidad: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        publicaciones_foros: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        membresias_foros: ['SELECT * FROM comunidad_miembros WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        comentarios_foros: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        likes_foros: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        guardados_foros: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        publicaciones_comunidad_perfil: ['SELECT * FROM perfil_comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        respuestas_comunidad_perfil: ['SELECT * FROM perfil_comunidad_respuestas WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         notificaciones: ['SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         usuarios_silenciados: ['SELECT * FROM notification_mutes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
       };

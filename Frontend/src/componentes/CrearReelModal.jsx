@@ -296,6 +296,7 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       }
 
       window.dispatchEvent(new CustomEvent("sondar:reel-creado", { detail: reel }));
+      window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
       if (nuevoReel.audio?.startsWith("blob:")) URL.revokeObjectURL(nuevoReel.audio);
       if (portadaInputRef.current) portadaInputRef.current.value = "";
       if (audioInputRef.current) audioInputRef.current.value = "";
