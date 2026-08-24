@@ -405,30 +405,24 @@
 }
 
 .eventos-explorador-icono {
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   position: relative;
   display: grid;
   place-items: center;
-  overflow: hidden;
-  background: linear-gradient(135deg, #ffae00, #ff5e00);
-  border: 1px solid rgba(255, 174, 0, 0.5);
-  border-radius: 50%;
+  background: transparent;
+  border: 0;
 }
 
 .eventos-explorador-icono::before {
-  content: "";
-  position: absolute;
-  inset: 7px;
-  background: #070707;
-  border-radius: 50%;
+  content: none;
 }
 
 .eventos-explorador-icono img {
   position: relative;
   z-index: 1;
-  width: 28px;
-  height: 28px;
+  width: 46px;
+  height: 46px;
   object-fit: contain;
   filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
 }

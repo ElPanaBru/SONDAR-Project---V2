@@ -1184,6 +1184,7 @@ export default function Comunidad({ usuario }) {
           </section>
         </aside>
 
+        <div className="comunidad-contenido">
         <header className="comunidad-portada">
             <div
               className="comunidad-cover"
@@ -1578,6 +1579,7 @@ export default function Comunidad({ usuario }) {
             </ol>
           </section>
         </aside>
+        </div>
       </section>
 
       {mostrarModal && (

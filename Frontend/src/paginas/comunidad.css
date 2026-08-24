@@ -19,18 +19,28 @@
 }
 
 .comunidad-layout.reddit-layout {
-  width: min(100%, 1280px);
+  width: min(100%, 1480px);
   min-height: 100%;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 300px;
+  grid-template-columns: 200px minmax(0, 1fr);
   align-items: start;
   column-gap: 14px;
   row-gap: 0;
-  margin: 0 auto;
+  margin: 0;
+}
+
+.comunidad-contenido {
+  grid-column: 2;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  align-items: start;
+  column-gap: 14px;
+  row-gap: 0;
 }
 
 .comunidad-main {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 2;
   min-width: 0;
   display: grid;
@@ -49,7 +59,7 @@
 
 .subreddit-list {
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
 }
 
 .comunidad-panel {
@@ -149,7 +159,7 @@
 }
 
 .comunidad-portada {
-  grid-column: 2 / -1;
+  grid-column: 1 / -1;
   grid-row: 1;
   overflow: visible;
   background: transparent;
@@ -544,6 +554,7 @@
 }
 
 .comunidad-feed {
+  min-height: 0;
   display: grid;
   align-content: start;
   gap: 0;
@@ -573,7 +584,7 @@
 }
 
 .detalle-comunidad {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 2;
   align-self: start;
   gap: 0;
@@ -1652,7 +1663,13 @@
 
 @media (max-width: 1180px) {
   .comunidad-layout.reddit-layout {
-    grid-template-columns: minmax(0, 1fr) 290px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .comunidad-contenido {
+    grid-column: 1;
+    grid-row: 2;
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
 
   .subreddit-list {
@@ -1679,22 +1696,22 @@
 
   .comunidad-portada {
     grid-column: 1 / -1;
-    grid-row: 2;
+    grid-row: 1;
   }
 
   .comunidad-main {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
   }
 
   .detalle-comunidad {
     grid-column: 2;
-    grid-row: 3;
+    grid-row: 2;
   }
 }
 
 @media (max-width: 900px) {
-  .comunidad-layout.reddit-layout {
+  .comunidad-contenido {
     grid-template-columns: 1fr;
   }
 
@@ -1705,18 +1722,18 @@
 
   .comunidad-portada {
     grid-column: 1;
-    grid-row: 2;
+    grid-row: 1;
   }
 
   .comunidad-main {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
   }
 
   .detalle-comunidad {
     position: static;
     grid-column: 1;
-    grid-row: 4;
+    grid-row: 3;
     display: grid;
     max-height: none;
     overflow: visible;
