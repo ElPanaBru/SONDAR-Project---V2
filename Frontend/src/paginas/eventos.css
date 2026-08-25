@@ -3313,3 +3313,55 @@
     margin: 0 0 8px;
   }
 }
+/* Ubicacion del usuario y radio PostGIS */
+.eventos-ubicacion-controles {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.eventos-ubicacion-controles > button,
+.eventos-ubicacion-controles select {
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(18, 18, 21, 0.9);
+  color: #f7f7f7;
+}
+
+.eventos-ubicacion-controles > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.eventos-ubicacion-controles > button.ubicacion-lista {
+  border-color: rgba(255, 174, 0, 0.62);
+  color: #ffb522;
+}
+
+.eventos-ubicacion-controles > button:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.eventos-ubicacion-controles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+}
+
+.eventos-ubicacion-controles select {
+  padding: 0 30px 0 10px;
+}
+
+.eventos-ubicacion-aviso {
+  margin: 0;
+  color: #ffbf52;
+  font-size: 0.76rem;
+}

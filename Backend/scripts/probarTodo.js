@@ -11,7 +11,7 @@ const accounts = [
 ];
 
 const results = [];
-const state = { tokens: [], users: [], reelId: null, eventId: null };
+const state = { tokens: [], users: [], reelId: null, eventId: null, conversationId: null, messageId: null };
 
 function record(name, ok, detail = '') {
   results.push({ name, ok, detail });
@@ -102,7 +102,26 @@ async function main() {
     const [tokenA, tokenB] = state.tokens;
     const [userA, userB] = state.users;
 
+    const conversation = await step('Crear conversacion directa', () => request('/mensajes/conversaciones', {
+      method: 'POST', token: tokenA, body: { userId: userB.id }, expected: 201,
+    }));
+    state.conversationId = conversation.id;
+    const message = await step('Enviar mensaje directo', () => request(`/mensajes/conversaciones/${conversation.id}/mensajes`, {
+      method: 'POST', token: tokenA, body: { texto: 'Mensaje temporal de la beta' }, expected: 201,
+    }));
+    state.messageId = message.id;
+    const conversationsB = await step('Recibir conversacion con contador no leido', () => request('/mensajes/conversaciones', { token: tokenB }));
+    if (!conversationsB.some((item) => item.id === conversation.id && item.noLeidos >= 1)) {
+      throw new Error('La conversacion no marco el mensaje como no leido');
+    }
+    await step('Paginar historial de mensajes', () => request(`/mensajes/conversaciones/${conversation.id}/mensajes?limit=20`, { token: tokenB }));
+    await step('Marcar conversacion leida', () => request(`/mensajes/conversaciones/${conversation.id}/leer`, { method: 'PATCH', token: tokenB }));
+    await step('Editar mensaje propio', () => request(`/mensajes/mensajes/${message.id}`, {
+      method: 'PATCH', token: tokenA, body: { texto: 'Mensaje temporal editado' },
+    }));
+
     const onboardingForm = new FormData();
+    onboardingForm.append('nombre', 'Codex Prueba A');
     onboardingForm.append('birthDate', '2000-01-01');
     onboardingForm.append('genres', JSON.stringify(['pop', 'rock', 'jazz']));
     onboardingForm.append(
@@ -157,6 +176,18 @@ async function main() {
       body: crearReelForm(), expected: 201,
     })));
     state.reelId = reel.backendId || reel.id;
+    await step('Registrar aprendizaje por escucha de preview', () => request(`/reels/${state.reelId}/interaccion`, {
+      method: 'POST', token: tokenB, expected: 202,
+      body: {
+        sessionId: crypto.randomUUID(), listenedMs: 26000, durationMs: 30000,
+        completionRatio: 0.87, completed: false, skipped: false, replayCount: 1,
+      },
+    }));
+    const recommendationsB = await step('Aplicar afinidad aprendida al feed', () => request('/reels', { token: tokenB }));
+    const learnedReel = recommendationsB.find((item) => String(item.backendId || item.id) === String(state.reelId));
+    if (!learnedReel || Number(learnedReel.afinidadAprendida || 0) <= 0) {
+      throw new Error(`La escucha no genero afinidad aprendida: ${JSON.stringify({ reelId: state.reelId, learnedReel, recommendationsB })}`);
+    }
     await step('Registrar visita unica', () => request(`/reels/${state.reelId}/visita`, { method: 'POST', token: tokenB }));
     await step('Like de reel', () => request(`/reels/${state.reelId}/like`, { method: 'POST', token: tokenB }));
     await step('Compartir reel', () => request(`/reels/${state.reelId}/compartir`, { method: 'POST', token: tokenB }));
@@ -169,24 +200,26 @@ async function main() {
     await step('Eliminar comentario del reel', () => request(`/reels/comentarios/${reelComment.id}`, { method: 'DELETE', token: tokenB }));
 
     const fechaEventoPrueba = new Date(Date.now() + 86400000).toISOString();
-    const crearEventoForm = () => {
-      const eventForm = new FormData();
-      eventForm.append('titulo', 'Evento temporal Codex');
-      eventForm.append('descripcion', 'Evento de prueba integral');
-      eventForm.append('genero', 'pop');
-      eventForm.append('ubicacion', 'Buenos Aires');
-      eventForm.append('fecha', fechaEventoPrueba);
-      eventForm.append('precio', '0');
-      eventForm.append('latitud', '-34.6037');
-      eventForm.append('longitud', '-58.3816');
-      eventForm.append('organizadores', JSON.stringify([userB.id]));
-      return eventForm;
-    };
+    const crearEventoForm = () => ({
+      genero: 'pop',
+      generos: ['pop'],
+      ubicacion: 'Buenos Aires',
+      fecha: fechaEventoPrueba,
+      precio: 0,
+      latitud: -34.6037,
+      longitud: -58.3816,
+      organizadores: [userB.id],
+    });
     const event = await step('Evitar evento duplicado con invitado', () => creacionDoble(() => request('/eventos/crear', {
       method: 'POST', token: tokenA, headers: { 'Idempotency-Key': `event-${suffix}` },
       body: crearEventoForm(), expected: 201,
     })));
     state.eventId = event.id;
+    const nearbyEvents = await step('Filtrar evento cercano con PostGIS', () => request('/eventos?lat=-34.6037&lng=-58.3816&radioKm=1', { token: tokenB }));
+    const nearbyEvent = nearbyEvents.find((item) => String(item.id) === String(state.eventId));
+    if (!nearbyEvent || Number(nearbyEvent.distancia_km) > 0.1) {
+      throw new Error('PostGIS no devolvio el evento cercano con distancia valida');
+    }
     await step('Guardar evento', () => request(`/eventos/${state.eventId}/guardar`, { method: 'POST', token: tokenB }));
 
     const post = await step('Crear publicacion de perfil con evento propio', () => request('/comunidad-perfil/publicaciones', {
@@ -221,7 +254,14 @@ async function main() {
 
     await step('Bloquear usuario', () => request(`/usuarios/${userB.id}/bloquear`, { method: 'POST', token: tokenA }));
     await step('Listar bloqueados', () => request('/usuarios/me/bloqueados', { token: tokenA }));
+    await step('Bloqueo impide enviar mensajes', () => request(`/mensajes/conversaciones/${state.conversationId}/mensajes`, {
+      method: 'POST', token: tokenA, body: { texto: 'No debe enviarse' }, expected: 403,
+    }));
     await step('Desbloquear usuario', () => request(`/usuarios/${userB.id}/bloquear`, { method: 'DELETE', token: tokenA }));
+
+    await step('Eliminar mensaje para todos', () => request(`/mensajes/mensajes/${state.messageId}`, {
+      method: 'DELETE', token: tokenA,
+    }));
 
     await step('Eliminar reel temporal', () => request(`/reels/${state.reelId}`, { method: 'DELETE', token: tokenA }));
     state.reelId = null;

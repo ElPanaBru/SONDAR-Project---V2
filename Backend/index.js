@@ -9,6 +9,7 @@ const comunidadesRoutes = require('./routes/comunidades');
 const perfilComunidadRoutes = require('./routes/perfilComunidad');
 const notificacionesRoutes = require('./routes/notificaciones');
 const soporteRoutes = require('./routes/soporte');
+const mensajesRoutes = require('./routes/mensajes');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
 
 const app = express();
@@ -73,6 +74,7 @@ app.use('/api/comunidades', comunidadesRoutes);
 app.use('/api/comunidad-perfil', perfilComunidadRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
 app.use('/api/soporte', soporteRoutes);
+app.use('/api/mensajes', mensajesRoutes);
 
 async function iniciarServidor() {
   try {

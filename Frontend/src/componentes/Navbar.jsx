@@ -34,6 +34,7 @@ function Navbar({ usuario, onCrearReel }) {
   const [busqueda, setBusqueda] = useState("");
   const [mostrarNotifs, setMostrarNotifs] = useState(false);
   const [notificacionesNoLeidas, setNotificacionesNoLeidas] = useState(0);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
   const [mostrarCrear, setMostrarCrear] = useState(false);
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
@@ -109,6 +110,35 @@ function Navbar({ usuario, onCrearReel }) {
       document.removeEventListener("visibilitychange", alVolver);
     };
   }, [preferencias.actividadCuenta, usuario]);
+
+  useEffect(() => {
+    if (!usuario) {
+      return undefined;
+    }
+    let activo = true;
+    const cargarMensajesNoLeidos = async () => {
+      try {
+        const response = await apiRequest("/api/mensajes/no-leidos");
+        if (!response.ok) return;
+        const data = await response.json();
+        if (activo) setMensajesNoLeidos(Number(data.noLeidos || 0));
+      } catch {
+        // La navegacion sigue disponible aunque la migracion beta aun no este aplicada.
+      }
+    };
+    const actualizar = (event) => {
+      if (typeof event.detail?.noLeidos === "number") setMensajesNoLeidos(event.detail.noLeidos);
+      else cargarMensajesNoLeidos();
+    };
+    cargarMensajesNoLeidos();
+    const intervalo = window.setInterval(cargarMensajesNoLeidos, 15000);
+    window.addEventListener("sondar:mensajes-actualizados", actualizar);
+    return () => {
+      activo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("sondar:mensajes-actualizados", actualizar);
+    };
+  }, [usuario]);
 
   useEffect(() => {
     let activo = true;
@@ -374,6 +404,26 @@ function Navbar({ usuario, onCrearReel }) {
                   />
                 ) : null}
               </div>
+
+              <Link
+                className="inbox-button navbar-messages-button"
+                to="/mensajes"
+                aria-label={`Mensajes${mensajesNoLeidos ? `, ${mensajesNoLeidos} sin leer` : ""}`}
+                onClick={() => {
+                  setMostrarCrear(false);
+                  setMostrarNotifs(false);
+                  setMostrarPerfil(false);
+                }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+                  <path d="M160-160v-560q0-33 23.5-56.5T240-800h480q33 0 56.5 23.5T800-720v360q0 33-23.5 56.5T720-280H320L160-160Zm114-200h446v-360H240v365l34-5Z" />
+                </svg>
+                {mensajesNoLeidos > 0 ? (
+                  <span className="navbar-notification-badge" aria-hidden="true">
+                    {mensajesNoLeidos > 99 ? "99+" : mensajesNoLeidos}
+                  </span>
+                ) : null}
+              </Link>
 
               <div className="navbar-profile-wrap" ref={perfilRef}>
                 <button

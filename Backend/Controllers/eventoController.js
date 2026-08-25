@@ -1,5 +1,6 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
 const { eliminarImagenEvento } = require('../services/storageService');
 const {
   crearNotificacion,
@@ -22,7 +23,7 @@ async function obtenerViewerId(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
 }
@@ -154,6 +155,10 @@ const eventoController = {
       const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
         ? longitudRecibida
         : null;
+      const radioRecibido = Number(req.query?.radioKm);
+      const radioKm = Number.isFinite(radioRecibido) && radioRecibido > 0
+        ? Math.min(500, radioRecibido)
+        : null;
       const result = await pool.query(`
         WITH contexto AS (
           SELECT CASE
@@ -181,12 +186,13 @@ const eventoController = {
                 )
             ) AS coincide_interes,
             CASE
-              WHEN $2::double precision IS NULL OR $3::double precision IS NULL THEN NULL
-              ELSE 6371 * acos(LEAST(1, GREATEST(-1,
-                cos(radians($2::double precision)) * cos(radians(e.latitud))
-                * cos(radians(e.longitud) - radians($3::double precision))
-                + sin(radians($2::double precision)) * sin(radians(e.latitud))
-              )))
+              WHEN $2::double precision IS NULL
+                OR $3::double precision IS NULL
+                OR e.ubicacion_geog IS NULL THEN NULL
+              ELSE gis.ST_Distance(
+                e.ubicacion_geog,
+                gis.ST_SetSRID(gis.ST_MakePoint($3::double precision, $2::double precision), 4326)::gis.geography
+              ) / 1000.0
             END AS distancia_km,
             CASE WHEN contexto.edad IS NULL THEN 0 ELSE (
               SELECT COUNT(*)::int
@@ -249,13 +255,26 @@ const eventoController = {
           JOIN users co ON co.id = eo.user_id
           WHERE eo.event_id = e.id
         ) org ON true
-        WHERE $1::uuid IS NULL OR NOT EXISTS (
-          SELECT 1 FROM user_blocks ub
-          WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
-             OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
+        WHERE (
+          $4::double precision IS NULL
+          OR $2::double precision IS NULL
+          OR $3::double precision IS NULL
+          OR (
+            e.ubicacion_geog IS NOT NULL
+            AND gis.ST_DWithin(
+              e.ubicacion_geog,
+              gis.ST_SetSRID(gis.ST_MakePoint($3::double precision, $2::double precision), 4326)::gis.geography,
+              $4::double precision * 1000.0
+            )
+          )
         )
+        AND ($1::uuid IS NULL OR NOT EXISTS (
+            SELECT 1 FROM user_blocks ub
+            WHERE (ub.blocker_id = $1 AND ub.blocked_id = e.creador_id)
+               OR (ub.blocker_id = e.creador_id AND ub.blocked_id = $1)
+        ))
         ORDER BY recomendacion_score DESC, e.fecha ASC, e.id DESC
-      `, [viewerId, viewerLat, viewerLng]);
+      `, [viewerId, viewerLat, viewerLng, radioKm]);
 
       if (!viewerId || result.rows.length === 0) {
         return res.json(result.rows.map(mapearEvento));

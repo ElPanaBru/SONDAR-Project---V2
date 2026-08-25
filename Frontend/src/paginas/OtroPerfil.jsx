@@ -68,7 +68,9 @@ function formatearNumero(valor) {
 
 function destinoContenido(item) {
   if (item.tipo === "evento") return `/?evento=${item.id}`;
-  return `/descubrir?lanzamiento=db-${item.id}`;
+  const parametros = new URLSearchParams({ lanzamiento: `db-${item.id}` });
+  if (item.creadorId) parametros.set("creador", item.creadorId);
+  return `/descubrir?${parametros.toString()}`;
 }
 
 function tarjetaContenido(item, onAbrir) {
@@ -239,6 +241,25 @@ export default function OtroPerfil({ usuarioActual }) {
     } catch (error) {
       console.error(error);
       setAviso(error.message || "No se pudo actualizar el seguimiento.");
+    }
+  };
+
+  const iniciarMensaje = async () => {
+    if (!usuarioActual) {
+      setAviso("Tenes que iniciar sesion para enviar mensajes.");
+      return;
+    }
+    if (!perfil.id) return;
+    try {
+      const response = await apiRequest("/api/mensajes/conversaciones", {
+        method: "POST",
+        body: { userId: perfil.id },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo iniciar la conversacion.");
+      navigate(`/mensajes?conversacion=${encodeURIComponent(data.id)}`);
+    } catch (error) {
+      setAviso(error.message || "No se pudo iniciar la conversacion.");
     }
   };
 
@@ -436,6 +457,13 @@ export default function OtroPerfil({ usuarioActual }) {
                   onClick={alternarSeguimiento}
                 >
                   {siguiendo ? "Siguiendo" : "Seguir"}
+                </button>
+                <button
+                  className="otroperfil-accion-texto"
+                  type="button"
+                  onClick={iniciarMensaje}
+                >
+                  Mensaje
                 </button>
                 {siguiendo ? (
                   <button

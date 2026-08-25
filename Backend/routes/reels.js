@@ -34,6 +34,7 @@ function procesarArchivosReel(req, res, next) {
 router.get('/', reelController.listarReels);
 router.get('/:id', reelController.obtenerReel);
 router.post('/:id/visita', authMiddleware, reelController.registrarVisita);
+router.post('/:id/interaccion', authMiddleware, reelController.registrarInteraccionEscucha);
 router.get('/:id/comentarios', reelController.listarComentarios);
 router.post('/comentarios/:comentarioId/like', authMiddleware, reelController.alternarLikeComentario);
 router.delete('/comentarios/:comentarioId', authMiddleware, reelController.eliminarComentario);

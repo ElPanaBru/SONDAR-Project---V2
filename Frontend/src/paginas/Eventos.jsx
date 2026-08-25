@@ -235,6 +235,8 @@ export default function Eventos({ usuario }) {
   const [cargandoReels, setCargandoReels] = useState(true);
   const [reelActivo, setReelActivo] = useState(null);
   const [posicionUsuario, setPosicionUsuario] = useState(null);
+  const [estadoUbicacion, setEstadoUbicacion] = useState("pendiente");
+  const [radioKm, setRadioKm] = useState("");
   
   const navigate = useNavigate();
 
@@ -261,19 +263,27 @@ export default function Eventos({ usuario }) {
 
   useEffect(() => () => clearTimeout(avisoTimer.current), []);
 
-  useEffect(() => {
-    if (!navigator.geolocation) return undefined;
-    let activo = true;
+  const solicitarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      setEstadoUbicacion("no-disponible");
+      return;
+    }
+    setEstadoUbicacion("solicitando");
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        if (!activo) return;
         setPosicionUsuario({ lat: coords.latitude, lng: coords.longitude });
+        setEstadoUbicacion("lista");
       },
-      () => {},
+      (error) => {
+        setEstadoUbicacion(error.code === error.PERMISSION_DENIED ? "denegada" : "error");
+      },
       { enableHighAccuracy: false, timeout: 7000, maximumAge: 10 * 60 * 1000 }
     );
-    return () => { activo = false; };
   }, []);
+
+  useEffect(() => {
+    solicitarUbicacion();
+  }, [solicitarUbicacion]);
 
   // 1. Carga inicial de eventos desde el Backend
   useEffect(() => {
@@ -286,6 +296,7 @@ export default function Eventos({ usuario }) {
         if (posicionUsuario) {
           parametros.set("lat", String(posicionUsuario.lat));
           parametros.set("lng", String(posicionUsuario.lng));
+          if (radioKm) parametros.set("radioKm", radioKm);
         }
         const endpoint = `/api/eventos${parametros.size ? `?${parametros.toString()}` : ""}`;
         const res = await apiRequest(endpoint, {
@@ -315,7 +326,7 @@ export default function Eventos({ usuario }) {
 
     cargarEventos();
     return () => { isMounted = false; };
-  }, [usuario?.id, posicionUsuario]);
+  }, [radioKm, usuario?.id, posicionUsuario]);
 
   useEffect(() => {
     let activo = true;
@@ -1131,6 +1142,39 @@ export default function Eventos({ usuario }) {
             </span>
             <em>{eventosFiltrados.length} eventos</em>
           </header>
+          <div className="eventos-ubicacion-controles">
+            <button
+              type="button"
+              className={estadoUbicacion === "lista" ? "ubicacion-lista" : ""}
+              onClick={solicitarUbicacion}
+              disabled={estadoUbicacion === "solicitando"}
+            >
+              <IconoPanel nombre="ubicacion" size={16} />
+              {estadoUbicacion === "solicitando"
+                ? "Buscando ubicacion..."
+                : estadoUbicacion === "lista"
+                  ? "Ubicacion activa"
+                  : "Usar mi ubicacion"}
+            </button>
+            <label>
+              <span>Distancia</span>
+              <select
+                value={radioKm}
+                onChange={(event) => setRadioKm(event.target.value)}
+                disabled={!posicionUsuario}
+                aria-label="Filtrar eventos por distancia"
+              >
+                <option value="">Todas</option>
+                <option value="10">Hasta 10 km</option>
+                <option value="25">Hasta 25 km</option>
+                <option value="50">Hasta 50 km</option>
+                <option value="100">Hasta 100 km</option>
+              </select>
+            </label>
+          </div>
+          {estadoUbicacion === "denegada" ? (
+            <p className="eventos-ubicacion-aviso">Permiti la ubicacion en el navegador para ver distancias y filtrar cercania.</p>
+          ) : null}
           <label className="eventos-explorador-busqueda">
             <span aria-hidden="true" className="eventos-explorador-lupa"></span>
             <input

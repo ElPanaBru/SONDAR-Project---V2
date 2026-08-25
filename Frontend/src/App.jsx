@@ -14,6 +14,7 @@ import Comunidad from "./paginas/Comunidad";
 import MiPerfil from "./paginas/Miperfil";
 import OtroPerfil from "./paginas/OtroPerfil";
 import Configuracion from "./paginas/Configuracion";
+import Mensajes from "./paginas/Mensajes";
 import SidebarNav from "./componentes/SidebarNav";
 import OnboardingPerfilModal from "./componentes/OnboardingPerfilModal";
 import CrearReelModal from "./componentes/CrearReelModal";
@@ -86,6 +87,7 @@ function App() {
           <Route path="/descubrir" element={<Descubrir usuario={usuario} />} />
           <Route path="/comunidad" element={<Comunidad usuario={usuario} />} />
           <Route path="/configuracion" element={<Configuracion usuario={usuario} />} />
+          <Route path="/mensajes" element={<Mensajes usuario={usuario} />} />
         </Routes>
       </div>
 

@@ -1,5 +1,6 @@
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
+const supabaseAuth = supabase.authClient || supabase;
 const {
   subirPortadaReel,
   subirAudioReel,
@@ -32,7 +33,7 @@ async function obtenerViewerId(req) {
 
   if (!token) return null;
 
-  const { data, error } = await supabase.auth.getUser(token);
+  const { data, error } = await supabaseAuth.auth.getUser(token);
   if (error || !data.user) return null;
   return data.user.id;
 }
@@ -308,10 +309,13 @@ function mapearReel(reel) {
       reel.afinidad_score > 0
       || reel.sigue_creador
       || reel.afinidad_edad > 0
+      || reel.es_exploracion
       || (reel.distancia_evento_km !== null && reel.distancia_evento_km !== undefined)
     ),
     recomendacion: reel.motivo_recomendacion || '',
     afinidadEdad: Number(reel.afinidad_edad || 0),
+    afinidadAprendida: Number(reel.afinidad_aprendida || 0),
+    exploracion: Boolean(reel.es_exploracion),
     distanciaEventoKm: reel.distancia_evento_km === null || reel.distancia_evento_km === undefined
       ? null
       : Number(reel.distancia_evento_km),
@@ -325,18 +329,28 @@ function diversificarReels(rows) {
   const resultado = [];
   let ultimoGenero = null;
   let repetidos = 0;
+  let ultimoCreador = null;
+  let creadorRepetido = 0;
 
   while (pendientes.length > 0) {
     let indice = 0;
-    if (repetidos >= 2) {
-      const alternativo = pendientes.findIndex((reel) => String(reel.genero || '').toLowerCase() !== ultimoGenero);
+    if (repetidos >= 2 || creadorRepetido >= 2) {
+      const alternativo = pendientes.findIndex((reel) => {
+        const generoCandidato = String(reel.genero || '').toLowerCase();
+        const creadorCandidato = String(reel.creador_id || '');
+        return (repetidos < 2 || generoCandidato !== ultimoGenero)
+          && (creadorRepetido < 2 || creadorCandidato !== ultimoCreador);
+      });
       if (alternativo >= 0) indice = alternativo;
     }
 
     const [siguiente] = pendientes.splice(indice, 1);
     const genero = String(siguiente.genero || '').toLowerCase();
     repetidos = genero && genero === ultimoGenero ? repetidos + 1 : 1;
+    const creador = String(siguiente.creador_id || '');
+    creadorRepetido = creador && creador === ultimoCreador ? creadorRepetido + 1 : 1;
     ultimoGenero = genero;
+    ultimoCreador = creador;
     resultado.push(siguiente);
   }
 
@@ -427,6 +441,13 @@ const reelController = {
       const viewerLng = Number.isFinite(longitudRecibida) && Math.abs(longitudRecibida) <= 180
         ? longitudRecibida
         : null;
+      const creadorFiltro = String(req.query?.creador || '').trim() || null;
+      if (creadorFiltro && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creadorFiltro)) {
+        return res.status(400).json({ error: 'El creador solicitado no es valido.' });
+      }
+      const ordenReels = creadorFiltro
+        ? 'r.created_at DESC, r.id DESC'
+        : 'recomendacion_score DESC, r.created_at DESC, r.id DESC';
       const result = await pool.query(`
         WITH senales_afinidad AS (
           SELECT ui.genre, 30::numeric AS peso
@@ -456,8 +477,17 @@ const reelController = {
           FROM reel_views rv
           JOIN reels r ON r.id = rv.reel_id
           WHERE rv.user_id = $1
+
+          UNION ALL
+          SELECT uga.genre,
+                 GREATEST(-20::numeric, LEAST(55::numeric,
+                   uga.behavioral_score
+                   * EXP(-EXTRACT(EPOCH FROM (NOW() - uga.last_interaction_at)) / 10368000)
+                 )) AS peso
+          FROM user_genre_affinity uga
+          WHERE uga.user_id = $1
         ), afinidad_generos AS (
-          SELECT genre, LEAST(45::numeric, SUM(peso)) AS puntaje
+          SELECT genre, GREATEST(-20::numeric, LEAST(70::numeric, SUM(peso))) AS puntaje
           FROM senales_afinidad
           WHERE genre IS NOT NULL AND genre <> ''
           GROUP BY genre
@@ -476,6 +506,8 @@ const reelController = {
           (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
           (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
           COALESCE(ag.puntaje, 0)::float AS afinidad_score,
+          COALESCE(afinidad_aprendida.puntaje, 0)::float AS afinidad_aprendida,
+          COALESCE(exploracion.activa, false) AS es_exploracion,
           (f.follower_id IS NOT NULL) AS sigue_creador,
           (visto.user_id IS NOT NULL) AS ya_visto,
           COALESCE(edad.personas, 0)::int AS afinidad_edad,
@@ -498,6 +530,7 @@ const reelController = {
                 + LN(1 + (SELECT COUNT(*) FROM reel_views rv WHERE rv.reel_id = r.id)) * 2
               )
             + GREATEST(0, 18 - EXTRACT(EPOCH FROM (NOW() - r.created_at)) / 86400)
+            + CASE WHEN COALESCE(exploracion.activa, false) THEN 12 ELSE 0 END
             - CASE WHEN visto.user_id IS NOT NULL THEN 10 ELSE 0 END
             - CASE WHEN r.creador_id = $1 THEN 12 ELSE 0 END
           )::numeric, 2)::float AS recomendacion_score,
@@ -509,7 +542,9 @@ const reelController = {
             ) THEN 'Porque elegiste ' || r.genero
             WHEN cercania.distancia_km <= 25 THEN 'Este artista toca cerca de vos'
             WHEN COALESCE(edad.personas, 0) > 0 THEN 'Popular entre personas de tu edad'
+            WHEN COALESCE(afinidad_aprendida.puntaje, 0) > 0 THEN 'Basado en las previews que escuchaste'
             WHEN COALESCE(ag.puntaje, 0) > 0 THEN 'Basado en tu actividad'
+            WHEN COALESCE(exploracion.activa, false) THEN 'Para ampliar tus descubrimientos'
             WHEN r.created_at >= NOW() - INTERVAL '7 days' THEN 'Nuevo en SONDAR'
             ELSE 'Popular en SONDAR'
           END AS motivo_recomendacion,
@@ -519,6 +554,22 @@ const reelController = {
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
         LEFT JOIN afinidad_generos ag ON ag.genre = lower(r.genero)
+        LEFT JOIN LATERAL (
+          SELECT GREATEST(-20::numeric, LEAST(55::numeric,
+            uga.behavioral_score
+            * EXP(-EXTRACT(EPOCH FROM (NOW() - uga.last_interaction_at)) / 10368000)
+          )) AS puntaje
+          FROM user_genre_affinity uga
+          WHERE uga.user_id = $1 AND uga.genre = lower(r.genero)
+        ) afinidad_aprendida ON true
+        LEFT JOIN LATERAL (
+          SELECT (
+            $1::uuid IS NOT NULL
+            AND mod(abs(hashtext(
+              r.id::text || ':' || $1::text || ':' || CURRENT_DATE::text
+            )::bigint), 100) < 15
+          ) AS activa
+        ) exploracion ON true
         LEFT JOIN follows f ON f.follower_id = $1 AND f.following_id = r.creador_id
         LEFT JOIN reel_views visto ON visto.user_id = $1 AND visto.reel_id = r.id
         LEFT JOIN LATERAL (
@@ -539,23 +590,24 @@ const reelController = {
         ) edad ON true
         LEFT JOIN LATERAL (
           SELECT MIN(
-            6371 * acos(LEAST(1, GREATEST(-1,
-              cos(radians($2::double precision)) * cos(radians(ev.latitud))
-              * cos(radians(ev.longitud) - radians($3::double precision))
-              + sin(radians($2::double precision)) * sin(radians(ev.latitud))
-            )))
+            gis.ST_Distance(
+              ev.ubicacion_geog,
+              gis.ST_SetSRID(gis.ST_MakePoint($3::double precision, $2::double precision), 4326)::gis.geography
+            ) / 1000.0
           ) AS distancia_km
           FROM eventos ev
           WHERE ev.creador_id = r.creador_id
             AND ev.fecha >= NOW()
+            AND ev.ubicacion_geog IS NOT NULL
         ) cercania ON $2::double precision IS NOT NULL AND $3::double precision IS NOT NULL
-        WHERE $1::uuid IS NULL OR NOT EXISTS (
-          SELECT 1 FROM user_blocks ub
-          WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
-             OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
-        )
-        ORDER BY recomendacion_score DESC, r.created_at DESC, r.id DESC
-      `, [viewerId, viewerLat, viewerLng]);
+        WHERE ($4::uuid IS NULL OR r.creador_id = $4::uuid)
+          AND ($1::uuid IS NULL OR NOT EXISTS (
+            SELECT 1 FROM user_blocks ub
+            WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
+               OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
+          ))
+        ORDER BY ${ordenReels}
+      `, [viewerId, viewerLat, viewerLng, creadorFiltro]);
 
       const reelsOrdenados = diversificarReels(result.rows);
 
@@ -674,6 +726,77 @@ const reelController = {
       res.status(500).json({ error: 'No se pudo registrar la visita.' });
     } finally {
       client.release();
+    }
+  },
+
+  registrarInteraccionEscucha: async (req, res) => {
+    const reelId = String(req.params.id || '').replace(/^db-/, '');
+    const sessionId = String(req.body?.sessionId || '').trim();
+    if (!/^\d+$/.test(reelId)) {
+      return res.status(400).json({ error: 'El reel no es valido.' });
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+      return res.status(400).json({ error: 'La sesion de escucha no es valida.' });
+    }
+
+    const listenedMs = Math.max(0, Math.min(3600000, Math.round(Number(req.body?.listenedMs) || 0)));
+    const durationValue = Math.round(Number(req.body?.durationMs));
+    const durationMs = Number.isFinite(durationValue)
+      ? Math.max(1, Math.min(3600000, durationValue))
+      : null;
+    const completionRatio = Math.max(0, Math.min(
+      1,
+      Number.isFinite(Number(req.body?.completionRatio))
+        ? Number(req.body.completionRatio)
+        : durationMs ? listenedMs / durationMs : 0
+    ));
+    const replayCount = Math.max(0, Math.min(100, Math.round(Number(req.body?.replayCount) || 0)));
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const result = await pool.query(
+        `INSERT INTO public.reel_playback_sessions (
+           id, user_id, reel_id, listened_ms, duration_ms,
+           completion_ratio, completed, skipped, replay_count
+         )
+         SELECT $1, $2, r.id, $4, $5, $6, $7, $8, $9
+         FROM public.reels r
+         WHERE r.id = $3
+         ON CONFLICT (id) DO UPDATE
+         SET listened_ms = GREATEST(public.reel_playback_sessions.listened_ms, EXCLUDED.listened_ms),
+             duration_ms = COALESCE(EXCLUDED.duration_ms, public.reel_playback_sessions.duration_ms),
+             completion_ratio = GREATEST(public.reel_playback_sessions.completion_ratio, EXCLUDED.completion_ratio),
+             completed = public.reel_playback_sessions.completed OR EXCLUDED.completed,
+             skipped = public.reel_playback_sessions.skipped OR EXCLUDED.skipped,
+             replay_count = GREATEST(public.reel_playback_sessions.replay_count, EXCLUDED.replay_count),
+             updated_at = timezone('utc'::text, now())
+         WHERE public.reel_playback_sessions.user_id = EXCLUDED.user_id
+         RETURNING id, listened_ms, completion_ratio, completed, skipped, replay_count`,
+        [
+          sessionId,
+          req.user.id,
+          reelId,
+          listenedMs,
+          durationMs,
+          completionRatio,
+          Boolean(req.body?.completed) || completionRatio >= 0.95,
+          Boolean(req.body?.skipped),
+          replayCount,
+        ]
+      );
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Reel no encontrado.' });
+      }
+      return res.status(202).json({ ok: true, session: result.rows[0] });
+    } catch (error) {
+      if (error.code === '42P01') {
+        return res.status(503).json({
+          error: 'Falta aplicar la migracion del algoritmo de recomendaciones.',
+          code: 'RECOMMENDATION_SCHEMA_MISSING',
+        });
+      }
+      console.error('Error al registrar escucha:', error);
+      return res.status(500).json({ error: 'No se pudo registrar la escucha.' });
     }
   },
 

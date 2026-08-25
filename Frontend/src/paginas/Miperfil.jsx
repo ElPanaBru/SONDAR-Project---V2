@@ -69,7 +69,9 @@ function iconoTab(tab) {
 
 function destinoContenido(item) {
   if (item.tipo === "evento") return `/?evento=${item.id}`;
-  return `/descubrir?lanzamiento=db-${item.id}`;
+  const parametros = new URLSearchParams({ lanzamiento: `db-${item.id}` });
+  if (item.creadorId) parametros.set("creador", item.creadorId);
+  return `/descubrir?${parametros.toString()}`;
 }
 
 function tarjetaContenido(item, onAbrir) {

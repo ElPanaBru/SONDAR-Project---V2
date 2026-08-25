@@ -461,6 +461,7 @@ export default function Descubrir({ usuario }) {
   const navigate = useNavigate();
   const lanzamientoCompartido = searchParams.get("lanzamiento");
   const comentarioCompartido = searchParams.get("comentario");
+  const creadorFiltrado = searchParams.get("creador")?.trim() || "";
   const [lanzamientos, setLanzamientos] = useState([]);
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
   const [reelVisibleId, setReelVisibleId] = useState(lanzamientoCompartido || null);
@@ -517,6 +518,9 @@ export default function Descubrir({ usuario }) {
   const audioReproduciendo = lanzamientos.find(
     (lanzamiento) => lanzamiento.id === reproduciendo
   )?.audio;
+  const reelBackendIdReproduciendo = lanzamientos.find(
+    (lanzamiento) => lanzamiento.id === reproduciendo
+  )?.backendId;
 
   const idsLanzamientosVisibles = lanzamientos
     .map((lanzamiento) => lanzamiento.id)
@@ -771,6 +775,7 @@ export default function Descubrir({ usuario }) {
           parametros.set("lat", String(posicionUsuario.lat));
           parametros.set("lng", String(posicionUsuario.lng));
         }
+        if (creadorFiltrado) parametros.set("creador", creadorFiltrado);
         const queryPosicion = parametros.toString();
         const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, {
           headers: token
@@ -891,7 +896,7 @@ export default function Descubrir({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [lanzamientoCompartido, usuario?.id, posicionUsuario]);
+  }, [creadorFiltrado, lanzamientoCompartido, usuario?.id, posicionUsuario]);
 
   function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
@@ -1088,6 +1093,7 @@ export default function Descubrir({ usuario }) {
     }
 
     const idReel = reproduciendo;
+    const reelBackendId = reelBackendIdReproduciendo;
     const audio = new Audio(audioReproduciendo);
     const tiemposReel = tiemposReelRef.current;
     audio.loop = true;
@@ -1096,6 +1102,61 @@ export default function Descubrir({ usuario }) {
     audioReelRef.current?.pause();
     audioReelRef.current = audio;
     audioReelActivoIdRef.current = idReel;
+    const sesionEscucha = usuario?.id && reelBackendId && globalThis.crypto?.randomUUID
+      ? {
+          id: globalThis.crypto.randomUUID(),
+          listenedMs: 0,
+          durationMs: null,
+          maxRatio: 0,
+          replayCount: 0,
+          previousTime: 0,
+          lastTick: performance.now(),
+          lastSentAt: 0,
+        }
+      : null;
+
+    const enviarSesionEscucha = ({ final = false } = {}) => {
+      if (!sesionEscucha || !reelBackendId) return;
+      const ahora = performance.now();
+      if (!final && ahora - sesionEscucha.lastSentAt < 4500) return;
+      sesionEscucha.lastSentAt = ahora;
+      const ratio = Math.max(0, Math.min(1, sesionEscucha.maxRatio));
+      const payload = {
+        sessionId: sesionEscucha.id,
+        listenedMs: Math.round(sesionEscucha.listenedMs),
+        durationMs: sesionEscucha.durationMs,
+        completionRatio: ratio,
+        completed: ratio >= 0.95,
+        skipped: final && ratio < 0.35 && sesionEscucha.listenedMs < 8000,
+        replayCount: sesionEscucha.replayCount,
+      };
+      apiRequest(`/api/reels/${reelBackendId}/interaccion`, {
+        method: "POST",
+        body: payload,
+      }).catch((error) => console.error("No se pudo registrar la escucha:", error));
+    };
+
+    const registrarProgresoEscucha = () => {
+      if (!sesionEscucha) return;
+      const ahora = performance.now();
+      if (!audio.paused) {
+        sesionEscucha.listenedMs += Math.min(2000, Math.max(0, ahora - sesionEscucha.lastTick));
+      }
+      sesionEscucha.lastTick = ahora;
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        sesionEscucha.durationMs = Math.round(audio.duration * 1000);
+        const ratioActual = audio.currentTime / audio.duration;
+        sesionEscucha.maxRatio = Math.max(sesionEscucha.maxRatio, ratioActual);
+        if (audio.currentTime + 0.5 < sesionEscucha.previousTime) {
+          sesionEscucha.replayCount += 1;
+          sesionEscucha.maxRatio = 1;
+        }
+        sesionEscucha.previousTime = audio.currentTime;
+      }
+      enviarSesionEscucha();
+    };
+
+    audio.addEventListener("timeupdate", registrarProgresoEscucha);
 
     const restaurarTiempoGuardado = () => {
       const tiempoGuardado = tiemposReel[idReel];
@@ -1120,14 +1181,17 @@ export default function Descubrir({ usuario }) {
       if (Number.isFinite(audio.currentTime)) {
         tiemposReel[idReel] = audio.currentTime;
       }
+      registrarProgresoEscucha();
+      enviarSesionEscucha({ final: true });
       audio.pause();
+      audio.removeEventListener("timeupdate", registrarProgresoEscucha);
       audio.removeEventListener("loadedmetadata", restaurarTiempoGuardado);
       if (audioReelRef.current === audio) {
         audioReelRef.current = null;
         audioReelActivoIdRef.current = null;
       }
     };
-  }, [audioReproduciendo, reproduciendo]);
+  }, [audioReproduciendo, reelBackendIdReproduciendo, reproduciendo, usuario?.id]);
 
   useEffect(() => {
     const pausarReelActivo = () => {
