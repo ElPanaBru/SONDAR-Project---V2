@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import { usePreferencias } from "../contextos/PreferenciasContext";
+import PerfilSocialModal from "./PerfilSocialModal";
 import "./sidebarNav.css";
 
 const iconos = {
@@ -33,8 +34,10 @@ const links = [
 
 export default function SidebarNav({ usuario }) {
   const { t } = usePreferencias();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [seguidos, setSeguidos] = useState([]);
+  const [listaSeguidosAbierta, setListaSeguidosAbierta] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -72,6 +75,12 @@ export default function SidebarNav({ usuario }) {
     };
   }, [usuario]);
 
+  const abrirPerfilSeguido = (perfil) => {
+    setListaSeguidosAbierta(false);
+    if (!perfil?.id) return;
+    navigate(perfil.id === usuario?.id ? "/perfil" : `/perfil/${perfil.id}`);
+  };
+
   return (
     <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegación principal">
       <button
@@ -107,7 +116,14 @@ export default function SidebarNav({ usuario }) {
         </div>
 
         <div className="sidebar-section sidebar-following-section">
-          <div className="sidebar-section-title">{t("Siguiendo")}</div>
+          <button
+            type="button"
+            className="sidebar-section-title sidebar-following-title"
+            onClick={() => setListaSeguidosAbierta(true)}
+            aria-haspopup="dialog"
+          >
+            {t("Siguiendo")}
+          </button>
           {seguidos.map((perfil) => (
             <NavLink
               key={perfil.id}
@@ -129,6 +145,15 @@ export default function SidebarNav({ usuario }) {
           ))}
         </div>
       </div>
+
+      <PerfilSocialModal
+        abierto={listaSeguidosAbierta}
+        titulo="Seguidos"
+        perfiles={seguidos}
+        mensajeVacio="Todavia no seguis a nadie."
+        onClose={() => setListaSeguidosAbierta(false)}
+        onSelect={abrirPerfilSeguido}
+      />
     </aside>
   );
 }

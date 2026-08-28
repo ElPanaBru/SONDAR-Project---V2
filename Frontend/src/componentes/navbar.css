@@ -1302,9 +1302,3 @@
     display: none;
   }
 }
-.navbar-messages-button {
-  position: relative;
-  display: inline-grid;
-  place-items: center;
-  text-decoration: none;
-}

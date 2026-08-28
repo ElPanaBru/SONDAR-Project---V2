@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
 import PerfilComunidad from "../componentes/PerfilComunidad";
+import PerfilSocialModal from "../componentes/PerfilSocialModal";
 import PerfilToast from "../componentes/PerfilToast";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
@@ -470,59 +471,18 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
         </div>
       ) : null}
 
-      {listaSocialActiva ? (
-        <div className="perfil-modal-overlay" role="presentation" onMouseDown={() => setListaSocialActiva(null)}>
-          <section
-            className="perfil-social-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="perfil-social-titulo"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="perfil-modal-header">
-              <h2 id="perfil-social-titulo">
-                {listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
-              </h2>
-              <button
-                className="perfil-modal-close"
-                type="button"
-                onClick={() => setListaSocialActiva(null)}
-                aria-label="Cerrar lista"
-              >
-                x
-              </button>
-            </div>
-            <div className="perfil-social-lista">
-              {(contenido[listaSocialActiva] || []).length > 0 ? (
-                contenido[listaSocialActiva].map((perfilSocial) => (
-                  <button
-                    className="perfil-social-item"
-                    type="button"
-                    key={perfilSocial.id}
-                    onClick={() => abrirPerfilSocial(perfilSocial)}
-                  >
-                    <span>
-                      {perfilSocial.avatar ? (
-                        <img src={perfilSocial.avatar} alt="" />
-                      ) : (
-                        perfilSocial.nombre.charAt(0).toUpperCase()
-                      )}
-                    </span>
-                    <strong>{perfilSocial.nombre}</strong>
-                    <small>{perfilSocial.usuario}</small>
-                  </button>
-                ))
-              ) : (
-                <p className="perfil-social-vacio">
-                  {listaSocialActiva === "seguidores"
-                    ? "Todavia no hay seguidores."
-                    : "Todavia no seguis a nadie."}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <PerfilSocialModal
+        abierto={Boolean(listaSocialActiva)}
+        titulo={listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
+        perfiles={contenido[listaSocialActiva] || []}
+        mensajeVacio={
+          listaSocialActiva === "seguidores"
+            ? "Todavia no hay seguidores."
+            : "Todavia no seguis a nadie."
+        }
+        onClose={() => setListaSocialActiva(null)}
+        onSelect={abrirPerfilSocial}
+      />
 
       {compartirAbierto ? (
         <CompartirPerfilModal
