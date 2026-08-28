@@ -190,6 +190,18 @@ CREATE INDEX reels_created_idx ON public.reels (created_at DESC, id DESC);
 CREATE INDEX reels_creador_created_idx
   ON public.reels (creador_id, created_at DESC);
 
+CREATE TABLE public.reel_generos (
+  reel_id bigint NOT NULL REFERENCES public.reels(id) ON DELETE CASCADE,
+  genero text NOT NULL REFERENCES public.generos(slug),
+  posicion smallint NOT NULL CHECK (posicion BETWEEN 1 AND 3),
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  PRIMARY KEY (reel_id, genero),
+  UNIQUE (reel_id, posicion)
+);
+
+CREATE INDEX reel_generos_genero_reel_idx
+  ON public.reel_generos (genero, reel_id);
+
 CREATE TABLE public.reel_views (
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   reel_id bigint NOT NULL REFERENCES public.reels(id) ON DELETE CASCADE,
@@ -534,6 +546,7 @@ ALTER TABLE public.evento_generos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_organizers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reel_generos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reel_shares ENABLE ROW LEVEL SECURITY;
@@ -606,6 +619,13 @@ CREATE POLICY reels_change_own ON public.reels
   FOR UPDATE TO authenticated USING (auth.uid() = creador_id) WITH CHECK (auth.uid() = creador_id);
 CREATE POLICY reels_delete_own ON public.reels
   FOR DELETE TO authenticated USING (auth.uid() = creador_id);
+
+CREATE POLICY reel_generos_public_read ON public.reel_generos
+  FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY reel_generos_owner_write ON public.reel_generos
+  FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.reels r WHERE r.id = reel_id AND r.creador_id = auth.uid()))
+  WITH CHECK (EXISTS (SELECT 1 FROM public.reels r WHERE r.id = reel_id AND r.creador_id = auth.uid()));
 
 CREATE POLICY reel_comments_public_read ON public.reel_comments
   FOR SELECT TO anon, authenticated USING (true);

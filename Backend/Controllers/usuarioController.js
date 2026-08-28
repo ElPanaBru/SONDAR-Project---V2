@@ -457,14 +457,20 @@ function mapearUsuarioBusqueda(usuario, stats = {}) {
 }
 
 function mapearReelPerfil(reel) {
+  const generos = [...new Set(
+    (Array.isArray(reel.generos) ? reel.generos : [reel.genero])
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )].slice(0, 3);
   return {
     id: reel.id,
     tipo: 'reel',
     nombre: reel.titulo,
-    detalle: `${reel.genero || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
+    detalle: `${generos.join(' / ') || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
     imagen: reel.portada_url || '',
     audio: reel.audio_url || '',
-    genero: reel.genero || '',
+    genero: generos[0] || reel.genero || '',
+    generos,
     creadorId: reel.creador_id,
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
   };
@@ -542,6 +548,10 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]),
     pool.query(
       `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
               (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reels r
        WHERE creador_id = $1
@@ -565,7 +575,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   ]);
 
   const [
-    favoritosResult,
+    likesResult,
     eventosGuardadosResult,
     seguidoresStatsResult,
     seguidosStatsResult,
@@ -576,6 +586,10 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   ] = await Promise.all([
     consultarOpcional(
       `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
               (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reel_likes rl
        JOIN reels r ON r.id = rl.reel_id
@@ -654,7 +668,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     perfil: mapearUsuarioPerfil(usuario, configuracion, esPropio),
     publicaciones: reels,
     eventos,
-    favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
+    likes: esPropio ? likesResult.rows.map(mapearReelPerfil) : [],
     guardados: esPropio ? eventosGuardados : [],
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),

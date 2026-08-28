@@ -49,8 +49,9 @@ test('comunidad es la quinta pestana propia y admite publicaciones, adjuntos y r
   const componente = leer('Frontend', 'src', 'componentes', 'PerfilComunidad.jsx');
   const app = leer('Frontend', 'src', 'App.jsx');
 
-  const opciones = perfil.match(/\{ id: "(?:publicaciones|eventos|favoritos|guardados|comunidad)"/g) || [];
+  const opciones = perfil.match(/\{ id: "(?:publicaciones|eventos|likes|guardados|comunidad)"/g) || [];
   assert.equal(opciones.length, 5);
+  assert.match(perfil, /likes: dataPerfil\.likes \|\| \[\]/);
   assert.match(perfil, /reelsPropios=\{contenido\.publicaciones\}/);
   assert.match(perfil, /eventosPropios=\{contenido\.eventos\}/);
   assert.match(otroPerfil, /<PerfilComunidad/);

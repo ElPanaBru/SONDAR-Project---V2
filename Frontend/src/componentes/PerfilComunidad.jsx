@@ -439,7 +439,7 @@ export default function PerfilComunidad({
                       <strong>{publicacion.reel?.titulo || publicacion.evento?.lugar || "Evento SONDAR"}</strong>
                       <em>
                         {publicacion.reel
-                          ? publicacion.reel.genero || "Preview musical"
+                          ? (publicacion.reel.generos || []).join(" / ") || publicacion.reel.genero || "Preview musical"
                           : `${(publicacion.evento.generos || []).join(" / ") || publicacion.evento.genero || "Evento"} - ${new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short" }).format(new Date(publicacion.evento.fecha))}`}
                       </em>
                     </span>

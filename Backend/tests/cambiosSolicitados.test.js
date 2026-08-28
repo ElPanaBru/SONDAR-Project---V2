@@ -392,9 +392,10 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   const posicionReglas = paginaComunidad.indexOf('<h2>Reglas del foro</h2>');
   const posicionRecursos = paginaComunidad.indexOf('<h2>Recursos</h2>');
   assert.ok(posicionRecursos > 0 && posicionReglas > posicionRecursos);
-  assert.match(estilosComunidad, /\.comunidad-layout\.reddit-layout\s*\{[^}]*grid-template-columns:\s*220px minmax\(0, 1fr\) 300px;/s);
-  assert.match(estilosComunidad, /\.subreddit-list\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1 \/ span 2;/s);
-  assert.match(estilosComunidad, /\.comunidad-portada\s*\{[^}]*grid-column:\s*2 \/ -1;/s);
+  assert.match(estilosComunidad, /\.comunidad-layout\.reddit-layout\s*\{[^}]*--comunidad-desplazamiento:\s*clamp\(88px, 9vw, 160px\);[^}]*grid-template-columns:\s*200px minmax\(0, 1fr\);/s);
+  assert.match(estilosComunidad, /\.comunidad-contenido\s*\{[^}]*grid-column:\s*2;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 280px;/s);
+  assert.match(estilosComunidad, /\.subreddit-list\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/s);
+  assert.match(estilosComunidad, /\.comunidad-portada\s*\{[^}]*grid-column:\s*1 \/ -1;/s);
   assert.match(estilosComunidad, /\.comunidad-toolbar\s*\{[^}]*margin:\s*0;[^}]*background:\s*transparent;/s);
   assert.match(estilosComunidad, /\.detalle-comunidad\s*\{[^}]*background:\s*#0d0d0d;/s);
   assert.match(estilosComunidad, /\.detalle-comunidad\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior-y:\s*contain;/s);

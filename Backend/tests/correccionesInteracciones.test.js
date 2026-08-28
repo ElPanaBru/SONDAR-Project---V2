@@ -98,7 +98,8 @@ test('comunidad permite buscar referencias en todo el catalogo publico', () => {
   assert.match(pagina, /comunidad-asociacion-card evento/);
   assert.match(pagina, /comunidad-asociacion-card reel/);
   assert.match(pagina, /evento\.lugar \|\| evento\.ubicacion/);
-  assert.match(pagina, /mostrarGenero\(reel\.genero\) \|\| "Reel musical"/);
+  assert.match(pagina, /reel\.generos \|\| \[reel\.genero\]/);
+  assert.match(pagina, /\.map\(mostrarGenero\)\.join\(" \/ "\) \|\| "Reel musical"/);
   assert.match(pagina, /src="\/sondar-icon\.png(?:\?v=19)?"/);
   assert.doesNotMatch(pagina, /eventosDelGenero\.map|reelsDelGenero\.map/);
 });

@@ -319,9 +319,17 @@ const GENEROS_REEL = [
   "trap",
   "metal",
   "folklore",
+  "alternativo",
+  "punk",
+  "reggae",
+  "latina",
   "otros",
 ];
 const GENEROS_REEL_SET = new Set(GENEROS_REEL);
+const ETIQUETAS_GENERO_REEL = {
+  edm: "Electronica",
+  trap: "Urbano",
+};
 const coloresPortadaCache = new Map();
 
 async function obtenerColorPortada(url, signal) {
@@ -354,7 +362,15 @@ function normalizarGeneroReel(genero) {
 function mostrarGeneroReel(genero) {
   const valor = normalizarGeneroReel(genero);
   if (!valor) return "";
-  return valor === "edm" ? "EDM" : valor.charAt(0).toUpperCase() + valor.slice(1);
+  return ETIQUETAS_GENERO_REEL[valor]
+    || valor.charAt(0).toUpperCase() + valor.slice(1);
+}
+
+function generosDeReel(reel) {
+  const recibidos = Array.isArray(reel?.generos) && reel.generos.length > 0
+    ? reel.generos
+    : [reel?.genero];
+  return [...new Set(recibidos.map(normalizarGeneroReel).filter(Boolean))].slice(0, 3);
 }
 
 function Icono({ nombre }) {
@@ -1807,7 +1823,7 @@ export default function Descubrir({ usuario }) {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo actualizar el favorito.");
+          throw new Error(data.error || "No se pudo actualizar el like.");
         }
 
         const data = await response.json();
@@ -1820,7 +1836,7 @@ export default function Descubrir({ usuario }) {
         );
       } catch (error) {
         console.error(error);
-        mostrarAviso(error.message || "No se pudo actualizar el favorito.");
+        mostrarAviso(error.message || "No se pudo actualizar el like.");
       } finally {
         window.setTimeout(() => {
           setAnimacionesLike((prev) => {
@@ -2151,6 +2167,13 @@ export default function Descubrir({ usuario }) {
                   <strong className="reel-titulo" title={lanzamiento.tema}>
                     {lanzamiento.tema}
                   </strong>
+                  {generosDeReel(lanzamiento).length > 0 ? (
+                    <div className="reel-generos" aria-label="Generos del reel">
+                      {generosDeReel(lanzamiento).map((genero) => (
+                        <span key={genero}>{mostrarGeneroReel(genero)}</span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="reel-identidad">
                     <button
                       className={`artista-avatar ${lanzamiento.avatar ? "" : "sin-avatar"}`}

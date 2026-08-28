@@ -734,7 +734,7 @@
   font-size: 19px;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: 0 0 22px rgba(255, 126, 0, 0.12);
   transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -745,11 +745,19 @@
 }
 
 .navbar-create-button:hover,
-.navbar-create-button.active {
-  color: #080808;
-  background: #ffae00;
-  border-color: #ffae00;
-  box-shadow: none;
+.navbar-create-button:focus-visible {
+  color: #ffffff;
+  background: #212121;
+  border-color: rgba(255, 174, 0, 0.58);
+  box-shadow: 0 0 24px rgba(255, 126, 0, 0.18);
+}
+
+.navbar-create-button.active,
+.navbar-create-button.active:hover {
+  color: var(--color-1, #F09800);
+  background: rgba(240, 152, 0, 0.13);
+  border-color: var(--color-1, #F09800);
+  box-shadow: 0 0 28px rgba(240, 152, 0, 0.26);
 }
 
 .navbar-create-menu {
@@ -802,14 +810,8 @@
   width: 58px;
   color: #ffffff;
   background: #101010;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-}
-
-.navbar-notifications-wrap .inbox-button.active {
-  color: #080808;
-  background: #ffffff;
-  border-color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 174, 0, 0.38);
+  box-shadow: 0 0 22px rgba(255, 126, 0, 0.12);
 }
 
 .navbar-notifications-wrap .inbox-button svg {
@@ -818,10 +820,18 @@
 }
 
 .navbar-notifications-wrap .inbox-button:hover {
-  color: #080808;
-  background: #ffffff;
-  border-color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  background: #212121;
+  border-color: rgba(255, 174, 0, 0.58);
+  box-shadow: 0 0 24px rgba(255, 126, 0, 0.18);
+}
+
+.navbar-notifications-wrap .inbox-button.active,
+.navbar-notifications-wrap .inbox-button.active:hover {
+  color: var(--color-1, #F09800);
+  background: rgba(240, 152, 0, 0.13);
+  border-color: var(--color-1, #F09800);
+  box-shadow: 0 0 28px rgba(240, 152, 0, 0.26);
 }
 
 .profile-avatar-button {

@@ -1383,7 +1383,7 @@ export default function Eventos({ usuario }) {
                         />
                         <span className="evento-preview-datos">
                           <strong>{tituloReel}</strong>
-                          <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero)}</small>
+                          <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ")}</small>
                         </span>
                         <button
                           className="evento-preview-accion"

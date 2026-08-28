@@ -22,7 +22,7 @@ const iconosPerfil = {
 const contenidoInicial = {
   publicaciones: [],
   eventos: [],
-  favoritos: [],
+  likes: [],
   guardados: [],
   seguidores: [],
   seguidos: [],
@@ -62,7 +62,7 @@ function formatearNumero(valor) {
 
 function iconoTab(tab) {
   if (tab === "eventos") return "calendar";
-  if (tab === "favoritos") return "heart";
+  if (tab === "likes") return "heart";
   if (tab === "guardados") return "bookmark";
   if (tab === "comunidad") return "community";
   return "grid";
@@ -128,7 +128,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
     () => [
       { id: "publicaciones", label: t("Publicaciones"), mensaje: t("Aún no hay publicaciones.") },
       { id: "eventos", label: t("Eventos"), mensaje: t("Aún no hay eventos.") },
-      { id: "favoritos", label: t("Favoritos"), mensaje: t("Aún no hay favoritos.") },
+      { id: "likes", label: t("Likes"), mensaje: t("Aún no hay likes.") },
       { id: "guardados", label: t("Guardados"), mensaje: t("Aún no hay guardados.") },
       { id: "comunidad", label: t("Comunidad"), mensaje: t("Aún no hay publicaciones en la comunidad.") },
     ],
@@ -187,7 +187,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
         setContenido({
           publicaciones: dataPerfil.publicaciones || [],
           eventos: dataPerfil.eventos || [],
-          favoritos: dataPerfil.favoritos || [],
+          likes: dataPerfil.likes || [],
           guardados: dataPerfil.guardados || [],
           seguidores: dataPerfil.seguidores || [],
           seguidos: dataPerfil.seguidos || [],

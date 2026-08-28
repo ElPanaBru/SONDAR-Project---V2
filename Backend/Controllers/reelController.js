@@ -18,6 +18,11 @@ const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/mo
 const COLOR_PRINCIPAL_REEL_FALLBACK = '#ffae00';
 const PATRON_COLOR_HEX_COMPLETO = /^#[0-9a-fA-F]{6}$/;
 const VIGENCIA_COLUMNAS_REELS_MS = 60 * 1000;
+const MAX_GENEROS_REEL = 3;
+const GENEROS_REEL_PERMITIDOS = new Set([
+  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
+  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
+]);
 
 let esquemaComentariosListo = null;
 let esquemaCompartidosListo = null;
@@ -109,12 +114,49 @@ function obtenerArchivoReel(req, campo) {
   return req.file?.fieldname === campo ? req.file : null;
 }
 
+function normalizarGenerosReel(body = {}) {
+  const valorMultiple = primerValorDisponible(body.generos, body.genres);
+  let recibidos = valorMultiple;
+
+  if (typeof recibidos === 'string') {
+    try {
+      recibidos = JSON.parse(recibidos);
+    } catch {
+      recibidos = [recibidos];
+    }
+  }
+
+  if (!Array.isArray(recibidos) || recibidos.length === 0) {
+    recibidos = [primerValorDisponible(body.genero, body.genre)].filter(Boolean);
+  }
+
+  const generos = [...new Set(
+    recibidos
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )];
+
+  if (generos.length > MAX_GENEROS_REEL) {
+    return { generos, error: `Podes elegir hasta ${MAX_GENEROS_REEL} generos por reel.` };
+  }
+
+  const noPermitidos = generos.filter((genero) => !GENEROS_REEL_PERMITIDOS.has(genero));
+  if (noPermitidos.length > 0) {
+    return { generos, error: `Generos no permitidos: ${noPermitidos.join(', ')}.` };
+  }
+
+  return { generos, error: null };
+}
+
 function normalizarDatosCreacionReel(req) {
   const body = req.body || {};
+  const generosNormalizados = normalizarGenerosReel(body);
 
   return {
     titulo: String(primerValorDisponible(body.titulo, body.tema) || '').trim(),
-    genero: String(primerValorDisponible(body.genero, body.genre) || '').trim().toLowerCase(),
+    genero: generosNormalizados.generos[0] || '',
+    generos: generosNormalizados.generos,
+    errorGeneros: generosNormalizados.error,
     duracion: body.duracion,
     colorPrincipalRecibido: body.color_principal,
     portadaFile: obtenerArchivoReel(req, 'portada'),
@@ -168,6 +210,7 @@ async function insertarReelCompatible({
   audio,
   creadorId,
   colorPrincipal,
+  client = pool,
 }) {
   const columnasDisponibles = await obtenerColumnasCompatibilidadReels();
   const columnas = [
@@ -205,7 +248,7 @@ async function insertarReelCompatible({
   }
 
   const parametros = valores.map((_, indice) => `$${indice + 1}`).join(', ');
-  return pool.query(
+  return client.query(
     `INSERT INTO reels (${columnas.join(', ')})
      VALUES (${parametros})
      RETURNING *`,
@@ -282,6 +325,11 @@ async function asegurarEsquemaVisitas() {
 function mapearReel(reel) {
   const colorPrincipal = normalizarColorPrincipal(reel.color_principal);
   const colorVisual = colorPrincipal || COLOR_PRINCIPAL_REEL_FALLBACK;
+  const generos = [...new Set(
+    (Array.isArray(reel.generos) ? reel.generos : [reel.genero])
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )].slice(0, MAX_GENEROS_REEL);
 
   return {
     id: reel.id,
@@ -289,7 +337,8 @@ function mapearReel(reel) {
     usuario: reel.creador_nombre ? `@${String(reel.creador_nombre).replace(/^@/, '')}` : '@artista',
     oyentes: '0',
     tema: reel.titulo,
-    genero: reel.genero,
+    genero: generos[0] || reel.genero || 'otros',
+    generos: generos.length > 0 ? generos : ['otros'],
     duracion: reel.duracion || '0:30',
     progreso: 0,
     likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
@@ -455,27 +504,31 @@ const reelController = {
           WHERE ui.user_id = $1
 
           UNION ALL
-          SELECT lower(r.genero), 6::numeric
+          SELECT lower(COALESCE(rg.genero, r.genero)), 6::numeric
           FROM reel_likes rl
           JOIN reels r ON r.id = rl.reel_id
+          LEFT JOIN reel_generos rg ON rg.reel_id = r.id
           WHERE rl.user_id = $1
 
           UNION ALL
-          SELECT lower(r.genero), 8::numeric
+          SELECT lower(COALESCE(rg.genero, r.genero)), 8::numeric
           FROM reel_shares rs
           JOIN reels r ON r.id = rs.reel_id
+          LEFT JOIN reel_generos rg ON rg.reel_id = r.id
           WHERE rs.user_id = $1
 
           UNION ALL
-          SELECT lower(r.genero), 4::numeric
+          SELECT lower(COALESCE(rg.genero, r.genero)), 4::numeric
           FROM reel_comments rc
           JOIN reels r ON r.id = rc.reel_id
+          LEFT JOIN reel_generos rg ON rg.reel_id = r.id
           WHERE rc.user_id = $1
 
           UNION ALL
-          SELECT lower(r.genero), 1::numeric
+          SELECT lower(COALESCE(rg.genero, r.genero)), 1::numeric
           FROM reel_views rv
           JOIN reels r ON r.id = rv.reel_id
+          LEFT JOIN reel_generos rg ON rg.reel_id = r.id
           WHERE rv.user_id = $1
 
           UNION ALL
@@ -502,6 +555,7 @@ const reelController = {
         )
         SELECT
           r.*,
+          COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]) AS generos,
           (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
           (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
           (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
@@ -538,8 +592,19 @@ const reelController = {
             WHEN f.follower_id IS NOT NULL THEN 'De un artista que seguis'
             WHEN EXISTS (
               SELECT 1 FROM user_interests ui
-              WHERE ui.user_id = $1 AND ui.genre = lower(r.genero)
-            ) THEN 'Porque elegiste ' || r.genero
+              WHERE ui.user_id = $1
+                AND ui.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))
+            ) THEN 'Porque elegiste ' || COALESCE(
+              (
+                SELECT ui.genre
+                FROM user_interests ui
+                WHERE ui.user_id = $1
+                  AND ui.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))
+                ORDER BY array_position(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]), ui.genre)
+                LIMIT 1
+              ),
+              r.genero
+            )
             WHEN cercania.distancia_km <= 25 THEN 'Este artista toca cerca de vos'
             WHEN COALESCE(edad.personas, 0) > 0 THEN 'Popular entre personas de tu edad'
             WHEN COALESCE(afinidad_aprendida.puntaje, 0) > 0 THEN 'Basado en las previews que escuchaste'
@@ -553,14 +618,24 @@ const reelController = {
           u.profile_img_url AS creador_avatar
         FROM reels r
         LEFT JOIN users u ON u.id = r.creador_id
-        LEFT JOIN afinidad_generos ag ON ag.genre = lower(r.genero)
         LEFT JOIN LATERAL (
-          SELECT GREATEST(-20::numeric, LEAST(55::numeric,
+          SELECT array_agg(rg.genero ORDER BY rg.posicion) AS generos
+          FROM reel_generos rg
+          WHERE rg.reel_id = r.id
+        ) gen ON true
+        LEFT JOIN LATERAL (
+          SELECT MAX(afinidad.puntaje) AS puntaje
+          FROM afinidad_generos afinidad
+          WHERE afinidad.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))
+        ) ag ON true
+        LEFT JOIN LATERAL (
+          SELECT MAX(GREATEST(-20::numeric, LEAST(55::numeric,
             uga.behavioral_score
             * EXP(-EXTRACT(EPOCH FROM (NOW() - uga.last_interaction_at)) / 10368000)
-          )) AS puntaje
+          ))) AS puntaje
           FROM user_genre_affinity uga
-          WHERE uga.user_id = $1 AND uga.genre = lower(r.genero)
+          WHERE uga.user_id = $1
+            AND uga.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))
         ) afinidad_aprendida ON true
         LEFT JOIN LATERAL (
           SELECT (
@@ -655,6 +730,10 @@ const reelController = {
       const result = await pool.query(
         `SELECT
            r.*,
+           COALESCE(
+             (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+             ARRAY[lower(r.genero)]::text[]
+           ) AS generos,
            (SELECT COUNT(*)::int FROM reel_likes rl_count WHERE rl_count.reel_id = r.id) AS likes_calculados,
            (SELECT COUNT(*)::int FROM reel_shares rs_count WHERE rs_count.reel_id = r.id) AS compartidos_calculados,
            (SELECT COUNT(*)::int FROM reel_views rv_count WHERE rv_count.reel_id = r.id) AS visitas_calculadas,
@@ -955,6 +1034,8 @@ const reelController = {
     const {
       titulo,
       genero,
+      generos,
+      errorGeneros,
       duracion,
       colorPrincipalRecibido,
       portadaFile,
@@ -966,6 +1047,12 @@ const reelController = {
       && String(colorPrincipalRecibido).trim() !== '';
     let portadaSubida = null;
     let audioSubido = null;
+    let dbClient = null;
+    let transaccionActiva = false;
+
+    if (errorGeneros) {
+      return res.status(400).json({ error: errorGeneros });
+    }
 
     const camposFaltantes = [
       !titulo && 'titulo',
@@ -989,6 +1076,10 @@ const reelController = {
       portadaSubida = await subirPortadaReel(portadaFile, req.user.id, req.accessToken);
       audioSubido = await subirAudioReel(audioFile, req.user.id, req.accessToken);
 
+      dbClient = await pool.connect();
+      await dbClient.query('BEGIN');
+      transaccionActiva = true;
+
       const result = await insertarReelCompatible({
         titulo,
         genero,
@@ -997,7 +1088,18 @@ const reelController = {
         audio: audioSubido,
         creadorId: req.user.id,
         colorPrincipal,
+        client: dbClient,
       });
+
+      await dbClient.query(
+        `INSERT INTO reel_generos (reel_id, genero, posicion)
+         SELECT $1, seleccion.genero, seleccion.posicion::smallint
+         FROM unnest($2::text[]) WITH ORDINALITY AS seleccion(genero, posicion)`,
+        [result.rows[0].id, generos]
+      );
+
+      await dbClient.query('COMMIT');
+      transaccionActiva = false;
 
       const usuarioResult = await pool.query(
         `SELECT u.profile_img_url
@@ -1019,15 +1121,19 @@ const reelController = {
       });
       res.status(201).json(mapearReel({
         ...result.rows[0],
+        generos,
         creador_nombre: req.user.user_metadata?.username || req.user.email?.split('@')[0],
         creador_email: req.user.email,
         creador_avatar: usuarioResult.rows[0]?.profile_img_url || '',
       }));
     } catch (error) {
+      if (dbClient && transaccionActiva) await dbClient.query('ROLLBACK').catch(() => null);
       await eliminarArchivoReel(portadaSubida?.path, req.accessToken).catch(() => null);
       await eliminarArchivoReel(audioSubido?.path, req.accessToken).catch(() => null);
       console.error('Error al crear reel:', error);
       res.status(error.status || 500).json({ error: error.message || 'No se pudo guardar el reel.' });
+    } finally {
+      dbClient?.release();
     }
   },
 
@@ -1135,7 +1241,7 @@ const reelController = {
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar like de reel:', error);
-      res.status(500).json({ error: 'No se pudo actualizar el favorito.' });
+      res.status(500).json({ error: 'No se pudo actualizar el like.' });
     } finally {
       client.release();
     }

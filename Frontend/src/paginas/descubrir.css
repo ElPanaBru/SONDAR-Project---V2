@@ -1995,11 +1995,18 @@
   background: linear-gradient(180deg, transparent 35%, rgba(0, 0, 0, 0.84));
 }
 
-.crear-reel-sello {
+.crear-reel-sellos {
   position: absolute;
   top: 18px;
   left: 18px;
   z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: calc(100% - 36px);
+}
+
+.crear-reel-sello {
   padding: 6px 10px;
   color: #080808;
   background: linear-gradient(90deg, #ffae00, #ff5e00);
@@ -2055,6 +2062,78 @@
   font-size: 12px;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.crear-reel-generos {
+  display: grid;
+  gap: 7px;
+}
+
+.crear-reel-generos-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.crear-reel-generos-encabezado small {
+  color: var(--color-1, #F09800);
+  font: inherit;
+}
+
+.crear-reel-generos-opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.crear-reel-genero-opcion {
+  position: relative;
+  cursor: pointer;
+}
+
+.crear-reel-campos .crear-reel-genero-opcion input {
+  position: absolute;
+  width: 1px;
+  min-width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  opacity: 0;
+  border: 0;
+  pointer-events: none;
+}
+
+.crear-reel-genero-opcion span {
+  display: block;
+  padding: 6px 9px;
+  color: rgba(255, 255, 255, 0.78);
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.crear-reel-genero-opcion:hover span,
+.crear-reel-genero-opcion:focus-within span {
+  border-color: rgba(240, 152, 0, 0.72);
+}
+
+.crear-reel-genero-opcion.seleccionado span {
+  color: #080808;
+  background: var(--color-1, #F09800);
+  border-color: var(--color-1, #F09800);
+}
+
+.crear-reel-genero-opcion.deshabilitado {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .crear-reel-campos input,
@@ -3153,9 +3232,28 @@
   -webkit-line-clamp: 2;
 }
 
+.reel-info-inferior .reel-generos {
+  order: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.reel-info-inferior .reel-generos span {
+  padding: 4px 7px;
+  color: #080808;
+  background: var(--color-1, #F09800);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: none;
+  text-transform: uppercase;
+}
+
 .reel-info-inferior .reel-identidad,
 .descubrir-feed.comentarios-globales .reel-info-inferior .reel-identidad {
-  order: 2;
+  order: 3;
   width: 100%;
   display: flex;
   align-items: center;

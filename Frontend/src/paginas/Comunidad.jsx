@@ -1699,8 +1699,8 @@ export default function Comunidad({ usuario }) {
                           </span>
                           <span className="comunidad-asociacion-datos">
                             <strong>{reel.tema || "Tema de SONDAR"}</strong>
-                            <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {mostrarGenero(reel.genero) || "Sin género"}</small>
-                            <em>{mostrarGenero(reel.genero) || "Reel musical"}</em>
+                            <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Sin género"}</small>
+                            <em>{(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Reel musical"}</em>
                             <time>{reel.duracion || "0:30"}</time>
                           </span>
                           <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>

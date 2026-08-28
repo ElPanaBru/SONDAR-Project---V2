@@ -139,7 +139,7 @@ Las operaciones de negocio pasan por el backend. El SDK de Supabase permanece en
 - Editar nombre visible, biografía y foto de perfil.
 - Compartir el perfil.
 - Consultar seguidores y seguidos.
-- Navegar por las secciones Publicaciones, Eventos, Favoritos y Guardados.
+- Navegar por las secciones Publicaciones, Eventos, Likes y Guardados.
 
 **Backend:** `/api/usuarios/me/perfil`.
 

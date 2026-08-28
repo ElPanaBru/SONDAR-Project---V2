@@ -60,6 +60,7 @@ function mapearPublicacion(row, respuestas = []) {
         id: Number(row.reel_adjunto_id),
         titulo: row.reel_titulo,
         genero: row.reel_genero || '',
+        generos: Array.isArray(row.reel_generos) ? row.reel_generos : [],
         duracion: row.reel_duracion || '',
         portada: row.reel_portada_url || '',
         audio: row.reel_audio_url || '',
@@ -98,6 +99,13 @@ const SELECT_PUBLICACION = `
     r.id AS reel_adjunto_id,
     r.titulo AS reel_titulo,
     r.genero AS reel_genero,
+    CASE
+      WHEN r.id IS NULL THEN ARRAY[]::text[]
+      ELSE COALESCE(
+        (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+        ARRAY[r.genero]::text[]
+      )
+    END AS reel_generos,
     r.duracion AS reel_duracion,
     r.portada_url AS reel_portada_url,
     r.audio_url AS reel_audio_url,

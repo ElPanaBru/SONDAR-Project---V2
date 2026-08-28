@@ -19,8 +19,17 @@ const GENEROS_REEL = [
   "trap",
   "metal",
   "folklore",
+  "alternativo",
+  "punk",
+  "reggae",
+  "latina",
   "otros",
 ];
+const MAX_GENEROS_REEL = 3;
+const ETIQUETAS_GENERO_REEL = {
+  edm: "Electronica",
+  trap: "Urbano",
+};
 const MAX_PORTADA_REEL_BYTES = 5 * 1024 * 1024;
 const MAX_AUDIO_REEL_BYTES = 20 * 1024 * 1024;
 const MIME_PORTADA_POR_EXTENSION = {
@@ -42,7 +51,7 @@ const ACCEPT_AUDIO_REEL = ".mp3,.wav,.ogg,.webm,.m4a,audio/mpeg,audio/wav,audio/
 
 const crearReelVacio = () => ({
   titulo: "",
-  genero: "",
+  generos: [],
   portada: "",
   portadaFile: null,
   audio: "",
@@ -75,7 +84,8 @@ function prepararArchivoReel(archivo, tiposPorExtension, maxBytes, etiqueta) {
 
 function mostrarGenero(genero) {
   if (!genero) return "";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  return ETIQUETAS_GENERO_REEL[genero]
+    || genero.charAt(0).toUpperCase() + genero.slice(1);
 }
 
 function usuarioVisible(usuario) {
@@ -247,11 +257,21 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
     });
   };
 
+  const alternarGenero = (genero) => {
+    setNuevoReel((actual) => {
+      if (actual.generos.includes(genero)) {
+        return { ...actual, generos: actual.generos.filter((item) => item !== genero) };
+      }
+      if (actual.generos.length >= MAX_GENEROS_REEL) return actual;
+      return { ...actual, generos: [...actual.generos, genero] };
+    });
+  };
+
   const publicar = async (event) => {
     event.preventDefault();
     if (subiendoRef.current) return;
-    if (!nuevoReel.titulo.trim() || !nuevoReel.genero || !nuevoReel.audioFile) {
-      setAviso("Completa el titulo, el genero y selecciona un audio.");
+    if (!nuevoReel.titulo.trim() || nuevoReel.generos.length === 0 || !nuevoReel.audioFile) {
+      setAviso("Completa el titulo, elegi al menos un genero y selecciona un audio.");
       return;
     }
 
@@ -264,7 +284,8 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
 
       const formData = new FormData();
       formData.append("titulo", nuevoReel.titulo.trim());
-      formData.append("genero", nuevoReel.genero);
+      formData.append("genero", nuevoReel.generos[0]);
+      formData.append("generos", JSON.stringify(nuevoReel.generos));
       formData.append("duracion", nuevoReel.duracion);
       formData.append("audio", nuevoReel.audioFile);
       if (nuevoReel.portadaFile) {
@@ -342,7 +363,13 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
                 onDragLeave={(event) => salirArrastre(event, "portada")}
                 onDrop={(event) => soltarArchivo(event, "portada")}
               >
-                {nuevoReel.genero ? <span className="crear-reel-sello">{mostrarGenero(nuevoReel.genero)}</span> : null}
+                {nuevoReel.generos.length > 0 ? (
+                  <div className="crear-reel-sellos" aria-label="Generos seleccionados">
+                    {nuevoReel.generos.map((genero) => (
+                      <span className="crear-reel-sello" key={genero}>{mostrarGenero(genero)}</span>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="crear-reel-preview-copy">
                   <strong>{nuevoReel.titulo || "Titulo de la cancion"}</strong>
                   <small>{usuarioVisible(usuario)}</small>
@@ -354,13 +381,32 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
                   Titulo de la cancion
                   <input value={nuevoReel.titulo} onChange={(event) => setNuevoReel((actual) => ({ ...actual, titulo: event.target.value }))} maxLength="50" placeholder="Ej: Neon de madrugada" required />
                 </label>
-                <label>
-                  Genero musical
-                  <select value={nuevoReel.genero} onChange={(event) => setNuevoReel((actual) => ({ ...actual, genero: event.target.value }))} required>
-                    <option value="" disabled>Seleccionar genero</option>
-                    {GENEROS_REEL.map((genero) => <option key={genero} value={genero}>{mostrarGenero(genero)}</option>)}
-                  </select>
-                </label>
+                <section className="crear-reel-generos" aria-labelledby="crear-reel-generos-titulo">
+                  <div className="crear-reel-generos-encabezado">
+                    <span id="crear-reel-generos-titulo">Generos musicales</span>
+                    <small>{nuevoReel.generos.length}/{MAX_GENEROS_REEL}</small>
+                  </div>
+                  <div className="crear-reel-generos-opciones" role="group" aria-label="Seleccionar hasta tres generos">
+                    {GENEROS_REEL.map((genero) => {
+                      const seleccionado = nuevoReel.generos.includes(genero);
+                      const limiteAlcanzado = nuevoReel.generos.length >= MAX_GENEROS_REEL;
+                      return (
+                        <label
+                          className={`crear-reel-genero-opcion ${seleccionado ? "seleccionado" : ""} ${!seleccionado && limiteAlcanzado ? "deshabilitado" : ""}`}
+                          key={genero}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={seleccionado}
+                            disabled={!seleccionado && limiteAlcanzado}
+                            onChange={() => alternarGenero(genero)}
+                          />
+                          <span>{mostrarGenero(genero)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </section>
 
                 {nuevoReel.portada ? (
                   <label className="crear-reel-color">

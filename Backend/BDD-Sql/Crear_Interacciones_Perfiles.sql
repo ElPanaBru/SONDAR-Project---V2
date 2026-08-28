@@ -1,5 +1,5 @@
 -- Ejecutar en Supabase SQL Editor.
--- Estas tablas hacen que seguidores, favoritos y guardados vivan en Supabase.
+-- Estas tablas hacen que seguidores, likes y guardados vivan en Supabase.
 
 CREATE TABLE IF NOT EXISTS public.follows (
   follower_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,

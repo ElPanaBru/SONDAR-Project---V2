@@ -9,9 +9,14 @@ const rutaControlador = require.resolve('../Controllers/reelController');
 function cargarControlador(columnasCompatibilidad) {
   const consultas = [];
   let insercion = null;
+  let insercionGeneros = null;
   const poolFalso = {
     async query(texto, valores = []) {
       consultas.push(texto);
+
+      if (texto === 'BEGIN' || texto === 'COMMIT' || texto === 'ROLLBACK') {
+        return { rows: [], rowCount: 0 };
+      }
 
       if (texto.includes('information_schema.columns')) {
         return { rows: columnasCompatibilidad, rowCount: columnasCompatibilidad.length };
@@ -38,11 +43,22 @@ function cargarControlador(columnasCompatibilidad) {
         };
       }
 
+      if (/INSERT INTO reel_generos/.test(texto)) {
+        insercionGeneros = { texto, valores };
+        return { rows: [], rowCount: valores[1]?.length || 0 };
+      }
+
       if (/SELECT u\.profile_img_url/.test(texto)) {
         return { rows: [{ profile_img_url: null }], rowCount: 1 };
       }
 
       throw new Error(`Consulta no esperada en la prueba: ${texto}`);
+    },
+    async connect() {
+      return {
+        query: (texto, valores) => poolFalso.query(texto, valores),
+        release() {},
+      };
     },
   };
 
@@ -94,6 +110,7 @@ function cargarControlador(columnasCompatibilidad) {
     controlador,
     consultas,
     obtenerInsercion: () => insercion,
+    obtenerInsercionGeneros: () => insercionGeneros,
   };
 }
 
@@ -198,7 +215,47 @@ test('crear reel acepta tema, genre y un audio individual normalizando el genero
   assert.equal(respuesta.statusCode, 201);
   assert.equal(insercion.valores[0], 'Cancion por alias');
   assert.equal(insercion.valores[1], 'rock');
+  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['rock']]);
   assert.doesNotMatch(insercion.texto, /album|descripcion/);
+});
+
+test('crear reel persiste hasta tres generos ordenados y conserva el primero como principal', async () => {
+  const escenario = cargarControlador([]);
+  const respuesta = crearRespuesta();
+  const solicitud = crearSolicitud();
+  solicitud.body.generos = JSON.stringify([' Alternativo ', 'punk', 'reggae', 'punk']);
+
+  await escenario.controlador.crearReel(solicitud, respuesta);
+
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(escenario.obtenerInsercion().valores[1], 'alternativo');
+  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['alternativo', 'punk', 'reggae']]);
+  assert.equal(respuesta.body.genero, 'alternativo');
+  assert.deepEqual(respuesta.body.generos, ['alternativo', 'punk', 'reggae']);
+});
+
+test('crear reel rechaza mas de tres generos o generos fuera del catalogo', async () => {
+  const demasiados = cargarControlador([]);
+  const respuestaDemasiados = crearRespuesta();
+  const solicitudDemasiados = crearSolicitud();
+  solicitudDemasiados.body.generos = ['rock', 'punk', 'reggae', 'latina'];
+
+  await demasiados.controlador.crearReel(solicitudDemasiados, respuestaDemasiados);
+
+  assert.equal(respuestaDemasiados.statusCode, 400);
+  assert.match(respuestaDemasiados.body.error, /hasta 3 generos/);
+  assert.equal(demasiados.obtenerInsercion(), null);
+
+  const desconocido = cargarControlador([]);
+  const respuestaDesconocido = crearRespuesta();
+  const solicitudDesconocido = crearSolicitud();
+  solicitudDesconocido.body.generos = ['rock', 'tango'];
+
+  await desconocido.controlador.crearReel(solicitudDesconocido, respuestaDesconocido);
+
+  assert.equal(respuestaDesconocido.statusCode, 400);
+  assert.match(respuestaDesconocido.body.error, /Generos no permitidos: tango/);
+  assert.equal(desconocido.obtenerInsercion(), null);
 });
 
 test('la migracion focalizada vuelve opcionales los campos antiguos y agrega el color', () => {
@@ -217,4 +274,27 @@ test('la migracion focalizada vuelve opcionales los campos antiguos y agrega el 
   assert.match(migracion, /ADD COLUMN IF NOT EXISTS color_principal text/i);
   assert.match(migracion, /ALTER COLUMN album DROP NOT NULL/i);
   assert.match(migracion, /ALTER COLUMN descripcion DROP NOT NULL/i);
+});
+
+test('reels admite tres generos en el formulario, la API y la base de datos', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const formulario = fs.readFileSync(
+    path.join(raiz, 'Frontend', 'src', 'componentes', 'CrearReelModal.jsx'),
+    'utf8'
+  );
+  const controlador = fs.readFileSync(
+    path.join(raiz, 'Backend', 'Controllers', 'reelController.js'),
+    'utf8'
+  );
+  const migracion = fs.readFileSync(
+    path.join(raiz, 'Backend', 'BDD-Sql', 'Agregar_Multiples_Generos_Reels.sql'),
+    'utf8'
+  );
+
+  assert.match(formulario, /const MAX_GENEROS_REEL = 3/);
+  assert.match(formulario, /formData\.append\("generos", JSON\.stringify\(nuevoReel\.generos\)\)/);
+  assert.match(controlador, /INSERT INTO reel_generos \(reel_id, genero, posicion\)/);
+  assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.reel_generos/);
+  assert.match(migracion, /CHECK \(posicion BETWEEN 1 AND 3\)/);
+  assert.match(migracion, /INSERT INTO public\.reel_generos \(reel_id, genero, posicion\)/);
 });

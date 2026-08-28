@@ -200,6 +200,13 @@
   border-color: rgba(255, 174, 0, 0.55);
 }
 
+.sidebar-main-link.active,
+.sidebar-link.sidebar-main-link.active:hover,
+.sidebar-nav.open .sidebar-main-link.active,
+.sidebar-nav.open .sidebar-main-link.active:hover {
+  color: var(--color-1, #F09800);
+}
+
 .sidebar-link-icon {
   width: 52px;
   height: 50px;
