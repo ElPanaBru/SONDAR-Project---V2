@@ -1,5 +1,5 @@
 import { Routes, Route, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import "./App.css";
 import "./paginas/otroperfil.css";
@@ -25,6 +25,11 @@ function App() {
   const [usuario, setUsuario] = useState(null);
   const [onboardingToken, setOnboardingToken] = useState(null);
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
+
+  const abrirCrearPreview = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-evento"));
+    setMostrarCrearReel(true);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -56,6 +61,16 @@ function App() {
     return () => { activo = false; };
   }, [location.pathname]);
 
+  useEffect(() => {
+    const cerrarCrearPreview = () => setMostrarCrearReel(false);
+    window.addEventListener("sondar:cerrar-crear-preview", cerrarCrearPreview);
+    window.addEventListener("sondar:crear-evento", cerrarCrearPreview);
+    return () => {
+      window.removeEventListener("sondar:cerrar-crear-preview", cerrarCrearPreview);
+      window.removeEventListener("sondar:crear-evento", cerrarCrearPreview);
+    };
+  }, []);
+
   const hideNavbarRoutes = ["/auth"];
   const shouldHideNavbar = hideNavbarRoutes.includes(location.pathname);
   const isDescubrirRoute = location.pathname === "/descubrir";
@@ -65,7 +80,7 @@ function App() {
   return (
     <PreferenciasProvider usuario={usuario}>
     <div className="app-container">
-      {!shouldHideNavbar && <Navbar usuario={usuario} onCrearReel={() => setMostrarCrearReel(true)} />}
+      {!shouldHideNavbar && <Navbar usuario={usuario} onCrearReel={abrirCrearPreview} />}
       {!shouldHideNavbar && <SidebarNav usuario={usuario} />}
 
       <div

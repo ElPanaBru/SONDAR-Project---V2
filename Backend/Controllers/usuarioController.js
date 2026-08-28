@@ -466,7 +466,7 @@ function mapearReelPerfil(reel) {
     id: reel.id,
     tipo: 'reel',
     nombre: reel.titulo,
-    detalle: `${generos.join(' / ') || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
+    detalle: `${generos.join(' / ') || 'Preview'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
     imagen: reel.portada_url || '',
     audio: reel.audio_url || '',
     genero: generos[0] || reel.genero || '',

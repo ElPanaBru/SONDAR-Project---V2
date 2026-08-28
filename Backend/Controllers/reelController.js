@@ -137,7 +137,7 @@ function normalizarGenerosReel(body = {}) {
   )];
 
   if (generos.length > MAX_GENEROS_REEL) {
-    return { generos, error: `Podes elegir hasta ${MAX_GENEROS_REEL} generos por reel.` };
+    return { generos, error: `Podes elegir hasta ${MAX_GENEROS_REEL} generos por preview.` };
   }
 
   const noPermitidos = generos.filter((genero) => !GENEROS_REEL_PERMITIDOS.has(genero));
@@ -714,14 +714,14 @@ const reelController = {
       })));
     } catch (error) {
       console.error('Error al listar reels:', error);
-      res.status(500).json({ error: 'Error al obtener los reels.' });
+      res.status(500).json({ error: 'Error al obtener las previews.' });
     }
   },
 
   obtenerReel: async (req, res) => {
     const reelId = String(req.params.id || '').replace(/^db-/, '');
     if (!/^\d+$/.test(reelId)) {
-      return res.status(400).json({ error: 'El identificador del reel no es valido.' });
+      return res.status(400).json({ error: 'El identificador de la preview no es valido.' });
     }
 
     try {
@@ -755,7 +755,7 @@ const reelController = {
       );
 
       if (result.rowCount === 0) {
-        return res.status(404).json({ error: 'Reel no encontrado.' });
+        return res.status(404).json({ error: 'Preview no encontrada.' });
       }
 
       const reel = result.rows[0];
@@ -766,7 +766,7 @@ const reelController = {
       });
     } catch (error) {
       console.error('Error al obtener el reel:', error);
-      return res.status(500).json({ error: 'No se pudo cargar el reel.' });
+      return res.status(500).json({ error: 'No se pudo cargar la preview.' });
     }
   },
 
@@ -781,7 +781,7 @@ const reelController = {
       const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reel no encontrado.' });
+        return res.status(404).json({ error: 'Preview no encontrada.' });
       }
       const visita = await client.query(
         `INSERT INTO reel_views (user_id, reel_id)
@@ -812,7 +812,7 @@ const reelController = {
     const reelId = String(req.params.id || '').replace(/^db-/, '');
     const sessionId = String(req.body?.sessionId || '').trim();
     if (!/^\d+$/.test(reelId)) {
-      return res.status(400).json({ error: 'El reel no es valido.' });
+      return res.status(400).json({ error: 'La preview no es valida.' });
     }
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
       return res.status(400).json({ error: 'La sesion de escucha no es valida.' });
@@ -864,7 +864,7 @@ const reelController = {
         ]
       );
       if (result.rowCount === 0) {
-        return res.status(404).json({ error: 'Reel no encontrado.' });
+        return res.status(404).json({ error: 'Preview no encontrada.' });
       }
       return res.status(202).json({ ok: true, session: result.rows[0] });
     } catch (error) {
@@ -883,7 +883,7 @@ const reelController = {
     const { id } = req.params;
     try {
       const reel = await buscarAccesoReel(id);
-      if (!reel) return res.status(404).json({ error: 'Reel no encontrado.' });
+      if (!reel) return res.status(404).json({ error: 'Preview no encontrada.' });
       const resultado = await registrarDenuncia({
         reporterId: req.user.id,
         reportedUserId: reel.creador_id,
@@ -895,7 +895,7 @@ const reelController = {
       res.json(resultado);
     } catch (error) {
       console.error('Error al denunciar reel:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar el reel.' });
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo denunciar la preview.' });
     }
   },
 
@@ -906,7 +906,7 @@ const reelController = {
       await asegurarEsquemaComentarios();
       const viewerId = await obtenerViewerId(req);
       const acceso = await buscarAccesoReel(id);
-      if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
+      if (!acceso) return res.status(404).json({ error: 'Preview no encontrada.' });
       const result = await pool.query(
         `SELECT
           rc.*,
@@ -952,7 +952,7 @@ const reelController = {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaComentarios();
       const acceso = await buscarAccesoReel(id);
-      if (!acceso) return res.status(404).json({ error: 'Reel no encontrado.' });
+      if (!acceso) return res.status(404).json({ error: 'Preview no encontrada.' });
 
       const result = await pool.query(
         `INSERT INTO reel_comments (reel_id, user_id, parent_id, texto, responde_a)
@@ -1002,7 +1002,7 @@ const reelController = {
         type: parentId ? 'reel_reply' : 'reel_comment',
         title: parentId
           ? `${actorName} respondio tu ${esRespuestaARespuesta ? 'respuesta' : 'comentario'}`
-          : `${actorName} comento tu reel`,
+          : `${actorName} comento tu preview`,
         body: textoLimpio,
         targetUrl: `/descubrir?lanzamiento=db-${id}&comentario=${result.rows[0].id}`,
         entityType: 'reel_comment',
@@ -1062,7 +1062,7 @@ const reelController = {
 
     if (camposFaltantes.length > 0) {
       return res.status(400).json({
-        error: `Faltan datos obligatorios del reel: ${camposFaltantes.join(', ')}.`,
+        error: `Faltan datos obligatorios de la preview: ${camposFaltantes.join(', ')}.`,
         camposFaltantes,
       });
     }
@@ -1112,7 +1112,7 @@ const reelController = {
       await notificarSeguidores({
         actorId: req.user.id,
         type: 'new_reel',
-        title: `${actorName} publico un nuevo reel`,
+        title: `${actorName} publico una nueva preview`,
         body: result.rows[0].titulo,
         targetUrl: `/descubrir?lanzamiento=db-${result.rows[0].id}`,
         entityType: 'reel',
@@ -1131,7 +1131,7 @@ const reelController = {
       await eliminarArchivoReel(portadaSubida?.path, req.accessToken).catch(() => null);
       await eliminarArchivoReel(audioSubido?.path, req.accessToken).catch(() => null);
       console.error('Error al crear reel:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo guardar el reel.' });
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo guardar la preview.' });
     } finally {
       dbClient?.release();
     }
@@ -1147,7 +1147,7 @@ const reelController = {
       );
 
       if (result.rowCount === 0) {
-        return res.status(404).json({ error: 'Reel no encontrado o sin permiso para eliminarlo.' });
+        return res.status(404).json({ error: 'Preview no encontrada o sin permiso para eliminarla.' });
       }
 
       await eliminarArchivoReel(result.rows[0].portada_path, req.accessToken).catch(() => null);
@@ -1155,7 +1155,7 @@ const reelController = {
       res.json({ ok: true, id: result.rows[0].id });
     } catch (error) {
       console.error('Error al eliminar reel:', error);
-      res.status(500).json({ error: 'No se pudo eliminar el reel.' });
+      res.status(500).json({ error: 'No se pudo eliminar la preview.' });
     }
   },
 
@@ -1200,7 +1200,7 @@ const reelController = {
       const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reel no encontrado.' });
+        return res.status(404).json({ error: 'Preview no encontrada.' });
       }
 
       const existe = await client.query(
@@ -1218,7 +1218,7 @@ const reelController = {
           userId: reel.creador_id,
           actorId: req.user.id,
           type: 'reel_like',
-          title: `${nombreActor(req.user)} indico que le gusta tu reel`,
+          title: `${nombreActor(req.user)} indico que le gusta tu preview`,
           body: reel.titulo || '',
           targetUrl: `/descubrir?lanzamiento=db-${id}`,
           entityType: 'reel',
@@ -1328,7 +1328,7 @@ const reelController = {
       const reel = await buscarAccesoReel(id, client);
       if (!reel) {
         await client.query('ROLLBACK');
-        return res.status(404).json({ error: 'Reel no encontrado.' });
+        return res.status(404).json({ error: 'Preview no encontrada.' });
       }
 
       const compartido = await client.query(

@@ -299,7 +299,7 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
         body: formData,
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "No se pudo guardar el reel.");
+      if (!response.ok) throw new Error(body.error || "No se pudo guardar la preview.");
 
       let reel = {
         ...body,
@@ -325,10 +325,10 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       setNuevoReel(crearReelVacio());
       setArchivoArrastrado(null);
       onClose();
-      setAviso("Reel publicado");
+      setAviso("Preview publicada");
     } catch (error) {
       console.error(error);
-      setAviso(error.message || "No se pudo guardar el reel.");
+      setAviso(error.message || "No se pudo guardar la preview.");
     } finally {
       subiendoRef.current = false;
       setSubiendo(false);
@@ -343,8 +343,8 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
           <form className="crear-reel-modal" role="dialog" aria-modal="true" aria-labelledby="crear-reel-titulo" onSubmit={publicar} onMouseDown={(event) => event.stopPropagation()}>
             <header className="crear-reel-header">
               <div>
-                <span>REELS</span>
-                <h2 id="crear-reel-titulo">Crear nuevo reel</h2>
+                <span>PREVIEWS</span>
+                <h2 id="crear-reel-titulo">Crear nueva preview</h2>
               </div>
               <button type="button" onClick={cerrar} aria-label="Cerrar" disabled={subiendo}>
                 <IconoCerrar />
@@ -449,7 +449,7 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
                 </div>
 
                 {nuevoReel.audio ? <audio className="crear-reel-audio" src={nuevoReel.audio} controls /> : null}
-                <button className="crear-reel-publicar" type="submit" disabled={subiendo}>{subiendo ? "Creando..." : "Publicar reel"}</button>
+                <button className="crear-reel-publicar" type="submit" disabled={subiendo}>{subiendo ? "Creando..." : "Publicar preview"}</button>
               </div>
             </div>
           </form>

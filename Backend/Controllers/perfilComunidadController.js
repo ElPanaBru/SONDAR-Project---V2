@@ -232,14 +232,14 @@ const perfilComunidadController = {
     const eventoId = normalizarId(req.body?.eventoId);
 
     if (!texto) return res.status(400).json({ error: 'Escribi un mensaje para publicar.' });
-    if (req.body?.reelId && !reelId) return res.status(400).json({ error: 'El reel adjunto no es valido.' });
+    if (req.body?.reelId && !reelId) return res.status(400).json({ error: 'La preview adjunta no es valida.' });
     if (req.body?.eventoId && !eventoId) return res.status(400).json({ error: 'El evento adjunto no es valido.' });
-    if (reelId && eventoId) return res.status(400).json({ error: 'Podes adjuntar un reel o un evento, no ambos.' });
+    if (reelId && eventoId) return res.status(400).json({ error: 'Podes adjuntar una preview o un evento, no ambos.' });
 
     try {
       if (reelId) {
         const reel = await pool.query('SELECT 1 FROM reels WHERE id = $1 AND creador_id = $2', [reelId, req.user.id]);
-        if (reel.rowCount === 0) return res.status(403).json({ error: 'Solo podes adjuntar uno de tus reels.' });
+        if (reel.rowCount === 0) return res.status(403).json({ error: 'Solo podes adjuntar una de tus previews.' });
       }
       if (eventoId) {
         const evento = await pool.query('SELECT 1 FROM eventos WHERE id = $1 AND creador_id = $2', [eventoId, req.user.id]);

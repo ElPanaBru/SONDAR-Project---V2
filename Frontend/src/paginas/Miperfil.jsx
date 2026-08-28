@@ -28,6 +28,7 @@ const contenidoInicial = {
   seguidos: [],
   stats: {
     publicaciones: 0,
+    reels: 0,
     seguidores: 0,
     seguidos: 0,
   },
@@ -126,7 +127,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
 
   const opcionesPerfil = useMemo(
     () => [
-      { id: "publicaciones", label: t("Publicaciones"), mensaje: t("Aún no hay publicaciones.") },
+      { id: "publicaciones", label: t("Previews"), mensaje: t("Aún no hay previews.") },
       { id: "eventos", label: t("Eventos"), mensaje: t("Aún no hay eventos.") },
       { id: "likes", label: t("Likes"), mensaje: t("Aún no hay likes.") },
       { id: "guardados", label: t("Guardados"), mensaje: t("Aún no hay guardados.") },
@@ -382,7 +383,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
           </div>
 
           <div className="perfil-stats">
-            <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
+            <p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>
             <button type="button" onClick={() => abrirListaSocial("seguidores")}>
               <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
             </button>

@@ -1075,7 +1075,7 @@ export default function Comunidad({ usuario }) {
 
     audio.play()
       .then(() => setReelAsociadoActivo(reel.id))
-      .catch(() => mostrarAviso("No se pudo reproducir este reel."));
+      .catch(() => mostrarAviso("No se pudo reproducir esta preview."));
   };
 
   const renderizarComentario = (hilo, comentario, nivel = 0) => {
@@ -1665,13 +1665,13 @@ export default function Comunidad({ usuario }) {
                   </small>
                 </div>
                 <div className="comunidad-asociacion-selector">
-                  <span className="comunidad-asociacion-titulo">Tema asociado (opcional)</span>
+                  <span className="comunidad-asociacion-titulo">Preview asociada (opcional)</span>
                   <input
                     type="search"
                     value={busquedaReelAsociado}
                     onChange={(event) => setBusquedaReelAsociado(event.target.value)}
-                    placeholder="Buscar por tema, artista, reel o genero"
-                    aria-label="Buscar entre todos los temas de SONDAR"
+                    placeholder="Buscar por tema, artista, preview o genero"
+                    aria-label="Buscar entre todas las previews de SONDAR"
                   />
                   <div className="comunidad-asociacion-resultados" aria-label="Temas disponibles">
                     {reelsDisponibles.length === 0 ? (
@@ -1695,12 +1695,12 @@ export default function Comunidad({ usuario }) {
                               alt=""
                               onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }}
                             />
-                            <i>Reel</i>
+                            <i>Preview</i>
                           </span>
                           <span className="comunidad-asociacion-datos">
                             <strong>{reel.tema || "Tema de SONDAR"}</strong>
                             <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Sin género"}</small>
-                            <em>{(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Reel musical"}</em>
+                            <em>{(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Preview musical"}</em>
                             <time>{reel.duracion || "0:30"}</time>
                           </span>
                           <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>
@@ -1709,7 +1709,7 @@ export default function Comunidad({ usuario }) {
                     })}
                   </div>
                   <small className="comunidad-asociacion-ayuda">
-                    {reelAsociadoSeleccionado ? "Tema seleccionado. Tocá la card para quitarlo." : `${reelsAsociables.length} temas disponibles`}
+                    {reelAsociadoSeleccionado ? "Preview seleccionada. Tocá la card para quitarla." : `${reelsAsociables.length} previews disponibles`}
                   </small>
                 </div>
               </div>

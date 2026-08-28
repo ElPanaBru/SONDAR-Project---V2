@@ -195,7 +195,7 @@ function Navbar({ usuario, onCrearReel }) {
   };
 
   const getPlaceholder = () => {
-    return t("Buscar usuarios, reels o eventos...");
+    return t("Buscar usuarios, previews o eventos...");
   };
 
   const handleLogout = async () => {
@@ -340,7 +340,7 @@ function Navbar({ usuario, onCrearReel }) {
                 {mostrarCrear ? (
                   <div className="navbar-create-menu" role="menu" aria-label="Opciones para crear">
                     <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />{t("Evento")}</button>
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Reel</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Preview</button>
                   </div>
                 ) : null}
               </div>

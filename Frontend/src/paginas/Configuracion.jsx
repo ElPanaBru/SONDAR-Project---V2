@@ -502,7 +502,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Me gusta y reacciones")}</strong>
-                  <span>{t("Reels, comentarios y publicaciones de comunidad.")}</span>
+                  <span>{t("Previews, comentarios y publicaciones de comunidad.")}</span>
                 </div>
                 <input type="checkbox" name="notificarInteracciones" checked={ajustes.notificarInteracciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -510,7 +510,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Comentarios y respuestas")}</strong>
-                  <span>{t("Conversaciones nuevas en tus reels y publicaciones.")}</span>
+                  <span>{t("Conversaciones nuevas en tus previews y publicaciones.")}</span>
                 </div>
                 <input type="checkbox" name="notificarComentarios" checked={ajustes.notificarComentarios} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -526,7 +526,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Publicaciones de gente que seguís")}</strong>
-                  <span>{t("Reels, eventos y publicaciones de comunidad nuevos.")}</span>
+                  <span>{t("Previews, eventos y publicaciones de comunidad nuevos.")}</span>
                 </div>
                 <input type="checkbox" name="notificarPublicaciones" checked={ajustes.notificarPublicaciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -559,7 +559,7 @@ export default function Configuracion({ usuario }) {
               <div className="config-bloqueados">
                 <div className="config-bloqueados-heading">
                   <strong>Cuentas bloqueadas</strong>
-                  <span>Sus reels y eventos no aparecen en tu cuenta.</span>
+                  <span>Sus previews y eventos no aparecen en tu cuenta.</span>
                 </div>
                 {cargandoBloqueados ? <p>Cargando cuentas bloqueadas...</p> : null}
                 {!cargandoBloqueados && bloqueados.length === 0 ? (
@@ -709,7 +709,7 @@ export default function Configuracion({ usuario }) {
         <div className="config-modal-backdrop" role="presentation" onMouseDown={() => { if (!eliminando) { setPasswordEliminar(""); setMostrarEliminar(false); } }}>
           <form className="config-modal config-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onSubmit={eliminarCuenta} onMouseDown={(e) => e.stopPropagation()}>
             <h2 id="delete-title">Eliminar cuenta permanentemente</h2>
-            <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, reels, eventos, comentarios, guardados y archivos publicados.</p>
+            <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, previews, eventos, comentarios, guardados y archivos publicados.</p>
             <label>
               Ingresa tu contrasena para confirmar
               <input type="password" value={passwordEliminar} onChange={(e) => setPasswordEliminar(e.target.value)} placeholder="Contrasena actual" autoComplete="current-password" autoFocus required />

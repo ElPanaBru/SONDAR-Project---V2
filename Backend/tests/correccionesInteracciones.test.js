@@ -92,14 +92,14 @@ test('comunidad permite buscar referencias en todo el catalogo publico', () => {
   const pagina = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
 
   assert.match(pagina, /Buscar entre todos los eventos de SONDAR/);
-  assert.match(pagina, /Buscar entre todos los temas de SONDAR/);
+  assert.match(pagina, /Buscar entre todas las previews de SONDAR/);
   assert.match(pagina, /eventosDisponibles\.map/);
   assert.match(pagina, /reelsDisponibles\.map/);
   assert.match(pagina, /comunidad-asociacion-card evento/);
   assert.match(pagina, /comunidad-asociacion-card reel/);
   assert.match(pagina, /evento\.lugar \|\| evento\.ubicacion/);
   assert.match(pagina, /reel\.generos \|\| \[reel\.genero\]/);
-  assert.match(pagina, /\.map\(mostrarGenero\)\.join\(" \/ "\) \|\| "Reel musical"/);
+  assert.match(pagina, /\.map\(mostrarGenero\)\.join\(" \/ "\) \|\| "Preview musical"/);
   assert.match(pagina, /src="\/sondar-icon\.png(?:\?v=19)?"/);
   assert.doesNotMatch(pagina, /eventosDelGenero\.map|reelsDelGenero\.map/);
 });

@@ -341,7 +341,7 @@ export default function Eventos({ usuario }) {
         const data = await response.json();
         if (activo) setReels(Array.isArray(data) ? data : []);
       } catch (error) {
-        console.error("Error al cargar previews de Reels:", error);
+        console.error("Error al cargar previews:", error);
       } finally {
         if (activo) setCargandoReels(false);
       }
@@ -557,6 +557,7 @@ export default function Eventos({ usuario }) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
+    window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-preview"));
     setMostrarModal(true);
   }, [crearEventoParam, mostrarAviso, usuario]);
 
@@ -933,13 +934,19 @@ export default function Eventos({ usuario }) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
+    window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-preview"));
     setMostrarModal(true);
   }, [mostrarAviso, usuario]);
 
   useEffect(() => {
     const abrirDesdeSidebar = () => handleCrearEvento();
+    const cerrarCreadorEvento = () => setMostrarModal(false);
     window.addEventListener("sondar:crear-evento", abrirDesdeSidebar);
-    return () => window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
+    window.addEventListener("sondar:cerrar-crear-evento", cerrarCreadorEvento);
+    return () => {
+      window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
+      window.removeEventListener("sondar:cerrar-crear-evento", cerrarCreadorEvento);
+    };
   }, [handleCrearEvento]);
 
   const handleChange = (e) => {
@@ -1353,11 +1360,11 @@ export default function Eventos({ usuario }) {
             <section className="evento-previews" aria-labelledby="evento-previews-titulo">
               <div className="evento-previews-encabezado">
                 <div><span>PREVIEWS</span><h3 id="evento-previews-titulo">Así suena este evento</h3></div>
-                <small>Contenido publicado en Reels por sus participantes</small>
+                <small>Previews publicadas por sus participantes</small>
               </div>
 
               {cargandoReels ? <p className="evento-previews-estado">Cargando previews...</p> : null}
-              {!cargandoReels && reelsDelEvento.length === 0 ? <p className="evento-previews-estado">Todavía no hay Reels publicados por quienes participan.</p> : null}
+              {!cargandoReels && reelsDelEvento.length === 0 ? <p className="evento-previews-estado">Todavía no hay previews publicadas por quienes participan.</p> : null}
               {reelsDelEvento.length > 0 ? (
                 <div className="evento-preview-lista" role="list">
                   {reelsDelEvento.map((reel) => {

@@ -38,6 +38,7 @@ const contenidoVacio = {
   seguidos: [],
   stats: {
     publicaciones: 0,
+    reels: 0,
     seguidores: 0,
     seguidos: 0,
   },
@@ -128,7 +129,7 @@ export default function OtroPerfil({ usuarioActual }) {
 
   const opcionesPerfil = useMemo(
     () => [
-      { id: "publicaciones", label: t("Publicaciones"), icono: "grid", mensaje: t("Aún no hay publicaciones.") },
+      { id: "publicaciones", label: t("Previews"), icono: "grid", mensaje: t("Aún no hay previews.") },
       { id: "eventos", label: t("Eventos"), icono: "calendar", mensaje: t("Aún no hay eventos.") },
       { id: "comunidad", label: t("Comunidad"), icono: "community", mensaje: t("Aún no hay publicaciones en la comunidad.") },
     ],
@@ -529,7 +530,7 @@ export default function OtroPerfil({ usuarioActual }) {
           </div>
 
           <div className="perfil-stats">
-            <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
+            <p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>
             {usuarioActual ? (
               <button type="button" onClick={() => abrirListaSocial("seguidores")}>
                 <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores

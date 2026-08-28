@@ -180,7 +180,7 @@ async function eliminarArchivoReel(storagePath, accessToken) {
   const { error } = await storage
     .from(REELS_BUCKET)
     .remove([storagePath]);
-  if (error) throw new Error(`No se pudo eliminar el archivo del reel: ${error.message}`);
+  if (error) throw new Error(`No se pudo eliminar el archivo de la preview: ${error.message}`);
 }
 
 async function eliminarAvatarUsuario(storagePath, accessToken) {

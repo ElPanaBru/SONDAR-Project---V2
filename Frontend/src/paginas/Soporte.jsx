@@ -13,9 +13,9 @@ const preguntas = [
   },
   {
     id: "reels",
-    titulo: "Como publico un reel musical?",
+    titulo: "Como publico una preview musical?",
     texto:
-      "Desde cualquier pagina podes crear un reel con titulo, genero, portada y audio. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
+      "Desde cualquier pagina podes crear una preview con titulo, genero, portada y audio. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
   },
   {
     id: "cuenta",
@@ -33,7 +33,7 @@ const preguntas = [
 
 const atajos = [
   "Problemas para iniciar sesion",
-  "No puedo publicar un reel",
+  "No puedo publicar una preview",
   "Quiero reportar un evento",
   "Tengo una sugerencia",
 ];

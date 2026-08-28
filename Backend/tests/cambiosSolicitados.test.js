@@ -616,6 +616,30 @@ test('el creador global de reels conserva la pagina y pide solo titulo genero po
   assert.doesNotMatch(creador, /Nombre del reel|Descripcion/);
 });
 
+test('los creadores de evento y preview son excluyentes y la interfaz muestra previews', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const app = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'App.jsx'), 'utf8');
+  const navbar = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'Navbar.jsx'), 'utf8');
+  const creador = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'CrearReelModal.jsx'), 'utf8');
+  const eventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
+  const miPerfil = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Miperfil.jsx'), 'utf8');
+  const otroPerfil = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'OtroPerfil.jsx'), 'utf8');
+  const descubrirCss = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'descubrir.css'), 'utf8');
+
+  assert.match(app, /dispatchEvent\(new CustomEvent\("sondar:cerrar-crear-evento"\)\)/);
+  assert.match(app, /addEventListener\("sondar:cerrar-crear-preview", cerrarCrearPreview\)/);
+  assert.match(eventos, /dispatchEvent\(new CustomEvent\("sondar:cerrar-crear-preview"\)\)/);
+  assert.match(eventos, /addEventListener\("sondar:cerrar-crear-evento", cerrarCreadorEvento\)/);
+  assert.match(navbar, />Preview<\/button>/);
+  assert.match(creador, />PREVIEWS<\/span>/);
+  assert.match(creador, />Crear nueva preview<\/h2>/);
+  assert.match(creador, /"Publicar preview"/);
+  assert.match(miPerfil, /label: t\("Previews"\)/);
+  assert.match(otroPerfil, /label: t\("Previews"\)/);
+  assert.match(descubrirCss, /content:\s*"Preview seleccionada"/);
+  assert.doesNotMatch(creador, />REELS<\/span>|>Crear nuevo reel<\/h2>|"Publicar reel"/);
+});
+
 test('reels muestra portada cuadrada, pie superpuesto, creador y acciones laterales', () => {
   const raiz = path.join(__dirname, '..', '..');
   const paginaDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Descubrir.jsx'), 'utf8');

@@ -8,7 +8,7 @@ import "./buscar.css";
 const TABS = [
   { id: "todo", label: "Todo" },
   { id: "usuarios", label: "Usuarios" },
-  { id: "reels", label: "Reels" },
+  { id: "reels", label: "Previews" },
   { id: "eventos", label: "Eventos" },
 ];
 
@@ -214,7 +214,7 @@ export default function Buscar({ usuario }) {
           <small>{item.artista} - {mostrarGenero(item.genero)}</small>
         </span>
       </button>
-      <span className="buscar-tag">Reel</span>
+      <span className="buscar-tag">Preview</span>
       <small className="buscar-meta">{formatearNumero(item.likes)} me gusta</small>
       <button className="buscar-icon-action" type="button" onClick={() => abrirReel(item)} aria-label={`Abrir ${item.tema}`}>
         <IconoBuscar nombre="reel" />
@@ -245,7 +245,7 @@ export default function Buscar({ usuario }) {
         <div className="buscar-empty">
           <IconoBuscar nombre="reel" />
           <h2>{t("Busca en SONDAR")}</h2>
-          <p>Encontra usuarios, reels y eventos desde un solo lugar.</p>
+          <p>Encontra usuarios, previews y eventos desde un solo lugar.</p>
         </div>
       );
     }
@@ -275,7 +275,7 @@ export default function Buscar({ usuario }) {
 
     if (tabActiva === "reels") {
       return reels.length > 0 ? reels.map(renderReel) : (
-        <div className="buscar-empty">No encontramos reels para "{query}".</div>
+        <div className="buscar-empty">No encontramos previews para "{query}".</div>
       );
     }
 
@@ -303,7 +303,7 @@ export default function Buscar({ usuario }) {
               </strong>
               <em>
                 {resultadoDestacado.tipo === "reel"
-                  ? `Reel - ${resultadoDestacado.item.artista}`
+                  ? `Preview - ${resultadoDestacado.item.artista}`
                   : resultadoDestacado.tipo === "usuario"
                     ? `Usuario - ${resultadoDestacado.item.usuario}`
                     : `Evento - ${formatearFecha(resultadoDestacado.item.fecha)}`}
@@ -325,7 +325,7 @@ export default function Buscar({ usuario }) {
         {reels.length > 0 ? (
           <section className="buscar-section">
             <header>
-              <h2>{t("Reels")}</h2>
+              <h2>{t("Previews")}</h2>
               <button type="button" onClick={() => setTabActiva("reels")}>Ver mas</button>
             </header>
             {reels.slice(0, 4).map(renderReel)}
@@ -350,7 +350,7 @@ export default function Buscar({ usuario }) {
       <header className="buscar-header">
         <span>Busqueda global</span>
         <h1>{query ? `${t("Resultados para")} "${query}"` : t("Buscar")}</h1>
-        <p>Usuarios, reels y eventos reunidos en una misma pantalla.</p>
+        <p>Usuarios, previews y eventos reunidos en una misma pantalla.</p>
       </header>
 
       <div className="buscar-tabs" aria-label="Filtros de busqueda">

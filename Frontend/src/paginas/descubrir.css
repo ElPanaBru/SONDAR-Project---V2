@@ -96,7 +96,7 @@
 }
 
 .feed-item.seleccionado::after {
-  content: "Reel seleccionado";
+  content: "Preview seleccionada";
   position: absolute;
   z-index: 24;
   top: 18px;

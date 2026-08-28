@@ -342,7 +342,7 @@ export default function PerfilComunidad({
                 onClick={() => cambiarTipoAdjunto("reel")}
               >
                 <IconoMaterial nombre="music_note" />
-                Reel
+                Preview
               </button>
               <button
                 className={tipoAdjunto === "evento" ? "activo" : ""}
@@ -357,7 +357,7 @@ export default function PerfilComunidad({
             {tipoAdjunto ? (
               <div className="perfil-comunidad-selector-adjunto">
                 <label htmlFor="perfil-comunidad-adjunto">
-                  {tipoAdjunto === "reel" ? "Tu reel" : "Tu evento"}
+                  {tipoAdjunto === "reel" ? "Tu preview" : "Tu evento"}
                 </label>
                 <select
                   id="perfil-comunidad-adjunto"
@@ -435,7 +435,7 @@ export default function PerfilComunidad({
                       )}
                     </span>
                     <span>
-                      <small>{publicacion.reel ? "REEL" : "EVENTO"}</small>
+                      <small>{publicacion.reel ? "PREVIEW" : "EVENTO"}</small>
                       <strong>{publicacion.reel?.titulo || publicacion.evento?.lugar || "Evento SONDAR"}</strong>
                       <em>
                         {publicacion.reel

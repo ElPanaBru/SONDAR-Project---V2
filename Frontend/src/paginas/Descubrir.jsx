@@ -800,7 +800,7 @@ export default function Descubrir({ usuario }) {
               }
             : undefined,
         });
-        if (!response.ok) throw new Error("No se pudieron cargar los reels.");
+        if (!response.ok) throw new Error("No se pudieron cargar las previews.");
 
         const data = await response.json();
         let reelsBackend = data.map((reel) => ({
@@ -1394,7 +1394,7 @@ export default function Descubrir({ usuario }) {
   const actualizarLanzamiento = async (lanzamiento, campo) => {
     if (campo === "siguiendo" && lanzamiento.creadorId) {
       if (lanzamiento.creadorId === usuario?.id) {
-        mostrarAviso("Ese reel es tuyo");
+        mostrarAviso("Esa preview es tuya");
         return;
       }
 
@@ -1577,11 +1577,11 @@ export default function Descubrir({ usuario }) {
         body: JSON.stringify({ reason: motivo, detail: detalle }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "No se pudo denunciar el reel.");
+      if (!response.ok) throw new Error(body.error || "No se pudo denunciar la preview.");
       setMenuLanzamientoAbierto(null);
       setDenunciaPendiente(null);
       if (body.nuevaDenuncia === false) {
-        mostrarAviso("Ya habias denunciado este reel.");
+        mostrarAviso("Ya habias denunciado esta preview.");
         return;
       }
       try {
@@ -1595,13 +1595,13 @@ export default function Descubrir({ usuario }) {
           detalle,
           url: crearEnlaceLanzamiento(lanzamiento),
         });
-        mostrarAviso("Reel denunciado. Soporte fue notificado.");
+        mostrarAviso("Preview denunciada. Soporte fue notificado.");
       } catch (emailError) {
         console.error("Email de denuncia:", emailError);
         mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email a soporte.");
       }
     } catch (error) {
-      mostrarAviso(error.message || "No se pudo denunciar el reel.");
+      mostrarAviso(error.message || "No se pudo denunciar la preview.");
     } finally {
       setEnviandoDenuncia(false);
     }
@@ -1627,7 +1627,7 @@ export default function Descubrir({ usuario }) {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo eliminar el reel.");
+          throw new Error(data.error || "No se pudo eliminar la preview.");
         }
       }
 
@@ -1640,10 +1640,10 @@ export default function Descubrir({ usuario }) {
       setMenuLanzamientoAbierto(null);
       setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
       setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
-      mostrarAviso("Reel eliminado");
+      mostrarAviso("Preview eliminada");
     } catch (error) {
       console.error(error);
-      mostrarAviso(error.message || "No se pudo eliminar el reel.");
+      mostrarAviso(error.message || "No se pudo eliminar la preview.");
     }
   };
 
@@ -2102,7 +2102,7 @@ export default function Descubrir({ usuario }) {
           <div className="descubrir-vacio" role="status">
             <span aria-hidden="true">♫</span>
             <strong>{t("No hay nada que descubrir")}</strong>
-            <p>Cuando haya nuevos reels van a aparecer aca.</p>
+            <p>Cuando haya nuevas previews van a aparecer aca.</p>
           </div>
         ) : null}
         {lanzamientos.map((lanzamiento) => {
@@ -2168,7 +2168,7 @@ export default function Descubrir({ usuario }) {
                     {lanzamiento.tema}
                   </strong>
                   {generosDeReel(lanzamiento).length > 0 ? (
-                    <div className="reel-generos" aria-label="Generos del reel">
+                    <div className="reel-generos" aria-label="Generos de la preview">
                       {generosDeReel(lanzamiento).map((genero) => (
                         <span key={genero}>{mostrarGeneroReel(genero)}</span>
                       ))}
@@ -2273,7 +2273,7 @@ export default function Descubrir({ usuario }) {
                     <button
                       className={`accion-boton accion-boton-menu ${menuLanzamientoAbierto === lanzamiento.id ? "activo" : ""}`}
                       type="button"
-                      aria-label="Opciones del reel"
+                      aria-label="Opciones de la preview"
                       aria-expanded={menuLanzamientoAbierto === lanzamiento.id}
                       onClick={() =>
                         setMenuLanzamientoAbierto((actual) =>
@@ -2528,7 +2528,7 @@ export default function Descubrir({ usuario }) {
               </span>
               <span>
                 <strong>{compartirActivo.lanzamiento.artista}</strong>
-                <small>Creador del reel</small>
+                <small>Creador de la preview</small>
               </span>
             </button>
 
@@ -2588,7 +2588,7 @@ export default function Descubrir({ usuario }) {
             <small>{perfilVista.perfil.usuario}</small>
             <div className="perfil-vista-stats">
               <span><b>{formatearConteo(perfilVista.stats.seguidores)}</b> Seguidores</span>
-              <span><b>{formatearConteo(perfilVista.stats.publicaciones)}</b> Publicaciones</span>
+              <span><b>{formatearConteo(perfilVista.stats.reels ?? perfilVista.stats.publicaciones)}</b> Previews</span>
             </div>
             <p>{perfilVista.perfil.bio}</p>
             <div className="perfil-vista-actions">
