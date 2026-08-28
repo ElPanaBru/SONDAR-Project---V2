@@ -471,6 +471,40 @@ function buscarAvatarEnComentarios(comentarios, userId) {
   return "";
 }
 
+function formatearTiempoAudio(segundos) {
+  const total = Number.isFinite(segundos) ? Math.max(0, Math.floor(segundos)) : 0;
+  const minutos = Math.floor(total / 60);
+  return `${minutos}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function pintarControlProgresoReel(control, tiempo, duracionTotal) {
+  if (!control) return;
+
+  const duracion = Number.isFinite(duracionTotal) && duracionTotal > 0
+    ? duracionTotal
+    : 0;
+  const tiempoActual = Number.isFinite(tiempo)
+    ? Math.max(0, tiempo)
+    : 0;
+  const progreso = duracion
+    ? Math.min(1, Math.max(0, tiempoActual / duracion))
+    : 0;
+
+  control.value = String(Math.round(progreso * 1000));
+  control.style.setProperty("--reel-progreso", `${(progreso * 100).toFixed(3)}%`);
+  control.setAttribute(
+    "aria-valuetext",
+    duracion
+      ? `${formatearTiempoAudio(tiempoActual)} de ${formatearTiempoAudio(duracion)}`
+      : "Cargando duracion"
+  );
+}
+
+function actualizarControlProgresoReel(control, audio) {
+  if (!audio) return;
+  pintarControlProgresoReel(control, audio.currentTime, audio.duration);
+}
+
 export default function Descubrir({ usuario }) {
   const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
@@ -480,6 +514,9 @@ export default function Descubrir({ usuario }) {
   const creadorFiltrado = searchParams.get("creador")?.trim() || "";
   const [lanzamientos, setLanzamientos] = useState([]);
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
+  const [reelAudioSeleccionado, setReelAudioSeleccionado] = useState(
+    lanzamientoCompartido || null
+  );
   const [reelVisibleId, setReelVisibleId] = useState(lanzamientoCompartido || null);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
@@ -516,7 +553,10 @@ export default function Descubrir({ usuario }) {
   const comentariosAnimacionTimer = useRef(null);
   const audioReelRef = useRef(null);
   const audioReelActivoIdRef = useRef(null);
+  const controlesProgresoReelRef = useRef(new Map());
   const tiemposReelRef = useRef({});
+  const duracionesReelRef = useRef({});
+  const seekManualPendienteRef = useRef(null);
   const reelPausadoPorUsuarioRef = useRef(null);
   const visitasRegistradasRef = useRef(new Set());
   const seguimientosPendientesRef = useRef(new Set());
@@ -733,6 +773,7 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     if (!lanzamientoCompartido || !comentarioCompartido) return;
     if (!comentariosPorLanzamiento[lanzamientoCompartido]) return;
+    setReelAudioSeleccionado(lanzamientoCompartido);
     setReproduciendo(lanzamientoCompartido);
     setComentariosAbiertos(lanzamientoCompartido);
     comentariosAbiertosRef.current = lanzamientoCompartido;
@@ -770,6 +811,7 @@ export default function Descubrir({ usuario }) {
       if (!reel?.id) return;
       setLanzamientos((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
       setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
+      setReelAudioSeleccionado(reel.id);
       setReproduciendo(reel.id);
       window.setTimeout(() => {
         document.getElementById(`reel-${reel.id}`)?.scrollIntoView({ block: "start" });
@@ -940,6 +982,7 @@ export default function Descubrir({ usuario }) {
 
       reelPausadoPorUsuarioRef.current = null;
       reproduciendoRef.current = id;
+      setReelAudioSeleccionado(id);
       setReproduciendo(id);
       if (comentariosAbiertosRef.current !== null) {
         setComentariosAnimando(false);
@@ -1008,6 +1051,8 @@ export default function Descubrir({ usuario }) {
 
     const obtenerPanelComentarios = (elemento) =>
       elemento.closest?.(".comentarios-panel.abierto") || null;
+    const esControlProgresoReel = (elemento) =>
+      Boolean(elemento.closest?.(".reel-progress"));
 
     const puedeScrollearPanel = (elemento, deltaY) => {
       const panel = obtenerPanelComentarios(elemento);
@@ -1050,7 +1095,7 @@ export default function Descubrir({ usuario }) {
     };
 
     const manejarToqueInicio = (event) => {
-      if (obtenerPanelComentarios(event.target)) {
+      if (obtenerPanelComentarios(event.target) || esControlProgresoReel(event.target)) {
         toqueInicioRef.current = null;
         return;
       }
@@ -1063,6 +1108,10 @@ export default function Descubrir({ usuario }) {
     };
 
     const manejarToqueFin = (event) => {
+      if (esControlProgresoReel(event.target)) {
+        toqueInicioRef.current = null;
+        return;
+      }
       if (!toqueInicioRef.current || event.changedTouches.length === 0) return;
 
       const toque = event.changedTouches[0];
@@ -1118,6 +1167,40 @@ export default function Descubrir({ usuario }) {
     audioReelRef.current?.pause();
     audioReelRef.current = audio;
     audioReelActivoIdRef.current = idReel;
+    const controlProgreso = controlesProgresoReelRef.current.get(String(idReel));
+    let animacionProgresoId = null;
+
+    const sincronizarProgresoReel = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        duracionesReelRef.current[idReel] = audio.duration;
+      }
+      actualizarControlProgresoReel(controlProgreso, audio);
+    };
+
+    const animarProgresoReel = () => {
+      sincronizarProgresoReel();
+      if (!audio.paused && !audio.ended) {
+        animacionProgresoId = window.requestAnimationFrame(animarProgresoReel);
+      }
+    };
+
+    const iniciarAnimacionProgresoReel = () => {
+      if (animacionProgresoId !== null) {
+        window.cancelAnimationFrame(animacionProgresoId);
+      }
+
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        sincronizarProgresoReel();
+        animacionProgresoId = null;
+        return;
+      }
+
+      animacionProgresoId = window.requestAnimationFrame(animarProgresoReel);
+    };
+
+    audio.addEventListener("play", iniciarAnimacionProgresoReel);
+    audio.addEventListener("timeupdate", sincronizarProgresoReel);
+    audio.addEventListener("durationchange", sincronizarProgresoReel);
     const sesionEscucha = usuario?.id && reelBackendId && globalThis.crypto?.randomUUID
       ? {
           id: globalThis.crypto.randomUUID(),
@@ -1136,7 +1219,11 @@ export default function Descubrir({ usuario }) {
       const ahora = performance.now();
       if (!final && ahora - sesionEscucha.lastSentAt < 4500) return;
       sesionEscucha.lastSentAt = ahora;
-      const ratio = Math.max(0, Math.min(1, sesionEscucha.maxRatio));
+      const ratioPosicion = Math.max(0, Math.min(1, sesionEscucha.maxRatio));
+      const ratioTiempoEscuchado = sesionEscucha.durationMs > 0
+        ? sesionEscucha.listenedMs / sesionEscucha.durationMs
+        : ratioPosicion;
+      const ratio = Math.max(0, Math.min(1, ratioPosicion, ratioTiempoEscuchado));
       const payload = {
         sessionId: sesionEscucha.id,
         listenedMs: Math.round(sesionEscucha.listenedMs),
@@ -1162,10 +1249,15 @@ export default function Descubrir({ usuario }) {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
         sesionEscucha.durationMs = Math.round(audio.duration * 1000);
         const ratioActual = audio.currentTime / audio.duration;
-        sesionEscucha.maxRatio = Math.max(sesionEscucha.maxRatio, ratioActual);
-        if (audio.currentTime + 0.5 < sesionEscucha.previousTime) {
-          sesionEscucha.replayCount += 1;
-          sesionEscucha.maxRatio = 1;
+        const esSeekManual = String(seekManualPendienteRef.current) === String(idReel);
+        if (esSeekManual) {
+          seekManualPendienteRef.current = null;
+        } else {
+          sesionEscucha.maxRatio = Math.max(sesionEscucha.maxRatio, ratioActual);
+          if (audio.currentTime + 0.5 < sesionEscucha.previousTime) {
+            sesionEscucha.replayCount += 1;
+            sesionEscucha.maxRatio = 1;
+          }
         }
         sesionEscucha.previousTime = audio.currentTime;
       }
@@ -1176,13 +1268,15 @@ export default function Descubrir({ usuario }) {
 
     const restaurarTiempoGuardado = () => {
       const tiempoGuardado = tiemposReel[idReel];
-      if (!Number.isFinite(tiempoGuardado) || tiempoGuardado <= 0) return;
-
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        audio.currentTime = Math.min(tiempoGuardado, Math.max(0, audio.duration - 0.1));
-      } else {
-        audio.currentTime = tiempoGuardado;
+      if (Number.isFinite(tiempoGuardado) && tiempoGuardado > 0) {
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = Math.min(tiempoGuardado, Math.max(0, audio.duration - 0.1));
+        } else {
+          audio.currentTime = tiempoGuardado;
+        }
       }
+
+      sincronizarProgresoReel();
     };
 
     try {
@@ -1191,6 +1285,7 @@ export default function Descubrir({ usuario }) {
       audio.addEventListener("loadedmetadata", restaurarTiempoGuardado, { once: true });
     }
 
+    sincronizarProgresoReel();
     audio.play().catch(() => setReproduciendo(null));
 
     return () => {
@@ -1199,9 +1294,19 @@ export default function Descubrir({ usuario }) {
       }
       registrarProgresoEscucha();
       enviarSesionEscucha({ final: true });
+      sincronizarProgresoReel();
       audio.pause();
+      if (animacionProgresoId !== null) {
+        window.cancelAnimationFrame(animacionProgresoId);
+      }
+      audio.removeEventListener("play", iniciarAnimacionProgresoReel);
       audio.removeEventListener("timeupdate", registrarProgresoEscucha);
+      audio.removeEventListener("timeupdate", sincronizarProgresoReel);
+      audio.removeEventListener("durationchange", sincronizarProgresoReel);
       audio.removeEventListener("loadedmetadata", restaurarTiempoGuardado);
+      if (String(seekManualPendienteRef.current) === String(idReel)) {
+        seekManualPendienteRef.current = null;
+      }
       if (audioReelRef.current === audio) {
         audioReelRef.current = null;
         audioReelActivoIdRef.current = null;
@@ -1211,6 +1316,11 @@ export default function Descubrir({ usuario }) {
 
   useEffect(() => {
     const pausarReelActivo = () => {
+      const idActivo = audioReelActivoIdRef.current ?? reproduciendoRef.current;
+      if (idActivo !== null) {
+        setReelAudioSeleccionado(idActivo);
+        reelPausadoPorUsuarioRef.current = idActivo;
+      }
       audioReelRef.current?.pause();
       reproduciendoRef.current = null;
       setReproduciendo(null);
@@ -1640,6 +1750,11 @@ export default function Descubrir({ usuario }) {
       setMenuLanzamientoAbierto(null);
       setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
       setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
+      setReelAudioSeleccionado((actual) =>
+        String(actual) === String(lanzamiento.id) ? null : actual
+      );
+      delete tiemposReelRef.current[lanzamiento.id];
+      delete duracionesReelRef.current[lanzamiento.id];
       mostrarAviso("Preview eliminada");
     } catch (error) {
       console.error(error);
@@ -1692,6 +1807,7 @@ export default function Descubrir({ usuario }) {
   };
 
   const alternarReproduccion = (id) => {
+    setReelAudioSeleccionado(id);
     setReproduciendo((actual) => {
       const siguiente = actual === id ? null : id;
       if (actual === id) {
@@ -1703,6 +1819,31 @@ export default function Descubrir({ usuario }) {
       reproduciendoRef.current = siguiente;
       return siguiente;
     });
+  };
+
+  const cambiarProgresoReel = (id, event) => {
+    const audio = audioReelRef.current;
+    const audioActivo = audio && String(audioReelActivoIdRef.current) === String(id)
+      ? audio
+      : null;
+    const duracion = audioActivo && Number.isFinite(audioActivo.duration) && audioActivo.duration > 0
+      ? audioActivo.duration
+      : duracionesReelRef.current[id] || 0;
+    if (!duracion) return;
+
+    const progreso = Math.min(1, Math.max(0, Number(event.currentTarget.value) / 1000));
+    const tiempoNuevo = duracion * progreso;
+
+    if (audioActivo) {
+      seekManualPendienteRef.current = id;
+      audioActivo.currentTime = tiempoNuevo;
+      tiemposReelRef.current[id] = audioActivo.currentTime;
+      actualizarControlProgresoReel(event.currentTarget, audioActivo);
+      return;
+    }
+
+    tiemposReelRef.current[id] = tiempoNuevo;
+    pintarControlProgresoReel(event.currentTarget, tiempoNuevo, duracion);
   };
 
   const cambiarComentariosConAnimacion = (siguiente) => {
@@ -2107,6 +2248,8 @@ export default function Descubrir({ usuario }) {
         ) : null}
         {lanzamientos.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
+          const estaSeleccionadoAudio =
+            String(reelAudioSeleccionado) === String(lanzamiento.id);
           const estaSeleccionado = String(lanzamientoCompartido || '') === String(lanzamiento.id);
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
           const puedeEliminar = usuarioPuedeEliminarLanzamiento(lanzamiento);
@@ -2224,6 +2367,27 @@ export default function Descubrir({ usuario }) {
                       </button>
                     ) : null}
                   </div>
+                  <input
+                    className="reel-progress"
+                    type="range"
+                    min="0"
+                    max="1000"
+                    step="1"
+                    defaultValue="0"
+                    disabled={!lanzamiento.audio || !estaSeleccionadoAudio}
+                    data-reel-progress-id={String(lanzamiento.id)}
+                    ref={(elemento) => {
+                      const clave = String(lanzamiento.id);
+                      if (elemento) controlesProgresoReelRef.current.set(clave, elemento);
+                      else controlesProgresoReelRef.current.delete(clave);
+                    }}
+                    aria-label={`Adelantar o atrasar ${lanzamiento.tema}`}
+                    aria-valuetext="0:00 de 0:00"
+                    onInput={(event) => cambiarProgresoReel(lanzamiento.id, event)}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
                 </div>
 
                 <div className="acciones-laterales" aria-label={`Acciones de ${lanzamiento.tema}`}>

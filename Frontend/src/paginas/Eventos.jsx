@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./eventos.css";
 import L from "leaflet";
+import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
+import { setWorkerUrl } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
@@ -14,6 +18,7 @@ import PerfilToast from "../componentes/PerfilToast";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
+setWorkerUrl(maplibreWorkerUrl);
 
 const GENEROS_PERMITIDOS = [
   "pop", "rock", "edm", "jazz", "blues",
@@ -31,6 +36,22 @@ const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
+const URL_TILES_OPENSTREETMAP = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const URL_ESTILO_MAPA_OSCURO = "https://tiles.openfreemap.org/styles/dark";
+const VERSION_CAPA_MAPA_OSCURO = 2;
+const ATRIBUCION_OPENSTREETMAP = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ATRIBUCION_OPENFREEMAP = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const crearCapaMapaPrincipal = () => {
+  const capa = maplibreGL({
+    style: URL_ESTILO_MAPA_OSCURO,
+    attributionControl: false,
+    interactive: false,
+  });
+  capa.sondarStyleUrl = URL_ESTILO_MAPA_OSCURO;
+  capa.sondarStyleVersion = VERSION_CAPA_MAPA_OSCURO;
+  capa.getAttribution = () => ATRIBUCION_OPENFREEMAP;
+  return capa;
+};
 const LOGO_EVENTO_PREDETERMINADO = "/sondar-icon.png?v=19";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
@@ -205,6 +226,7 @@ export default function Eventos({ usuario }) {
   // Referencias para el mapa principal
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
+  const tilesLayerRef = useRef(null);
   const markersLayer = useRef(null);
   const avisoTimer = useRef(null);
   const eventoCompartidoProcesadoRef = useRef(null);
@@ -488,17 +510,11 @@ export default function Eventos({ usuario }) {
 
     const map = L.map(mapRef.current, {
       zoomControl: false,
-      attributionControl: false,
+      attributionControl: true,
       minZoom: 4,
       maxBounds: [[-85, -180], [85, 180]],
       maxBoundsViscosity: 1
     }).setView([-34.6037, -58.3816], 12);
-
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
-    }).addTo(map);
 
     L.control.zoom({ position: "topright" }).addTo(map);
     map.on("zoomend", () => setZoomMapa(map.getZoom()));
@@ -514,10 +530,37 @@ export default function Eventos({ usuario }) {
 
     return () => {
       map.remove();
+      mapRef.current?.classList.remove("mapa-dark-matter");
       mapInstance.current = null;
+      tilesLayerRef.current = null;
       markersLayer.current = null;
     };
   }, []);
+
+  // Mantiene la fuente correcta incluso cuando React conserva la instancia
+  // de Leaflet durante una recarga en caliente del modulo.
+  useEffect(() => {
+    const map = mapInstance.current;
+    const contenedor = mapRef.current;
+    if (!map || !contenedor) return;
+
+    const capaActual = tilesLayerRef.current;
+    const usaFuenteActual = capaActual
+      && map.hasLayer(capaActual)
+      && capaActual.sondarStyleUrl === URL_ESTILO_MAPA_OSCURO
+      && capaActual.sondarStyleVersion === VERSION_CAPA_MAPA_OSCURO;
+
+    if (!usaFuenteActual) {
+      map.eachLayer((capa) => {
+        if (capa instanceof L.TileLayer || typeof capa.getMaplibreMap === "function") {
+          map.removeLayer(capa);
+        }
+      });
+      tilesLayerRef.current = crearCapaMapaPrincipal().addTo(map);
+    }
+
+    contenedor.classList.add("mapa-dark-matter");
+  });
 
   useEffect(() => {
     if (!loading && mapInstance.current) {
@@ -574,12 +617,13 @@ export default function Eventos({ usuario }) {
 
     const miniMap = L.map(miniMapRef.current, {
       zoomControl: false,
-      attributionControl: false
+      attributionControl: true
     }).setView([lat, lng], 14); // Buen nivel de zoom para ver alturas de calles al abrir
 
     // Capas claras de OpenStreetMap para máxima lectura de calles y plazas
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19
+    L.tileLayer(URL_TILES_OPENSTREETMAP, {
+      maxZoom: 19,
+      attribution: ATRIBUCION_OPENSTREETMAP
     }).addTo(miniMap);
 
     L.control.zoom({ position: "bottomleft" }).addTo(miniMap);

@@ -6,10 +6,11 @@ const test = require('node:test');
 
 const rutaControlador = require.resolve('../Controllers/reelController');
 
-function cargarControlador(columnasCompatibilidad) {
+function cargarControlador(columnasCompatibilidad, { reelGenerosDisponible = true } = {}) {
   const consultas = [];
   let insercion = null;
   let insercionGeneros = null;
+  let consultaListado = null;
   const poolFalso = {
     async query(texto, valores = []) {
       consultas.push(texto);
@@ -20,6 +21,29 @@ function cargarControlador(columnasCompatibilidad) {
 
       if (texto.includes('information_schema.columns')) {
         return { rows: columnasCompatibilidad, rowCount: columnasCompatibilidad.length };
+      }
+
+      if (texto.includes("to_regclass('public.reel_generos')")) {
+        return { rows: [{ disponible: reelGenerosDisponible }], rowCount: 1 };
+      }
+
+      if (/CREATE TABLE IF NOT EXISTS reel_views|CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id/.test(texto)) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (/WITH senales_afinidad AS/.test(texto)) {
+        consultaListado = texto;
+        return {
+          rows: [{
+            id: 7,
+            titulo: 'Cancion de prueba',
+            genero: 'rock',
+            generos: ['rock'],
+            creador_id: 'usuario-prueba',
+            created_at: new Date().toISOString(),
+          }],
+          rowCount: 1,
+        };
       }
 
       if (/INSERT INTO users/.test(texto)) {
@@ -111,6 +135,7 @@ function cargarControlador(columnasCompatibilidad) {
     consultas,
     obtenerInsercion: () => insercion,
     obtenerInsercionGeneros: () => insercionGeneros,
+    obtenerConsultaListado: () => consultaListado,
   };
 }
 
@@ -232,6 +257,32 @@ test('crear reel persiste hasta tres generos ordenados y conserva el primero com
   assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['alternativo', 'punk', 'reggae']]);
   assert.equal(respuesta.body.genero, 'alternativo');
   assert.deepEqual(respuesta.body.generos, ['alternativo', 'punk', 'reggae']);
+});
+
+test('listar reels conserva compatibilidad cuando reel_generos aun no existe', async () => {
+  const escenario = cargarControlador([], { reelGenerosDisponible: false });
+  const respuesta = crearRespuesta();
+
+  await escenario.controlador.listarReels({ headers: {}, query: {} }, respuesta);
+
+  assert.equal(respuesta.statusCode, 200);
+  assert.equal(respuesta.body.length, 1);
+  assert.equal(respuesta.body[0].genero, 'rock');
+  assert.deepEqual(respuesta.body[0].generos, ['rock']);
+  assert.doesNotMatch(escenario.obtenerConsultaListado(), /reel_generos/);
+});
+
+test('crear reel en esquema anterior guarda el genero principal sin consultar reel_generos', async () => {
+  const escenario = cargarControlador([], { reelGenerosDisponible: false });
+  const respuesta = crearRespuesta();
+  const solicitud = crearSolicitud();
+  solicitud.body.generos = ['rock', 'punk'];
+
+  await escenario.controlador.crearReel(solicitud, respuesta);
+
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(escenario.obtenerInsercionGeneros(), null);
+  assert.deepEqual(respuesta.body.generos, ['rock']);
 });
 
 test('crear reel rechaza mas de tres generos o generos fuera del catalogo', async () => {

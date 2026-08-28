@@ -658,10 +658,9 @@ test('reels muestra portada cuadrada, pie superpuesto, creador y acciones latera
   assert.match(paginaDescubrir, /Denunciar publicacion/);
   assert.doesNotMatch(
     paginaDescubrir,
-    /className="reel-portada-fondo"|className="reel-player"|className="feed-fondo-portada"|className="reel-progress"/
+    /className="reel-portada-fondo"|className="reel-player"|className="feed-fondo-portada"/
   );
-  assert.doesNotMatch(paginaDescubrir, /setProgresos|--progreso/);
-  assert.doesNotMatch(estilosDescubrir, /\.reel-progress/);
+  assert.doesNotMatch(paginaDescubrir, /setProgresos/);
   assert.ok(paginaDescubrir.indexOf('className="album-imagen"') < paginaDescubrir.indexOf('className="reel-info-inferior"'));
   assert.ok(paginaDescubrir.indexOf('className="reel-titulo"') < paginaDescubrir.indexOf('className="reel-identidad"'));
   assert.match(estilosDescubrir, /Composicion final:[\s\S]*?\.descubrir-feed \.album-portada\s*\{[^}]*aspect-ratio:\s*1;/s);
@@ -674,6 +673,42 @@ test('reels muestra portada cuadrada, pie superpuesto, creador y acciones latera
     /Composicion final:[\s\S]*?\.reel-info-inferior,[\s\S]*?\{[^}]*position:\s*absolute;[^}]*top:\s*auto;[^}]*bottom:\s*0;[^}]*background:\s*linear-gradient/s
   );
   assert.match(estilosDescubrir, /\.reel-info-inferior \.artista-avatar\.sin-avatar\s*\{[^}]*#[fF]{2}[cC]247[^}]*#[fF]{2}9200/);
+});
+
+test('descubrir permite adelantar y atrasar la preview con una barra accesible', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const paginaDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Descubrir.jsx'), 'utf8');
+  const estilosDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'descubrir.css'), 'utf8');
+
+  assert.match(paginaDescubrir, /className="reel-progress"[\s\S]*?type="range"/);
+  assert.match(paginaDescubrir, /disabled=\{!lanzamiento\.audio \|\| !estaSeleccionadoAudio\}/);
+  assert.match(paginaDescubrir, /aria-label=\{`Adelantar o atrasar \$\{lanzamiento\.tema\}`\}/);
+  assert.match(paginaDescubrir, /aria-valuetext="0:00 de 0:00"/);
+  assert.match(paginaDescubrir, /onInput=\{\(event\) => cambiarProgresoReel\(lanzamiento\.id, event\)\}/);
+  assert.match(paginaDescubrir, /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(paginaDescubrir, /onClick=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(paginaDescubrir, /onKeyDown=\{\(event\) => event\.stopPropagation\(\)\}/);
+  assert.match(paginaDescubrir, /const tiempoNuevo = duracion \* progreso/);
+  assert.match(paginaDescubrir, /audioActivo\.currentTime = tiempoNuevo/);
+  assert.match(paginaDescubrir, /duracionesReelRef\.current\[id\] \|\| 0/);
+  assert.match(paginaDescubrir, /pintarControlProgresoReel\(event\.currentTarget, tiempoNuevo, duracion\)/);
+  assert.match(paginaDescubrir, /control\.value = String\(Math\.round\(progreso \* 1000\)\)/);
+  assert.match(paginaDescubrir, /control\.style\.setProperty\("--reel-progreso"/);
+  assert.match(paginaDescubrir, /actualizarControlProgresoReel\(event\.currentTarget, audioActivo\)/);
+  assert.match(paginaDescubrir, /audio\.addEventListener\("timeupdate", sincronizarProgresoReel\)/);
+  assert.match(paginaDescubrir, /audio\.removeEventListener\("timeupdate", sincronizarProgresoReel\)/);
+  assert.match(paginaDescubrir, /window\.requestAnimationFrame\(animarProgresoReel\)/);
+  assert.match(paginaDescubrir, /const esSeekManual = String\(seekManualPendienteRef\.current\) === String\(idReel\)/);
+  assert.match(paginaDescubrir, /Math\.min\(1, ratioPosicion, ratioTiempoEscuchado\)/);
+  assert.match(paginaDescubrir, /obtenerPanelComentarios\(event\.target\) \|\| esControlProgresoReel\(event\.target\)/);
+  assert.doesNotMatch(paginaDescubrir, /setProgresos/);
+  assert.match(
+    estilosDescubrir,
+    /\.reel-progress\s*\{[^}]*position:\s*absolute;[^}]*right:\s*0;[^}]*bottom:\s*-7px;[^}]*left:\s*0;[^}]*width:\s*100%;[^}]*appearance:\s*none;/s
+  );
+  assert.match(estilosDescubrir, /\.reel-progress:focus-visible\s*\{[^}]*outline:/s);
+  assert.match(estilosDescubrir, /\.reel-progress::-webkit-slider-runnable-track\s*\{[^}]*linear-gradient/s);
+  assert.match(estilosDescubrir, /\.reel-progress::-moz-range-progress\s*\{/);
 });
 
 test('reels usa un fondo dominante estatico y funde solo al cambiar el reel visible', () => {

@@ -80,8 +80,17 @@
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.04) 48%, rgba(0, 0, 0, 0.28));
 }
 
-.eventos-mapa .leaflet-tile {
-  filter: brightness(1.45) contrast(0.98) saturate(1.08);
+.eventos-mapa .leaflet-control-attribution {
+  padding: 2px 5px;
+  color: rgba(255, 255, 255, 0.62);
+  background: rgba(0, 0, 0, 0.58);
+  border-radius: 5px 0 0 0;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.eventos-mapa .leaflet-control-attribution a {
+  color: #ffae00;
 }
 
 .eventos-mapa .leaflet-top.leaflet-right {
@@ -2486,7 +2495,7 @@
 .eventos-container .leaflet-bottom.leaflet-right,
 .eventos-container.detalle-abierto > .eventos-mapa .leaflet-bottom.leaflet-right {
   right: 0;
-  bottom: 174px;
+  bottom: 0;
 }
 
 @media (max-width: 700px) {

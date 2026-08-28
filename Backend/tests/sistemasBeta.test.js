@@ -33,6 +33,27 @@ test('eventos calcula y filtra distancia en PostGIS', () => {
   assert.match(page, /Ubicacion activa/);
 });
 
+test('eventos usa tiles sin API key y conserva el mapa principal oscuro', () => {
+  const page = read('Frontend', 'src', 'paginas', 'Eventos.jsx');
+  const styles = read('Frontend', 'src', 'paginas', 'eventos.css');
+
+  assert.match(page, /https:\/\/tile\.openstreetmap\.org\/\{z\}\/\{x\}\/\{y\}\.png/);
+  assert.match(page, /https:\/\/tiles\.openfreemap\.org\/styles\/dark/);
+  assert.match(page, /maplibreGL\(\{/);
+  assert.match(page, /maplibre-gl-worker\.mjs\?worker&url/);
+  assert.match(page, /setWorkerUrl\(maplibreWorkerUrl\)/);
+  assert.match(page, /sondarStyleVersion = VERSION_CAPA_MAPA_OSCURO/);
+  assert.match(page, /OpenFreeMap<\/a>/);
+  assert.match(page, /OpenStreetMap<\/a> contributors/);
+  assert.doesNotMatch(page, /basemaps\.cartocdn\.com|carto\.com\/basemaps\/apikey/i);
+  assert.equal((page.match(/attributionControl: true/g) || []).length, 2);
+  assert.match(page, /typeof capa\.getMaplibreMap === "function"/);
+  assert.match(page, /classList\.add\("mapa-dark-matter"\)/);
+  assert.doesNotMatch(styles, /\.eventos-mapa[^}]*\.leaflet-tile[^}]*invert\(1\)/s);
+  assert.match(styles, /\.eventos-container \.leaflet-bottom\.leaflet-right,[\s\S]{0,180}?bottom:\s*0;/);
+  assert.match(styles, /\.eventos-mapa \.leaflet-control-attribution\s*\{[^}]*font-size:\s*10px;/s);
+});
+
 test('descubrir aprende de escuchas y permite aislar los reels de un perfil', () => {
   const controller = read('Backend', 'Controllers', 'reelController.js');
   const discover = read('Frontend', 'src', 'paginas', 'Descubrir.jsx');
