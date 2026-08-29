@@ -617,7 +617,8 @@ export default function Eventos({ usuario }) {
 
     const miniMap = L.map(miniMapRef.current, {
       zoomControl: false,
-      attributionControl: true
+      attributionControl: true,
+      scrollWheelZoom: false
     }).setView([lat, lng], 14); // Buen nivel de zoom para ver alturas de calles al abrir
 
     // Capas claras de OpenStreetMap para máxima lectura de calles y plazas
@@ -1495,6 +1496,14 @@ export default function Eventos({ usuario }) {
             </header>
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
+              <div className="evento-modal-mapa-fijo">
+                <div className="mini-mapa-instruccion">
+                  Hacé click en el mapa o arrastrá el pin para ubicar el evento:
+                </div>
+                <div ref={miniMapRef} className="evento-minimapa"></div>
+              </div>
+
+              <div className="evento-modal-campos-scroll">
               <section className="evento-organizadores-selector" aria-label="Invitados y bandas invitadas del evento">
                 <div className="evento-organizadores-encabezado">
                   <span>Invitados o bandas invitadas</span>
@@ -1579,13 +1588,6 @@ export default function Eventos({ usuario }) {
                 required
               />
 
-              <div className="mini-mapa-instruccion">
-                Hacé click en el mapa o arrastrá el pin para ubicar el evento:
-              </div>
-              
-              {/* Refactorizado con la nueva clase CSS limpia */}
-              <div ref={miniMapRef} className="evento-minimapa"></div>
-
               <input type="date" name="fecha" value={nuevoEvento.fecha} onChange={handleChange} required />
               <input type="time" name="hora" value={nuevoEvento.hora} onChange={handleChange} required />
               <input
@@ -1602,6 +1604,7 @@ export default function Eventos({ usuario }) {
               <button className="evento-modal-publicar" type="submit" disabled={subiendo}>
                 {subiendo ? "Guardando..." : "Crear evento"}
               </button>
+              </div>
             </form>
           </section>
         </div>

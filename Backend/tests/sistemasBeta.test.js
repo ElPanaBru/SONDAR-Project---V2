@@ -54,6 +54,17 @@ test('eventos usa tiles sin API key y conserva el mapa principal oscuro', () => 
   assert.match(styles, /\.eventos-mapa \.leaflet-control-attribution\s*\{[^}]*font-size:\s*10px;/s);
 });
 
+test('el mapa del creador queda fijo mientras se desplazan los campos', () => {
+  const page = read('Frontend', 'src', 'paginas', 'Eventos.jsx');
+  const styles = read('Frontend', 'src', 'paginas', 'eventos.css');
+
+  assert.match(page, /scrollWheelZoom: false/);
+  assert.match(page, /className="evento-modal-mapa-fijo"[\s\S]*?className="evento-modal-campos-scroll"/);
+  assert.match(styles, /\.evento-modal \.evento-modal-form\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.match(styles, /\.evento-modal-mapa-fijo > \.evento-minimapa\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;/s);
+  assert.match(styles, /\.evento-modal-campos-scroll\s*\{[^}]*overflow-y:\s*auto;/s);
+});
+
 test('descubrir aprende de escuchas y permite aislar los reels de un perfil', () => {
   const controller = read('Backend', 'Controllers', 'reelController.js');
   const discover = read('Frontend', 'src', 'paginas', 'Descubrir.jsx');
@@ -76,18 +87,28 @@ test('mensajeria integra API, ruta, Realtime, presencia y respaldo por polling',
   const page = read('Frontend', 'src', 'paginas', 'Mensajes.jsx');
   const router = read('Backend', 'routes', 'mensajes.js');
   const controller = read('Backend', 'Controllers', 'mensajeController.js');
+  const migration = read('Backend', 'BDD-Sql', 'Estados_Mensajes_Y_Usuarios_Eliminados.sql');
 
   assert.match(app, /path="\/mensajes"/);
   assert.match(router, /conversaciones\/:conversationId\/mensajes/);
   assert.match(router, /mensajes\/:messageId/);
   assert.match(controller, /RATE_MAX_MESSAGES = 8/);
   assert.match(controller, /last_read_at/);
+  assert.match(controller, /last_delivered_at/);
   assert.match(controller, /INTERVAL '15 minutes'/);
   assert.match(page, /private: true/);
   assert.match(page, /event: "typing"/);
   assert.match(page, /event: "sync"/);
+  assert.match(page, /event: "delivered"/);
+  assert.match(page, /◷ Enviando/);
+  assert.match(page, /✓✓ Recibido/);
+  assert.match(page, /✓✓ Leído/);
+  assert.match(page, /El usuario ya no existe/);
   assert.match(page, /window\.setInterval\(\(\) => loadMessages/);
   assert.match(page, /Cargar mensajes anteriores/);
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS conversation_members_user_id_fkey/);
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS messages_sender_id_fkey/);
+  assert.match(migration, /last_delivered_at/);
 });
 
 test('mensajes se integra con notificaciones sin indicador en la barra lateral', () => {
@@ -103,7 +124,7 @@ test('mensajes se integra con notificaciones sin indicador en la barra lateral',
   assert.match(server, /'PATCH'/);
   assert.match(schema, /ADD COLUMN IF NOT EXISTS notificar_mensajes/);
   assert.match(settings, /name="notificarMensajes"/);
-  assert.match(sidebar, /label: "Review"/);
+  assert.match(sidebar, /label: "Preview"/);
   assert.doesNotMatch(sidebar, /noLeidos|badge|notification-dot|mensajes-actualizados/);
 });
 

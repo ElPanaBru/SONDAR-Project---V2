@@ -2292,9 +2292,292 @@
   background: #ffffff;
 }
 
-.crear-reel-audio {
+.crear-reel-audio-cargando {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.68);
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.crear-reel-audio-cargando span {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 174, 0, 0.28);
+  border-top-color: #ffae00;
+  border-radius: 50%;
+  animation: crear-reel-girar 0.72s linear infinite;
+}
+
+@keyframes crear-reel-girar {
+  to { transform: rotate(360deg); }
+}
+
+.crear-reel-selector-audio {
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 174, 0, 0.08), transparent 44%),
+    #121212;
+  border: 1px solid rgba(255, 174, 0, 0.28);
+  border-radius: 11px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.crear-reel-selector-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.crear-reel-selector-encabezado > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.crear-reel-selector-encabezado strong {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.crear-reel-selector-encabezado small,
+.crear-reel-selector-audio footer small {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.crear-reel-selector-encabezado output {
+  flex: none;
+  padding: 5px 8px;
+  color: #080808;
+  background: linear-gradient(90deg, #ffae00, #ff7200);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 950;
+  font-variant-numeric: tabular-nums;
+}
+
+.crear-reel-editor-audio {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px auto minmax(90px, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.crear-reel-audio-play {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: #080808;
+  background: #ffae00;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.crear-reel-audio-play:hover {
+  filter: brightness(1.12);
+  transform: scale(1.05);
+}
+
+.crear-reel-audio-play:focus-visible {
+  outline: 3px solid rgba(255, 174, 0, 0.3);
+  outline-offset: 2px;
+}
+
+.crear-reel-audio-play svg {
+  width: 17px;
+  height: 17px;
+  fill: currentColor;
+}
+
+.crear-reel-editor-audio time {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 10px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.crear-reel-linea-audio {
+  position: relative;
+  height: 58px;
+  overflow: visible;
+  background: #090909;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  touch-action: none;
+}
+
+.crear-reel-onda {
+  position: absolute;
+  inset: 8px 6px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.crear-reel-onda i {
+  flex: 1 1 1px;
+  min-width: 1px;
+  height: 20%;
+  background: #ffae00;
+  border-radius: 2px;
+  opacity: 0.88;
+}
+
+.crear-reel-audio-sombra,
+.crear-reel-audio-seleccion,
+.crear-reel-audio-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.crear-reel-audio-sombra {
+  z-index: 2;
+  background: rgba(3, 3, 3, 0.7);
+}
+
+.crear-reel-audio-sombra.inicio {
+  left: 0;
+  width: var(--audio-inicio);
+  border-radius: 7px 0 0 7px;
+}
+
+.crear-reel-audio-sombra.fin {
+  right: 0;
+  left: var(--audio-fin);
+  border-radius: 0 7px 7px 0;
+}
+
+.crear-reel-audio-seleccion {
+  z-index: 3;
+  right: calc(100% - var(--audio-fin));
+  left: var(--audio-inicio);
+  border-block: 2px solid #ffae00;
+  box-shadow: inset 0 0 22px rgba(255, 174, 0, 0.12);
+}
+
+.crear-reel-audio-cursor {
+  z-index: 4;
+  left: var(--audio-progreso);
+  width: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 7px rgba(255, 255, 255, 0.72);
+  transform: translateX(-1px);
+}
+
+.crear-reel-campos .crear-reel-audio-rango {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
   width: 100%;
-  height: 42px;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  color: transparent;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  pointer-events: none;
+}
+
+.crear-reel-campos .crear-reel-audio-rango.fin {
+  z-index: 6;
+}
+
+.crear-reel-campos .crear-reel-audio-rango:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.crear-reel-audio-rango::-webkit-slider-runnable-track {
+  height: 100%;
+  background: transparent;
+}
+
+.crear-reel-audio-rango::-moz-range-track {
+  height: 100%;
+  background: transparent;
+}
+
+.crear-reel-audio-rango::-webkit-slider-thumb {
+  width: 13px;
+  height: 64px;
+  margin-top: -3px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #ffae00;
+  border: 3px solid #181818;
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px #ffae00, 0 4px 12px rgba(0, 0, 0, 0.48);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.crear-reel-audio-rango::-moz-range-thumb {
+  width: 9px;
+  height: 58px;
+  background: #ffae00;
+  border: 3px solid #181818;
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px #ffae00, 0 4px 12px rgba(0, 0, 0, 0.48);
+  cursor: ew-resize;
+  pointer-events: auto;
+}
+
+.crear-reel-audio-rango:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px rgba(255, 174, 0, 0.38);
+}
+
+.crear-reel-audio-rango:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px #ffffff, 0 0 0 6px rgba(255, 174, 0, 0.38);
+}
+
+.crear-reel-selector-audio footer {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.crear-reel-selector-audio footer > span {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 10px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crear-reel-selector-audio audio {
+  display: none;
 }
 
 .crear-reel-publicar {
@@ -2366,6 +2649,14 @@
 
   .crear-reel-archivos {
     grid-template-columns: 1fr;
+  }
+
+  .crear-reel-editor-audio {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .crear-reel-editor-audio > time {
+    display: none;
   }
 }
 

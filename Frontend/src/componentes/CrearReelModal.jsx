@@ -5,6 +5,16 @@ import {
   extraerColorDominante,
   normalizarColorPortada,
 } from "../lib/colorPortada";
+import {
+  MAX_FRAGMENTO_SEGUNDOS,
+  MIN_FRAGMENTO_SEGUNDOS,
+  decodificarArchivoAudio,
+  duracionReelDesdeSegundos,
+  extraerPicosAudio,
+  formatearTiempoAudio,
+  recortarAudioComoWav,
+  seleccionInicialAudio,
+} from "../lib/audioFragmento";
 import { supabase } from "../lib/supabaseClient";
 import PerfilToast from "./PerfilToast";
 import "../paginas/descubrir.css";
@@ -48,6 +58,16 @@ const MIME_AUDIO_POR_EXTENSION = {
 };
 const ACCEPT_PORTADA_REEL = ".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif";
 const ACCEPT_AUDIO_REEL = ".mp3,.wav,.ogg,.webm,.m4a,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4";
+
+const crearSelectorAudioVacio = () => ({
+  cargando: false,
+  duracionTotal: 0,
+  inicio: 0,
+  fin: 0,
+  actual: 0,
+  picos: [],
+  reproduciendo: false,
+});
 
 const crearReelVacio = () => ({
   titulo: "",
@@ -106,29 +126,41 @@ function IconoCerrar() {
 
 export default function CrearReelModal({ abierto, usuario, onClose }) {
   const [nuevoReel, setNuevoReel] = useState(crearReelVacio);
+  const [selectorAudio, setSelectorAudio] = useState(crearSelectorAudioVacio);
   const [archivoArrastrado, setArchivoArrastrado] = useState(null);
   const [subiendo, setSubiendo] = useState(false);
   const [aviso, setAviso] = useState("");
   const portadaInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const audioPreviewRef = useRef(null);
+  const audioBufferRef = useRef(null);
   const subiendoRef = useRef(false);
   const versionSeleccionPortadaRef = useRef(0);
+  const versionSeleccionAudioRef = useRef(0);
 
   useEffect(() => {
-    if (!abierto) versionSeleccionPortadaRef.current += 1;
+    if (!abierto) {
+      versionSeleccionPortadaRef.current += 1;
+      versionSeleccionAudioRef.current += 1;
+    }
   }, [abierto]);
 
   useEffect(() => () => {
     versionSeleccionPortadaRef.current += 1;
+    versionSeleccionAudioRef.current += 1;
   }, []);
 
   const cerrar = () => {
     if (subiendoRef.current) return;
     versionSeleccionPortadaRef.current += 1;
+    versionSeleccionAudioRef.current += 1;
+    audioPreviewRef.current?.pause();
+    audioBufferRef.current = null;
     if (nuevoReel.audio?.startsWith("blob:")) URL.revokeObjectURL(nuevoReel.audio);
     if (portadaInputRef.current) portadaInputRef.current.value = "";
     if (audioInputRef.current) audioInputRef.current.value = "";
     setNuevoReel(crearReelVacio());
+    setSelectorAudio(crearSelectorAudioVacio());
     setArchivoArrastrado(null);
     onClose();
   };
@@ -169,8 +201,9 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
     }
   };
 
-  const seleccionarAudio = (seleccionado) => {
+  const seleccionarAudio = async (seleccionado) => {
     if (!seleccionado) return;
+    const versionSeleccion = ++versionSeleccionAudioRef.current;
     let archivo;
     try {
       archivo = prepararArchivoReel(
@@ -185,32 +218,59 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       return;
     }
 
-    const audio = URL.createObjectURL(archivo);
-    const elementoAudio = new Audio(audio);
+    audioPreviewRef.current?.pause();
+    audioBufferRef.current = null;
+    setSelectorAudio({ ...crearSelectorAudioVacio(), cargando: true });
     setNuevoReel((actual) => {
       if (actual.audio?.startsWith("blob:")) URL.revokeObjectURL(actual.audio);
       return {
         ...actual,
-        audio,
-        audioFile: archivo,
+        audio: "",
+        audioFile: null,
         nombreAudio: archivo.name,
         duracion: "0:30",
       };
     });
-    elementoAudio.addEventListener("loadedmetadata", () => {
-      const total = Number.isFinite(elementoAudio.duration) ? Math.max(1, Math.round(elementoAudio.duration)) : 30;
-      const duracion = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-      setNuevoReel((actual) => actual.audio === audio ? { ...actual, duracion } : actual);
-    }, { once: true });
-    elementoAudio.addEventListener("error", () => {
-      URL.revokeObjectURL(audio);
+    setAviso("");
+    try {
+      const audioBuffer = await decodificarArchivoAudio(archivo);
+      if (versionSeleccion !== versionSeleccionAudioRef.current) return;
+      const audio = URL.createObjectURL(archivo);
+      const seleccion = seleccionInicialAudio(audioBuffer.duration);
+      audioBufferRef.current = audioBuffer;
+      setNuevoReel((actual) => {
+        if (actual.audio?.startsWith("blob:")) URL.revokeObjectURL(actual.audio);
+        return {
+          ...actual,
+          audio,
+          audioFile: archivo,
+          nombreAudio: archivo.name,
+          duracion: duracionReelDesdeSegundos(seleccion.fin - seleccion.inicio),
+        };
+      });
+      setSelectorAudio({
+        cargando: false,
+        duracionTotal: audioBuffer.duration,
+        inicio: seleccion.inicio,
+        fin: seleccion.fin,
+        actual: seleccion.inicio,
+        picos: extraerPicosAudio(audioBuffer),
+        reproduciendo: false,
+      });
+    } catch (error) {
+      if (versionSeleccion !== versionSeleccionAudioRef.current) return;
+      audioBufferRef.current = null;
       if (audioInputRef.current) audioInputRef.current.value = "";
-      setNuevoReel((actual) => actual.audio === audio
-        ? { ...actual, audio: "", audioFile: null, nombreAudio: "", duracion: "0:30" }
-        : actual
-      );
-      setAviso("El archivo no contiene un audio reproducible.");
-    }, { once: true });
+      setNuevoReel((actual) => ({
+        ...actual,
+        audio: "",
+        audioFile: null,
+        nombreAudio: "",
+        duracion: "0:30",
+      }));
+      setSelectorAudio(crearSelectorAudioVacio());
+      setAviso(error.message || "El archivo no contiene un audio reproducible.");
+    }
   };
 
   const prepararArrastre = (event, tipo) => {
@@ -250,11 +310,97 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
   };
 
   const limpiarAudio = () => {
+    versionSeleccionAudioRef.current += 1;
+    audioPreviewRef.current?.pause();
+    audioBufferRef.current = null;
     if (audioInputRef.current) audioInputRef.current.value = "";
     setNuevoReel((actual) => {
       if (actual.audio?.startsWith("blob:")) URL.revokeObjectURL(actual.audio);
       return { ...actual, audio: "", audioFile: null, nombreAudio: "", duracion: "0:30" };
     });
+    setSelectorAudio(crearSelectorAudioVacio());
+  };
+
+  const aplicarSeleccionAudio = (inicio, fin) => {
+    const audio = audioPreviewRef.current;
+    audio?.pause();
+    if (audio?.readyState) audio.currentTime = inicio;
+    setSelectorAudio((actual) => ({
+      ...actual,
+      inicio,
+      fin,
+      actual: inicio,
+      reproduciendo: false,
+    }));
+    setNuevoReel((actual) => ({
+      ...actual,
+      duracion: duracionReelDesdeSegundos(fin - inicio),
+    }));
+  };
+
+  const cambiarInicioAudio = (valor) => {
+    const minimo = Math.min(MIN_FRAGMENTO_SEGUNDOS, selectorAudio.duracionTotal);
+    const inicio = Math.max(0, Math.min(Number(valor), selectorAudio.fin - minimo));
+    const fin = Math.min(selectorAudio.fin, inicio + MAX_FRAGMENTO_SEGUNDOS);
+    aplicarSeleccionAudio(inicio, fin);
+  };
+
+  const cambiarFinAudio = (valor) => {
+    const minimo = Math.min(MIN_FRAGMENTO_SEGUNDOS, selectorAudio.duracionTotal);
+    const fin = Math.min(
+      selectorAudio.duracionTotal,
+      Math.max(Number(valor), selectorAudio.inicio + minimo),
+      selectorAudio.inicio + MAX_FRAGMENTO_SEGUNDOS
+    );
+    aplicarSeleccionAudio(selectorAudio.inicio, fin);
+  };
+
+  const alternarReproduccionAudio = async () => {
+    const audio = audioPreviewRef.current;
+    if (!audio) return;
+    if (!audio.paused) {
+      audio.pause();
+      setSelectorAudio((actual) => ({ ...actual, reproduciendo: false }));
+      return;
+    }
+    try {
+      if (audio.readyState === 0) {
+        await new Promise((resolve, reject) => {
+          const listo = () => {
+            audio.removeEventListener("error", fallo);
+            resolve();
+          };
+          const fallo = () => {
+            audio.removeEventListener("loadedmetadata", listo);
+            reject(new Error("No se pudo cargar la vista previa del audio."));
+          };
+          audio.addEventListener("loadedmetadata", listo, { once: true });
+          audio.addEventListener("error", fallo, { once: true });
+        });
+      }
+      if (audio.currentTime < selectorAudio.inicio || audio.currentTime >= selectorAudio.fin - 0.03) {
+        audio.currentTime = selectorAudio.inicio;
+      }
+      await audio.play();
+      setSelectorAudio((actual) => ({ ...actual, reproduciendo: true }));
+    } catch {
+      setAviso("No se pudo reproducir el fragmento seleccionado.");
+    }
+  };
+
+  const actualizarProgresoAudio = (event) => {
+    const audio = event.currentTarget;
+    if (audio.currentTime >= selectorAudio.fin - 0.025) {
+      audio.pause();
+      audio.currentTime = selectorAudio.inicio;
+      setSelectorAudio((actual) => ({
+        ...actual,
+        actual: actual.inicio,
+        reproduciendo: false,
+      }));
+      return;
+    }
+    setSelectorAudio((actual) => ({ ...actual, actual: audio.currentTime }));
   };
 
   const alternarGenero = (genero) => {
@@ -281,13 +427,26 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+      if (!audioBufferRef.current || selectorAudio.fin <= selectorAudio.inicio) {
+        throw new Error("Espera a que termine de procesarse el audio y elegi un fragmento.");
+      }
+
+      const audioRecortado = recortarAudioComoWav(
+        audioBufferRef.current,
+        selectorAudio.inicio,
+        selectorAudio.fin,
+        nuevoReel.audioFile.name
+      );
+      if (audioRecortado.size > MAX_AUDIO_REEL_BYTES) {
+        throw new Error("El fragmento generado supera los 20MB. Selecciona una parte mas corta.");
+      }
 
       const formData = new FormData();
       formData.append("titulo", nuevoReel.titulo.trim());
       formData.append("genero", nuevoReel.generos[0]);
       formData.append("generos", JSON.stringify(nuevoReel.generos));
-      formData.append("duracion", nuevoReel.duracion);
-      formData.append("audio", nuevoReel.audioFile);
+      formData.append("duracion", duracionReelDesdeSegundos(selectorAudio.fin - selectorAudio.inicio));
+      formData.append("audio", audioRecortado);
       if (nuevoReel.portadaFile) {
         formData.append("portada", nuevoReel.portadaFile);
         formData.append("color_principal", normalizarColorPortada(nuevoReel.colorPrincipal));
@@ -319,10 +478,14 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       window.dispatchEvent(new CustomEvent("sondar:reel-creado", { detail: reel }));
       window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
       if (nuevoReel.audio?.startsWith("blob:")) URL.revokeObjectURL(nuevoReel.audio);
+      audioPreviewRef.current?.pause();
+      audioBufferRef.current = null;
       if (portadaInputRef.current) portadaInputRef.current.value = "";
       if (audioInputRef.current) audioInputRef.current.value = "";
       versionSeleccionPortadaRef.current += 1;
+      versionSeleccionAudioRef.current += 1;
       setNuevoReel(crearReelVacio());
+      setSelectorAudio(crearSelectorAudioVacio());
       setArchivoArrastrado(null);
       onClose();
       setAviso("Preview publicada");
@@ -334,6 +497,11 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
       setSubiendo(false);
     }
   };
+
+  const porcentajeAudio = (valor) => selectorAudio.duracionTotal > 0
+    ? `${Math.min(100, Math.max(0, (valor / selectorAudio.duracionTotal) * 100))}%`
+    : "0%";
+  const duracionFragmento = Math.max(0, selectorAudio.fin - selectorAudio.inicio);
 
   return (
     <>
@@ -448,7 +616,95 @@ export default function CrearReelModal({ abierto, usuario, onClose }) {
                   </div>
                 </div>
 
-                {nuevoReel.audio ? <audio className="crear-reel-audio" src={nuevoReel.audio} controls /> : null}
+                {selectorAudio.cargando ? (
+                  <div className="crear-reel-audio-cargando" role="status">
+                    <span />
+                    Analizando la forma de onda...
+                  </div>
+                ) : null}
+
+                {nuevoReel.audio ? (
+                  <section className="crear-reel-selector-audio" aria-labelledby="selector-audio-titulo">
+                    <header className="crear-reel-selector-encabezado">
+                      <div>
+                        <strong id="selector-audio-titulo">Elegi el fragmento</strong>
+                        <small>Arrastra los extremos · maximo {MAX_FRAGMENTO_SEGUNDOS} segundos</small>
+                      </div>
+                      <output>{formatearTiempoAudio(duracionFragmento, true)}</output>
+                    </header>
+
+                    <div className="crear-reel-editor-audio">
+                      <button
+                        className="crear-reel-audio-play"
+                        type="button"
+                        onClick={alternarReproduccionAudio}
+                        aria-label={selectorAudio.reproduciendo ? "Pausar fragmento" : "Reproducir fragmento"}
+                      >
+                        {selectorAudio.reproduciendo ? (
+                          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg>
+                        ) : (
+                          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8z" /></svg>
+                        )}
+                      </button>
+                      <time>{formatearTiempoAudio(selectorAudio.inicio, true)}</time>
+
+                      <div
+                        className="crear-reel-linea-audio"
+                        style={{
+                          "--audio-inicio": porcentajeAudio(selectorAudio.inicio),
+                          "--audio-fin": porcentajeAudio(selectorAudio.fin),
+                          "--audio-progreso": porcentajeAudio(selectorAudio.actual),
+                        }}
+                      >
+                        <div className="crear-reel-onda" aria-hidden="true">
+                          {selectorAudio.picos.map((pico, indice) => (
+                            <i key={indice} style={{ height: `${Math.max(8, pico * 100)}%` }} />
+                          ))}
+                        </div>
+                        <span className="crear-reel-audio-sombra inicio" aria-hidden="true" />
+                        <span className="crear-reel-audio-seleccion" aria-hidden="true" />
+                        <span className="crear-reel-audio-sombra fin" aria-hidden="true" />
+                        <span className="crear-reel-audio-cursor" aria-hidden="true" />
+                        <input
+                          className="crear-reel-audio-rango inicio"
+                          type="range"
+                          min="0"
+                          max={selectorAudio.duracionTotal}
+                          step="0.01"
+                          value={selectorAudio.inicio}
+                          onChange={(event) => cambiarInicioAudio(event.target.value)}
+                          aria-label="Inicio del fragmento"
+                          aria-valuetext={formatearTiempoAudio(selectorAudio.inicio, true)}
+                        />
+                        <input
+                          className="crear-reel-audio-rango fin"
+                          type="range"
+                          min="0"
+                          max={selectorAudio.duracionTotal}
+                          step="0.01"
+                          value={selectorAudio.fin}
+                          onChange={(event) => cambiarFinAudio(event.target.value)}
+                          aria-label="Fin del fragmento"
+                          aria-valuetext={formatearTiempoAudio(selectorAudio.fin, true)}
+                        />
+                      </div>
+
+                      <time>{formatearTiempoAudio(selectorAudio.fin, true)}</time>
+                    </div>
+
+                    <footer>
+                      <span title={nuevoReel.nombreAudio}>{nuevoReel.nombreAudio}</span>
+                      <small>Total: {formatearTiempoAudio(selectorAudio.duracionTotal)}</small>
+                    </footer>
+                    <audio
+                      ref={audioPreviewRef}
+                      src={nuevoReel.audio}
+                      preload="metadata"
+                      onTimeUpdate={actualizarProgresoAudio}
+                      onPause={() => setSelectorAudio((actual) => ({ ...actual, reproduciendo: false }))}
+                    />
+                  </section>
+                ) : null}
                 <button className="crear-reel-publicar" type="submit" disabled={subiendo}>{subiendo ? "Creando..." : "Publicar preview"}</button>
               </div>
             </div>

@@ -7,6 +7,7 @@
     "dev": "vite",
     "start_front": "vite",
     "build": "vite build",
+    "test": "node --test tests/*.test.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },

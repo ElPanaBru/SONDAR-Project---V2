@@ -7,9 +7,11 @@ import "./mensajes.css";
 const PAGE_SIZE = 40;
 
 function Avatar({ usuario, size = "normal" }) {
-  const inicial = (usuario?.nombre || usuario?.username || "S").charAt(0).toUpperCase();
+  const inicial = usuario?.eliminado
+    ? "?"
+    : (usuario?.nombre || usuario?.username || "S").charAt(0).toUpperCase();
   return (
-    <span className={`mensajes-avatar mensajes-avatar-${size}`} aria-hidden="true">
+    <span className={`mensajes-avatar mensajes-avatar-${size} ${usuario?.eliminado ? "usuario-eliminado" : ""}`} aria-hidden="true">
       {usuario?.avatar ? <img src={usuario.avatar} alt="" /> : inicial}
     </span>
   );
@@ -31,7 +33,24 @@ function formatTime(value, withDate = false) {
 function mergeMessages(current, incoming) {
   const byId = new Map(current.map((message) => [String(message.id), message]));
   incoming.forEach((message) => byId.set(String(message.id), message));
-  return [...byId.values()].sort((a, b) => Number(a.id) - Number(b.id));
+  return [...byId.values()].sort((a, b) => {
+    const firstId = Number(a.id);
+    const secondId = Number(b.id);
+    if (Number.isFinite(firstId) && Number.isFinite(secondId)) return firstId - secondId;
+    return new Date(a.creadoEn || 0) - new Date(b.creadoEn || 0);
+  });
+}
+
+function estadoMensaje(message) {
+  const estado = message.estado || (message.leido ? "leido" : message.recibido ? "recibido" : "enviado");
+  const etiquetas = {
+    enviando: "◷ Enviando",
+    enviado: "✓ Enviado",
+    recibido: "✓✓ Recibido",
+    leido: "✓✓ Leído",
+    error: "No enviado",
+  };
+  return { estado, etiqueta: etiquetas[estado] || etiquetas.enviado };
 }
 
 export default function Mensajes({ usuario }) {
@@ -186,7 +205,13 @@ export default function Mensajes({ usuario }) {
         .on("broadcast", { event: "read" }, ({ payload }) => {
           if (payload?.user_id === usuario.id) return;
           setMessages((current) => current.map((message) =>
-            message.propio ? { ...message, leido: true } : message
+            message.propio ? { ...message, recibido: true, leido: true, estado: "leido" } : message
+          ));
+        })
+        .on("broadcast", { event: "delivered" }, ({ payload }) => {
+          if (payload?.user_id === usuario.id) return;
+          setMessages((current) => current.map((message) =>
+            message.propio && !message.leido ? { ...message, recibido: true, estado: "recibido" } : message
           ));
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
@@ -298,8 +323,32 @@ export default function Mensajes({ usuario }) {
   const sendMessage = async (event) => {
     event.preventDefault();
     const clean = text.trim();
-    if (!clean || !activeId || sending || activeConversation?.bloqueada) return;
+    if (!clean || !activeId || sending || activeConversation?.bloqueada || activeConversation?.usuario?.eliminado) return;
+    const temporaryId = `enviando-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMessage = {
+      id: temporaryId,
+      conversacionId: activeId,
+      texto: clean,
+      remitente: usuario,
+      propio: true,
+      respuestaA: replyingTo ? {
+        id: replyingTo.id,
+        texto: replyingTo.texto,
+        remitenteId: replyingTo.remitente?.id,
+        eliminado: false,
+      } : null,
+      creadoEn: new Date().toISOString(),
+      editadoEn: null,
+      eliminado: false,
+      recibido: false,
+      leido: false,
+      estado: "enviando",
+    };
     setSending(true);
+    setMessages((current) => [...current, optimisticMessage]);
+    setText("");
+    setReplyingTo(null);
+    scrollOnNextUpdateRef.current = true;
     notifyTyping(false);
     try {
       const response = await apiRequest(`/api/mensajes/conversaciones/${activeId}/mensajes`, {
@@ -308,13 +357,17 @@ export default function Mensajes({ usuario }) {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "No se pudo enviar el mensaje.");
-      setMessages((current) => mergeMessages(current, [body]));
+      setMessages((current) => mergeMessages(
+        current.filter((message) => String(message.id) !== temporaryId),
+        [body]
+      ));
       scrollOnNextUpdateRef.current = true;
-      setText("");
-      setReplyingTo(null);
       loadConversations({ silent: true });
       window.dispatchEvent(new CustomEvent("sondar:mensajes-actualizados"));
     } catch (error) {
+      setMessages((current) => current.map((message) =>
+        String(message.id) === temporaryId ? { ...message, estado: "error" } : message
+      ));
       setNotice(error.message || "No se pudo enviar el mensaje.");
     } finally {
       setSending(false);
@@ -383,7 +436,7 @@ export default function Mensajes({ usuario }) {
             >
               <Avatar usuario={conversation.usuario} />
               <span className="mensajes-conversacion-texto">
-                <strong>{conversation.usuario.nombre}</strong>
+                <strong className={conversation.usuario.eliminado ? "usuario-eliminado" : ""}>{conversation.usuario.nombre}</strong>
                 <small>{conversation.ultimoMensaje
                   ? `${conversation.ultimoMensaje.propio ? "Tu: " : ""}${conversation.ultimoMensaje.texto}`
                   : "Nueva conversacion"}</small>
@@ -404,37 +457,54 @@ export default function Mensajes({ usuario }) {
           <>
             <header className="mensajes-chat-header">
               <button type="button" className="mensajes-volver" onClick={() => setActiveId("")} aria-label="Volver">‹</button>
-              <Link to={`/perfil/${activeConversation.usuario.id}`}><Avatar usuario={activeConversation.usuario} size="small" /></Link>
+              {activeConversation.usuario.eliminado
+                ? <Avatar usuario={activeConversation.usuario} size="small" />
+                : <Link to={`/perfil/${activeConversation.usuario.id}`}><Avatar usuario={activeConversation.usuario} size="small" /></Link>}
               <div>
-                <Link to={`/perfil/${activeConversation.usuario.id}`}>{activeConversation.usuario.nombre}</Link>
-                <span>{typingUser ? "escribiendo..." : otherOnline ? "En linea" : `@${activeConversation.usuario.username}`}</span>
+                {activeConversation.usuario.eliminado
+                  ? <strong>{activeConversation.usuario.nombre}</strong>
+                  : <Link to={`/perfil/${activeConversation.usuario.id}`}>{activeConversation.usuario.nombre}</Link>}
+                <span className={activeConversation.usuario.eliminado ? "mensajes-usuario-eliminado-estado" : ""}>
+                  {activeConversation.usuario.eliminado
+                    ? "El usuario ya no existe"
+                    : typingUser ? "escribiendo..." : otherOnline ? "En linea" : `@${activeConversation.usuario.username}`}
+                </span>
               </div>
             </header>
 
             <div className="mensajes-historial" aria-live="polite">
+              {activeConversation.usuario.eliminado ? (
+                <div className="mensajes-usuario-eliminado-aviso">
+                  Esta cuenta fue eliminada. Podes consultar el historial, pero ya no enviar mensajes.
+                </div>
+              ) : null}
               {cursor ? <button type="button" className="mensajes-cargar-anteriores" disabled={loadingOlder} onClick={() => loadMessages(activeId, { older: true })}>{loadingOlder ? "Cargando..." : "Cargar mensajes anteriores"}</button> : null}
               {loadingMessages ? <p className="mensajes-estado">Cargando mensajes...</p> : null}
               {!loadingMessages && messages.length === 0 ? (
-                <div className="mensajes-inicio"><Avatar usuario={activeConversation.usuario} /><strong>{activeConversation.usuario.nombre}</strong><p>Envia un mensaje para iniciar la conversacion.</p></div>
+                <div className="mensajes-inicio"><Avatar usuario={activeConversation.usuario} /><strong>{activeConversation.usuario.nombre}</strong><p>{activeConversation.usuario.eliminado ? "No quedaron mensajes en esta conversacion." : "Envia un mensaje para iniciar la conversacion."}</p></div>
               ) : null}
-              {messages.map((message) => (
-                <article key={message.id} className={`mensaje-burbuja ${message.propio ? "propio" : "recibido"} ${message.eliminado ? "eliminado" : ""}`}>
+              {messages.map((message) => {
+                const estado = estadoMensaje(message);
+                return (
+                <article key={message.id} className={`mensaje-burbuja ${message.propio ? "propio" : "recibido"} ${message.eliminado ? "eliminado" : ""} ${estado.estado === "error" ? "mensaje-error" : ""}`}>
                   {message.respuestaA ? <button type="button" className="mensaje-respuesta-previa" onClick={() => document.getElementById(`mensaje-${message.respuestaA.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>{message.respuestaA.texto}</button> : null}
-                  <div id={`mensaje-${message.id}`}><p>{message.texto}</p><span>{message.editadoEn ? "editado · " : ""}{formatTime(message.creadoEn)}{message.propio && !message.eliminado ? ` · ${message.leido ? "Visto" : "Enviado"}` : ""}</span></div>
+                  <div id={`mensaje-${message.id}`}><p>{message.texto}</p><span>{message.editadoEn ? "editado · " : ""}{formatTime(message.creadoEn)}{message.propio && !message.eliminado ? <> · <b className={`mensaje-estado mensaje-estado-${estado.estado}`}>{estado.etiqueta}</b></> : null}</span></div>
                   {!message.eliminado ? (
                     <nav aria-label="Acciones del mensaje">
-                      <button type="button" onClick={() => setReplyingTo(message)}>Responder</button>
+                      {!activeConversation.usuario.eliminado ? <button type="button" onClick={() => setReplyingTo(message)}>Responder</button> : null}
                       {message.propio ? <button type="button" onClick={() => editMessage(message)}>Editar</button> : null}
                       {message.propio ? <button type="button" onClick={() => deleteMessage(message)}>Eliminar</button> : null}
                     </nav>
                   ) : null}
                 </article>
-              ))}
-              {typingUser ? <div className="mensaje-escribiendo" aria-label="Escribiendo"><i /><i /><i /></div> : null}
+              );})}
+              {typingUser && !activeConversation.usuario.eliminado ? <div className="mensaje-escribiendo" aria-label="Escribiendo"><i /><i /><i /></div> : null}
               <div ref={messagesEndRef} />
             </div>
 
-            {activeConversation.bloqueada ? (
+            {activeConversation.usuario.eliminado ? (
+              <div className="mensajes-bloqueada mensajes-cuenta-eliminada">El usuario ya no existe. No podes enviarle mensajes.</div>
+            ) : activeConversation.bloqueada ? (
               <div className="mensajes-bloqueada">No se pueden enviar mensajes debido a un bloqueo.</div>
             ) : (
               <form className="mensajes-composer" onSubmit={sendMessage}>

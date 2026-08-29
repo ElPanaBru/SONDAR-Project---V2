@@ -21,6 +21,7 @@ const client = {
         id: conversationId,
         viewer_id: senderId,
         other_user_id: recipientId,
+        other_deleted: false,
         blocked: false,
       }]);
     }
@@ -53,6 +54,7 @@ const pool = {
         edited_at: null,
         deleted_at: null,
         other_last_read_at: null,
+        other_last_delivered_at: null,
       }]);
     }
     if (query.startsWith('UPDATE public.conversation_members')) {
@@ -104,6 +106,7 @@ test('enviar un mensaje crea una notificacion configurable para el destinatario'
   }, res);
 
   assert.equal(res.statusCode, 201);
+  assert.equal(res.body.estado, 'enviado');
   assert.equal(notificationCalls.length, 1);
   assert.equal(notificationCalls[0].receivedClient, client);
   assert.deepEqual(notificationCalls[0].data, {
@@ -130,4 +133,46 @@ test('leer una conversacion marca tambien sus notificaciones de mensajes como le
   assert.ok(notificationUpdate);
   assert.match(notificationUpdate.query, /type = 'direct_message'/);
   assert.deepEqual(notificationUpdate.params, [recipientId, `/mensajes?conversacion=${conversationId}`]);
+  const memberUpdate = poolQueries.find(({ query }) => query.startsWith('UPDATE public.conversation_members'));
+  assert.match(memberUpdate.query, /last_delivered_at/);
+});
+
+test('mapea las etapas de entrega y lectura', () => {
+  const base = {
+    id: 4,
+    conversation_id: conversationId,
+    sender_id: senderId,
+    sender_username: 'tester',
+    sender_display_name: 'Tester',
+    body: 'Estado',
+    created_at: '2026-08-29T12:00:00.000Z',
+    deleted_at: null,
+  };
+  assert.equal(mensajeController._internals.mapMessage(base, senderId).estado, 'enviado');
+  assert.equal(mensajeController._internals.mapMessage({
+    ...base,
+    other_last_delivered_at: '2026-08-29T12:00:01.000Z',
+  }, senderId).estado, 'recibido');
+  assert.equal(mensajeController._internals.mapMessage({
+    ...base,
+    other_last_delivered_at: '2026-08-29T12:00:01.000Z',
+    other_last_read_at: '2026-08-29T12:00:02.000Z',
+  }, senderId).estado, 'leido');
+});
+
+test('una conversacion conserva un participante eliminado como marcador', () => {
+  const conversation = mensajeController._internals.mapConversation({
+    id: conversationId,
+    viewer_id: senderId,
+    other_user_id: recipientId,
+    other_deleted: true,
+    unread_count: 0,
+  });
+  assert.deepEqual(conversation.usuario, {
+    id: recipientId,
+    username: '',
+    nombre: 'Usuario eliminado',
+    avatar: '',
+    eliminado: true,
+  });
 });

@@ -2949,7 +2949,7 @@
 
 .evento-modal {
   width: min(820px, calc(100vw - 96px));
-  height: min(500px, calc(100vh - 95px));
+  height: min(580px, calc(100vh - 95px));
   grid-template-rows: 56px minmax(0, 1fr);
   background: #0b0b0b;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -3013,7 +3013,7 @@
   scrollbar-width: thin;
 }
 
-.evento-modal-form > .evento-generos-selector {
+.evento-modal-campos-scroll > .evento-generos-selector {
   width: 100%;
   min-width: 0;
   padding: 7px 0 8px;
@@ -3081,8 +3081,8 @@
   outline-offset: 2px;
 }
 
-.evento-modal-form > input,
-.evento-modal-form > select {
+.evento-modal-campos-scroll > input,
+.evento-modal-campos-scroll > select {
   flex: 0 0 34px;
   min-height: 34px;
   height: 34px;
@@ -3096,20 +3096,20 @@
   outline: none;
 }
 
-.evento-modal-form > input:hover,
-.evento-modal-form > select:hover {
+.evento-modal-campos-scroll > input:hover,
+.evento-modal-campos-scroll > select:hover {
   background: #1d1d1d;
   border-color: rgba(255, 255, 255, 0.22);
 }
 
-.evento-modal-form > input:focus,
-.evento-modal-form > select:focus {
+.evento-modal-campos-scroll > input:focus,
+.evento-modal-campos-scroll > select:focus {
   background: #181818;
   border-color: #ffae00;
   box-shadow: 0 0 0 3px rgba(255, 174, 0, 0.12);
 }
 
-.evento-modal-form > .evento-file-selector {
+.evento-modal-campos-scroll > .evento-file-selector {
   flex: 0 0 44px;
   min-height: 44px;
   height: 44px;
@@ -3124,14 +3124,14 @@
   cursor: pointer;
 }
 
-.evento-modal-form > .evento-file-selector:hover {
+.evento-modal-campos-scroll > .evento-file-selector:hover {
   background: linear-gradient(90deg, #ffae00, #ff5e00);
   border: 0;
   box-shadow: none;
   filter: brightness(1.08);
 }
 
-.evento-modal-form > .evento-file-selector span {
+.evento-modal-campos-scroll > .evento-file-selector span {
   min-height: 0;
   justify-content: flex-start;
   padding: 0;
@@ -3141,7 +3141,7 @@
   font-weight: 900;
 }
 
-.evento-modal-form > .evento-file-selector strong {
+.evento-modal-campos-scroll > .evento-file-selector strong {
   min-width: 0;
   overflow: hidden;
   color: rgba(8, 8, 8, 0.68);
@@ -3150,7 +3150,7 @@
   white-space: nowrap;
 }
 
-.evento-modal-form > .evento-file-clear {
+.evento-modal-campos-scroll > .evento-file-clear {
   flex: 0 0 30px;
   min-height: 30px;
   height: 30px;
@@ -3254,72 +3254,104 @@
   cursor: pointer;
 }
 
-/* Correccion del creador de eventos: el minimapa participa del layout del
-   formulario para no quedar flotando al hacer scroll en el modal. */
-@media (min-width: 861px) {
-  .evento-modal .evento-modal-form {
-    display: grid;
-    grid-template-columns: minmax(0, 57%) minmax(0, 1fr);
-    grid-auto-rows: min-content;
-    align-content: start;
-    gap: 4px 12px;
-    overflow-x: hidden;
-    overflow-y: auto;
-    padding: 12px;
-  }
+/* El mapa y los campos tienen contenedores independientes: solo la derecha desliza. */
+.evento-modal .evento-modal-form {
+  display: grid;
+  grid-template-columns: minmax(0, 57%) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+}
 
-  .evento-modal-form > :not(.evento-minimapa):not(.mini-mapa-instruccion) {
-    grid-column: 2;
-  }
+.evento-modal-mapa-fijo {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+}
 
-  .evento-modal-form > .evento-minimapa {
-    grid-column: 1;
-    grid-row: 1 / span 12;
-    position: relative;
-    inset: auto;
-    width: 100%;
-    height: 100%;
-    min-height: 430px;
-    margin: 0;
-    align-self: stretch;
-    z-index: 1;
-  }
+.evento-modal-mapa-fijo > .evento-minimapa {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
 
-  .evento-modal-form > .mini-mapa-instruccion {
-    grid-column: 1;
-    grid-row: 1;
-    position: relative;
-    top: auto;
-    left: auto;
-    max-width: calc(100% - 24px);
-    margin: 12px;
-    align-self: start;
-    z-index: 2;
-  }
+.evento-modal-mapa-fijo > .mini-mapa-instruccion {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  z-index: 2;
+  max-width: none;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(8, 8, 8, 0.86);
+  font-size: 12px;
+}
+
+.evento-modal-campos-scroll {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 8px;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(255, 174, 0, 0.75) transparent;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.evento-modal-campos-scroll > input[type="date"],
+.evento-modal-campos-scroll > input[type="time"] {
+  cursor: pointer;
+}
+
+.evento-modal-campos-scroll > input[type="date"]::-webkit-calendar-picker-indicator,
+.evento-modal-campos-scroll > input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1);
+  opacity: 0.82;
 }
 
 @media (max-width: 860px) {
   .evento-modal .evento-modal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
     padding: 14px;
   }
 
-  .evento-modal-form > .mini-mapa-instruccion {
-    position: relative;
-    top: auto;
-    left: auto;
-    order: -2;
-    max-width: none;
-    margin: 0;
+  .evento-modal-mapa-fijo {
+    width: 100%;
+    min-height: 250px;
+    flex: 0 0 250px;
   }
 
-  .evento-modal-form > .evento-minimapa {
-    position: relative;
-    inset: auto;
-    order: -1;
-    width: 100%;
-    height: 250px;
-    min-height: 250px;
-    margin: 0 0 8px;
+  .evento-modal-campos-scroll {
+    flex: 0 0 auto;
+    overflow: visible;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .evento-modal-mapa-fijo {
+    min-height: 210px;
+    flex-basis: 210px;
   }
 }
 /* Ubicacion del usuario y radio PostGIS */

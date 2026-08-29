@@ -22,13 +22,15 @@ function normalizeMessage(value) {
 }
 
 function mapConversation(row) {
+  const usuarioEliminado = Boolean(row.other_deleted);
   return {
     id: row.id,
     usuario: {
       id: row.other_user_id,
-      username: row.other_username,
-      nombre: row.other_display_name || row.other_username,
-      avatar: row.other_avatar || '',
+      username: usuarioEliminado ? '' : row.other_username,
+      nombre: usuarioEliminado ? 'Usuario eliminado' : row.other_display_name || row.other_username,
+      avatar: usuarioEliminado ? '' : row.other_avatar || '',
+      eliminado: usuarioEliminado,
     },
     ultimoMensaje: row.last_message_id ? {
       id: row.last_message_id,
@@ -46,17 +48,25 @@ function mapConversation(row) {
 
 function mapMessage(row, viewerId) {
   const deleted = Boolean(row.deleted_at);
+  const own = row.sender_id === viewerId;
+  const read = own
+    ? Boolean(row.other_last_read_at && new Date(row.other_last_read_at) >= new Date(row.created_at))
+    : true;
+  const delivered = own
+    ? Boolean(row.other_last_delivered_at && new Date(row.other_last_delivered_at) >= new Date(row.created_at))
+    : true;
   return {
     id: row.id,
     conversacionId: row.conversation_id,
     texto: deleted ? 'Mensaje eliminado' : row.body,
     remitente: {
       id: row.sender_id,
-      username: row.sender_username,
-      nombre: row.sender_display_name || row.sender_username,
+      username: row.sender_username || '',
+      nombre: row.sender_display_name || row.sender_username || 'Usuario eliminado',
       avatar: row.sender_avatar || '',
+      eliminado: !row.sender_username,
     },
-    propio: row.sender_id === viewerId,
+    propio: own,
     respuestaA: row.reply_to_id ? {
       id: row.reply_to_id,
       texto: row.reply_deleted_at ? 'Mensaje eliminado' : row.reply_body,
@@ -66,9 +76,9 @@ function mapMessage(row, viewerId) {
     creadoEn: row.created_at,
     editadoEn: row.edited_at,
     eliminado: deleted,
-    leido: row.sender_id === viewerId
-      ? Boolean(row.other_last_read_at && new Date(row.other_last_read_at) >= new Date(row.created_at))
-      : true,
+    recibido: delivered,
+    leido: read,
+    estado: own ? read ? 'leido' : delivered ? 'recibido' : 'enviado' : 'recibido',
   };
 }
 
@@ -95,6 +105,7 @@ async function getConversation(conversationId, viewerId, client = pool) {
        mine.user_id AS viewer_id,
        mine.muted,
        other.user_id AS other_user_id,
+       (u.id IS NULL) AS other_deleted,
        u.username AS other_username,
        u.display_name AS other_display_name,
        u.profile_img_url AS other_avatar,
@@ -114,7 +125,7 @@ async function getConversation(conversationId, viewerId, client = pool) {
        ON mine.conversation_id = c.id AND mine.user_id = $2
      JOIN public.conversation_members other
        ON other.conversation_id = c.id AND other.user_id <> $2
-     JOIN public.users u ON u.id = other.user_id
+     LEFT JOIN public.users u ON u.id = other.user_id
      LEFT JOIN LATERAL (
        SELECT m.* FROM public.messages m
        WHERE m.conversation_id = c.id
@@ -145,9 +156,10 @@ async function getMessage(messageId, conversationId, viewerId, client = pool) {
        reply.body AS reply_body,
        reply.sender_id AS reply_sender_id,
        reply.deleted_at AS reply_deleted_at,
-       other.last_read_at AS other_last_read_at
+       other.last_read_at AS other_last_read_at,
+       other.last_delivered_at AS other_last_delivered_at
      FROM public.messages m
-     JOIN public.users sender ON sender.id = m.sender_id
+     LEFT JOIN public.users sender ON sender.id = m.sender_id
      LEFT JOIN public.messages reply ON reply.id = m.reply_to_id
      LEFT JOIN public.conversation_members other
        ON other.conversation_id = m.conversation_id AND other.user_id <> $3
@@ -167,6 +179,7 @@ const mensajeController = {
            mine.user_id AS viewer_id,
            mine.muted,
            other.user_id AS other_user_id,
+           (u.id IS NULL) AS other_deleted,
            u.username AS other_username,
            u.display_name AS other_display_name,
            u.profile_img_url AS other_avatar,
@@ -186,7 +199,7 @@ const mensajeController = {
            ON mine.conversation_id = c.id AND mine.user_id = $1
          JOIN public.conversation_members other
            ON other.conversation_id = c.id AND other.user_id <> $1
-         JOIN public.users u ON u.id = other.user_id
+         LEFT JOIN public.users u ON u.id = other.user_id
          LEFT JOIN LATERAL (
            SELECT m.* FROM public.messages m
            WHERE m.conversation_id = c.id
@@ -295,6 +308,12 @@ const mensajeController = {
     try {
       const access = await getConversation(conversationId, req.user.id);
       if (!access) return res.status(404).json({ error: 'Conversacion no encontrada.' });
+      await pool.query(
+        `UPDATE public.conversation_members
+         SET last_delivered_at = timezone('utc'::text, now())
+         WHERE conversation_id = $1 AND user_id = $2`,
+        [conversationId, req.user.id]
+      );
       const result = await pool.query(
         `SELECT
            m.*,
@@ -304,9 +323,10 @@ const mensajeController = {
            reply.body AS reply_body,
            reply.sender_id AS reply_sender_id,
            reply.deleted_at AS reply_deleted_at,
-           other.last_read_at AS other_last_read_at
+           other.last_read_at AS other_last_read_at,
+           other.last_delivered_at AS other_last_delivered_at
          FROM public.messages m
-         JOIN public.users sender ON sender.id = m.sender_id
+         LEFT JOIN public.users sender ON sender.id = m.sender_id
          LEFT JOIN public.messages reply ON reply.id = m.reply_to_id
          LEFT JOIN public.conversation_members other
            ON other.conversation_id = m.conversation_id AND other.user_id <> $3
@@ -354,6 +374,10 @@ const mensajeController = {
       if (access.blocked) {
         await client.query('ROLLBACK');
         return res.status(403).json({ error: 'No podes enviar mensajes en esta conversacion.' });
+      }
+      if (access.other_deleted) {
+        await client.query('ROLLBACK');
+        return res.status(410).json({ error: 'El usuario ya no existe.' });
       }
       const rate = await client.query(
         `SELECT COUNT(*)::int AS total
@@ -418,7 +442,8 @@ const mensajeController = {
       const [result] = await Promise.all([
         pool.query(
           `UPDATE public.conversation_members
-           SET last_read_at = timezone('utc'::text, now())
+           SET last_read_at = timezone('utc'::text, now()),
+               last_delivered_at = timezone('utc'::text, now())
            WHERE conversation_id = $1 AND user_id = $2
            RETURNING last_read_at`,
           [conversationId, req.user.id]
