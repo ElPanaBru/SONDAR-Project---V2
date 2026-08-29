@@ -10,6 +10,7 @@ const PREFERENCIA_POR_TIPO = Object.freeze({
   community_comment: 'notificar_comentarios',
   community_reply: 'notificar_comentarios',
   profile_post_reply: 'notificar_comentarios',
+  direct_message: 'notificar_mensajes',
   follow: 'notificar_seguidores',
   new_reel: 'notificar_publicaciones',
   new_event: 'notificar_publicaciones',

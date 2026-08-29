@@ -28,6 +28,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
   notificarSeguidores: true,
   notificarPublicaciones: true,
   notificarMenciones: true,
+  notificarMensajes: true,
   reducirMovimiento: false,
   mostrarEmail: false,
 });
@@ -61,6 +62,7 @@ function mapearConfiguracion(row = {}) {
     notificarSeguidores: row.notificar_seguidores ?? CONFIGURACION_INICIAL.notificarSeguidores,
     notificarPublicaciones: row.notificar_publicaciones ?? CONFIGURACION_INICIAL.notificarPublicaciones,
     notificarMenciones: row.notificar_menciones ?? CONFIGURACION_INICIAL.notificarMenciones,
+    notificarMensajes: row.notificar_mensajes ?? CONFIGURACION_INICIAL.notificarMensajes,
     reducirMovimiento: row.reducir_movimiento ?? CONFIGURACION_INICIAL.reducirMovimiento,
     mostrarEmail: row.mostrar_email ?? CONFIGURACION_INICIAL.mostrarEmail,
   };
@@ -77,6 +79,7 @@ function validarConfiguracion(body = {}) {
     notificarSeguidores: body.notificarSeguidores,
     notificarPublicaciones: body.notificarPublicaciones,
     notificarMenciones: body.notificarMenciones,
+    notificarMensajes: body.notificarMensajes,
     reducirMovimiento: body.reducirMovimiento,
     mostrarEmail: body.mostrarEmail,
   };
@@ -90,6 +93,7 @@ function validarConfiguracion(body = {}) {
   const booleanos = [
     'actividadCuenta', 'notificarInteracciones', 'notificarComentarios',
     'notificarSeguidores', 'notificarPublicaciones', 'notificarMenciones',
+    'notificarMensajes',
     'reducirMovimiento', 'mostrarEmail',
   ];
   if (booleanos.some((campo) => typeof configuracion[campo] !== 'boolean')) {
@@ -308,10 +312,30 @@ async function crearUsuarioAuthConSignup({ email, password, username, userType }
   return { user: data.user, creadoEnEsteRequest: true };
 }
 
-async function eliminarUsuarioAuthCreado(userId) {
-  if (!userId) return;
-  await supabase.auth.admin.deleteUser(userId).catch(() => null);
-  await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]).catch(() => null);
+async function eliminarUsuarioAuthCreado(userId, { ignorarErrores = true } = {}) {
+  if (!userId) return false;
+
+  let errorAdmin = null;
+  try {
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (!error) return true;
+    errorAdmin = error;
+  } catch (error) {
+    errorAdmin = error;
+  }
+
+  try {
+    await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]);
+    return true;
+  } catch (errorSql) {
+    if (ignorarErrores) {
+      console.error('No se pudo limpiar el usuario de autenticacion:', errorAdmin || errorSql);
+      return false;
+    }
+    const error = new Error('No se pudo eliminar el usuario de autenticacion.');
+    error.cause = errorAdmin || errorSql;
+    throw error;
+  }
 }
 
 async function crearUsuarioAuth({ email, password, username, userType }) {
@@ -890,10 +914,10 @@ const usuariosController = {
         `INSERT INTO user_settings (
            user_id, telefono, codigo_pais, idioma, actividad_cuenta,
            notificar_interacciones, notificar_comentarios, notificar_seguidores,
-           notificar_publicaciones, notificar_menciones, reducir_movimiento,
-           mostrar_email, updated_at
+           notificar_publicaciones, notificar_menciones, notificar_mensajes,
+           reducir_movimiento, mostrar_email, updated_at
          ) VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
            timezone('utc'::text, now())
          )
          ON CONFLICT (user_id) DO UPDATE SET
@@ -906,6 +930,7 @@ const usuariosController = {
            notificar_seguidores = EXCLUDED.notificar_seguidores,
            notificar_publicaciones = EXCLUDED.notificar_publicaciones,
            notificar_menciones = EXCLUDED.notificar_menciones,
+           notificar_mensajes = EXCLUDED.notificar_mensajes,
            reducir_movimiento = EXCLUDED.reducir_movimiento,
            mostrar_email = EXCLUDED.mostrar_email,
            updated_at = EXCLUDED.updated_at
@@ -914,7 +939,7 @@ const usuariosController = {
           req.user.id, c.telefono, c.codigoPais, c.idioma, c.actividadCuenta,
           c.notificarInteracciones, c.notificarComentarios,
           c.notificarSeguidores, c.notificarPublicaciones, c.notificarMenciones,
-          c.reducirMovimiento, c.mostrarEmail,
+          c.notificarMensajes, c.reducirMovimiento, c.mostrarEmail,
         ]
       );
 
@@ -1552,7 +1577,12 @@ const usuariosController = {
       ];
       await Promise.all(eliminacionesStorage);
 
-      await eliminarUsuarioAuthCreado(userId);
+      await eliminarUsuarioAuthCreado(userId, { ignorarErrores: false });
+
+      const usuarioRestante = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);
+      if (usuarioRestante.rowCount > 0) {
+        throw new Error('La cuenta de autenticacion se elimino, pero el perfil publico sigue presente.');
+      }
 
       res.json({ success: true });
     } catch (error) {

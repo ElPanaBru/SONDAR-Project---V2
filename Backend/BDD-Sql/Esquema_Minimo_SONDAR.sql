@@ -39,6 +39,7 @@ CREATE TABLE public.user_settings (
   notificar_seguidores boolean NOT NULL DEFAULT true,
   notificar_publicaciones boolean NOT NULL DEFAULT true,
   notificar_menciones boolean NOT NULL DEFAULT true,
+  notificar_mensajes boolean NOT NULL DEFAULT true,
   reducir_movimiento boolean NOT NULL DEFAULT false,
   mostrar_email boolean NOT NULL DEFAULT false,
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())

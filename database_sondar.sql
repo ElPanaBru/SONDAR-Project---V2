@@ -265,6 +265,7 @@ ALTER TABLE "user_settings" (
   "notificar_seguidores" boolean DEFAULT true NOT NULL,
   "notificar_publicaciones" boolean DEFAULT true NOT NULL,
   "notificar_menciones" boolean DEFAULT true NOT NULL,
+  "notificar_mensajes" boolean DEFAULT true NOT NULL,
   "reducir_movimiento" boolean DEFAULT false NOT NULL
 );
 

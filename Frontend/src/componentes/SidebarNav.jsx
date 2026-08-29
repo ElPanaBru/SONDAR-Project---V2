@@ -48,7 +48,7 @@ function Icono({ nombre }) {
 
 const links = [
   { to: "/", label: "Eventos", icon: "eventos", end: true },
-  { to: "/descubrir", label: "Descubrir", icon: "descubrir" },
+  { to: "/descubrir", label: "Review", icon: "descubrir" },
   { to: "/comunidad", label: "Foros", icon: "comunidad" },
   { to: "/mensajes", label: "Mensajes", icon: "mensajes" },
 ];

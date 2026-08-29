@@ -7,6 +7,7 @@ ALTER TABLE public.user_settings
   ADD COLUMN IF NOT EXISTS notificar_seguidores boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS notificar_publicaciones boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS notificar_menciones boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS notificar_mensajes boolean NOT NULL DEFAULT true,
   ADD COLUMN IF NOT EXISTS reducir_movimiento boolean NOT NULL DEFAULT false;
 
 ALTER TABLE public.user_settings

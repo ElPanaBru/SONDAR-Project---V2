@@ -4,7 +4,9 @@ const supabaseAuth = supabase.authClient || supabase;
 const {
   subirPortadaReel,
   subirAudioReel,
-  eliminarArchivoReel
+  eliminarArchivoReel,
+  extraerRutaPublica,
+  REELS_BUCKET,
 } = require('../services/storageService');
 const {
   crearNotificacion,
@@ -1179,23 +1181,35 @@ const reelController = {
 
   eliminarReel: async (req, res) => {
     const { id } = req.params;
+    const client = await pool.connect();
 
     try {
-      const result = await pool.query(
-        'DELETE FROM reels WHERE id = $1 AND creador_id = $2 RETURNING id, portada_path, audio_path',
+      await client.query('BEGIN');
+      const result = await client.query(
+        `DELETE FROM reels
+         WHERE id = $1 AND creador_id = $2
+         RETURNING id, portada_path, portada_url, audio_path, audio_url`,
         [id, req.user.id]
       );
 
       if (result.rowCount === 0) {
+        await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Preview no encontrada o sin permiso para eliminarla.' });
       }
 
-      await eliminarArchivoReel(result.rows[0].portada_path, req.accessToken).catch(() => null);
-      await eliminarArchivoReel(result.rows[0].audio_path, req.accessToken).catch(() => null);
+      const reel = result.rows[0];
+      await Promise.all([
+        eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET), req.accessToken),
+        eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET), req.accessToken),
+      ]);
+      await client.query('COMMIT');
       res.json({ ok: true, id: result.rows[0].id });
     } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
       console.error('Error al eliminar reel:', error);
-      res.status(500).json({ error: 'No se pudo eliminar la preview.' });
+      res.status(500).json({ error: error.message || 'No se pudo eliminar la preview.' });
+    } finally {
+      client.release();
     }
   },
 

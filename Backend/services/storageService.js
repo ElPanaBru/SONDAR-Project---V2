@@ -163,11 +163,19 @@ async function subirAvatarUsuario(file, userId, accessToken) {
   return subirArchivo(PERFILES_BUCKET, `usuarios/${userId}`, file, validarImagen, accessToken);
 }
 
+function storageParaEliminar(accessToken) {
+  if (!accessToken) {
+    const error = new Error('Se necesita una sesion valida para eliminar archivos de Storage.');
+    error.code = 'SUPABASE_STORAGE_TOKEN_REQUIRED';
+    throw error;
+  }
+  return supabase.crearStorageAutenticado?.(accessToken) || supabase.storage;
+}
+
 async function eliminarImagenEvento(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const storage = supabase.crearStorageAutenticado?.(accessToken) || supabase.storage;
-  const { error } = await storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(EVENTOS_BUCKET)
     .remove([storagePath]);
   if (error) throw new Error(`No se pudo eliminar la imagen del evento: ${error.message}`);
@@ -176,8 +184,7 @@ async function eliminarImagenEvento(storagePath, accessToken) {
 async function eliminarArchivoReel(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const storage = supabase.crearStorageAutenticado?.(accessToken) || supabase.storage;
-  const { error } = await storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(REELS_BUCKET)
     .remove([storagePath]);
   if (error) throw new Error(`No se pudo eliminar el archivo de la preview: ${error.message}`);
@@ -186,8 +193,7 @@ async function eliminarArchivoReel(storagePath, accessToken) {
 async function eliminarAvatarUsuario(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const storage = supabase.crearStorageAutenticado?.(accessToken) || supabase.storage;
-  const { error } = await storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(PERFILES_BUCKET)
     .remove([storagePath]);
   if (error) throw new Error(`No se pudo eliminar el avatar: ${error.message}`);

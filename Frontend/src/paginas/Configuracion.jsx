@@ -215,6 +215,7 @@ export default function Configuracion({ usuario }) {
       notificarSeguidores: true,
       notificarPublicaciones: true,
       notificarMenciones: true,
+      notificarMensajes: true,
       reducirMovimiento: false,
     };
     setAjustes(siguientes);
@@ -537,6 +538,14 @@ export default function Configuracion({ usuario }) {
                   <span>{t("Etiquetas con @ e invitaciones para organizar eventos.")}</span>
                 </div>
                 <input type="checkbox" name="notificarMenciones" checked={ajustes.notificarMenciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
+              </label>
+
+              <label className="config-switch-row config-switch-child">
+                <div>
+                  <strong>{t("Mensajes directos")}</strong>
+                  <span>{t("Cuando recibís un mensaje nuevo de otra persona.")}</span>
+                </div>
+                <input type="checkbox" name="notificarMensajes" checked={ajustes.notificarMensajes} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
             </div>
           </section>

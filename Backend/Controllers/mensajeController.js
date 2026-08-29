@@ -1,4 +1,5 @@
 const pool = require('../Pool_DB');
+const { crearNotificacion, nombreActor } = require('../services/notificationService');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_MESSAGE_LENGTH = 2000;
@@ -387,6 +388,15 @@ const mensajeController = {
          WHERE conversation_id = $1 AND user_id = $2`,
         [conversationId, req.user.id]
       );
+      await crearNotificacion({
+        userId: access.other_user_id,
+        actorId: req.user.id,
+        type: 'direct_message',
+        title: `${nombreActor(req.user)} te envio un mensaje`,
+        body: body.slice(0, 180),
+        targetUrl: `/mensajes?conversacion=${encodeURIComponent(conversationId)}`,
+        uniqueKey: `direct-message:${inserted.rows[0].id}:${access.other_user_id}`,
+      }, client);
       await client.query('COMMIT');
       const message = await getMessage(inserted.rows[0].id, conversationId, req.user.id);
       return res.status(201).json(mapMessage(message, req.user.id));
@@ -404,13 +414,22 @@ const mensajeController = {
       return res.status(400).json({ error: 'La conversacion no es valida.' });
     }
     try {
-      const result = await pool.query(
-        `UPDATE public.conversation_members
-         SET last_read_at = timezone('utc'::text, now())
-         WHERE conversation_id = $1 AND user_id = $2
-         RETURNING last_read_at`,
-        [conversationId, req.user.id]
-      );
+      const targetUrl = `/mensajes?conversacion=${encodeURIComponent(conversationId)}`;
+      const [result] = await Promise.all([
+        pool.query(
+          `UPDATE public.conversation_members
+           SET last_read_at = timezone('utc'::text, now())
+           WHERE conversation_id = $1 AND user_id = $2
+           RETURNING last_read_at`,
+          [conversationId, req.user.id]
+        ),
+        pool.query(
+          `UPDATE public.notifications
+           SET read_at = COALESCE(read_at, timezone('utc'::text, now()))
+           WHERE user_id = $1 AND type = 'direct_message' AND target_url = $2 AND read_at IS NULL`,
+          [req.user.id, targetUrl]
+        ),
+      ]);
       if (result.rowCount === 0) return res.status(404).json({ error: 'Conversacion no encontrada.' });
       return res.json({ leidoEn: result.rows[0].last_read_at });
     } catch (error) {

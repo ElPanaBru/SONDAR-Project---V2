@@ -46,7 +46,7 @@ app.use(cors({
 
     callback(new Error(`Origen no permitido por CORS: ${origin}`));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true // Recomendado para mantener sesiones y tokens seguros
 }));
@@ -62,7 +62,7 @@ app.get('/api/health', (req, res) => {
     dbHost: process.env.DB_HOST || null,
     dbName: process.env.DB_NAME || null,
     dbUser: process.env.DB_USER || null,
-    settingsSchema: 3
+    settingsSchema: 4
   });
 });
 

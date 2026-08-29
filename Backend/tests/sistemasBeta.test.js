@@ -89,3 +89,44 @@ test('mensajeria integra API, ruta, Realtime, presencia y respaldo por polling',
   assert.match(page, /window\.setInterval\(\(\) => loadMessages/);
   assert.match(page, /Cargar mensajes anteriores/);
 });
+
+test('mensajes se integra con notificaciones sin indicador en la barra lateral', () => {
+  const controller = read('Backend', 'Controllers', 'mensajeController.js');
+  const service = read('Backend', 'services', 'notificationService.js');
+  const server = read('Backend', 'index.js');
+  const schema = read('Backend', 'services', 'settingsSchema.js');
+  const settings = read('Frontend', 'src', 'paginas', 'Configuracion.jsx');
+  const sidebar = read('Frontend', 'src', 'componentes', 'SidebarNav.jsx');
+
+  assert.match(controller, /type: 'direct_message'/);
+  assert.match(service, /direct_message: 'notificar_mensajes'/);
+  assert.match(server, /'PATCH'/);
+  assert.match(schema, /ADD COLUMN IF NOT EXISTS notificar_mensajes/);
+  assert.match(settings, /name="notificarMensajes"/);
+  assert.match(sidebar, /label: "Review"/);
+  assert.doesNotMatch(sidebar, /noLeidos|badge|notification-dot|mensajes-actualizados/);
+});
+
+test('el borrado de cuenta no informa exito si falla la eliminacion de autenticacion', () => {
+  const controller = read('Backend', 'Controllers', 'usuarioController.js');
+
+  assert.match(controller, /const \{ error \} = await supabase\.auth\.admin\.deleteUser\(userId\)/);
+  assert.match(controller, /ignorarErrores: false/);
+  assert.match(controller, /Promise\.all\(eliminacionesStorage\)/);
+  assert.match(controller, /SELECT 1 FROM users WHERE id = \$1/);
+});
+
+test('el borrado de previews elimina portada y audio antes de confirmar la base', () => {
+  const controller = read('Backend', 'Controllers', 'reelController.js');
+  const storage = read('Backend', 'services', 'storageService.js');
+  const cleanup = read('Backend', 'scripts', 'limpiarStorageHuerfano.js');
+
+  assert.match(controller, /RETURNING id, portada_path, portada_url, audio_path, audio_url/);
+  assert.match(controller, /extraerRutaPublica\(reel\.portada_url, REELS_BUCKET\)/);
+  assert.match(controller, /await Promise\.all\(\[/);
+  assert.match(controller, /await client\.query\('COMMIT'\)/);
+  assert.doesNotMatch(controller, /eliminarArchivoReel\(result\.rows\[0\]\.portada_path[^\n]*catch/);
+  assert.match(storage, /storageParaEliminar\(accessToken\)[\s\S]*?\.from\(REELS_BUCKET\)[\s\S]*?\.remove/);
+  assert.match(cleanup, /FROM storage\.objects/);
+  assert.match(cleanup, /SUPABASE_STORAGE_ACCESS_TOKEN/);
+});
