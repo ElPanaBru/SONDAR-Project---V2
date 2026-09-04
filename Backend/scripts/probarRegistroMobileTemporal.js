@@ -74,18 +74,26 @@ async function main() {
     console.log(me.text.slice(0, 300));
     if (me.response.status !== 200) process.exitCode = 1;
 
+    const onboardingForm = new FormData();
+    onboardingForm.append('nombre', 'Codex Mobile');
+    onboardingForm.append('bio', 'Perfil temporal para probar onboarding mobile.');
+    onboardingForm.append('birthDate', '2000-01-01');
+    onboardingForm.append('genres', JSON.stringify(['alternativo', 'punk', 'reggae']));
+    onboardingForm.append(
+      'avatar',
+      new Blob([
+        Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlS8AAAAASUVORK5CYII=',
+          'base64'
+        ),
+      ], { type: 'image/png' }),
+      'avatar.png'
+    );
+
     const onboarding = await request(`${apiUrl}/api/usuarios/me/onboarding`, {
       method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        nombre: 'Codex Mobile',
-        bio: 'Perfil temporal para probar onboarding mobile.',
-        birthDate: '2000-01-01',
-        genres: ['trap', 'cumbia', 'edm'],
-      }),
+      headers: { Authorization: `Bearer ${token}` },
+      body: onboardingForm,
     });
     console.log(`[onboarding] status=${onboarding.response.status} ms=${onboarding.ms}`);
     console.log(onboarding.text.slice(0, 300));
