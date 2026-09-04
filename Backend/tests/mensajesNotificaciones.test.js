@@ -6,7 +6,9 @@ const senderId = '11111111-1111-4111-8111-111111111111';
 const recipientId = '22222222-2222-4222-8222-222222222222';
 const conversationId = '33333333-3333-4333-8333-333333333333';
 const notificationCalls = [];
+const clientQueries = [];
 const poolQueries = [];
+let failMessageHydration = false;
 
 function result(rows = []) {
   return { rows, rowCount: rows.length };
@@ -15,6 +17,7 @@ function result(rows = []) {
 const client = {
   async query(sql) {
     const query = String(sql).replace(/\s+/g, ' ').trim();
+    clientQueries.push(query);
     if (query === 'BEGIN' || query === 'COMMIT' || query === 'ROLLBACK') return result();
     if (query.startsWith('SELECT c.id,')) {
       return result([{
@@ -28,6 +31,26 @@ const client = {
     if (query.startsWith('SELECT COUNT(*)::int AS total')) return result([{ total: 0 }]);
     if (query.startsWith('INSERT INTO public.messages')) return result([{ id: 91 }]);
     if (query.startsWith('UPDATE public.conversation_members')) return result();
+    if (query.startsWith('SELECT m.*,')) {
+      if (failMessageHydration) {
+        throw Object.assign(new Error('column other.last_delivered_at does not exist'), { code: '42703' });
+      }
+      return result([{
+        id: 91,
+        conversation_id: conversationId,
+        sender_id: senderId,
+        sender_username: 'tester',
+        sender_display_name: 'Tester',
+        sender_avatar: '',
+        body: 'Hola desde la prueba',
+        reply_to_id: null,
+        created_at: new Date().toISOString(),
+        edited_at: null,
+        deleted_at: null,
+        other_last_read_at: null,
+        other_last_delivered_at: null,
+      }]);
+    }
     throw new Error(`Consulta inesperada del cliente: ${query}`);
   },
   release() {},
@@ -41,6 +64,9 @@ const pool = {
     const query = String(sql).replace(/\s+/g, ' ').trim();
     poolQueries.push({ query, params });
     if (query.startsWith('SELECT m.*,')) {
+      if (failMessageHydration) {
+        throw Object.assign(new Error('column other.last_delivered_at does not exist'), { code: '42703' });
+      }
       return result([{
         id: 91,
         conversation_id: conversationId,
@@ -98,6 +124,7 @@ function response() {
 }
 
 test('enviar un mensaje crea una notificacion configurable para el destinatario', async () => {
+  clientQueries.length = 0;
   const res = response();
   await mensajeController.sendMessage({
     params: { conversationId },
@@ -118,6 +145,34 @@ test('enviar un mensaje crea una notificacion configurable para el destinatario'
     targetUrl: `/mensajes?conversacion=${conversationId}`,
     uniqueKey: `direct-message:91:${recipientId}`,
   });
+  const hydrateIndex = clientQueries.findIndex((query) => query.startsWith('SELECT m.*,'));
+  const commitIndex = clientQueries.indexOf('COMMIT');
+  assert.ok(hydrateIndex >= 0);
+  assert.ok(commitIndex > hydrateIndex);
+});
+
+test('si falla la lectura final, enviar revierte antes de confirmar el mensaje', async () => {
+  clientQueries.length = 0;
+  failMessageHydration = true;
+  const res = response();
+
+  try {
+    await mensajeController.sendMessage({
+      params: { conversationId },
+      body: { texto: 'Este mensaje debe revertirse' },
+      user: { id: senderId, email: 'tester@example.com' },
+    }, res);
+  } finally {
+    failMessageHydration = false;
+  }
+
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.code, 'MESSAGING_SCHEMA_MISSING');
+  assert.equal(clientQueries.includes('COMMIT'), false);
+  const hydrateIndex = clientQueries.findIndex((query) => query.startsWith('SELECT m.*,'));
+  const rollbackIndex = clientQueries.lastIndexOf('ROLLBACK');
+  assert.ok(hydrateIndex >= 0);
+  assert.ok(rollbackIndex > hydrateIndex);
 });
 
 test('leer una conversacion marca tambien sus notificaciones de mensajes como leidas', async () => {

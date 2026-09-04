@@ -421,9 +421,15 @@ const mensajeController = {
         targetUrl: `/mensajes?conversacion=${encodeURIComponent(conversationId)}`,
         uniqueKey: `direct-message:${inserted.rows[0].id}:${access.other_user_id}`,
       }, client);
+      const message = await getMessage(
+        inserted.rows[0].id,
+        conversationId,
+        req.user.id,
+        client
+      );
+      const response = mapMessage(message, req.user.id);
       await client.query('COMMIT');
-      const message = await getMessage(inserted.rows[0].id, conversationId, req.user.id);
-      return res.status(201).json(mapMessage(message, req.user.id));
+      return res.status(201).json(response);
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       return handleError(res, error, 'No se pudo enviar el mensaje.');
