@@ -33,14 +33,15 @@ async function obtenerViewerId(req) {
   return data.user.id;
 }
 
-async function buscarAccesoReel(reelId, client = pool) {
+async function buscarAccesoReel(reelId, client = pool, bloquear = false) {
   const result = await client.query(
     `SELECT
        r.id,
        r.creador_id,
        r.titulo
      FROM reels r
-     WHERE r.id = $1`,
+     WHERE r.id = $1
+     ${bloquear ? 'FOR UPDATE' : ''}`,
     [reelId]
   );
   return result.rows[0] || null;
@@ -123,6 +124,9 @@ async function asegurarEsquemaInteracciones() {
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS guardados integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS compartidos integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS visitas integer NOT NULL DEFAULT 0');
+      await pool.query("ALTER TABLE reels ADD COLUMN IF NOT EXISTS color_ambiente text NOT NULL DEFAULT '#8F5136'");
+      await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS fragment_start numeric(8,2) NOT NULL DEFAULT 0');
+      await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS fragment_end numeric(8,2)');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS reel_likes (
           user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -232,8 +236,11 @@ function mapearReel(reel) {
     guardados: Number(reel.guardados || 0),
     visitas: Number(reel.visitas || 0),
     colorA: '#ffae00',
-    colorB: '#ff5e00',
+    colorB: reel.color_ambiente || '#ff5e00',
     colorC: '#111111',
+    colorAmbiente: reel.color_ambiente || '#8F5136',
+    fragmentStart: Number(reel.fragment_start || 0),
+    fragmentEnd: reel.fragment_end === null || reel.fragment_end === undefined ? null : Number(reel.fragment_end),
     portada: reel.portada_url,
     audio: reel.audio_url,
     avatar: reel.creador_avatar || reel.profile_img_url || '',
@@ -600,7 +607,7 @@ const reelController = {
   },
 
   crearReel: async (req, res) => {
-    const { tema, album, genero, descripcion, duracion } = req.body;
+    const { tema, album, genero, descripcion, duracion, colorAmbiente, fragmentStart, fragmentEnd } = req.body;
     const portadaFile = req.files?.portada?.[0];
     const audioFile = req.files?.audio?.[0];
     let portadaSubida = null;
@@ -610,17 +617,26 @@ const reelController = {
       return res.status(400).json({ error: 'Faltan datos obligatorios del reel.' });
     }
 
+    const inicioFragmento = Number(fragmentStart || 0);
+    const finFragmento = Number(fragmentEnd || 30);
+    if (!Number.isFinite(inicioFragmento) || !Number.isFinite(finFragmento) || inicioFragmento < 0 || finFragmento <= inicioFragmento || finFragmento - inicioFragmento > 30) {
+      return res.status(400).json({ error: 'El fragmento debe durar entre 1 y 30 segundos.' });
+    }
+    const colorSeguro = /^#[0-9a-f]{6}$/i.test(String(colorAmbiente || '')) ? String(colorAmbiente).toUpperCase() : '#8F5136';
+
     try {
       await asegurarUsuarioPublico(req.user);
-      portadaSubida = await subirPortadaReel(portadaFile);
-      audioSubido = await subirAudioReel(audioFile);
+      await asegurarEsquemaInteracciones();
+      portadaSubida = await subirPortadaReel(portadaFile, req.user.id, req.accessToken);
+      audioSubido = await subirAudioReel(audioFile, req.user.id, req.accessToken);
 
       const result = await pool.query(
         `INSERT INTO reels (
           titulo, album, genero, descripcion, duracion,
-          portada_url, portada_path, audio_url, audio_path, creador_id
+          portada_url, portada_path, audio_url, audio_path, creador_id,
+          color_ambiente, fragment_start, fragment_end
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *`,
         [
           tema,
@@ -632,7 +648,10 @@ const reelController = {
           portadaSubida?.path || null,
           audioSubido.publicUrl,
           audioSubido.path,
-          req.user.id
+          req.user.id,
+          colorSeguro,
+          inicioFragmento,
+          finFragmento
         ]
       );
 
@@ -670,8 +689,8 @@ const reelController = {
         creador_avatar: usuarioResult.rows[0]?.profile_img_url || '',
       }));
     } catch (error) {
-      await eliminarArchivoReel(portadaSubida?.path).catch(() => null);
-      await eliminarArchivoReel(audioSubido?.path).catch(() => null);
+      await eliminarArchivoReel(portadaSubida?.path, req.accessToken).catch(() => null);
+      await eliminarArchivoReel(audioSubido?.path, req.accessToken).catch(() => null);
       console.error('Error al crear reel:', error);
       res.status(500).json({ error: error.message || 'No se pudo guardar el reel.' });
     }
@@ -690,8 +709,8 @@ const reelController = {
         return res.status(404).json({ error: 'Reel no encontrado o sin permiso para eliminarlo.' });
       }
 
-      await eliminarArchivoReel(result.rows[0].portada_path).catch(() => null);
-      await eliminarArchivoReel(result.rows[0].audio_path).catch(() => null);
+      await eliminarArchivoReel(result.rows[0].portada_path, req.accessToken).catch(() => null);
+      await eliminarArchivoReel(result.rows[0].audio_path, req.accessToken).catch(() => null);
       res.json({ ok: true, id: result.rows[0].id });
     } catch (error) {
       console.error('Error al eliminar reel:', error);
@@ -738,7 +757,9 @@ const reelController = {
       await asegurarEsquemaInteracciones();
       await client.query('BEGIN');
 
-      const reel = await buscarAccesoReel(id, client);
+      // Serializa los toggles del mismo reel para que dos toques rapidos no
+      // intenten insertar la misma clave ni desfasen el contador agregado.
+      const reel = await buscarAccesoReel(id, client, true);
       if (!reel) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Reel no encontrado.' });
@@ -752,10 +773,8 @@ const reelController = {
       let liked = false;
       if (existe.rowCount > 0) {
         await client.query('DELETE FROM reel_likes WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);
-        await client.query('UPDATE reels SET likes = GREATEST(0, likes - 1) WHERE id = $1', [id]);
       } else {
         await client.query('INSERT INTO reel_likes (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);
-        await client.query('UPDATE reels SET likes = likes + 1 WHERE id = $1', [id]);
         liked = true;
         await crearNotificacion({
           userId: reel.creador_id,
@@ -774,7 +793,17 @@ const reelController = {
         await eliminarNotificacion(`reel-like:${req.user.id}:${id}`, client);
       }
 
-      const counts = await client.query('SELECT likes FROM reels WHERE id = $1', [id]);
+      const counts = await client.query(
+        `UPDATE reels r
+         SET likes = (
+           SELECT COUNT(*)::int
+           FROM reel_likes rl
+           WHERE rl.reel_id = r.id
+         )
+         WHERE r.id = $1
+         RETURNING likes`,
+        [id]
+      );
       await client.query('COMMIT');
 
       res.json({
@@ -924,7 +953,9 @@ const reelController = {
       await asegurarEsquemaInteracciones();
       await client.query('BEGIN');
 
-      const reel = await buscarAccesoReel(id, client);
+      // Igual que en likes, el bloqueo evita carreras entre toggles y permite
+      // recalcular el contador desde la tabla que es la fuente de verdad.
+      const reel = await buscarAccesoReel(id, client, true);
       if (!reel) {
         await client.query('ROLLBACK');
         return res.status(404).json({ error: 'Reel no encontrado.' });
@@ -938,14 +969,22 @@ const reelController = {
       let guardado = false;
       if (existe.rowCount > 0) {
         await client.query('DELETE FROM reel_saves WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);
-        await client.query('UPDATE reels SET guardados = GREATEST(0, guardados - 1) WHERE id = $1', [id]);
       } else {
         await client.query('INSERT INTO reel_saves (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);
-        await client.query('UPDATE reels SET guardados = guardados + 1 WHERE id = $1', [id]);
         guardado = true;
       }
 
-      const counts = await client.query('SELECT guardados FROM reels WHERE id = $1', [id]);
+      const counts = await client.query(
+        `UPDATE reels r
+         SET guardados = (
+           SELECT COUNT(*)::int
+           FROM reel_saves rs
+           WHERE rs.reel_id = r.id
+         )
+         WHERE r.id = $1
+         RETURNING guardados`,
+        [id]
+      );
       await client.query('COMMIT');
 
       res.json({

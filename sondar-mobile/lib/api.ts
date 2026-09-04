@@ -108,10 +108,16 @@ export async function api<T = any>(path: string, options: ApiOptions = {}): Prom
 }
 
 export function mediaPart(asset: { uri: string; fileName?: string | null; mimeType?: string | null }, fallback: string) {
+  const name = asset.fileName || fallback;
+  const extension = String(name || asset.uri).split('?')[0].split('.').pop()?.toLowerCase() || '';
+  const inferredTypes: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', webm: 'audio/webm', m4a: 'audio/mp4', mp4: 'audio/mp4',
+  };
   return {
     uri: asset.uri,
-    name: asset.fileName || fallback,
-    type: asset.mimeType || 'application/octet-stream',
+    name,
+    type: asset.mimeType || inferredTypes[extension] || 'application/octet-stream',
   } as any;
 }
 

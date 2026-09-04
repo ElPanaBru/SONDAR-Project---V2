@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Avatar, Empty, ErrorNotice, Header, Loading, Screen, ui } from '@/components/sondar-ui';
+import { Avatar, Empty, ErrorNotice, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
@@ -22,12 +22,7 @@ export default function SearchScreen() {
 
   useEffect(() => {
     const term = query.trim();
-    if (term.length < 2) {
-      setResults([]);
-      setError('');
-      setLoading(false);
-      return;
-    }
+    if (term.length < 2) return;
     const timeout = setTimeout(async () => {
       setLoading(true);
       try {
@@ -59,7 +54,7 @@ export default function SearchScreen() {
 
   return (
     <Screen>
-      <Header title="Buscar" subtitle="Personas, música y eventos" />
+      <Header title="Buscar" subtitle="Personas, música y eventos" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /></>} />
       <View style={styles.search}><Ionicons name="search" size={21} color={palette.muted} /><TextInput value={query} onChangeText={value => { setQuery(value); if (value.trim().length < 2) { setResults([]); setError(''); setLoading(false); } }} placeholder="Buscar en SONDAR" placeholderTextColor={palette.muted} autoCapitalize="none" autoFocus style={styles.input} /></View>
       <View style={styles.tabs}>{([['todos', 'Todo'], ['usuario', 'Personas'], ['reel', 'Música'], ['evento', 'Eventos']] as const).map(([id, label]) => <Pressable key={id} onPress={() => setTab(id)} style={[styles.tab, tab === id && styles.tabActive]}><Text style={[styles.tabText, tab === id && styles.tabTextActive]}>{label}</Text></Pressable>)}</View>
       <ErrorNotice message={error} />

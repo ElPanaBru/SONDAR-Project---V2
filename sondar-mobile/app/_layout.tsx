@@ -1,4 +1,4 @@
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ export default function RootLayout() {
             <Stack.Screen name="auth" />
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="notifications" options={{ presentation: 'card' }} />
+            <Stack.Screen name="messages" options={{ presentation: 'card' }} />
             <Stack.Screen name="settings" options={{ presentation: 'card' }} />
             <Stack.Screen name="support" options={{ presentation: 'card' }} />
             <Stack.Screen name="profile/[id]" options={{ presentation: 'card' }} />

@@ -18,7 +18,9 @@ function normalizeDevUrl(value?: string | null) {
 
   try {
     const url = new URL(withProtocol);
-    const protocol = url.protocol === 'https:' || !isLocalHostName(url.hostname)
+    if (!url.hostname || !['http:', 'https:', 'exp:', 'exps:'].includes(url.protocol)) return '';
+
+    const protocol = url.protocol === 'https:' || url.protocol === 'exps:' || !isLocalHostName(url.hostname)
       ? 'https:'
       : 'http:';
     return `${protocol}//${url.host}`;
@@ -44,22 +46,11 @@ function getDevServerUrl() {
   return serverUrl || 'http://localhost:8081';
 }
 
-function getBackendUrlFromDevServer(serverUrl: string) {
-  try {
-    const url = new URL(serverUrl);
-    if (isLocalHostName(url.hostname)) {
-      url.port = process.env.EXPO_PUBLIC_API_PORT || '3000';
-      return `${url.protocol}//${url.host}`;
-    }
-  } catch {
-    return serverUrl;
-  }
-
-  return serverUrl;
-}
-
 function getDevApiUrl() {
-  return getBackendUrlFromDevServer(getDevServerUrl());
+  // The phone already reached this host to download the Expo bundle. Keeping
+  // API requests on that same origin lets Metro proxy /api to the local
+  // backend without exposing port 3000 to the LAN.
+  return getDevServerUrl();
 }
 
 export const API_URL = (

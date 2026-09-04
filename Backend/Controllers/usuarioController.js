@@ -23,6 +23,13 @@ const {
   PERFILES_BUCKET,
 } = require('../services/storageService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+const {
+  listProfileCommunity,
+  createProfileCommunityPost,
+  createProfileCommunityComment,
+  deleteProfileCommunityPost,
+  getProfileCommunityPost,
+} = require('../services/profileCommunityService');
 
 const CONFIGURACION_INICIAL = Object.freeze({
   telefono: '',
@@ -41,7 +48,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
-const GENEROS_ONBOARDING_VALIDOS = new Set(['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros']);
+const GENEROS_ONBOARDING_VALIDOS = new Set(['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros']);
 const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 let esquemaUsuariosListo = null;
 let esquemaOnboardingListo = null;
@@ -721,6 +728,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     throw error;
   });
   const esPropio = targetUserId === viewerUserId;
+  const comunidad = contenidoBloqueado ? [] : await listProfileCommunity(targetUserId);
 
   return {
     perfil: mapearUsuarioPerfil(usuario, configuracion, esPropio),
@@ -728,6 +736,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     eventos,
     favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
     guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
+    comunidad,
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
@@ -743,6 +752,62 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
 }
 
 const usuariosController = {
+  crearPublicacionComunidadPerfil: async (req, res) => {
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const post = await createProfileCommunityPost({
+        userId: req.user.id,
+        texto: req.body?.texto,
+        attachmentType: req.body?.attachmentType,
+        attachmentId: req.body?.attachmentId,
+      });
+      res.status(201).json(post);
+    } catch (error) {
+      console.error('Error al publicar en la comunidad del perfil:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo publicar la actualización.' });
+    }
+  },
+
+  comentarPublicacionComunidadPerfil: async (req, res) => {
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const comment = await createProfileCommunityComment({ userId: req.user.id, postId: req.params.id, texto: req.body?.texto });
+      res.status(201).json(comment);
+    } catch (error) {
+      console.error('Error al responder una publicación del perfil:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo enviar la respuesta.' });
+    }
+  },
+
+  eliminarPublicacionComunidadPerfil: async (req, res) => {
+    try {
+      const deleted = await deleteProfileCommunityPost({ userId: req.user.id, postId: req.params.id });
+      res.json({ ok: true, id: deleted.id });
+    } catch (error) {
+      console.error('Error al eliminar una publicación del perfil:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo eliminar la publicación.' });
+    }
+  },
+
+  denunciarPublicacionComunidadPerfil: async (req, res) => {
+    try {
+      const post = await getProfileCommunityPost(req.params.id);
+      if (!post) return res.status(404).json({ error: 'La publicación ya no está disponible.' });
+      const result = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: post.user_id,
+        contentType: 'perfil',
+        contentId: `perfil-comunidad:${post.id}`,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      res.json(result);
+    } catch (error) {
+      console.error('Error al denunciar una publicación del perfil:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo enviar la denuncia.' });
+    }
+  },
+
   buscarUsuarios: async (req, res) => {
     const termino = String(req.query.query || '').trim();
 
@@ -958,7 +1023,6 @@ const usuariosController = {
     const fechaNacimiento = validarFechaNacimiento(req.body?.birthDate || req.body?.fechaNacimiento || req.body?.birth_date);
     const client = await pool.connect();
     let avatarSubido = null;
-    let avatarUploadError = null;
     let transaccionActiva = false;
 
     if (nombreLimpio.length < 2 || nombreLimpio.length > 80) {
@@ -985,12 +1049,7 @@ const usuariosController = {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaOnboarding();
 
-      try {
-        avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
-      } catch (error) {
-        avatarUploadError = error;
-        console.error('No se pudo subir el avatar de onboarding:', error);
-      }
+      avatarSubido = await subirAvatarUsuario(req.file, req.user.id, req.accessToken);
 
       await client.query('BEGIN');
       transaccionActiva = true;
@@ -1040,7 +1099,7 @@ const usuariosController = {
 
       const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
       if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
-        await eliminarAvatarUsuario(avatarAnteriorPath).catch((error) => {
+        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch((error) => {
           console.error('No se pudo eliminar el avatar anterior:', error);
         });
       }
@@ -1049,13 +1108,12 @@ const usuariosController = {
         success: true,
         perfil: mapearUsuarioPerfil(usuarioResult.rows[0], CONFIGURACION_INICIAL, true),
         genres: generos,
-        avatarWarning: avatarUploadError ? 'No se pudo guardar la foto, pero el perfil quedo completado.' : null,
       });
     } catch (error) {
       if (transaccionActiva) await client.query('ROLLBACK').catch(() => null);
-      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
       console.error('Error al completar onboarding:', error);
-      res.status(500).json({ error: 'No se pudo completar el perfil.' });
+      res.status(500).json({ error: req.file ? 'No se pudo guardar la foto. Volvé a elegirla e intentá nuevamente.' : 'No se pudo completar el perfil.' });
     } finally {
       client.release();
     }
@@ -1260,7 +1318,7 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      avatarSubido = await subirAvatarUsuario(req.file, req.user.id);
+      avatarSubido = await subirAvatarUsuario(req.file, req.user.id, req.accessToken);
       const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
       const result = await pool.query(
         `UPDATE users
@@ -1283,7 +1341,7 @@ const usuariosController = {
 
       const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
       if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
-        await eliminarAvatarUsuario(avatarAnteriorPath).catch((error) => {
+        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch((error) => {
           console.error('No se pudo eliminar el avatar anterior:', error);
         });
       }
@@ -1291,7 +1349,7 @@ const usuariosController = {
       res.json(mapearUsuarioPerfil(result.rows[0]));
     } catch (error) {
       if (avatarSubido?.path) {
-        await eliminarAvatarUsuario(avatarSubido.path).catch(() => null);
+        await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
       }
 
       if (error.code === '23505') {
@@ -1646,14 +1704,16 @@ const usuariosController = {
       const eliminacionesStorage = [
         eliminarAvatarUsuario(
           perfil.rows[0]?.profile_img_path
-            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET)
+            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET),
+          req.accessToken
         ),
         ...eventos.rows.map((evento) => eliminarImagenEvento(
-          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET)
+          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET),
+          req.accessToken
         )),
         ...reels.rows.flatMap((reel) => [
-          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET)),
-          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET)),
+          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET), req.accessToken),
+          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET), req.accessToken),
         ]),
       ];
       const storageResults = await Promise.allSettled(eliminacionesStorage);

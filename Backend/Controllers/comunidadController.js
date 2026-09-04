@@ -8,6 +8,7 @@ const {
   notificarMenciones,
   notificarSeguidores,
 } = require('../services/notificationService');
+const { registrarDenuncia } = require('../services/moderationService');
 
 const COMUNIDADES_GENERO = [
   {
@@ -373,6 +374,26 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
 }
 
 const comunidadController = {
+  denunciarPublicacion: async (req, res) => {
+    try {
+      await asegurarEsquemaComunidades();
+      const post = await pool.query('SELECT id, user_id FROM comunidad_publicaciones WHERE id = $1', [req.params.publicacionId]);
+      if (post.rowCount === 0) return res.status(404).json({ error: 'Publicación no encontrada.' });
+      const result = await registrarDenuncia({
+        reporterId: req.user.id,
+        reportedUserId: post.rows[0].user_id,
+        contentType: 'perfil',
+        contentId: `genero-comunidad:${post.rows[0].id}`,
+        reason: req.body?.reason,
+        details: req.body?.detail,
+      });
+      res.json(result);
+    } catch (error) {
+      console.error('Error al denunciar publicación de comunidad:', error);
+      res.status(error.status || 500).json({ error: error.message || 'No se pudo enviar la denuncia.' });
+    }
+  },
+
   listarComunidades: async (req, res) => {
     try {
       await asegurarEsquemaComunidades();

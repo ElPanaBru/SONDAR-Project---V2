@@ -118,6 +118,79 @@ function mapearEvento(evento) {
   };
 }
 
+function mapearPreviewEvento(reel) {
+  return {
+    id: reel.id,
+    backendId: reel.id,
+    artista: reel.creador_nombre || reel.creador_email?.split('@')[0] || 'Artista SONDAR',
+    usuario: reel.creador_nombre
+      ? `@${String(reel.creador_nombre).replace(/^@/, '')}`
+      : '@artista',
+    tema: reel.titulo,
+    album: reel.album,
+    genero: reel.genero,
+    descripcion: reel.descripcion || '',
+    duracion: reel.duracion || '0:30',
+    portada: reel.portada_url || '',
+    audio: reel.audio_url || '',
+    avatar: reel.creador_avatar || '',
+    likes: Number(reel.likes || 0),
+    comentarios: Number(reel.comentarios_total || 0),
+    compartidos: Number(reel.compartidos || 0),
+    guardados: Number(reel.guardados || 0),
+    visitas: Number(reel.visitas || 0),
+    colorAmbiente: reel.color_ambiente || '#8F5136',
+    fragmentStart: Number(reel.fragment_start || 0),
+    fragmentEnd: reel.fragment_end === null || reel.fragment_end === undefined
+      ? null
+      : Number(reel.fragment_end),
+    liked: false,
+    guardado: false,
+    siguiendo: false,
+    creadorId: reel.creador_id,
+  };
+}
+
+async function obtenerPreviewsPorEvento(eventos, viewerId) {
+  if (!Array.isArray(eventos) || eventos.length === 0) return new Map();
+
+  const eventoIds = eventos.map((evento) => evento.id);
+  const result = await pool.query(`
+    WITH participantes AS (
+      SELECT e.id AS evento_id, e.creador_id AS usuario_id
+      FROM eventos e
+      WHERE e.id = ANY($1::bigint[])
+
+      UNION
+
+      SELECT eo.event_id AS evento_id, eo.user_id AS usuario_id
+      FROM event_organizers eo
+      WHERE eo.event_id = ANY($1::bigint[])
+    )
+    SELECT
+      participantes.evento_id,
+      r.*,
+      COALESCE(u.username, u.artist_name, u.full_name, u.email) AS creador_nombre,
+      u.email AS creador_email,
+      u.profile_img_url AS creador_avatar
+    FROM participantes
+    JOIN reels r ON r.creador_id = participantes.usuario_id
+    LEFT JOIN users u ON u.id = r.creador_id
+    WHERE $2::uuid IS NULL OR NOT EXISTS (
+      SELECT 1 FROM user_blocks ub
+      WHERE (ub.blocker_id = $2 AND ub.blocked_id = r.creador_id)
+         OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $2)
+    )
+    ORDER BY participantes.evento_id, r.created_at DESC, r.id DESC
+  `, [eventoIds, viewerId]);
+
+  const previewsPorEvento = new Map(eventoIds.map((id) => [String(id), []]));
+  for (const reel of result.rows) {
+    previewsPorEvento.get(String(reel.evento_id))?.push(mapearPreviewEvento(reel));
+  }
+  return previewsPorEvento;
+}
+
 async function asegurarUsuarioPublico(user) {
   const email = user.email || `${user.id}@sin-email.local`;
   const baseUsername =
@@ -182,24 +255,30 @@ const eventoController = {
           e.id DESC
       `, [viewerId, generosPreferidos]);
 
-      if (!viewerId || result.rows.length === 0) {
-        return res.json(result.rows);
+      const previewsPorEvento = await obtenerPreviewsPorEvento(result.rows, viewerId);
+      const eventosConPreviews = result.rows.map((evento) => ({
+        ...evento,
+        previews: previewsPorEvento.get(String(evento.id)) || [],
+      }));
+
+      if (!viewerId || eventosConPreviews.length === 0) {
+        return res.json(eventosConPreviews);
       }
 
       try {
         const guardados = await pool.query(
           'SELECT event_id FROM event_saves WHERE user_id = $1 AND event_id = ANY($2::bigint[])',
-          [viewerId, result.rows.map((evento) => evento.id)]
+          [viewerId, eventosConPreviews.map((evento) => evento.id)]
         );
         const guardadoSet = new Set(guardados.rows.map((row) => String(row.event_id)));
 
-        return res.json(result.rows.map((evento) => ({
+        return res.json(eventosConPreviews.map((evento) => ({
           ...evento,
           guardado: guardadoSet.has(String(evento.id)),
         })));
       } catch (error) {
         if (error.code !== '42P01') throw error;
-        return res.json(result.rows);
+        return res.json(eventosConPreviews);
       }
     } catch (error) {
       console.error('Error al listar eventos:', error);
@@ -290,7 +369,7 @@ const eventoController = {
         }
       }
 
-      imagenSubida = await subirImagenEvento(req.file);
+      imagenSubida = await subirImagenEvento(req.file, req.user.id, req.accessToken);
       dbClient = await pool.connect();
       await dbClient.query('BEGIN');
       transaccionActiva = true;
@@ -368,15 +447,24 @@ const eventoController = {
         });
       }
 
+      let previews = [];
+      try {
+        const previewsPorEvento = await obtenerPreviewsPorEvento([result.rows[0]], creadorId);
+        previews = previewsPorEvento.get(String(result.rows[0].id)) || [];
+      } catch (error) {
+        console.error('No se pudieron adjuntar los previews al evento creado:', error);
+      }
+
       res.status(201).json(mapearEvento({
         ...result.rows[0],
         creador: creadorNombre,
         organizadores: organizadoresResult.rows,
+        previews,
       }));
     } catch (error) {
       if (dbClient && transaccionActiva) await dbClient.query('ROLLBACK').catch(() => {});
       if (imagenSubida?.path) {
-        await eliminarImagenEvento(imagenSubida.path);
+        await eliminarImagenEvento(imagenSubida.path, req.accessToken);
       }
 
       console.error('Error al crear evento:', error);
@@ -400,7 +488,7 @@ const eventoController = {
         return res.status(404).json({ error: 'Evento no encontrado o sin permiso para eliminarlo.' });
       }
 
-      await eliminarImagenEvento(result.rows[0].img_path).catch((error) => {
+      await eliminarImagenEvento(result.rows[0].img_path, req.accessToken).catch((error) => {
         console.error('No se pudo eliminar la imagen del evento:', error);
       });
 

@@ -22,6 +22,10 @@ export default function NotificationsScreen() {
     if (!item.read_at) { await api(`/api/notificaciones/${item.id}/leer`, { method: 'POST', token }).catch(() => null); setItems(current => current.map(n => n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n)); }
     const target = item.target_url || '';
     if (target.startsWith('/perfil/')) router.push({ pathname: '/profile/[id]', params: { id: target.split('/')[2] } });
+    else if (target.startsWith('/mensajes')) {
+      const conversation = target.match(/[?&]conversation=([^&]+)/)?.[1];
+      router.push({ pathname: '/messages', params: conversation ? { conversation: decodeURIComponent(conversation) } : {} });
+    }
     else if (target.startsWith('/descubrir')) router.push('/discover');
     else if (target.startsWith('/comunidad')) router.push('/community');
     else router.push('/');

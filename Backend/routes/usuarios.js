@@ -17,8 +17,12 @@ router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActua
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, upload.single('avatar'), usuariosController.actualizarPerfilActual);
 router.put('/me/onboarding', authMiddleware, upload.single('avatar'), usuariosController.completarOnboarding);
+router.post('/me/comunidad', authMiddleware, usuariosController.crearPublicacionComunidadPerfil);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
 router.get('/me/bloqueados', authMiddleware, usuariosController.listarBloqueadosActuales);
+router.post('/comunidad/:id/comentarios', authMiddleware, usuariosController.comentarPublicacionComunidadPerfil);
+router.post('/comunidad/:id/denunciar', authMiddleware, usuariosController.denunciarPublicacionComunidadPerfil);
+router.delete('/comunidad/:id', authMiddleware, usuariosController.eliminarPublicacionComunidadPerfil);
 router.get('/', usuariosController.buscarUsuarios);
 router.post('/registrar', authMiddleware, usuariosController.registrarUsuario);
 router.post('/convertir-a-musico', authMiddleware, usuariosController.convertirAMusico);

@@ -42,6 +42,32 @@ function Test-MetroPort([int]$Port) {
 }
 
 function Get-LanIPv4 {
+  try {
+    $defaultRoutes = Get-NetRoute `
+      -AddressFamily IPv4 `
+      -DestinationPrefix '0.0.0.0/0' `
+      -ErrorAction Stop |
+      Where-Object { $_.State -eq 'Alive' -and $_.NextHop -ne '0.0.0.0' } |
+      Sort-Object -Property @{ Expression = { [int]$_.RouteMetric + [int]$_.InterfaceMetric } }
+
+    foreach ($route in $defaultRoutes) {
+      $routeAddress = Get-NetIPAddress `
+        -AddressFamily IPv4 `
+        -InterfaceIndex $route.InterfaceIndex `
+        -ErrorAction SilentlyContinue |
+        Where-Object {
+          $_.AddressState -eq 'Preferred' -and
+          $_.IPAddress -notmatch '^127\.' -and
+          $_.IPAddress -notmatch '^169\.254\.'
+        } |
+        Select-Object -First 1 -ExpandProperty IPAddress
+
+      if ($routeAddress) { return $routeAddress }
+    }
+  } catch {
+    Write-Host 'No pude leer la ruta de red principal; usando deteccion por adaptadores.' -ForegroundColor DarkGray
+  }
+
   $candidates = @()
   $interfaces = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()
 

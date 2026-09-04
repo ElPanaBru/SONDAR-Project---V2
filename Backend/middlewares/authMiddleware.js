@@ -18,6 +18,7 @@ async function authMiddleware(req, res, next) {
   }
 
   req.user = data.user;
+  req.accessToken = token;
   next();
 }
 
@@ -39,6 +40,7 @@ authMiddleware.opcional = async function authOpcional(req, res, next) {
   }
 
   req.user = data.user;
+  req.accessToken = token;
   next();
 };
 

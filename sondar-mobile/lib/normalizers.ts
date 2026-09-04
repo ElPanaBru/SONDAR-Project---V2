@@ -59,6 +59,9 @@ export function normalizeReel(item: AnyRecord = {}) {
     siguiendo: toBoolean(item.siguiendo ?? item.following),
     creadorId: item.creadorId || item.creador_id || item.userId || item.user_id,
     duracion: item.duracion || '0:30',
+    colorAmbiente: item.colorAmbiente || item.color_ambiente || item.colorB || '#8F5136',
+    fragmentStart: toNumber(item.fragmentStart ?? item.fragment_start),
+    fragmentEnd: item.fragmentEnd ?? item.fragment_end ?? null,
   };
 }
 
@@ -66,6 +69,11 @@ export function normalizeEvent(item: AnyRecord = {}) {
   const place = item.lugar || item.ubicacion || '';
   const avatar = item.avatar || item.profile_img_url || '';
   const image = item.img || item.img_url || item.imagen || item.portada || avatar || '';
+  const previews = Array.isArray(item.previews)
+    ? item.previews.map(normalizeReel)
+    : Array.isArray(item.reels)
+      ? item.reels.map(normalizeReel)
+      : [];
   return {
     ...item,
     id: item.id,
@@ -86,6 +94,7 @@ export function normalizeEvent(item: AnyRecord = {}) {
     avatar,
     guardado: toBoolean(item.guardado),
     organizadores: item.organizadores || [],
+    previews,
   };
 }
 

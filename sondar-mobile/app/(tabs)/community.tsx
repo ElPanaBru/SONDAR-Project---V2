@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { formatCount, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
@@ -13,7 +14,7 @@ import { normalizeComment, normalizeCommunity, normalizeCommunityPost } from '@/
 type Community = { id: string; nombre: string; titulo?: string; genero: string; descripcion?: string; miembros: number; publicaciones: number; portada?: string };
 type Comment = { id: number; userId?: string; parentId?: number | null; usuario: string; autor?: string; texto: string; respondeA?: string; tiempo?: string; likes?: number; liked?: boolean; respuestas?: Comment[] };
 type ReplyTarget = { parentId: number; usuario: string };
-type Post = { id: number; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
+type Post = { id: number; userId?: string; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
 
 const countComments = (items: Comment[]): number => items.reduce((total, item) => total + 1 + countComments(item.respuestas || []), 0);
 const removeComment = (items: Comment[], id: number): Comment[] => items
@@ -33,6 +34,8 @@ export default function CommunityScreen() {
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [comment, setComment] = useState('');
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+  const [reportTarget, setReportTarget] = useState<Post | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
 
   useEffect(() => {
     api<Community[]>('/api/comunidades', { token }).then(data => {
@@ -166,12 +169,23 @@ export default function CommunityScreen() {
     ]);
   }
 
+  async function submitReport(payload: ReportPayload) {
+    if (!reportTarget) return;
+    setReportBusy(true);
+    try {
+      await api(`/api/comunidades/publicaciones/${reportTarget.id}/denunciar`, { method: 'POST', token, body: JSON.stringify(payload) });
+      setReportTarget(null);
+      Alert.alert('Listo', 'Denuncia enviada.');
+    } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la denuncia.'); }
+    finally { setReportBusy(false); }
+  }
+
   return (
     <Screen>
       <Header
         title="Comunidad"
         subtitle="Encontra tu escena"
-        actions={<><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>}
+        actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>}
       />
       {loading && !communities.length ? <Loading /> : <>
         <View style={styles.communityRail}>
@@ -225,7 +239,7 @@ export default function CommunityScreen() {
             refreshing={loading}
             onRefresh={loadPosts}
             ListEmptyComponent={<Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." />}
-            renderItem={({ item }) => <PostCard post={item} onOpen={() => openThread(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} />}
+            renderItem={({ item }) => <PostCard post={item} own={item.userId === user?.id} onOpen={() => openThread(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onReport={() => setReportTarget(item)} />}
           />
         )}
       </>}
@@ -255,6 +269,7 @@ export default function CommunityScreen() {
               <View style={styles.postActions}>
                 <Button kind="ghost" icon={openPost.liked ? 'heart' : 'heart-outline'} onPress={() => interact(openPost, 'like')}>{formatCount(openPost.likes || 0)}</Button>
                 <Button kind="ghost" icon={openPost.guardado ? 'bookmark' : 'bookmark-outline'} onPress={() => interact(openPost, 'guardar')}>Guardar</Button>
+                {openPost.userId !== user?.id ? <Button kind="ghost" icon="flag-outline" onPress={() => setReportTarget(openPost)}>Denunciar</Button> : null}
               </View>
               <FlatList
                 data={openPost.comentarios || []}
@@ -283,6 +298,7 @@ export default function CommunityScreen() {
           </View>
         </View>
       </Modal>
+      <ReportModal visible={Boolean(reportTarget)} subject={reportTarget?.usuario || reportTarget?.titulo} busy={reportBusy} onClose={() => setReportTarget(null)} onSubmit={submitReport} />
     </Screen>
   );
 }
@@ -320,7 +336,7 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nest
   );
 }
 
-function PostCard({ post, onOpen, onLike, onSave }: { post: Post; onOpen: () => void; onLike: () => void; onSave: () => void }) {
+function PostCard({ post, own, onOpen, onLike, onSave, onReport }: { post: Post; own: boolean; onOpen: () => void; onLike: () => void; onSave: () => void; onReport: () => void }) {
   return (
     <View style={styles.post}>
       <View style={styles.postHeader}>
@@ -328,7 +344,7 @@ function PostCard({ post, onOpen, onLike, onSave }: { post: Post; onOpen: () => 
           <Text style={styles.author}>{post.usuario || `@${post.op}`}</Text>
           <Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text>
         </Pressable>
-        <IconButton name={post.guardado ? 'bookmark' : 'bookmark-outline'} active={post.guardado} onPress={onSave} />
+        <View style={styles.postHeaderActions}>{!own ? <IconButton name="flag-outline" onPress={onReport} /> : null}<IconButton name={post.guardado ? 'bookmark' : 'bookmark-outline'} active={post.guardado} onPress={onSave} /></View>
       </View>
       <Pressable onPress={onOpen} style={styles.postBody}>
         <Text style={styles.postTitle}>{post.titulo}</Text>
@@ -366,7 +382,7 @@ const styles = StyleSheet.create({
   communities: { paddingHorizontal: 14, paddingVertical: 8, gap: 10 },
   community: { width: 154, height: 92, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 12, justifyContent: 'flex-end' },
   communityActive: { borderColor: palette.amber, borderWidth: 2 },
-  communityTint: { ...StyleSheet.absoluteFillObject, backgroundColor: '#0505059E' },
+  communityTint: { ...StyleSheet.absoluteFill, backgroundColor: '#0505059E' },
   communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   communityMeta: { color: '#D0D0D3', fontSize: 11, marginTop: 3 },
   activeIntro: { marginHorizontal: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border },
@@ -377,6 +393,7 @@ const styles = StyleSheet.create({
   posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 },
   post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 },
   postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  postHeaderActions: { flexDirection: 'row', gap: 6 },
   postHeaderInfo: { flex: 1, paddingVertical: 2 },
   postBody: { gap: 9 },
   author: { color: palette.amber, fontWeight: '800' },

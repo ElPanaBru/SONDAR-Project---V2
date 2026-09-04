@@ -38,7 +38,7 @@ export default function OnboardingScreen() {
     return String(metadataName || user?.email?.split('@')[0] || '').replace(/^@/, '');
   }, [user]);
   const selectableGenres = useMemo(() => musicGenres.filter((genre) => genre !== 'otros'), []);
-  const [nombre, setNombre] = useState(initialName);
+  const [nombre, setNombre] = useState<string | undefined>(undefined);
   const [bio, setBio] = useState('');
   const [birthDate, setBirthDate] = useState(defaultBirthDate);
   const [showPicker, setShowPicker] = useState(false);
@@ -46,14 +46,11 @@ export default function OnboardingScreen() {
   const [avatar, setAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const visibleName = nombre ?? initialName;
 
   useEffect(() => {
     if (!user) router.replace('/auth');
   }, [user]);
-
-  useEffect(() => {
-    setNombre((current) => current || initialName);
-  }, [initialName]);
 
   async function pickAvatar() {
     setError('');
@@ -79,7 +76,7 @@ export default function OnboardingScreen() {
   }
 
   async function submit() {
-    const cleanName = nombre.trim();
+    const cleanName = visibleName.trim();
     if (!cleanName) return setError('Completa tu nombre visible.');
     if (genres.length < 3) return setError('Elegi al menos 3 generos para tus recomendaciones.');
     if (!token) return setError('Tu sesion vencio. Inicia sesion de nuevo.');
@@ -119,7 +116,7 @@ export default function OnboardingScreen() {
 
       <View style={styles.avatarRow}>
         <Pressable onPress={pickAvatar} style={styles.avatarPicker}>
-          {avatar ? <Image source={{ uri: avatar.uri }} style={styles.avatarImage} contentFit="cover" /> : <Avatar name={nombre || user?.email || 'S'} size={94} />}
+          {avatar ? <Image source={{ uri: avatar.uri }} style={styles.avatarImage} contentFit="cover" /> : <Avatar name={visibleName || user?.email || 'S'} size={94} />}
           <View style={styles.addBadge}><Ionicons name="add" size={22} color="#101010" /></View>
         </Pressable>
         <View style={styles.avatarText}>
@@ -128,7 +125,7 @@ export default function OnboardingScreen() {
         </View>
       </View>
 
-      <Field label="Nombre visible" value={nombre} onChangeText={setNombre} placeholder="Ej: Martina Lopez" maxLength={80} />
+      <Field label="Nombre visible" value={visibleName} onChangeText={setNombre} placeholder="Ej: Martina Lopez" maxLength={80} />
       <View>
         <Field label="Bio" value={bio} onChangeText={setBio} placeholder="Conta que haces, que escuchas o que estas creando." multiline maxLength={180} />
         <Text style={styles.counter}>{bio.length}/180</Text>

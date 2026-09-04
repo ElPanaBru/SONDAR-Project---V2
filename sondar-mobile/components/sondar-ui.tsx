@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import type { PropsWithChildren, ReactNode } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -57,8 +58,14 @@ export function Field(props: React.ComponentProps<typeof TextInput> & { label?: 
   return <View style={styles.fieldWrap}>{label ? <Text style={styles.label}>{label}</Text> : null}<TextInput placeholderTextColor={palette.muted} multiline={multiline} style={[styles.field, multiline && styles.multiline, style]} {...rest} /></View>;
 }
 
-export function Avatar({ uri, name, size = 44 }: { uri?: string | null; name?: string; size?: number }) {
-  return uri ? <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: palette.surface2 }} /> : (
+export function Avatar({ uri, name, size = 44, onError }: { uri?: string | null; name?: string; size?: number; onError?: () => void }) {
+  return <AvatarContent key={uri || 'fallback'} uri={uri} name={name} size={size} onError={onError} />;
+}
+
+function AvatarContent({ uri, name, size, onError }: { uri?: string | null; name?: string; size: number; onError?: () => void }) {
+  const [failed, setFailed] = useState(false);
+
+  return uri && !failed ? <Image source={{ uri }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: palette.surface2 }} contentFit="cover" onError={() => { setFailed(true); onError?.(); }} /> : (
     <View style={[styles.avatarFallback, { width: size, height: size, borderRadius: size / 2 }]}><Text style={[styles.avatarLetter, { fontSize: size * .4 }]}>{name?.trim().charAt(0).toUpperCase() || 'S'}</Text></View>
   );
 }
