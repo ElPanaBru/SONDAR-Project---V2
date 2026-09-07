@@ -108,6 +108,8 @@ test('mensajeria integra API, ruta, Realtime, presencia y respaldo por polling',
   assert.match(page, /Cargar mensajes anteriores/);
   assert.match(migration, /DROP CONSTRAINT IF EXISTS conversation_members_user_id_fkey/);
   assert.match(migration, /DROP CONSTRAINT IF EXISTS messages_sender_id_fkey/);
+  assert.match(migration, /ALTER COLUMN sender_id DROP NOT NULL/);
+  assert.match(migration, /FOREIGN KEY \(sender_id\) REFERENCES public\.users\(id\) ON DELETE SET NULL/);
   assert.match(migration, /last_delivered_at/);
 });
 

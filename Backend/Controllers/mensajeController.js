@@ -135,7 +135,7 @@ async function getConversation(conversationId, viewerId, client = pool) {
        SELECT COUNT(*)::int AS total
        FROM public.messages unread_message
        WHERE unread_message.conversation_id = c.id
-         AND unread_message.sender_id <> $2
+         AND unread_message.sender_id IS DISTINCT FROM $2
          AND unread_message.created_at > mine.last_read_at
          AND unread_message.deleted_at IS NULL
      ) unread ON true
@@ -209,7 +209,7 @@ const mensajeController = {
            SELECT COUNT(*)::int AS total
            FROM public.messages unread_message
            WHERE unread_message.conversation_id = c.id
-             AND unread_message.sender_id <> $1
+             AND unread_message.sender_id IS DISTINCT FROM $1
              AND unread_message.created_at > mine.last_read_at
              AND unread_message.deleted_at IS NULL
          ) unread ON true
@@ -231,7 +231,7 @@ const mensajeController = {
          FROM public.messages m
          JOIN public.conversation_members cm ON cm.conversation_id = m.conversation_id
          WHERE cm.user_id = $1
-           AND m.sender_id <> $1
+           AND m.sender_id IS DISTINCT FROM $1
            AND m.created_at > cm.last_read_at
            AND m.deleted_at IS NULL`,
         [req.user.id]

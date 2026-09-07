@@ -63,6 +63,8 @@ const pool = {
   async query(sql, params = []) {
     const query = String(sql).replace(/\s+/g, ' ').trim();
     poolQueries.push({ query, params });
+    if (query.startsWith('SELECT c.id,')) return result();
+    if (query.startsWith('SELECT COUNT(*)::int AS total')) return result([{ total: 2 }]);
     if (query.startsWith('SELECT m.*,')) {
       if (failMessageHydration) {
         throw Object.assign(new Error('column other.last_delivered_at does not exist'), { code: '42703' });
@@ -147,6 +149,8 @@ test('enviar un mensaje crea una notificacion configurable para el destinatario'
   });
   const hydrateIndex = clientQueries.findIndex((query) => query.startsWith('SELECT m.*,'));
   const commitIndex = clientQueries.indexOf('COMMIT');
+  const conversationQuery = clientQueries.find((query) => query.startsWith('SELECT c.id,'));
+  assert.match(conversationQuery, /unread_message\.sender_id IS DISTINCT FROM \$2/);
   assert.ok(hydrateIndex >= 0);
   assert.ok(commitIndex > hydrateIndex);
 });
@@ -190,6 +194,22 @@ test('leer una conversacion marca tambien sus notificaciones de mensajes como le
   assert.deepEqual(notificationUpdate.params, [recipientId, `/mensajes?conversacion=${conversationId}`]);
   const memberUpdate = poolQueries.find(({ query }) => query.startsWith('UPDATE public.conversation_members'));
   assert.match(memberUpdate.query, /last_delivered_at/);
+});
+
+test('los conteos de no leidos incluyen mensajes con remitente eliminado', async () => {
+  poolQueries.length = 0;
+  const conversationsResponse = response();
+  const countResponse = response();
+
+  await mensajeController.listConversations({ user: { id: recipientId } }, conversationsResponse);
+  await mensajeController.unreadCount({ user: { id: recipientId } }, countResponse);
+
+  assert.deepEqual(conversationsResponse.body, []);
+  assert.deepEqual(countResponse.body, { noLeidos: 2 });
+  const conversationsQuery = poolQueries.find(({ query }) => query.startsWith('SELECT c.id,'));
+  const countQuery = poolQueries.find(({ query }) => query.startsWith('SELECT COUNT(*)::int AS total'));
+  assert.match(conversationsQuery.query, /unread_message\.sender_id IS DISTINCT FROM \$1/);
+  assert.match(countQuery.query, /m\.sender_id IS DISTINCT FROM \$1/);
 });
 
 test('mapea las etapas de entrega y lectura', () => {

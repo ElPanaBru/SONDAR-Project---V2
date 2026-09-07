@@ -1,7 +1,8 @@
 BEGIN;
 
 -- La conversacion y sus mensajes forman parte del historial del participante
--- que conserva su cuenta. El UUID retenido no permite acceder a un perfil borrado.
+-- que conserva su cuenta. Creador y remitente quedan en NULL; la membresia
+-- conserva el UUID tecnico para mantener el chat historico.
 ALTER TABLE public.conversations
   DROP CONSTRAINT IF EXISTS conversations_created_by_fkey;
 ALTER TABLE public.conversations
@@ -15,6 +16,11 @@ ALTER TABLE public.conversation_members
 
 ALTER TABLE public.messages
   DROP CONSTRAINT IF EXISTS messages_sender_id_fkey;
+ALTER TABLE public.messages
+  ALTER COLUMN sender_id DROP NOT NULL;
+ALTER TABLE public.messages
+  ADD CONSTRAINT messages_sender_id_fkey
+  FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 ALTER TABLE public.conversation_members
   ADD COLUMN IF NOT EXISTS last_delivered_at timestamptz
