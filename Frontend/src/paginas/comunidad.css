@@ -733,7 +733,7 @@
 
 .etiquetas-row span {
   color: #080808;
-  background: #ffbd4a;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   border-radius: 999px;
   padding: 3px 8px;
   font-weight: 800;

@@ -1678,12 +1678,13 @@
 }
 
 .eventos-sheet.expandido {
-  top: clamp(18px, 8vh, 70px);
+  top: auto;
   right: auto;
   bottom: 10px;
   left: 50%;
   width: min(620px, calc(100% - 36px));
-  max-height: none;
+  height: clamp(220px, 32dvh, 360px);
+  max-height: calc(100% - 20px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2517,12 +2518,13 @@
   }
 
   .eventos-sheet.expandido {
-    top: clamp(12px, 7vh, 54px);
+    top: auto;
     right: auto;
     bottom: 8px;
     left: 50%;
     width: calc(100% - 20px);
-    max-height: none;
+    height: clamp(220px, 32dvh, 360px);
+    max-height: calc(100% - 16px);
     border-radius: 16px;
     transform: translateX(-50%);
   }

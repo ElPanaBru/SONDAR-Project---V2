@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const comunidadController = require('../Controllers/comunidadController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const confirmarPasswordEliminacion = require('../middlewares/confirmarPasswordEliminacion');
 const evitarCreacionDuplicada = require('../middlewares/evitarCreacionDuplicada');
 
 router.get('/', authMiddleware.opcional, comunidadController.listarComunidades);
@@ -13,7 +14,7 @@ router.post('/publicaciones/:publicacionId/comentarios', authMiddleware, evitarC
 router.post('/publicaciones/:publicacionId/like', authMiddleware, comunidadController.alternarLikePublicacion);
 router.post('/publicaciones/:publicacionId/guardar', authMiddleware, comunidadController.alternarGuardadoPublicacion);
 router.post('/publicaciones/:publicacionId/denunciar', authMiddleware, comunidadController.denunciarPublicacion);
-router.delete('/publicaciones/:publicacionId', authMiddleware, comunidadController.eliminarPublicacion);
+router.delete('/publicaciones/:publicacionId', authMiddleware, confirmarPasswordEliminacion, comunidadController.eliminarPublicacion);
 router.post('/comentarios/:comentarioId/like', authMiddleware, comunidadController.alternarLikeComentario);
 router.post('/comentarios/:comentarioId/denunciar', authMiddleware, comunidadController.denunciarComentario);
 

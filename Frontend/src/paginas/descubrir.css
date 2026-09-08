@@ -3632,15 +3632,21 @@
 }
 
 .reel-info-inferior .artista-avatar {
+  position: relative;
   width: 36px;
   height: 36px;
   flex: 0 0 36px;
+  box-sizing: border-box;
+  padding: 0;
+  aspect-ratio: 1;
   color: #1b0d00;
   background: linear-gradient(135deg, #ffc247 0%, #ff9200 52%, #f05a00 100%);
   border: 1px solid rgba(255, 211, 114, 0.74);
+  border-radius: 50%;
   font-size: 15px;
   box-shadow: 0 7px 18px rgba(0, 0, 0, 0.34);
   overflow: hidden;
+  isolation: isolate;
 }
 
 .reel-info-inferior .artista-avatar.sin-avatar {
@@ -3655,13 +3661,21 @@
 }
 
 .reel-info-inferior .artista-avatar .avatar-inicial {
+  width: 100%;
+  height: 100%;
   display: grid;
   place-items: center;
 }
 
 .reel-info-inferior .artista-avatar img {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
 }
 
 .reel-info-inferior .artista-nombre,
@@ -3753,8 +3767,27 @@
   background: rgba(15, 10, 6, 0.48);
 }
 
+.acciones-laterales .accion-item:first-child .accion-boton.activo {
+  color: #ff7900;
+  background: rgba(15, 10, 6, 0.62);
+  border-color: rgba(255, 121, 0, 0.78);
+  box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.acciones-laterales .accion-item:first-child .accion-boton.activo svg {
+  fill: currentColor;
+  filter: drop-shadow(0 0 8px rgba(255, 121, 0, 0.56));
+}
+
+.acciones-laterales .accion-item:nth-child(2) .accion-boton.activo {
+  color: #090909;
+  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  border-color: rgba(255, 174, 0, 0.9);
+  box-shadow: 0 0 0 3px rgba(255, 126, 0, 0.14), 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
 .acciones-laterales .reel-opciones-menu {
-  min-width: 180px;
+  min-width: 204px;
 }
 
 .descubrir-feed .comentarios-panel {

@@ -5,6 +5,7 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
@@ -292,6 +293,7 @@ export default function Comunidad({ usuario }) {
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
   const [likesComentariosEnviando, setLikesComentariosEnviando] = useState(new Set());
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -844,33 +846,33 @@ export default function Comunidad({ usuario }) {
     }
   };
 
-  const eliminarPublicacion = async (hilo) => {
-    if (!usuario || String(hilo.userId) !== String(usuario.id)) return;
-
-    try {
-      const response = await apiRequest(`/api/comunidades/publicaciones/${hilo.id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const dataError = await response.json().catch(() => ({}));
-        throw new Error(dataError.error || "No se pudo eliminar la publicacion.");
-      }
-
-      setHilos((actuales) => actuales.filter((item) => item.id !== hilo.id));
-      setComunidades((actuales) => actuales.map((comunidad) => (
-        comunidad.id === hilo.comunidadId
-          ? { ...comunidad, publicaciones: Math.max(0, Number(comunidad.publicaciones || 0) - 1) }
-          : comunidad
-      )));
-      setRespuestasAbiertas((abiertas) => abiertas.filter((id) => id !== hilo.id));
-      setRespuestas((actuales) => Object.fromEntries(
-        Object.entries(actuales).filter(([clave]) => !clave.startsWith(`${hilo.id}:`))
-      ));
-      mostrarAviso("Publicacion eliminada");
-    } catch (error) {
-      mostrarAviso(error.message || "No se pudo eliminar la publicacion.");
+  const eliminarPublicacion = async (hilo, password) => {
+    if (!usuario || String(hilo.userId) !== String(usuario.id)) {
+      throw new Error("No tenes permiso para eliminar esta publicacion.");
     }
+
+    const response = await apiRequest(`/api/comunidades/publicaciones/${hilo.id}`, {
+      method: "DELETE",
+      body: { password },
+    });
+
+    if (!response.ok) {
+      const dataError = await response.json().catch(() => ({}));
+      throw new Error(dataError.error || "No se pudo eliminar la publicacion.");
+    }
+
+    setHilos((actuales) => actuales.filter((item) => item.id !== hilo.id));
+    setComunidades((actuales) => actuales.map((comunidad) => (
+      comunidad.id === hilo.comunidadId
+        ? { ...comunidad, publicaciones: Math.max(0, Number(comunidad.publicaciones || 0) - 1) }
+        : comunidad
+    )));
+    setRespuestasAbiertas((abiertas) => abiertas.filter((id) => id !== hilo.id));
+    setRespuestas((actuales) => Object.fromEntries(
+      Object.entries(actuales).filter(([clave]) => !clave.startsWith(`${hilo.id}:`))
+    ));
+    setEliminacionPendiente(null);
+    mostrarAviso("Publicacion eliminada");
   };
 
   const toggleRespuestas = (id) => {
@@ -1369,7 +1371,7 @@ export default function Comunidad({ usuario }) {
                       <button
                         className="post-menu post-eliminar"
                         type="button"
-                        onClick={() => eliminarPublicacion(hilo)}
+                        onClick={() => setEliminacionPendiente(hilo)}
                       >
                         Eliminar
                       </button>
@@ -1746,6 +1748,14 @@ export default function Comunidad({ usuario }) {
           mensajeCopiado="Enlace de la comunidad copiado"
           onClose={() => setComunidadCompartir(null)}
           onAviso={mostrarAviso}
+        />
+      ) : null}
+
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido={`la publicación “${eliminacionPendiente.titulo}”`}
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarPublicacion(eliminacionPendiente, password)}
         />
       ) : null}
 

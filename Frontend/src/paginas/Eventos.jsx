@@ -13,6 +13,7 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
 import { usePreferencias } from "../contextos/PreferenciasContext";
@@ -251,6 +252,7 @@ export default function Eventos({ usuario }) {
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [reels, setReels] = useState([]);
@@ -939,39 +941,37 @@ export default function Eventos({ usuario }) {
     }
   };
 
-  const eliminarEvento = async (evento) => {
-    if (!usuarioPuedeEliminarEvento(evento)) return;
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      if (!token) {
-        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-
-      const response = await apiRequest(`/api/eventos/${evento.id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo eliminar el evento.");
-      }
-
-      setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
-      setEventoActivo(null);
-      setDetalleExpandido(false);
-      setMenuEventoAbierto(false);
-      mostrarAviso("Evento eliminado");
-    } catch (error) {
-      console.error(error);
-      mostrarAviso("Hubo un error al eliminar el evento.");
+  const eliminarEvento = async (evento, password) => {
+    if (!usuarioPuedeEliminarEvento(evento)) {
+      throw new Error("No tenes permiso para eliminar este evento.");
     }
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    if (!token) {
+      throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+    }
+
+    const response = await apiRequest(`/api/eventos/${evento.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: { password },
+    });
+
+    if (!response.ok) {
+      const dataError = await response.json().catch(() => ({}));
+      throw new Error(dataError.error || "No se pudo eliminar el evento.");
+    }
+
+    setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
+    setEventoActivo(null);
+    setDetalleExpandido(false);
+    setMenuEventoAbierto(false);
+    setEliminacionPendiente(null);
+    mostrarAviso("Evento eliminado");
   };
 
   const handleCrearEvento = useCallback(() => {
@@ -1354,7 +1354,10 @@ export default function Eventos({ usuario }) {
                     {menuEventoAbierto ? (
                       <div className="evento-detalle-menu-popover">
                         {usuarioPuedeEliminarEvento(detalleEvento) ? (
-                          <button type="button" onClick={() => eliminarEvento(detalleEvento)}>Eliminar</button>
+                          <button type="button" onClick={() => {
+                            setMenuEventoAbierto(false);
+                            setEliminacionPendiente(detalleEvento);
+                          }}>Eliminar</button>
                         ) : (
                           <button type="button" onClick={() => {
                             setMenuEventoAbierto(false);
@@ -1479,6 +1482,14 @@ export default function Eventos({ usuario }) {
         onClose={() => setDenunciaPendiente(null)}
         onConfirm={(datos) => denunciarEvento(denunciaPendiente, datos)}
       />
+
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido="este evento"
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarEvento(eliminacionPendiente, password)}
+        />
+      ) : null}
 
       {mostrarModal && (
         <div className="evento-modal-overlay">

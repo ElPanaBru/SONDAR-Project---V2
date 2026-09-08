@@ -10,6 +10,7 @@ import {
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
@@ -532,6 +533,7 @@ export default function Descubrir({ usuario }) {
   const [animacionesLike, setAnimacionesLike] = useState({});
   const [seguimientosPendientes, setSeguimientosPendientes] = useState(() => new Set());
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [compartirActivo, setCompartirActivo] = useState(null);
@@ -1717,49 +1719,45 @@ export default function Descubrir({ usuario }) {
     }
   };
 
-  const eliminarLanzamiento = async (lanzamiento) => {
-    try {
-      if (lanzamiento.backendId) {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+  const eliminarLanzamiento = async (lanzamiento, password) => {
+    if (lanzamiento.backendId) {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
 
-        if (!token) {
-          mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-          return;
-        }
-
-        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo eliminar la preview.");
-        }
+      if (!token) {
+        throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
       }
 
-      setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
-      setComentariosPorLanzamiento((prev) => {
-        const siguiente = { ...prev };
-        delete siguiente[lanzamiento.id];
-        return siguiente;
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: { password },
       });
-      setMenuLanzamientoAbierto(null);
-      setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
-      setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
-      setReelAudioSeleccionado((actual) =>
-        String(actual) === String(lanzamiento.id) ? null : actual
-      );
-      delete tiemposReelRef.current[lanzamiento.id];
-      delete duracionesReelRef.current[lanzamiento.id];
-      mostrarAviso("Preview eliminada");
-    } catch (error) {
-      console.error(error);
-      mostrarAviso(error.message || "No se pudo eliminar la preview.");
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo eliminar la preview.");
+      }
     }
+
+    setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
+    setComentariosPorLanzamiento((prev) => {
+      const siguiente = { ...prev };
+      delete siguiente[lanzamiento.id];
+      return siguiente;
+    });
+    setMenuLanzamientoAbierto(null);
+    setEliminacionPendiente(null);
+    setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
+    setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
+    setReelAudioSeleccionado((actual) =>
+      String(actual) === String(lanzamiento.id) ? null : actual
+    );
+    delete tiemposReelRef.current[lanzamiento.id];
+    delete duracionesReelRef.current[lanzamiento.id];
+    mostrarAviso("Preview eliminada");
   };
 
   const eliminarComentario = async (lanzamientoId, comentarioId, respuestaId = null) => {
@@ -2410,6 +2408,7 @@ export default function Descubrir({ usuario }) {
                       className={`accion-boton ${comentariosAbiertos === lanzamiento.id ? "activo" : ""}`}
                       type="button"
                       aria-label="Comentar"
+                      aria-pressed={comentariosAbiertos === lanzamiento.id}
                       onClick={() =>
                         cambiarComentariosConAnimacion(
                           comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
@@ -2451,7 +2450,10 @@ export default function Descubrir({ usuario }) {
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
                         {puedeEliminar ? (
-                          <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
+                          <button type="button" onClick={() => {
+                            setMenuLanzamientoAbierto(null);
+                            setEliminacionPendiente(lanzamiento);
+                          }}>
                             Eliminar
                           </button>
                         ) : (
@@ -2765,6 +2767,14 @@ export default function Descubrir({ usuario }) {
             </div>
           </section>
         </div>
+      ) : null}
+
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido={`la preview “${eliminacionPendiente.tema}”`}
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarLanzamiento(eliminacionPendiente, password)}
+        />
       ) : null}
 
       <DenunciaModal

@@ -3,6 +3,7 @@ const multer = require('multer');
 const router = express.Router();
 const reelController = require('../Controllers/reelController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const confirmarPasswordEliminacion = require('../middlewares/confirmarPasswordEliminacion');
 const evitarCreacionDuplicada = require('../middlewares/evitarCreacionDuplicada');
 
 const upload = multer({
@@ -49,6 +50,6 @@ router.post('/:id/comentarios', authMiddleware, evitarCreacionDuplicada('crear-c
 router.post('/:id/compartir', authMiddleware, reelController.registrarCompartido);
 router.post('/:id/denunciar', authMiddleware, reelController.denunciarReel);
 router.post('/:id/like', authMiddleware, reelController.alternarLike);
-router.delete('/:id', authMiddleware, reelController.eliminarReel);
+router.delete('/:id', authMiddleware, confirmarPasswordEliminacion, reelController.eliminarReel);
 
 module.exports = router;
