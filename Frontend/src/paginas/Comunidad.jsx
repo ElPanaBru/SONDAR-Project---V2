@@ -207,6 +207,8 @@ export default function Comunidad({ usuario }) {
   const [searchParams] = useSearchParams();
   const siguienteComentarioId = useRef(1000);
   const avisoTimer = useRef(null);
+  const membershipLock = useRef(false);
+  const [membershipBusy, setMembershipBusy] = useState(false);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
@@ -376,7 +378,23 @@ export default function Comunidad({ usuario }) {
     mostrarAviso("Tenes que iniciar sesion para publicar en la comunidad");
   };
 
+  const cambiarMembresia = async () => {
+    if (!usuario) return pedirLogin();
+    if (membershipLock.current) return;
+    membershipLock.current = true; setMembershipBusy(true);
+    const id = comunidadActiva.id;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await fetch(apiUrl(`/api/comunidades/${id}/membresia`), { method: comunidadActiva.unido ? 'DELETE' : 'PUT', headers: crearHeadersJson(data.session?.access_token) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'No se pudo actualizar la membresia.');
+      setComunidades(items => items.map(item => item.id === id ? { ...item, ...result } : item));
+    } catch (error) { mostrarAviso(error.message); }
+    finally { membershipLock.current = false; setMembershipBusy(false); }
+  };
+
   const abrirCrearHilo = () => {
+    if (!comunidadActiva.unido) return mostrarAviso('Unite a la comunidad para publicar.');
     if (!usuario) {
       pedirLogin();
       return;
@@ -522,6 +540,7 @@ export default function Comunidad({ usuario }) {
   };
 
   const responder = async (hiloId) => {
+    if (!comunidadActiva.unido) return mostrarAviso('Unite a la comunidad para responder.');
     if (!usuario) {
       pedirLogin();
       return;
@@ -630,7 +649,8 @@ export default function Comunidad({ usuario }) {
                   <span>publicaciones - Comunidad por genero</span>
                 </div>
               </div>
-              <button className="comunidad-crear" type="button" onClick={abrirCrearHilo}>
+              <button className="comunidad-crear" type="button" disabled={membershipBusy} onClick={cambiarMembresia}>{membershipBusy ? 'Guardando...' : comunidadActiva.unido ? 'Salir del foro' : 'Unirse'}</button>
+              <button className="comunidad-crear" type="button" disabled={!comunidadActiva.unido} onClick={abrirCrearHilo}>
                 <span aria-hidden="true">+</span>
                 Crear publicacion
               </button>

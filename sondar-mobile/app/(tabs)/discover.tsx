@@ -10,10 +10,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StatusBar as RNStatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppState, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { formatCount, formatGenre, musicGenres, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
@@ -41,6 +40,9 @@ export default function DiscoverScreen() {
   const [shareReel, setShareReel] = useState<Reel | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [comment, setComment] = useState('');
+  const commentLock = useRef(false);
+  const publishLock = useRef(false);
+  const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,12 +54,14 @@ export default function DiscoverScreen() {
   const [reportBusy, setReportBusy] = useState(false);
   const reelsList = useRef<FlatList<Reel>>(null);
   const viewed = useRef(new Set<number>());
-  const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const isFocused = useIsFocused();
-  const { height: windowHeight } = useWindowDimensions();
-  const topInset = Math.max(insets.top, Platform.OS === 'ios' ? 44 : RNStatusBar.currentHeight || 0);
-  const reelHeight = Math.max(420, Math.floor(windowHeight - topInset - 58 - tabBarHeight));
+  const [appActive, setAppActive] = useState(AppState.currentState === 'active');
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => setAppActive(state === 'active'));
+    return () => subscription.remove();
+  }, []);
+  const [reelHeight, setReelHeight] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,12 +109,16 @@ export default function DiscoverScreen() {
   }
 
   async function sendComment() {
+    if (commentLock.current) return;
     if (!comment.trim() || !commentReel) return;
+    commentLock.current = true;
+    setSending(true);
     try {
       const created = normalizeComment(await api<Comment>(`/api/reels/${commentReel.backendId || commentReel.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto: comment.trim(), parentId: replyTo?.parentId, respondeA: replyTo?.usuario }) }));
       setComments(items => replyTo ? appendReply(items, replyTo.parentId, created) : [...items, created]); setComment(''); setReplyTo(null);
       setReels(items => items.map(item => item.id === commentReel.id ? { ...item, comentarios: Number(item.comentarios || 0) + 1 } : item));
     } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo comentar.'); }
+    finally { commentLock.current = false; setSending(false); }
   }
 
   async function toggleFollow(reel: Reel) {
@@ -261,7 +269,10 @@ export default function DiscoverScreen() {
   }
 
   async function publish() {
+    if (publishLock.current) return;
     if (!form.tema.trim() || !form.album.trim() || !audio || form.generos.length === 0) return setError('Completá título, nombre, género y seleccioná un audio.');
+    publishLock.current = true;
+    if (!/^#[0-9a-f]{6}$/i.test(form.colorAmbiente)) { publishLock.current = false; return setError('Ingresá un color hexadecimal válido, por ejemplo #51418F.'); }
     setBusy(true);
     try {
       const fragmentEnd = form.fragmentStart + form.fragmentDuration;
@@ -269,11 +280,11 @@ export default function DiscoverScreen() {
       body.append('tema', form.tema.trim()); body.append('album', form.album.trim()); body.append('genero', form.generos.join(' / '));
       body.append('descripcion', form.descripcion.trim()); body.append('duracion', formatTime(form.fragmentDuration));
       body.append('colorAmbiente', form.colorAmbiente); body.append('fragmentStart', String(form.fragmentStart)); body.append('fragmentEnd', String(fragmentEnd));
-      body.append('audio', mediaPart(audio, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
+      body.append('audio', mediaPart({ ...audio, fileName: audio.name }, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
       const created = normalizeReel(await api<Reel>('/api/reels/crear', { method: 'POST', token, body }));
       setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setForm(emptyReelForm()); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar.'); }
-    finally { setBusy(false); }
+    finally { publishLock.current = false; setBusy(false); }
   }
 
   const viewability = useCallback(({ viewableItems }: any) => {
@@ -283,10 +294,12 @@ export default function DiscoverScreen() {
 
   return (
     <Screen>
-      <Header title="Descubrir" subtitle="Nuevos sonidos" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
+      <Header title="Descubrir" subtitle="Nuevos sonidos" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
+      <View style={{ flex: 1, marginBottom: tabBarHeight }} onLayout={event => setReelHeight(Math.max(1, Math.floor(event.nativeEvent.layout.height)))}>
       {loading ? <Loading /> : error && !reels.length ? <View style={{ padding: 16 }}><ErrorNotice message={error} /><Empty title="No pudimos cargar música" /></View> : (
-        <FlatList ref={reelsList} data={reels} keyExtractor={item => String(item.id)} style={[styles.reelsList, { height: reelHeight }]} pagingEnabled snapToInterval={reelHeight} decelerationRate="fast" disableIntervalMomentum getItemLayout={(_, index) => ({ length: reelHeight, offset: reelHeight * index, index })} removeClippedSubviews={false} showsVerticalScrollIndicator={false} onViewableItemsChanged={viewability} viewabilityConfig={{ itemVisiblePercentThreshold: 65 }} ListEmptyComponent={<Empty title="Todavía no hay lanzamientos" text="Sé la primera persona en compartir música." />} renderItem={({ item }) => <ReelCard height={reelHeight} reel={item} active={active === item.id} screenFocused={isFocused} mine={item.creadorId === user?.id} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onComments={() => openComments(item)} onShare={() => share(item)} onFollow={() => toggleFollow(item)} onReport={() => openOptions(item)} />} />
+        <FlatList ref={reelsList} data={reels} keyExtractor={item => String(item.id)} style={[styles.reelsList, { height: reelHeight }]} pagingEnabled snapToInterval={reelHeight} decelerationRate="fast" disableIntervalMomentum getItemLayout={(_, index) => ({ length: reelHeight, offset: reelHeight * index, index })} removeClippedSubviews={false} showsVerticalScrollIndicator={false} onViewableItemsChanged={viewability} viewabilityConfig={{ itemVisiblePercentThreshold: 65 }} ListEmptyComponent={<Empty title="Todavía no hay lanzamientos" text="Sé la primera persona en compartir música." />} renderItem={({ item }) => <ReelCard height={reelHeight} reel={item} active={active === item.id} screenFocused={isFocused && appActive && !creating && !commentReel && !shareReel} mine={item.creadorId === user?.id} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onComments={() => openComments(item)} onShare={() => share(item)} onFollow={() => toggleFollow(item)} onReport={() => openOptions(item)} />} />
       )}
+      </View>
 
       <Modal visible={Boolean(shareReel)} animationType="fade" transparent onRequestClose={() => setShareReel(null)}>
         <View style={styles.shareBackdrop}>
@@ -311,13 +324,13 @@ export default function DiscoverScreen() {
         <View style={styles.backdrop}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.commentsModal}><View style={styles.modalTop}><Text style={ui.h2}>Comentarios · {countComments(comments)}</Text><IconButton name="close" onPress={() => setCommentReel(null)} /></View>
           <FlatList data={comments} keyExtractor={item => String(item.id)} style={{ flex: 1 }} contentContainerStyle={{ gap: 15, paddingVertical: 12 }} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty title="Todavía no hay comentarios" />} renderItem={({ item }) => <CommentRow item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} />} />
           {replyTo ? <View style={styles.replyBanner}><Text style={styles.time}>Respondiendo a {replyTo.usuario}</Text><Pressable onPress={() => setReplyTo(null)}><Ionicons name="close-circle" size={20} color={palette.muted} /></Pressable></View> : null}
-          <View style={styles.commentComposer}><View style={{ flex: 1 }}><Field placeholder={replyTo ? `Responder a ${replyTo.usuario}…` : 'Sumate a la conversación…'} value={comment} onChangeText={setComment} /></View><IconButton name="send" active onPress={sendComment} /></View>
+          <View style={styles.commentComposer}><View style={{ flex: 1 }}><Field placeholder={replyTo ? `Responder a ${replyTo.usuario}…` : 'Sumate a la conversación…'} value={comment} onChangeText={setComment} /></View><IconButton name="send" active disabled={sending} onPress={sendComment} /></View>
         </KeyboardAvoidingView></View>
       </Modal>
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>
         <Screen scroll><Header title="Crear nueva preview" subtitle="PREVIEWS" back onBack={() => setCreating(false)} actions={<IconButton name="close" onPress={() => setCreating(false)} />} /><ErrorNotice message={error} />
-          <View style={[styles.previewCreator, { backgroundColor: form.colorAmbiente }]}>
+          <View style={[styles.previewCreator, { backgroundColor: /^#[0-9a-f]{6}$/i.test(form.colorAmbiente) ? form.colorAmbiente : '#8F5136' }]}>
             {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={styles.previewPlaceholder}><Ionicons name="person" size={74} color="#FFFFFF55" /></View>}
             <LinearGradient colors={['#00000005', '#00000015', '#000000D9']} style={StyleSheet.absoluteFill} />
             <View style={styles.previewCopy}><Text style={styles.previewAlbum} numberOfLines={2}>{form.album || 'Nombre de la preview'}</Text><Text style={styles.previewHandle}>@{user?.user_metadata?.username || user?.email?.split('@')[0] || 'artista'}</Text></View>
@@ -337,7 +350,8 @@ export default function DiscoverScreen() {
           <View style={styles.creatorCard}>
             <Text style={styles.creatorCardTitle}>COLOR DEL AMBIENTE</Text>
             <View style={styles.colorField}><View style={[styles.colorSample, { backgroundColor: form.colorAmbiente }]} /><Text style={styles.colorValue}>{form.colorAmbiente.toUpperCase()}</Text></View>
-            <Text style={styles.creatorHint}>Detectado automáticamente desde la portada. Podés ajustarlo.</Text>
+            <Text style={styles.creatorHint}>Elegí un color de la paleta o ingresá tu propio código HEX.</Text>
+            <Field label="Color personalizado (HEX)" value={form.colorAmbiente} onChangeText={colorAmbiente => setForm(current => ({ ...current, colorAmbiente }))} autoCapitalize="characters" maxLength={7} placeholder="#51418F" />
             <View style={styles.colorChoices}>{coverColors.map(color => <Pressable key={color} accessibilityLabel={`Elegir color ${color}`} onPress={() => setForm(current => ({ ...current, colorAmbiente: color }))} style={[styles.colorChoice, { backgroundColor: color }, form.colorAmbiente === color && styles.colorChoiceActive]} />)}</View>
           </View>
 
@@ -346,7 +360,7 @@ export default function DiscoverScreen() {
             <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => setAudio(null)}>Quitar audio</Button> : null}</View>
           </View>
 
-          {audio ? <AudioFragmentEditor audio={audio} start={form.fragmentStart} duration={form.fragmentDuration} onStart={fragmentStart => setForm(current => ({ ...current, fragmentStart }))} onDuration={fragmentDuration => setForm(current => ({ ...current, fragmentDuration, fragmentStart: Math.min(current.fragmentStart, 90 - fragmentDuration) }))} /> : null}
+          {audio && creating && appActive ? <AudioFragmentEditor audio={audio} start={form.fragmentStart} duration={form.fragmentDuration} onStart={fragmentStart => setForm(current => ({ ...current, fragmentStart }))} onDuration={fragmentDuration => setForm(current => ({ ...current, fragmentDuration, fragmentStart: Math.min(current.fragmentStart, 90 - fragmentDuration) }))} /> : null}
 
           <Button onPress={publish} disabled={busy}>{busy ? 'Publicando…' : 'Publicar preview'}</Button>
         </Screen>
@@ -431,7 +445,8 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   useEffect(() => {
     if (!active || !screenFocused || !playable) {
       player.pause();
-      if (!active) manuallyPaused.current = false;
+      manuallyPaused.current = false;
+      player.currentTime = fragmentStart;
       return;
     }
 
@@ -439,7 +454,7 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
       if (player.currentTime < fragmentStart || player.currentTime >= fragmentEnd) player.currentTime = fragmentStart;
       player.play();
     }
-  }, [active, fragmentEnd, fragmentStart, player, playable, screenFocused]);
+  }, [active, fragmentEnd, fragmentStart, player, playable, screenFocused, fragmentLength]);
 
   useEffect(() => {
     if (!active || !screenFocused || !playable) return;

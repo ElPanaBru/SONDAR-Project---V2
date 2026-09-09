@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Avatar, Button, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
@@ -23,6 +23,7 @@ export default function SettingsScreen() {
   const [password, setPassword] = useState('');
   const [repeat, setRepeat] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteLock = useRef(false);
   const [deletePassword, setDeletePassword] = useState('');
 
   const load = useCallback(async () => {
@@ -50,10 +51,12 @@ export default function SettingsScreen() {
   async function changePassword() { if (password.length < 8 || password !== repeat) return setError('La contraseña debe tener al menos 8 caracteres y ambas deben coincidir.'); const { error: authError } = await supabase.auth.updateUser({ password }); if (authError) return setError(authError.message); setPassword(''); setRepeat(''); Alert.alert('Listo', 'Contraseña actualizada.'); }
   async function exportData() { try { const data = await api('/api/usuarios/me/exportar', { token }); await Share.share({ title: 'Mis datos de SONDAR', message: JSON.stringify(data, null, 2) }); } catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron exportar los datos.'); } }
   async function confirmDeleteAccount() {
+    if (deleteLock.current) return;
     if (!deletePassword) {
       setError('Ingresá tu contraseña actual para confirmar.');
       return;
     }
+    deleteLock.current = true;
     setDeleting(true);
     try {
       const email = user?.email;
@@ -68,6 +71,7 @@ export default function SettingsScreen() {
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar la cuenta.');
     } finally {
+      deleteLock.current = false;
       setDeleting(false);
     }
   }

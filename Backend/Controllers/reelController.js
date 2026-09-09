@@ -120,6 +120,8 @@ async function asegurarEsquemaComentarios() {
 async function asegurarEsquemaInteracciones() {
   if (!esquemaInteraccionesListo) {
     esquemaInteraccionesListo = (async () => {
+      await pool.query("ALTER TABLE reels ADD COLUMN IF NOT EXISTS album text NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE reels ADD COLUMN IF NOT EXISTS descripcion text NOT NULL DEFAULT ''");
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS likes integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS guardados integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS compartidos integer NOT NULL DEFAULT 0');

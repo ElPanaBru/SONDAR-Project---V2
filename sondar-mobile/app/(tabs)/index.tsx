@@ -3,7 +3,6 @@ import { useBottomTabBarHeight } from 'expo-router/js-tabs';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useEvent } from 'expo';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
@@ -13,10 +12,10 @@ import { Alert, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Share
 import { EventMap } from '@/components/event-map';
 import { EventLocationPicker } from '@/components/event-location-picker';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
-import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { formatGenre, genres, musicGenres, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
-import { api, mediaPart } from '@/lib/api';
+import { api } from '@/lib/api';
 import { normalizeEvent } from '@/lib/normalizers';
 
 type EventPreview = {
@@ -63,9 +62,9 @@ export default function EventsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [datePicker, setDatePicker] = useState<'date' | 'time' | null>(null);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(emptyForm);
-  const [image, setImage] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [organizerQuery, setOrganizerQuery] = useState('');
   const [organizerResults, setOrganizerResults] = useState<any[]>([]);
   const [organizers, setOrganizers] = useState<any[]>([]);
@@ -117,10 +116,6 @@ export default function EventsScreen() {
     setForm(f => ({ ...f, latitud: position.coords.latitude, longitud: position.coords.longitude }));
   }
 
-  async function pickImage() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: .85, allowsEditing: true, aspect: [16, 10] });
-    if (!result.canceled) setImage(result.assets[0]);
-  }
 
   async function createEvent() {
     if (!form.titulo.trim() || !form.lugar.trim() || form.generos.length === 0) return setError('Completá el nombre, el lugar y al menos un género.');
@@ -131,9 +126,8 @@ export default function EventsScreen() {
       body.append('ubicacion', form.lugar.trim()); body.append('fecha', form.fecha.toISOString()); body.append('precio', form.precio);
       body.append('link', form.link.trim()); body.append('latitud', String(form.latitud)); body.append('longitud', String(form.longitud));
       body.append('organizadores', JSON.stringify(organizers.map(item => item.id)));
-      if (image) body.append('imagen', mediaPart(image, 'evento.jpg'));
       const created = normalizeEvent(await api<EventItem>('/api/eventos/crear', { method: 'POST', token, body }));
-      setEvents(current => [created, ...current]); setSelected(created); setCreating(false); setForm(emptyForm()); setImage(null); setOrganizers([]); setOrganizerOpen(false); setOrganizerQuery(''); setError('');
+      setEvents(current => [created, ...current]); setSelected(created); setCreating(false); setDatePicker(null); setForm(emptyForm()); setOrganizers([]); setOrganizerOpen(false); setOrganizerQuery(''); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo crear el evento.'); }
     finally { setBusy(false); }
   }
@@ -219,7 +213,7 @@ export default function EventsScreen() {
 
   return (
     <Screen>
-      <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
+      <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={[styles.body, { paddingBottom: tabBarHeight }]}>
         <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} onSelect={setSelected} style={styles.map} />
         <View style={styles.sheet}>
@@ -237,7 +231,6 @@ export default function EventsScreen() {
             <View style={styles.modalTitle}><Text style={styles.eventEyebrow}>EVENTO</Text><Text style={ui.h1}>{selected.titulo}</Text></View>
             <View style={styles.modalActions}><IconButton name={selected.guardado ? 'bookmark' : 'bookmark-outline'} active={selected.guardado} onPress={() => toggleSave(selected)} /><IconButton name="share-social-outline" onPress={() => shareEvent(selected)} /><IconButton name="close" onPress={() => setSelected(null)} /></View>
           </View>
-          {(selected.img || selected.img_url || selected.avatar) ? <Image source={{ uri: selected.img || selected.img_url || selected.avatar }} style={styles.hero} contentFit="cover" /> : <View style={[styles.hero, styles.heroFallback]}><Ionicons name="musical-notes" size={50} color={palette.orange} /></View>}
           <View style={styles.detailGenres}>{eventGenres(selected.genero).map(item => <View key={item} style={styles.detailGenre}><Text style={styles.detailGenreText}>{formatGenre(item)}</Text></View>)}</View>
           <View style={styles.detailLine}><Ionicons name="calendar" size={19} color={palette.orange} /><Text style={ui.text}>{new Date(selected.fecha).toLocaleString('es-AR')}</Text></View>
           <View style={styles.detailLine}><Ionicons name="location" size={19} color={palette.orange} /><Text style={ui.text}>{selected.lugar || selected.ubicacion}</Text></View>
@@ -265,16 +258,14 @@ export default function EventsScreen() {
         </> : null}</ScrollView></View>
       </Modal>
 
-      <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>
-        <Screen scroll><Header title="Crear nuevo evento" subtitle="EVENTOS" back onBack={() => setCreating(false)} actions={<IconButton name="close" onPress={() => setCreating(false)} />} />
+      <Modal visible={creating} animationType="slide" onRequestClose={() => { setCreating(false); setDatePicker(null); }}>
+        <Screen scroll><Header title="Crear nuevo evento" subtitle="EVENTOS" back onBack={() => { setCreating(false); setDatePicker(null); }} actions={<IconButton name="close" onPress={() => { setCreating(false); setDatePicker(null); }} />} />
           <ErrorNotice message={error} />
 
           <View style={styles.creatorSection}>
             <View style={styles.creatorSectionTitle}><Ionicons name="sparkles" size={17} color={palette.amber} /><Text style={styles.creatorHeading}>Información del evento</Text></View>
             <Field label="Nombre del evento *" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Ej: Noche SONDAR" maxLength={120} />
             <Field label="Descripción" value={form.descripcion} onChangeText={descripcion => setForm(f => ({ ...f, descripcion }))} placeholder="Contá de qué se trata…" multiline maxLength={1000} />
-            <Pressable onPress={pickImage} style={styles.imagePicker}>{image ? <Image source={{ uri: image.uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <><Ionicons name="image-outline" size={32} color={palette.orange} /><Text style={styles.fileTitle}>Elegir imagen</Text><Text style={ui.muted}>JPG, PNG o WEBP</Text></>}</Pressable>
-            {image ? <Button kind="secondary" icon="trash-outline" onPress={() => setImage(null)}>Quitar imagen</Button> : null}
           </View>
 
           <EventLocationPicker
@@ -299,7 +290,11 @@ export default function EventsScreen() {
 
           <View style={styles.creatorSection}>
             <Field label="Lugar *" value={form.lugar} onChangeText={lugar => setForm(f => ({ ...f, lugar }))} placeholder="Nombre del lugar (Ej: Niceto Club, Palermo)" />
-            <View style={ui.card}><Text style={styles.formLabel}>Fecha y hora</Text><DateTimePicker value={form.fecha} mode={Platform.OS === 'ios' ? 'datetime' : 'date'} minimumDate={new Date()} onChange={(_, fecha) => fecha && setForm(f => ({ ...f, fecha }))} />{Platform.OS === 'android' ? <DateTimePicker value={form.fecha} mode="time" onChange={(_, fecha) => fecha && setForm(f => ({ ...f, fecha }))} /> : null}</View>
+            <View style={ui.card}><Text style={styles.formLabel}>Fecha y hora</Text>
+              <Button kind="secondary" onPress={() => setDatePicker('date')}>{form.fecha.toLocaleDateString('es-AR')}</Button>
+              <Button kind="secondary" onPress={() => setDatePicker('time')}>{form.fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</Button>
+              {creating && datePicker ? <><DateTimePicker value={form.fecha} mode={datePicker} minimumDate={datePicker === 'date' ? new Date() : undefined} onChange={(event, fecha) => { if (Platform.OS === 'android' || event.type === 'dismissed') setDatePicker(null); if (event.type === 'set' && fecha) setForm(f => ({ ...f, fecha })); }} />{Platform.OS === 'ios' ? <Button onPress={() => setDatePicker(null)}>Listo</Button> : null}</> : null}
+            </View>
             <Field label="Precio de entrada (opcional)" keyboardType="decimal-pad" value={form.precio} onChangeText={precio => setForm(f => ({ ...f, precio }))} placeholder="0" />
             <Field label="URL de compra (opcional)" autoCapitalize="none" keyboardType="url" value={form.link} onChangeText={link => setForm(f => ({ ...f, link }))} placeholder="https://…" />
           </View>
@@ -374,10 +369,10 @@ const styles = StyleSheet.create({
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
   list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 11 }, cardImage: { width: 82, height: 82, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', borderWidth: 1, borderColor: palette.amber }, cardLogo: { width: 74, height: 74 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
   marker: { width: 48, height: 48, borderRadius: 24, padding: 3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: palette.amber, borderWidth: 3, borderColor: '#080808' }, markerImage: { width: 38, height: 38, borderRadius: 19 }, markerTip: { width: 0, height: 0, alignSelf: 'center', borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#080808', marginTop: -2 },
-  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalScroll: { width: '100%', maxHeight: '94%' }, modalCard: { minHeight: '100%', backgroundColor: palette.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 48, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }, modalTitle: { flex: 1, minWidth: 0, gap: 3 }, modalActions: { flexDirection: 'row', gap: 6 }, eventEyebrow: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, hero: { width: '100%', height: 220, borderRadius: 10 }, heroFallback: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, detailGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, detailGenre: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2B180B', borderWidth: 1, borderColor: '#63330E' }, detailGenreText: { color: palette.amber, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalScroll: { width: '100%', maxHeight: '94%' }, modalCard: { minHeight: '100%', backgroundColor: palette.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 48, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }, modalTitle: { flex: 1, minWidth: 0, gap: 3 }, modalActions: { flexDirection: 'row', gap: 6 }, eventEyebrow: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, detailGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, detailGenre: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2B180B', borderWidth: 1, borderColor: '#63330E' }, detailGenreText: { color: palette.amber, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
   participantsSection: { gap: 9 }, sectionLabel: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, participantsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, participantChip: { minWidth: 142, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface }, participantName: { maxWidth: 130, color: palette.text, fontSize: 12, fontWeight: '800' }, participantRole: { color: palette.muted, fontSize: 10, marginTop: 1 },
   previewsSection: { marginTop: 4, paddingTop: 18, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: palette.border, gap: 5 }, previewsTitle: { color: palette.text, fontSize: 21, fontWeight: '900' }, previewsCaption: { color: palette.muted, fontSize: 12, marginBottom: 8 }, previewList: { gap: 9 }, previewRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 11, padding: 9, borderRadius: 11, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface }, previewPressed: { opacity: .72 }, previewCover: { width: 54, height: 54, borderRadius: 8, overflow: 'hidden' }, previewCoverFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface2 }, previewInfo: { flex: 1, minWidth: 0, gap: 4 }, previewName: { color: palette.text, fontSize: 14, fontWeight: '900' }, previewArtist: { color: palette.muted, fontSize: 11 }, previewPlay: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.amber, backgroundColor: '#20150B' }, previewPlayActive: { backgroundColor: palette.amber }, previewsEmpty: { minHeight: 86, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: palette.border }, previewsEmptyText: { flex: 1, color: palette.muted, fontSize: 12, lineHeight: 18 },
-  imagePicker: { height: 180, borderRadius: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', gap: 8 }, formLabel: { color: palette.muted, fontSize: 12, fontWeight: '700', marginBottom: 7 },
+  formLabel: { color: palette.muted, fontSize: 12, fontWeight: '700', marginBottom: 7 },
   personResult: { minHeight: 46, paddingHorizontal: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, selectedPerson: { borderColor: palette.orange },
   creatorSection: { gap: 12, padding: 14, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
   creatorSectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 }, creatorHeading: { color: palette.text, fontSize: 13, fontWeight: '900' }, creatorCaption: { color: palette.muted, fontSize: 11, marginTop: 3 },

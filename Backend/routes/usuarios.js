@@ -34,4 +34,11 @@ router.delete('/:identificador/bloquear', authMiddleware, usuariosController.des
 router.post('/:identificador/denunciar', authMiddleware, usuariosController.denunciarPerfil);
 router.post('/:identificador/silenciar-notificaciones', authMiddleware, usuariosController.alternarSilencioNotificaciones);
 
+router.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'La foto no puede superar los 5 MB. Elegi una imagen mas chica.' : 'No se pudo recibir la foto. Elegila nuevamente.' });
+  }
+  next(error);
+});
+
 module.exports = router;

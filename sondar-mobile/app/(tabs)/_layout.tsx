@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs } from 'expo-router';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
 import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 
@@ -11,6 +13,7 @@ const icons: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
 
 export default function TabLayout() {
   const { loading, user } = useAuth();
+  const insets = useSafeAreaInsets();
   if (loading) return <View style={styles.loading}><ActivityIndicator color={palette.orange} size="large" /></View>;
   if (!user) return <Redirect href="/auth" />;
 
@@ -20,7 +23,9 @@ export default function TabLayout() {
       sceneStyle: { backgroundColor: palette.bg },
       tabBarActiveTintColor: palette.orange,
       tabBarInactiveTintColor: palette.muted,
-      tabBarStyle: styles.tabBar,
+      tabBarStyle: [styles.tabBar, { height: 60 + Math.max(insets.bottom, 8), paddingBottom: Math.max(insets.bottom, 8) }],
+      tabBarLabelPosition: 'below-icon',
+      tabBarIconStyle: { width: 28, height: 28 },
       tabBarLabelStyle: styles.label,
       tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? icons[route.name] : `${icons[route.name]}-outline` as any} color={color} size={size + 1} />,
     })}>

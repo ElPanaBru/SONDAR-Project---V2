@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
 
+import { AppState } from 'react-native';
+
 import { api } from '@/lib/api';
 import { IS_SUPABASE_CONFIGURED } from '@/lib/config';
 import { supabase } from '@/lib/supabase';
@@ -72,6 +74,16 @@ export function AuthProvider({ children }: PropsWithChildren) {
     return () => data.subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const validate = () => api<{ existe: boolean }>('/api/usuarios/me', { token: session.access_token })
+      .then(result => { if (!result.existe) return supabase.auth.signOut({ scope: 'local' }); })
+      .catch(() => null);
+    void validate();
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') void validate(); });
+    return () => subscription.remove();
+  }, [session?.access_token]);
+
   const value = useMemo<AuthContextValue>(() => ({
     configured: IS_SUPABASE_CONFIGURED,
     loading,
@@ -88,11 +100,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setNeedsOnboarding(await readOnboardingPending(data.session));
       const verification = await api<{ existe: boolean }>('/api/usuarios/me', { token: data.session.access_token });
       if (!verification.existe) {
-        const username = data.user.user_metadata?.username;
-        if (!username) throw new Error('La cuenta no tiene un perfil SONDAR asociado.');
-        await api('/api/usuarios/registrar', {
-          method: 'POST', token: data.session.access_token, body: JSON.stringify({ username }),
-        });
+        await supabase.auth.signOut({ scope: 'local' });
+        throw new Error('Esta cuenta ya no tiene un perfil SONDAR activo.');
       }
     },
     signUp: async (email, password, username) => {

@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { formatCount, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
 import { normalizeComment, normalizeCommunity, normalizeCommunityPost } from '@/lib/normalizers';
 
-type Community = { id: string; nombre: string; titulo?: string; genero: string; descripcion?: string; miembros: number; publicaciones: number; portada?: string };
+type Community = { id: string; nombre: string; titulo?: string; genero: string; descripcion?: string; miembros: number; unido?: boolean; publicaciones: number; portada?: string };
 type Comment = { id: number; userId?: string; parentId?: number | null; usuario: string; autor?: string; texto: string; respondeA?: string; tiempo?: string; likes?: number; liked?: boolean; respuestas?: Comment[] };
 type ReplyTarget = { parentId: number; usuario: string };
 type Post = { id: number; userId?: string; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
@@ -30,12 +30,18 @@ export default function CommunityScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [form, setForm] = useState({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' });
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [comment, setComment] = useState('');
+  const commentLock = useRef(false);
+  const publishLock = useRef(false);
+  const [sending, setSending] = useState(false);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [reportTarget, setReportTarget] = useState<Post | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const membershipLock = useRef(false);
+  const [membershipBusy, setMembershipBusy] = useState(false);
 
   useEffect(() => {
     api<Community[]>('/api/comunidades', { token }).then(data => {
@@ -65,6 +71,18 @@ export default function CommunityScreen() {
     return () => clearTimeout(task);
   }, [loadPosts]);
 
+  async function membership() {
+    if (!active || membershipLock.current) return;
+    const id = active.id;
+    membershipLock.current = true; setMembershipBusy(true);
+    try {
+      const result = await api<{ unido: boolean; miembros: number }>(`/api/comunidades/${id}/membresia`, { token, method: active.unido ? 'DELETE' : 'PUT' });
+      setCommunities(items => items.map(item => item.id === id ? { ...item, ...result } : item));
+      setActive(item => item?.id === id ? { ...item, ...result } : item);
+    } catch (e) { Alert.alert('Comunidad', e instanceof Error ? e.message : 'No se pudo actualizar.'); }
+    finally { membershipLock.current = false; setMembershipBusy(false); }
+  }
+
   function openThread(post: Post) {
     setOpenPost(post);
     setReplyTo(null);
@@ -88,10 +106,14 @@ export default function CommunityScreen() {
   }
 
   async function publish() {
+    if (!active?.unido) { setError('Unite a la comunidad para publicar.'); return; }
+    if (publishLock.current) return;
     if (!active || !form.titulo.trim() || !form.texto.trim()) {
       setError('Completa titulo y texto.');
       return;
     }
+    publishLock.current = true;
+    setPublishing(true);
     try {
       const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, etiqueta: form.etiqueta || active.genero }) });
       setPosts(items => [normalizeCommunityPost(created), ...items]);
@@ -101,10 +123,15 @@ export default function CommunityScreen() {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo publicar.');
     }
+    finally { publishLock.current = false; setPublishing(false); }
   }
 
   async function sendComment() {
+    if (!communities.find(item => item.id === openPost?.comunidadId)?.unido) { Alert.alert('Comunidad', 'Unite a la comunidad para responder.'); return; }
+    if (commentLock.current) return;
     if (!openPost || !comment.trim()) return;
+    commentLock.current = true;
+    setSending(true);
     try {
       const created = normalizeComment(await api<Comment>(`/api/comunidades/publicaciones/${openPost.id}/comentarios`, {
         method: 'POST',
@@ -123,6 +150,7 @@ export default function CommunityScreen() {
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder.');
     }
+    finally { commentLock.current = false; setSending(false); }
   }
 
   async function toggleCommentLike(target: Comment) {
@@ -185,7 +213,7 @@ export default function CommunityScreen() {
       <Header
         title="Comunidad"
         subtitle="Encontra tu escena"
-        actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><IconButton name="add" active onPress={() => setCreating(true)} /></>}
+        actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active disabled={!active?.unido} onPress={() => setCreating(true)} /></>}
       />
       {loading && !communities.length ? <Loading /> : <>
         <View style={styles.communityRail}>
@@ -211,11 +239,16 @@ export default function CommunityScreen() {
         </View>
         {active ? (
           <View style={styles.activeIntro}>
-            <View style={{ flex: 1 }}>
-              <Text style={ui.h2}>{active.titulo || active.nombre}</Text>
-              <Text style={ui.muted} numberOfLines={2}>{active.descripcion}</Text>
+            <View style={styles.introTop}>
+              <Text style={[ui.h2, { flex: 1 }]}>{active.titulo || active.nombre}</Text>
+              <View style={styles.membershipActions}>
+                <Pressable accessibilityRole="button" disabled={membershipBusy} onPress={membership} hitSlop={5} style={[styles.membershipButton, !active.unido && styles.membershipPrimary]}>
+                  <Text style={[styles.membershipText, !active.unido && styles.membershipPrimaryText]}>{membershipBusy ? 'Guardando...' : active.unido ? 'Salir' : 'Unirse'}</Text>
+                </Pressable>
+                {active.unido ? <Pressable accessibilityRole="button" onPress={() => setCreating(true)} hitSlop={5} style={[styles.membershipButton, styles.membershipPrimary]}><Ionicons name="add" size={15} color="#111" /><Text style={[styles.membershipText, styles.membershipPrimaryText]}>Crear post</Text></Pressable> : null}
+              </View>
             </View>
-            <Ionicons name="people-circle" size={42} color={palette.orange} />
+            <Text style={ui.muted} numberOfLines={2}>{active.descripcion}</Text>
           </View>
         ) : null}
         <View style={styles.filters}>
@@ -252,7 +285,7 @@ export default function CommunityScreen() {
           <Field label="Titulo" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Abri una conversacion" maxLength={140} />
           <Field label="Texto" value={form.texto} onChangeText={texto => setForm(f => ({ ...f, texto }))} placeholder="Que queres compartir?" multiline maxLength={3000} />
           <Field label="Etiqueta" value={form.etiqueta} onChangeText={etiqueta => setForm(f => ({ ...f, etiqueta }))} placeholder={active?.genero || 'musica'} />
-          <Button onPress={publish}>Publicar</Button>
+          <Button onPress={publish} disabled={publishing}>{publishing ? 'Publicando…' : 'Publicar'}</Button>
         </Screen>
       </Modal>
 
@@ -288,12 +321,12 @@ export default function CommunityScreen() {
                   </Pressable>
                 </View>
               ) : null}
-              <View style={styles.composer}>
+              {communities.find(item => item.id === openPost.comunidadId)?.unido ? <View style={styles.composer}>
                 <View style={{ flex: 1 }}>
                   <Field value={comment} onChangeText={setComment} placeholder={replyTo ? `Responder a ${replyTo.usuario}...` : 'Escribi una respuesta...'} />
                 </View>
-                <IconButton name="send" active onPress={sendComment} />
-              </View>
+                <IconButton name="send" active disabled={sending} onPress={sendComment} />
+              </View> : <Text style={[ui.muted, { paddingVertical: 14 }]}>Unite a esta comunidad para responder.</Text>}
             </> : null}
           </View>
         </View>
@@ -312,7 +345,7 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nest
       <View style={styles.comment}>
         <View style={styles.commentLine} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.author}>{displayName}{nested && item.respondeA ? <Text style={styles.replyTarget}> para {item.respondeA}</Text> : null} <Text style={ui.muted}>{item.tiempo}</Text></Text>
+          <Text style={styles.author}>{displayName}</Text>{nested && item.respondeA ? <Text style={styles.replyTarget}>En respuesta a {item.respondeA}</Text> : null}<Text style={ui.muted}>{item.tiempo}</Text>
           <Text style={styles.commentText}>{item.texto}</Text>
           <View style={styles.commentActions}>
             <Pressable onPress={() => onReply({ parentId, usuario: displayName })} hitSlop={8}>
@@ -385,7 +418,13 @@ const styles = StyleSheet.create({
   communityTint: { ...StyleSheet.absoluteFill, backgroundColor: '#0505059E' },
   communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   communityMeta: { color: '#D0D0D3', fontSize: 11, marginTop: 3 },
-  activeIntro: { marginHorizontal: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border },
+  introTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  membershipActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  membershipButton: { minHeight: 32, borderRadius: 16, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface2 },
+  membershipPrimary: { backgroundColor: palette.orange, borderColor: palette.orange },
+  membershipText: { color: palette.text, fontSize: 12, fontWeight: '700' },
+  membershipPrimaryText: { color: '#111' },
+  activeIntro: { marginHorizontal: 14, padding: 12, gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border },
   filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
   filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border },
   filterActive: { backgroundColor: palette.amber, borderColor: palette.orange },

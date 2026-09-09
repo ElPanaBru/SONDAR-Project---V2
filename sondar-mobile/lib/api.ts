@@ -99,6 +99,9 @@ export async function api<T = any>(path: string, options: ApiOptions = {}): Prom
     }
   }
 
+  if (body?.code === 'PROFILE_MISSING') {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => null);
+  }
   if (!response.ok) {
     throw new Error(response.status === 401
       ? 'Tu sesion vencio. Inicia sesion de nuevo.'

@@ -22,7 +22,7 @@ export function normalizeComment(item: AnyRecord = {}) {
     id: toNumber(item.id),
     userId: item.userId || item.user_id,
     parentId: parentId ? toNumber(parentId) : null,
-    usuario: item.usuario || normalizeHandle(item.username || item.autor || item.email?.split?.('@')?.[0]),
+    usuario: normalizeHandle(item.usuario || item.username || item.autor),
     autor: item.autor || item.username || item.usuario || 'Usuario SONDAR',
     avatar: item.avatar || item.profile_img_url || '',
     texto: item.texto || '',

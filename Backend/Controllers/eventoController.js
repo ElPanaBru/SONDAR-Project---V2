@@ -35,6 +35,7 @@ async function asegurarEsquemaEventos() {
           created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+      await pool.query("ALTER TABLE eventos ADD COLUMN IF NOT EXISTS titulo text NOT NULL DEFAULT 'Evento SONDAR'");
       await pool.query('ALTER TABLE eventos ADD COLUMN IF NOT EXISTS descripcion text');
       await pool.query('ALTER TABLE eventos ADD COLUMN IF NOT EXISTS img_path text');
       await pool.query('ALTER TABLE eventos ADD COLUMN IF NOT EXISTS precio numeric(12, 2)');

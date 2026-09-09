@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import type { PropsWithChildren, ReactNode } from 'react';
-import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/auth';
 
 import { palette } from '@/constants/sondar';
 
@@ -35,9 +38,29 @@ export function Header({ title, subtitle, back = false, onBack, actions }: { tit
   );
 }
 
-export function IconButton({ name, onPress, active, badge, danger }: { name: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; active?: boolean; badge?: number; danger?: boolean }) {
+export function NotificationButton() {
+  const { token } = useAuth();
+  const [count, setCount] = useState(0);
+  useFocusEffect(useCallback(() => {
+    let current = true;
+    const refresh = async () => {
+      if (!token || AppState.currentState !== 'active') return;
+      try {
+        const result = await api<{ noLeidas: number }>('/api/notificaciones/no-leidas', { token });
+        if (current) setCount(result.noLeidas);
+      } catch { /* Keep the last known count while offline. */ }
+    };
+    void refresh();
+    const interval = setInterval(() => void refresh(), 30000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
+    return () => { current = false; clearInterval(interval); subscription.remove(); };
+  }, [token]));
+  return <IconButton name="notifications-outline" badge={count} onPress={() => router.push('/notifications')} />;
+}
+
+export function IconButton({ name, onPress, active, badge, danger, disabled }: { name: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; active?: boolean; badge?: number; danger?: boolean; disabled?: boolean }) {
   return (
-    <Pressable hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
+    <Pressable disabled={disabled} accessibilityState={{ disabled }} hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
       <Ionicons name={name} size={22} color={danger ? palette.danger : active ? palette.orange : palette.text} />
       {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
     </Pressable>

@@ -8,6 +8,8 @@
      database: process.env.DB_NAME,
      password: process.env.DB_PASSWORD,
      port: process.env.DB_PORT,
+     connectionTimeoutMillis: 8000,
+     idleTimeoutMillis: 30000,
      ssl: {
         rejectUnauthorized: false
     }
@@ -18,6 +20,10 @@
    }
    console.log('✅ Conexión a PostgreSQL establecida con éxito');
    release();
+ });
+
+ pool.on('error', (error) => {
+   console.error('Error en una conexion inactiva de PostgreSQL:', error.code || error.message);
  });
 
  module.exports = pool;

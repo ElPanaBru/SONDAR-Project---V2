@@ -3,6 +3,9 @@ const router = express.Router();
 const comunidadController = require('../Controllers/comunidadController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
+router.put('/:comunidadId/membresia', authMiddleware, comunidadController.actualizarMembresia);
+router.delete('/:comunidadId/membresia', authMiddleware, comunidadController.actualizarMembresia);
+
 router.get('/', comunidadController.listarComunidades);
 router.get('/:comunidadId/publicaciones', comunidadController.listarPublicaciones);
 router.post('/:comunidadId/publicaciones', authMiddleware, comunidadController.crearPublicacion);

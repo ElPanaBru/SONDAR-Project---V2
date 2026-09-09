@@ -556,23 +556,12 @@ function mapearEventoPerfil(evento) {
 }
 
 async function asegurarUsuarioPublico(user) {
-  const email = user.email || `${user.id}@sin-email.local`;
-  const baseUsername =
-    user.user_metadata?.username ||
-    user.user_metadata?.name ||
-    email.split('@')[0] ||
-    'usuario';
-  const username = normalizarUsername(baseUsername).replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
-  const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
-
-  await pool.query(
-    `INSERT INTO users (id, email, username, user_type)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (id) DO UPDATE
-     SET email = EXCLUDED.email
-     RETURNING id`,
-    [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
-  );
+  const existing = await pool.query('SELECT id FROM users WHERE id = $1', [user.id]);
+  if (!existing.rowCount) {
+    const error = new Error('Esta cuenta ya no tiene un perfil SONDAR activo.');
+    error.status = 403;
+    throw error;
+  }
 }
 
 async function buscarUsuarioPerfil(identificador) {
@@ -600,6 +589,7 @@ async function consultarOpcional(query, params = [], fallbackRows = []) {
 }
 
 async function obtenerDatosPerfil(targetUserId, viewerUserId) {
+  await require('../services/profileCommunityService').ensureProfileCommunitySchema();
   await asegurarEsquemaModeracion();
   const bloqueoResult = viewerUserId && targetUserId !== viewerUserId
     ? await pool.query(

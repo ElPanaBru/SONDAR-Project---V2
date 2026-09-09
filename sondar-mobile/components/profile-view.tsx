@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
@@ -10,7 +11,7 @@ import { palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api, mediaPart } from '@/lib/api';
 import { ReportModal, type ReportPayload } from './report-modal';
-import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from './sondar-ui';
+import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from './sondar-ui';
 
 type CommunityAttachment = { tipo: 'reel' | 'evento'; id: number; titulo: string; detalle?: string; imagen?: string };
 type CommunityComment = { id: number; userId?: string; usuario: string; nombre?: string; avatar?: string; texto: string; tiempo?: string };
@@ -39,6 +40,9 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'publicaciones' | 'eventos' | 'favoritos' | 'guardados' | 'comunidad'>('publicaciones');
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [preparingPhoto, setPreparingPhoto] = useState(false);
+  const saveLock = useRef(false);
   const [form, setForm] = useState({ nombre: '', bio: '' });
   const [avatar, setAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [social, setSocial] = useState<'seguidores' | 'seguidos' | null>(null);
@@ -50,6 +54,8 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   const [attachmentPicker, setAttachmentPicker] = useState<'reel' | 'evento' | null>(null);
   const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
   const [communityBusy, setCommunityBusy] = useState(false);
+  const communityLock = useRef(false);
+  const commentLocks = useRef(new Set<number>());
   const [communityReport, setCommunityReport] = useState<CommunityPost | null>(null);
   const [accountMenu, setAccountMenu] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -84,12 +90,30 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
     }
   }
 
-  async function pickAvatar() { const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: .8, allowsEditing: true, aspect: [1, 1] }); if (!result.canceled) setAvatar(result.assets[0]); }
+  async function pickAvatar() {
+    if (saving || preparingPhoto) return;
+    setPreparingPhoto(true); setError('');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1, allowsEditing: true, aspect: [1, 1] });
+      if (result.canceled) return;
+      const selected = result.assets[0];
+      const context = ImageManipulator.manipulate(selected.uri);
+      context.resize(selected.width >= selected.height ? { width: Math.min(selected.width, 768) } : { height: Math.min(selected.height, 768) });
+      const rendered = await context.renderAsync();
+      const photo = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: 0.8 });
+      setAvatar({ ...selected, uri: photo.uri, width: photo.width, height: photo.height, fileName: 'avatar.jpg', mimeType: 'image/jpeg' });
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo preparar la foto. Elegila nuevamente.'); }
+    finally { setPreparingPhoto(false); }
+  }
   async function save() {
+    if (saveLock.current || preparingPhoto) return;
+    if (!form.nombre.trim()) { setError('Completa tu nombre antes de guardar.'); return; }
+    saveLock.current = true; setSaving(true); setError('');
     try {
       const body = new FormData(); body.append('nombre', form.nombre.trim()); body.append('bio', form.bio.trim()); if (avatar) body.append('avatar', mediaPart(avatar, 'avatar.jpg'));
       const profile = await api<any>('/api/usuarios/me/perfil', { method: 'PUT', token, body }); setData(current => ({ ...current, perfil: profile })); setAvatarFailed(false); setEditing(false); setAvatar(null);
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar.'); }
+    finally { saveLock.current = false; setSaving(false); }
   }
 
   async function follow() { if (!identifier) return; try { const result = await api<any>(`/api/usuarios/${identifier}/seguir`, { method: 'POST', token }); const siguiendo = Boolean(result.siguiendo ?? result.following); const seguidores = Number(result.seguidores); setData(current => ({ ...current, siguiendo, stats: { ...current.stats, seguidores: Number.isFinite(seguidores) ? seguidores : Math.max(0, current.stats.seguidores + (siguiendo ? 1 : -1)) } })); } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo seguir.'); } }
@@ -115,7 +139,8 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   }
 
   async function publishCommunity() {
-    if (!communityText.trim() && !communityAttachment) return;
+    if (communityLock.current || (!communityText.trim() && !communityAttachment)) return;
+    communityLock.current = true;
     setCommunityBusy(true);
     try {
       const created = await api<CommunityPost>('/api/usuarios/me/comunidad', {
@@ -125,17 +150,19 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
       setData(current => ({ ...current, comunidad: [created, ...(current.comunidad || []).filter(item => item.id !== created.id)] }));
       setCommunityText(''); setCommunityAttachment(null); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar la actualización.'); }
-    finally { setCommunityBusy(false); }
+    finally { communityLock.current = false; setCommunityBusy(false); }
   }
 
   async function commentCommunity(post: CommunityPost) {
     const texto = String(commentDrafts[post.id] || '').trim();
-    if (!texto) return;
+    if (!texto || commentLocks.current.has(post.id)) return;
+    commentLocks.current.add(post.id);
     try {
       const comment = await api<CommunityComment>(`/api/usuarios/comunidad/${post.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto }) });
       setData(current => ({ ...current, comunidad: current.comunidad.map(item => item.id === post.id ? { ...item, comentarios: [...(item.comentarios || []), comment] } : item) }));
       setCommentDrafts(current => ({ ...current, [post.id]: '' }));
     } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la respuesta.'); }
+    finally { commentLocks.current.delete(post.id); }
   }
 
   function deleteCommunity(post: CommunityPost) {
@@ -167,6 +194,8 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
     setAttachmentPicker(null);
   }
 
+  if (error && !data.perfil?.id) return <Screen><Header title="Perfil" back={!own} /><ErrorNotice message={error} /><Button onPress={() => void load()}>Reintentar</Button></Screen>;
+
   const profile = data.perfil || {};
   const content = data[tab] || [];
   const isCommunity = tab === 'comunidad';
@@ -175,21 +204,21 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
     : ([['publicaciones', 'Previews', 'grid-outline'], ['eventos', 'Eventos', 'calendar-outline'], ['comunidad', 'Comunidad', 'people-outline']] as const);
   return (
     <Screen>
-      <Header title={own ? 'Mi perfil' : profile.nombre || 'Perfil'} subtitle={profile.usuario} back={!own} actions={own ? <><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><IconButton name="notifications-outline" onPress={() => router.push('/notifications')} /><Pressable accessibilityRole="button" accessibilityLabel="Abrir menú de cuenta" hitSlop={8} onPress={() => setAccountMenu(true)} style={({ pressed }) => [styles.accountTrigger, accountMenu && styles.accountTriggerActive, pressed && styles.pressed]}><Avatar uri={profile.avatar} name={profile.nombre || user?.email} size={30} /><Ionicons name="chevron-down" size={13} color={accountMenu ? palette.orange : palette.muted} /></Pressable></> : <><IconButton name="chatbubble-outline" onPress={openMessages} /><IconButton name="flag-outline" onPress={() => setReporting(true)} /><IconButton name="ellipsis-horizontal" onPress={() => Alert.alert('Opciones', undefined, [{ text: data.silenciado ? 'Activar notificaciones' : 'Silenciar notificaciones', onPress: mute }, { text: 'Bloquear', style: 'destructive', onPress: block }, { text: 'Cancelar', style: 'cancel' }])} /></>} />
+      <Header title={own ? 'Mi perfil' : profile.nombre || 'Perfil'} subtitle={profile.usuario} back={!own} actions={own ? <><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><Pressable accessibilityRole="button" accessibilityLabel="Abrir menú de cuenta" hitSlop={8} onPress={() => setAccountMenu(true)} style={({ pressed }) => [styles.accountTrigger, accountMenu && styles.accountTriggerActive, pressed && styles.pressed]}><Avatar uri={profile.avatar} name={profile.nombre || user?.email} size={30} /><Ionicons name="chevron-down" size={13} color={accountMenu ? palette.orange : palette.muted} /></Pressable></> : <><IconButton name="chatbubble-outline" onPress={openMessages} /><IconButton name="flag-outline" onPress={() => setReporting(true)} /><IconButton name="ellipsis-horizontal" onPress={() => Alert.alert('Opciones', undefined, [{ text: data.silenciado ? 'Activar notificaciones' : 'Silenciar notificaciones', onPress: mute }, { text: 'Bloquear', style: 'destructive', onPress: block }, { text: 'Cancelar', style: 'cancel' }])} /></>} />
       {loading ? <Loading /> : <FlatList key={`profile-${tab}`} data={content} keyExtractor={(item, index) => `${item.tipo}-${item.id}-${index}`} numColumns={isCommunity ? 1 : 2} contentContainerStyle={styles.content} columnWrapperStyle={!isCommunity && content.length > 1 ? styles.columns : undefined} ListHeaderComponent={<>
         <ErrorNotice message={error} />
         <View style={styles.profileTop}><Pressable disabled={!own} onPress={() => setEditing(true)} style={styles.profileAvatar}><Avatar uri={profile.avatar} name={profile.nombre} size={92} onError={() => setAvatarFailed(true)} />{own ? <View style={styles.profileCamera}><Ionicons name="camera" color="#111" size={16} /></View> : null}</Pressable><View style={{ flex: 1 }}><Text style={styles.name}>{profile.nombre || user?.email?.split('@')[0]}</Text><Text style={styles.handle}>{profile.usuario || `@${user?.user_metadata?.username || 'usuario'}`}</Text><Text style={styles.bio}>{profile.bio || 'Artista en SONDAR.'}</Text>{own && (!profile.avatar || avatarFailed) ? <Pressable onPress={() => setEditing(true)}><Text style={styles.avatarHelp}>Agregar nuevamente la foto</Text></Pressable> : null}</View></View>
         <View style={styles.stats}><Stat value={data.stats?.publicaciones || 0} label="Previews y eventos" /><Pressable onPress={() => setSocial('seguidores')}><Stat value={data.stats?.seguidores || 0} label="Seguidores" /></Pressable><Pressable onPress={() => setSocial('seguidos')}><Stat value={data.stats?.seguidos || 0} label="Seguidos" /></Pressable></View>
-        <View style={styles.buttons}>{own ? <><View style={{ flex: 1 }}><Button onPress={() => setEditing(true)}>Editar perfil</Button></View><IconButton name="share-social-outline" onPress={() => Share.share({ message: `Encontrame en SONDAR como ${profile.usuario || profile.nombre}` })} /></> : <><View style={{ flex: 1 }}><Button onPress={follow}>{data.siguiendo ? 'Siguiendo' : 'Seguir'}</Button></View><IconButton name={data.silenciado ? 'notifications-off' : 'notifications-outline'} active={data.silenciado} onPress={mute} /></>}</View>
+        <View style={styles.buttons}>{own ? <><View style={{ flex: 1 }}><Button onPress={() => setEditing(true)}>Editar perfil</Button></View><IconButton name="share-social-outline" onPress={() => Share.share({ message: `Encontrame en SONDAR como ${profile.usuario || profile.username || profile.nombre || user?.user_metadata?.username || 'usuario'}` })} /></> : <><View style={{ flex: 1 }}><Button onPress={follow}>{data.siguiendo ? 'Siguiendo' : 'Seguir'}</Button></View><IconButton name={data.silenciado ? 'notifications-off' : 'notifications-outline'} active={data.silenciado} onPress={mute} /></>}</View>
         <View style={styles.tabs}>{profileTabs.map(([id, label, icon]) => <Pressable key={id} onPress={() => setTab(id)} style={[styles.tab, tab === id && styles.tabActive]}><Ionicons name={icon} size={19} color={tab === id ? palette.orange : palette.muted} /><Text style={[styles.tabText, tab === id && { color: palette.orange }]}>{label}</Text></Pressable>)}</View>
-        {own && isCommunity ? <View style={styles.communityComposer}>
+        {own && isCommunity ? <View style={styles.communityComposer}><Text style={ui.muted}>Esta actualización se publica en la Comunidad de tu perfil. Para publicar en un foro por género, entrá a la pestaña Comunidad.</Text>
           <View style={styles.composerTop}><Avatar uri={profile.avatar} name={profile.nombre} size={42} /><View style={{ flex: 1 }}><Field value={communityText} onChangeText={setCommunityText} placeholder="Compartir una actualización…" multiline maxLength={1000} /></View></View>
           {communityAttachment ? <View style={styles.selectedAttachment}><Ionicons name={communityAttachment.tipo === 'reel' ? 'musical-note' : 'calendar'} size={20} color={palette.amber} /><View style={{ flex: 1 }}><Text style={styles.attachmentTitle} numberOfLines={1}>{communityAttachment.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{communityAttachment.detalle}</Text></View><Pressable onPress={() => setCommunityAttachment(null)}><Ionicons name="close-circle" size={22} color={palette.muted} /></Pressable></View> : null}
           <View style={styles.composerActions}><View style={styles.attachActions}><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('reel')}><Ionicons name="musical-note" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Preview</Text></Pressable><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('evento')}><Ionicons name="calendar" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Evento</Text></Pressable></View><Pressable disabled={communityBusy || (!communityText.trim() && !communityAttachment)} onPress={publishCommunity} style={[styles.publishCommunity, (communityBusy || (!communityText.trim() && !communityAttachment)) && styles.publishDisabled]}><Ionicons name="send" size={18} color="#111" /><Text style={styles.publishCommunityText}>{communityBusy ? 'Publicando…' : 'Publicar'}</Text></Pressable></View>
         </View> : null}
       </>} ListEmptyComponent={<Empty icon={isCommunity ? 'people-outline' : undefined} title={isCommunity ? 'Todavía no hay actividad' : `No hay ${tab} todavía`} text={isCommunity ? 'Las previews, eventos y actualizaciones aparecerán acá.' : undefined} />} renderItem={({ item }) => isCommunity ? <CommunityCard item={item as CommunityPost} currentUserId={user?.id} draft={commentDrafts[item.id] || ''} onDraft={value => setCommentDrafts(current => ({ ...current, [item.id]: value }))} onComment={() => commentCommunity(item)} onDelete={() => deleteCommunity(item)} onReport={() => setCommunityReport(item)} /> : <ContentCard item={item} />} />}
 
-      <Modal visible={editing} animationType="slide" onRequestClose={() => setEditing(false)}><Screen scroll><Header title="Editar perfil" back onBack={() => setEditing(false)} actions={<IconButton name="close" onPress={() => setEditing(false)} />} /><ErrorNotice message={error} /><Pressable onPress={pickAvatar} style={styles.avatarEdit}><Avatar uri={avatar?.uri || profile.avatar} name={form.nombre} size={112} /><View style={styles.camera}><Ionicons name="camera" color="#111" size={20} /></View></Pressable><Text style={styles.avatarEditHint}>Tocá la foto para elegir una nueva</Text><Field label="Nombre visible" value={form.nombre} onChangeText={nombre => setForm(f => ({ ...f, nombre }))} maxLength={80} /><Field label="Biografía" value={form.bio} onChangeText={bio => setForm(f => ({ ...f, bio }))} multiline maxLength={300} /><Button onPress={save}>Guardar cambios</Button></Screen></Modal>
+      <Modal visible={editing} animationType="slide" onRequestClose={() => setEditing(false)}><Screen scroll><Header title="Editar perfil" back onBack={() => setEditing(false)} actions={<IconButton name="close" onPress={() => setEditing(false)} />} /><ErrorNotice message={error} /><Pressable onPress={pickAvatar} style={styles.avatarEdit}><Avatar uri={avatar?.uri || profile.avatar} name={form.nombre} size={112} /><View style={styles.camera}><Ionicons name="camera" color="#111" size={20} /></View></Pressable><Text style={styles.avatarEditHint}>Tocá la foto para elegir una nueva</Text><Field label="Nombre visible" value={form.nombre} onChangeText={nombre => setForm(f => ({ ...f, nombre }))} maxLength={80} /><Field label="Biografía" value={form.bio} onChangeText={bio => setForm(f => ({ ...f, bio }))} multiline maxLength={300} /><Button onPress={save} disabled={saving || preparingPhoto}>{preparingPhoto ? 'Preparando foto...' : saving ? 'Guardando...' : 'Guardar cambios'}</Button></Screen></Modal>
 
       <Modal visible={accountMenu} transparent animationType="fade" statusBarTranslucent onRequestClose={closeAccountMenu}>
         <View style={styles.accountOverlay}>

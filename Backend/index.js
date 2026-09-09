@@ -58,7 +58,16 @@ app.use(cors({
 
 app.use(express.json({ limit: '8mb' }));
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  if (req.query.database === '1') {
+    try {
+      await require('./Pool_DB').query('SELECT 1');
+      return res.json({ ok: true, database: 'ready' });
+    } catch (error) {
+      console.error('La base de datos no esta disponible:', error.code || error.message);
+      return res.status(503).json({ ok: false, database: 'unavailable', error: 'El backend no puede conectar con la base de datos.' });
+    }
+  }
   res.json({
     ok: true,
     port: PORT,

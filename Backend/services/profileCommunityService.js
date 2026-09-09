@@ -5,6 +5,9 @@ let schemaReady = null;
 async function ensureProfileCommunitySchema() {
   if (!schemaReady) {
     schemaReady = (async () => {
+      await pool.query("ALTER TABLE reels ADD COLUMN IF NOT EXISTS album text NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE reels ADD COLUMN IF NOT EXISTS descripcion text NOT NULL DEFAULT ''");
+      await pool.query("ALTER TABLE eventos ADD COLUMN IF NOT EXISTS titulo text NOT NULL DEFAULT 'Evento SONDAR'");
       await pool.query('ALTER TABLE eventos ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT timezone(\'utc\'::text, now())');
       await pool.query('ALTER TABLE reels ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT timezone(\'utc\'::text, now())');
       await pool.query(`

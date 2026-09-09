@@ -288,6 +288,15 @@ if (-not (Test-LocalPort 3000)) {
   }
 }
 
+try {
+  $databaseHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$apiPort/api/health?database=1" -TimeoutSec 12
+  if (-not $databaseHealth.ok -or $databaseHealth.database -ne 'ready') {
+    throw 'El backend no confirmo la conexion con PostgreSQL. Reinicialo para cargar la version actual.'
+  }
+} catch {
+  throw 'El backend inicio, pero no pudo verificar PostgreSQL. Revisa Backend/.env y la conexion a Supabase. En este equipo se verifico el pooler en el puerto 6543. No se iniciara Expo con la base de datos desconectada.'
+}
+
 if ($Clear -or $Tunnel) {
   Stop-MobileDevProcesses
 }
