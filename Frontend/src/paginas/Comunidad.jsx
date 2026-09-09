@@ -1402,7 +1402,7 @@ export default function Comunidad({ usuario }) {
                     >
                       <span className="asociada-icono">E</span>
                       <span>
-                        <small>Evento asociado</small>
+                        <small className="publicacion-asociada-etiqueta">Evento asociado</small>
                         <strong>{hilo.eventoAsociado.creador || "Artista SONDAR"}</strong>
                         <em>{mostrarGenerosEvento(hilo.eventoAsociado)} · {hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
                       </span>
@@ -1413,7 +1413,7 @@ export default function Comunidad({ usuario }) {
                     <div className="publicacion-asociada publicacion-asociada-reel">
                       <img src={hilo.reelAsociado.portada || "/sondar-icon.png?v=19"} alt="" />
                       <span>
-                        <small>Tema asociado</small>
+                        <small className="publicacion-asociada-etiqueta">Reel asociado</small>
                         <strong>{hilo.reelAsociado.tema}</strong>
                         <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {mostrarGenero(hilo.reelAsociado.genero)}</em>
                       </span>

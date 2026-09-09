@@ -176,7 +176,7 @@ export default function OnboardingPerfilModal({ token, username, onComplete }) {
                 value={bio}
                 maxLength={180}
                 rows={3}
-                placeholder="Contá qué hacés, qué escuchás o qué estás creando."
+                placeholder="Contá qué hacés y sumá tus redes sociales, Spotify, YouTube u otras plataformas."
                 onChange={(event) => setBio(event.target.value)}
               />
               <small>{bio.length}/180</small>
