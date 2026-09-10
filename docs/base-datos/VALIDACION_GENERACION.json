@@ -1,0 +1,516 @@
+{
+  "ok": true,
+  "mode": "offline-structural-only",
+  "manifest": {
+    "captured_at": "2026-09-09T20:14:15.299Z",
+    "original": {
+      "tables": 38,
+      "columns": 257
+    },
+    "optimized": {
+      "tables": 34,
+      "columns": 236,
+      "constraints": 140,
+      "indexes": 90,
+      "functions": 10,
+      "triggers": 9,
+      "policies": 87
+    },
+    "excluded_tables": [
+      "profile_community_comments",
+      "profile_community_posts",
+      "user_genre_preferences",
+      "reel_saves"
+    ],
+    "excluded_columns": [
+      "user_settings.created_at"
+    ],
+    "excluded_constraints": [
+      "follows_no_self_follow_chk",
+      "user_blocks_no_self_block_chk"
+    ],
+    "retained_candidates": [
+      "users.full_name",
+      "users.artist_name",
+      "users.artist_bio",
+      "users.banner_url",
+      "users.instagram_url",
+      "users.verified",
+      "users.onboarding_completed",
+      "reels.likes",
+      "reels.guardados",
+      "reels.compartidos",
+      "reels.visitas",
+      "reels.color_ambiente",
+      "reels.fragment_start",
+      "reels.fragment_end",
+      "reels.album",
+      "reels.descripcion",
+      "eventos.titulo",
+      "eventos.descripcion",
+      "notifications.entity_type",
+      "notifications.entity_id",
+      "notifications.metadata",
+      "reel_comments.likes",
+      "comunidad_comentarios.likes",
+      "comunidad_comentarios.responde_a",
+      "comunidad_publicaciones.likes",
+      "comunidad_publicaciones.guardados",
+      "comunidad_publicaciones.updated_at"
+    ],
+    "tables": [
+      {
+        "name": "comunidad_comentario_likes",
+        "rows_at_audit": "1",
+        "columns": [
+          "user_id",
+          "comentario_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "comunidad_comentarios",
+        "rows_at_audit": "18",
+        "columns": [
+          "id",
+          "publicacion_id",
+          "user_id",
+          "parent_id",
+          "texto",
+          "created_at",
+          "likes",
+          "responde_a"
+        ]
+      },
+      {
+        "name": "comunidad_miembros",
+        "rows_at_audit": "3",
+        "columns": [
+          "comunidad_id",
+          "user_id",
+          "nivel_notificaciones",
+          "created_at"
+        ]
+      },
+      {
+        "name": "comunidad_publicacion_guardados",
+        "rows_at_audit": "3",
+        "columns": [
+          "user_id",
+          "publicacion_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "comunidad_publicacion_likes",
+        "rows_at_audit": "3",
+        "columns": [
+          "user_id",
+          "publicacion_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "comunidad_publicaciones",
+        "rows_at_audit": "19",
+        "columns": [
+          "id",
+          "comunidad_id",
+          "user_id",
+          "tipo",
+          "titulo",
+          "texto",
+          "etiqueta",
+          "fijada",
+          "created_at",
+          "evento_asociado_id",
+          "reel_asociado_id",
+          "likes",
+          "guardados",
+          "updated_at"
+        ]
+      },
+      {
+        "name": "comunidades",
+        "rows_at_audit": "13",
+        "columns": [
+          "id",
+          "nombre",
+          "titulo",
+          "genero",
+          "descripcion",
+          "portada_url",
+          "activa",
+          "created_at"
+        ]
+      },
+      {
+        "name": "content_reports",
+        "rows_at_audit": "0",
+        "columns": [
+          "id",
+          "reporter_id",
+          "reported_user_id",
+          "content_type",
+          "content_id",
+          "reason",
+          "status",
+          "created_at",
+          "details"
+        ]
+      },
+      {
+        "name": "conversation_members",
+        "rows_at_audit": "4",
+        "columns": [
+          "conversation_id",
+          "user_id",
+          "joined_at",
+          "last_read_at",
+          "muted",
+          "archived_at",
+          "last_delivered_at"
+        ]
+      },
+      {
+        "name": "conversations",
+        "rows_at_audit": "78",
+        "columns": [
+          "id",
+          "kind",
+          "direct_key",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "last_message_at"
+        ]
+      },
+      {
+        "name": "event_organizers",
+        "rows_at_audit": "2",
+        "columns": [
+          "event_id",
+          "user_id",
+          "added_by",
+          "created_at"
+        ]
+      },
+      {
+        "name": "event_saves",
+        "rows_at_audit": "2",
+        "columns": [
+          "user_id",
+          "event_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "evento_generos",
+        "rows_at_audit": "4",
+        "columns": [
+          "event_id",
+          "genero",
+          "posicion",
+          "created_at"
+        ]
+      },
+      {
+        "name": "eventos",
+        "rows_at_audit": "4",
+        "columns": [
+          "id",
+          "genero",
+          "lugar",
+          "fecha",
+          "img_url",
+          "link",
+          "creador_id",
+          "latitud",
+          "longitud",
+          "created_at",
+          "precio",
+          "img_path",
+          "ubicacion_geog",
+          "descripcion",
+          "titulo"
+        ]
+      },
+      {
+        "name": "follows",
+        "rows_at_audit": "2",
+        "columns": [
+          "follower_id",
+          "following_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "generos",
+        "rows_at_audit": "14",
+        "columns": [
+          "slug",
+          "nombre",
+          "activo",
+          "orden",
+          "created_at"
+        ]
+      },
+      {
+        "name": "messages",
+        "rows_at_audit": "7",
+        "columns": [
+          "id",
+          "conversation_id",
+          "sender_id",
+          "body",
+          "reply_to_id",
+          "created_at",
+          "edited_at",
+          "deleted_at"
+        ]
+      },
+      {
+        "name": "notification_mutes",
+        "rows_at_audit": "0",
+        "columns": [
+          "user_id",
+          "muted_user_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "notifications",
+        "rows_at_audit": "54",
+        "columns": [
+          "id",
+          "user_id",
+          "actor_id",
+          "type",
+          "title",
+          "body",
+          "target_url",
+          "unique_key",
+          "read_at",
+          "created_at",
+          "entity_type",
+          "entity_id",
+          "metadata"
+        ]
+      },
+      {
+        "name": "perfil_comunidad_publicaciones",
+        "rows_at_audit": "7",
+        "columns": [
+          "id",
+          "user_id",
+          "origen",
+          "texto",
+          "reel_id",
+          "evento_id",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      {
+        "name": "perfil_comunidad_respuestas",
+        "rows_at_audit": "0",
+        "columns": [
+          "id",
+          "publicacion_id",
+          "user_id",
+          "parent_id",
+          "texto",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reel_comment_likes",
+        "rows_at_audit": "3",
+        "columns": [
+          "user_id",
+          "comment_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reel_comments",
+        "rows_at_audit": "25",
+        "columns": [
+          "id",
+          "reel_id",
+          "user_id",
+          "parent_id",
+          "texto",
+          "created_at",
+          "responde_a",
+          "likes"
+        ]
+      },
+      {
+        "name": "reel_generos",
+        "rows_at_audit": "3",
+        "columns": [
+          "reel_id",
+          "genero",
+          "posicion",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reel_likes",
+        "rows_at_audit": "3",
+        "columns": [
+          "user_id",
+          "reel_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reel_playback_sessions",
+        "rows_at_audit": "47",
+        "columns": [
+          "id",
+          "user_id",
+          "reel_id",
+          "listened_ms",
+          "duration_ms",
+          "completion_ratio",
+          "completed",
+          "skipped",
+          "replay_count",
+          "started_at",
+          "updated_at"
+        ]
+      },
+      {
+        "name": "reel_shares",
+        "rows_at_audit": "1",
+        "columns": [
+          "user_id",
+          "reel_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reel_views",
+        "rows_at_audit": "20",
+        "columns": [
+          "user_id",
+          "reel_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "reels",
+        "rows_at_audit": "3",
+        "columns": [
+          "id",
+          "titulo",
+          "genero",
+          "duracion",
+          "portada_url",
+          "portada_path",
+          "audio_url",
+          "audio_path",
+          "creador_id",
+          "created_at",
+          "color_principal",
+          "likes",
+          "guardados",
+          "compartidos",
+          "visitas",
+          "color_ambiente",
+          "fragment_start",
+          "fragment_end",
+          "album",
+          "descripcion"
+        ]
+      },
+      {
+        "name": "user_blocks",
+        "rows_at_audit": "0",
+        "columns": [
+          "blocker_id",
+          "blocked_id",
+          "created_at"
+        ]
+      },
+      {
+        "name": "user_genre_affinity",
+        "rows_at_audit": "11",
+        "columns": [
+          "user_id",
+          "genre",
+          "behavioral_score",
+          "listening_sessions",
+          "last_interaction_at"
+        ]
+      },
+      {
+        "name": "user_interests",
+        "rows_at_audit": "16",
+        "columns": [
+          "user_id",
+          "genre",
+          "created_at"
+        ]
+      },
+      {
+        "name": "user_settings",
+        "rows_at_audit": "0",
+        "columns": [
+          "user_id",
+          "telefono",
+          "idioma",
+          "actividad_cuenta",
+          "mostrar_email",
+          "updated_at",
+          "codigo_pais",
+          "notificar_interacciones",
+          "notificar_comentarios",
+          "notificar_seguidores",
+          "notificar_publicaciones",
+          "notificar_menciones",
+          "reducir_movimiento",
+          "notificar_mensajes"
+        ]
+      },
+      {
+        "name": "users",
+        "rows_at_audit": "9",
+        "columns": [
+          "id",
+          "email",
+          "username",
+          "created_at",
+          "profile_img_url",
+          "bio",
+          "updated_at",
+          "profile_img_path",
+          "display_name",
+          "birth_date",
+          "user_type",
+          "full_name",
+          "artist_name",
+          "artist_bio",
+          "banner_url",
+          "instagram_url",
+          "verified",
+          "onboarding_completed"
+        ]
+      }
+    ]
+  },
+  "checks": [
+    "Tablas excluidas sin referencias lexicas en runtime",
+    "Sin FK conservada a tablas excluidas",
+    "Identity con secuencia catalogada",
+    "Sin vistas ni publicaciones public pendientes",
+    "Inventario compatible 34 tablas / 236 columnas",
+    "27 candidatos retenidos por contrato SELECT *"
+  ],
+  "limitations": [
+    "No ejecuta SQL ni prueba restauracion",
+    "No prueba Auth, Storage ni Realtime en destino"
+  ]
+}

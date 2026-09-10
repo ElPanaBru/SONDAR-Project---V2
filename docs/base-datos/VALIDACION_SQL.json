@@ -1,0 +1,26 @@
+{
+  "verified_at": "2026-09-09T20:23:30.378Z",
+  "parser": "pgsql-parser",
+  "version": "18.2.6",
+  "mode": "syntax-only-no-database-execution",
+  "results": [
+    {
+      "file": "01_instalacion_compatible.sql",
+      "valid_syntax": true,
+      "statements": 1257,
+      "sha256": "cb77b530f4926ec82035046de6841a7266bbc3234aae0a72693c499e22627f6d"
+    },
+    {
+      "file": "02_optimizar_copia_restaurada.sql",
+      "valid_syntax": true,
+      "statements": 13,
+      "sha256": "0ffc1215000fb401749c405561a7f819e10bf1bc7af17573a67f95f8577e0ff4"
+    },
+    {
+      "file": "03_verificar_destino.sql",
+      "valid_syntax": true,
+      "statements": 56,
+      "sha256": "7a3e794ef6da112ef37faac18941b9c137b545d21eba557cc0a4cdb93b6d1e72"
+    }
+  ]
+}

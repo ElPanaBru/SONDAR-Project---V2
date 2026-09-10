@@ -1,0 +1,3844 @@
+{
+  "comunidad_comentario_likes": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 244,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_comentario_likes ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 259,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentario_likes_comentario ON comunidad_comentario_likes(comentario_id)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 436,
+      "text": "(SELECT COUNT(*)::int FROM comunidad_comentario_likes ccl_count WHERE ccl_count.comentario_id = cc.id) AS likes_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 441,
+      "text": "FROM comunidad_comentario_likes ccl"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1089,
+      "text": "'SELECT 1 FROM comunidad_comentario_likes WHERE user_id = $1 AND comentario_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1096,
+      "text": "'DELETE FROM comunidad_comentario_likes WHERE user_id = $1 AND comentario_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1101,
+      "text": "'INSERT INTO comunidad_comentario_likes (user_id, comentario_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1124,
+      "text": "'SELECT COUNT(*)::int AS likes FROM comunidad_comentario_likes WHERE comentario_id = $1',"
+    }
+  ],
+  "comunidad_comentarios": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 233,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_comentarios ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 237,
+      "text": "parent_id bigint REFERENCES comunidad_comentarios(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 246,
+      "text": "comentario_id bigint NOT NULL REFERENCES comunidad_comentarios(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 257,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_publicacion ON comunidad_comentarios(publicacion_id, created_at ASC)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 258,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_parent ON comunidad_comentarios(parent_id)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 445,
+      "text": "FROM comunidad_comentarios cc"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 655,
+      "text": "FROM comunidad_comentarios cc"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 850,
+      "text": "'SELECT user_id FROM comunidad_comentarios WHERE id = $1 AND publicacion_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 859,
+      "text": "`INSERT INTO comunidad_comentarios (publicacion_id, user_id, parent_id, texto)"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1078,
+      "text": "FROM comunidad_comentarios cc"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1187,
+      "text": "FROM comunidad_comentarios cc"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 983,
+      "text": "comentarios_foros: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "comunidad_miembros": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 200,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_miembros ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 210,
+      "text": "await pool.query(\"ALTER TABLE comunidad_miembros ADD COLUMN IF NOT EXISTS nivel_notificaciones text NOT NULL DEFAULT 'todas'\");"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 254,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user ON comunidad_miembros(user_id, created_at DESC)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 260,
+      "text": "await pool.query('ALTER TABLE comunidad_miembros ENABLE ROW LEVEL SECURITY');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 267,
+      "text": "AND tablename = 'comunidad_miembros'"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 270,
+      "text": "CREATE POLICY comunidad_miembros_select_own ON comunidad_miembros"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 277,
+      "text": "AND tablename = 'comunidad_miembros'"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 280,
+      "text": "CREATE POLICY comunidad_miembros_own_write ON comunidad_miembros"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 481,
+      "text": "FROM comunidad_miembros cm_viewer"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 487,
+      "text": "FROM comunidad_miembros cm_viewer"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 493,
+      "text": "LEFT JOIN comunidad_miembros cm ON cm.comunidad_id = c.id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 526,
+      "text": "'SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 533,
+      "text": "'DELETE FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 538,
+      "text": "'INSERT INTO comunidad_miembros (comunidad_id, user_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 545,
+      "text": "'SELECT COUNT(*)::int AS miembros FROM comunidad_miembros WHERE comunidad_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 578,
+      "text": "`UPDATE comunidad_miembros"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 702,
+      "text": "'SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 982,
+      "text": "membresias_foros: ['SELECT * FROM comunidad_miembros WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 58,
+      "text": "FROM comunidad_miembros cm"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 155,
+      "text": "FROM comunidad_miembros cm"
+    }
+  ],
+  "comunidad_publicacion_guardados": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 224,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_publicacion_guardados ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 256,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_guardados_publicacion ON comunidad_publicacion_guardados(publicacion_id)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 640,
+      "text": "(SELECT COUNT(*)::int FROM comunidad_publicacion_guardados cpg_count WHERE cpg_count.publicacion_id = cp.id) AS guardados_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 649,
+      "text": "FROM comunidad_publicacion_guardados cpg"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1029,
+      "text": "'SELECT 1 FROM comunidad_publicacion_guardados WHERE user_id = $1 AND publicacion_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1036,
+      "text": "'DELETE FROM comunidad_publicacion_guardados WHERE user_id = $1 AND publicacion_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1041,
+      "text": "'INSERT INTO comunidad_publicacion_guardados (user_id, publicacion_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1048,
+      "text": "'SELECT COUNT(*)::int AS guardados FROM comunidad_publicacion_guardados WHERE publicacion_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 985,
+      "text": "guardados_foros: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "comunidad_publicacion_likes": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 215,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_publicacion_likes ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 255,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicacion_likes_publicacion ON comunidad_publicacion_likes(publicacion_id)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 639,
+      "text": "(SELECT COUNT(*)::int FROM comunidad_publicacion_likes cpl_count WHERE cpl_count.publicacion_id = cp.id) AS likes_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 643,
+      "text": "FROM comunidad_publicacion_likes cpl"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 934,
+      "text": "'SELECT 1 FROM comunidad_publicacion_likes WHERE user_id = $1 AND publicacion_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 941,
+      "text": "'DELETE FROM comunidad_publicacion_likes WHERE user_id = $1 AND publicacion_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 946,
+      "text": "'INSERT INTO comunidad_publicacion_likes (user_id, publicacion_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 974,
+      "text": "FROM comunidad_publicacion_likes"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 984,
+      "text": "likes_foros: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "comunidad_publicaciones": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 183,
+      "text": "CREATE TABLE IF NOT EXISTS comunidad_publicaciones ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 211,
+      "text": "await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS evento_asociado_id text');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 212,
+      "text": "await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS reel_asociado_id text');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 217,
+      "text": "publicacion_id bigint NOT NULL REFERENCES comunidad_publicaciones(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 226,
+      "text": "publicacion_id bigint NOT NULL REFERENCES comunidad_publicaciones(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 235,
+      "text": "publicacion_id bigint NOT NULL REFERENCES comunidad_publicaciones(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 252,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_comunidad ON comunidad_publicaciones(comunidad_id, created_at DESC)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 253,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_user ON comunidad_publicaciones(user_id)');"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 492,
+      "text": "LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 658,
+      "text": "FROM comunidad_publicaciones cp"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 711,
+      "text": "`INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta, evento_asociado_id, reel_asociado_id)"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 782,
+      "text": "FROM comunidad_publicaciones"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 814,
+      "text": "await client.query('DELETE FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 841,
+      "text": "'SELECT id, user_id, titulo, comunidad_id FROM comunidad_publicaciones WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 923,
+      "text": "FROM comunidad_publicaciones cp"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1022,
+      "text": "const publicacion = await client.query('SELECT id FROM comunidad_publicaciones WHERE id = $1', [publicacionId]);"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1079,
+      "text": "JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1152,
+      "text": "FROM comunidad_publicaciones"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 1188,
+      "text": "JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 981,
+      "text": "publicaciones_foros: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "comunidades": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 170,
+      "text": "CREATE TABLE IF NOT EXISTS comunidades ("
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 185,
+      "text": "comunidad_id text NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 201,
+      "text": "comunidad_id text NOT NULL REFERENCES comunidades(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 290,
+      "text": "`INSERT INTO comunidades (id, nombre, titulo, genero, descripcion, portada_url)"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 311,
+      "text": "UPDATE comunidades"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 491,
+      "text": "FROM comunidades c"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 502,
+      "text": "console.error('Error al listar comunidades:', error);"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 503,
+      "text": "res.status(500).json({ error: 'No se pudieron cargar las comunidades.' });"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 517,
+      "text": "'SELECT id FROM comunidades WHERE id = $1 AND activa = true',"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 659,
+      "text": "JOIN comunidades c ON c.id = cp.comunidad_id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 696,
+      "text": "const comunidad = await pool.query('SELECT id, genero, titulo FROM comunidades WHERE id = $1 AND activa = true', [comunidadId]);"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 924,
+      "text": "JOIN comunidades c ON c.id = cp.comunidad_id"
+    },
+    {
+      "file": "Frontend/src/paginas/Auth.jsx",
+      "line": 218,
+      "text": "<p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 282,
+      "text": "const [comunidades, setComunidades] = useState(comunidadesPorGenero);"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 319,
+      "text": "() => comunidades.find((comunidad) => comunidad.id === comunidadActivaId) || comunidades[0],"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 320,
+      "text": "[comunidadActivaId, comunidades]"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 408,
+      "text": "const response = await apiRequest(\"/api/comunidades\", {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 412,
+      "text": "if (!response.ok) throw new Error(\"No se pudieron cargar las comunidades.\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 425,
+      "text": "mostrarAviso(error.message || \"Usando comunidades locales por ahora.\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 490,
+      "text": "const comunidadBuscada = comunidades.find((comunidad) => {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 500,
+      "text": "}, [busqueda, comunidades]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 515,
+      "text": "const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`,"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 655,
+      "text": "const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/membresia`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 732,
+      "text": "const response = await apiRequest(`/api/comunidades/${comunidadActivaId}/publicaciones`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 792,
+      "text": "const response = await apiRequest(`/api/comunidades/publicaciones/${id}/like`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 829,
+      "text": "const response = await apiRequest(`/api/comunidades/publicaciones/${id}/guardar`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 854,
+      "text": "const response = await apiRequest(`/api/comunidades/publicaciones/${hilo.id}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 902,
+      "text": "const response = await apiRequest(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 959,
+      "text": "const response = await apiRequest(`/api/comunidades/comentarios/${comentarioId}/like`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 988,
+      "text": "const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/notificaciones`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1021,
+      "text": "? `/api/comunidades/comentarios/${contenidoId}/denunciar`"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1022,
+      "text": ": `/api/comunidades/publicaciones/${contenidoId}/denunciar`;"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1169,
+      "text": "<div className=\"comunidades-lista\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1170,
+      "text": "{comunidades.map((comunidad) => ("
+    }
+  ],
+  "content_reports": [
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 28,
+      "text": "CREATE TABLE IF NOT EXISTS content_reports ("
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 41,
+      "text": "await pool.query(\"ALTER TABLE content_reports ADD COLUMN IF NOT EXISTS details text NOT NULL DEFAULT ''\");"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 42,
+      "text": "await pool.query('ALTER TABLE content_reports DROP CONSTRAINT IF EXISTS content_reports_content_type_check');"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 44,
+      "text": "ALTER TABLE content_reports"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 48,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_content_reports_status ON content_reports(status, created_at DESC)');"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 70,
+      "text": "`INSERT INTO content_reports"
+    }
+  ],
+  "conversation_members": [
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 124,
+      "text": "JOIN public.conversation_members mine"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 126,
+      "text": "JOIN public.conversation_members other"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 164,
+      "text": "LEFT JOIN public.conversation_members other"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 198,
+      "text": "JOIN public.conversation_members mine"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 200,
+      "text": "JOIN public.conversation_members other"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 232,
+      "text": "JOIN public.conversation_members cm ON cm.conversation_id = m.conversation_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 283,
+      "text": "`INSERT INTO public.conversation_members (conversation_id, user_id)"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 312,
+      "text": "`UPDATE public.conversation_members"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 331,
+      "text": "LEFT JOIN public.conversation_members other"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 410,
+      "text": "`UPDATE public.conversation_members"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 450,
+      "text": "`UPDATE public.conversation_members"
+    }
+  ],
+  "conversations": [
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 123,
+      "text": "FROM public.conversations c"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 197,
+      "text": "FROM public.conversations c"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 275,
+      "text": "`INSERT INTO public.conversations (direct_key, created_by)"
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 68,
+      "text": "\"Conversaciones nuevas en tus previews y publicaciones.\": \"New conversations on your previews and posts.\","
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 59,
+      "text": "const [conversations, setConversations] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 85,
+      "text": "() => conversations.find((conversation) => conversation.id === activeId) || null,"
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 86,
+      "text": "[activeId, conversations]"
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 426,
+      "text": "{!loadingConversations && conversations.length === 0 ? ("
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 430,
+      "text": "{conversations.map((conversation) => ("
+    }
+  ],
+  "event_organizers": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 254,
+      "text": "FROM event_organizers eo"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 452,
+      "text": "`INSERT INTO event_organizers (event_id, user_id, added_by)"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 465,
+      "text": "FROM event_organizers eo"
+    }
+  ],
+  "event_saves": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 199,
+      "text": "FROM event_saves es"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 285,
+      "text": "'SELECT event_id FROM event_saves WHERE user_id = $1 AND event_id = ANY($2::bigint[])',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 552,
+      "text": "'SELECT 1 FROM event_saves WHERE user_id = $1 AND event_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 557,
+      "text": "await pool.query('DELETE FROM event_saves WHERE user_id = $1 AND event_id = $2', [req.user.id, id]);"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 561,
+      "text": "await pool.query('INSERT INTO event_saves (user_id, event_id) VALUES ($1, $2)', [req.user.id, id]);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 626,
+      "text": "FROM event_saves es"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 979,
+      "text": "eventos_guardados: ['SELECT * FROM event_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "evento_generos": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 182,
+      "text": "FROM evento_generos eg_interes"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 241,
+      "text": "FROM evento_generos eg"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 444,
+      "text": "`INSERT INTO evento_generos (event_id, genero, posicion)"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 75,
+      "text": "generos: Array.isArray(row.evento_generos) ? row.evento_generos : [],"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 119,
+      "text": "(SELECT array_agg(eg.genero ORDER BY eg.posicion) FROM evento_generos eg WHERE eg.event_id = e.id),"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 122,
+      "text": "END AS evento_generos"
+    }
+  ],
+  "eventos": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 59,
+      "text": "descripcion: 'Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 33,
+      "text": "'SELECT id FROM eventos WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 208,
+      "text": "FROM eventos e"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 299,
+      "text": "console.error('Error al listar eventos:', error);"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 300,
+      "text": "res.status(500).json({ error: 'Error al obtener los eventos.' });"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 307,
+      "text": "const result = await pool.query('SELECT id, creador_id FROM eventos WHERE id = $1', [id]);"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 426,
+      "text": "INSERT INTO eventos (genero, lugar, fecha, precio, link, creador_id, latitud, longitud)"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 522,
+      "text": "'DELETE FROM eventos WHERE id = $1 AND creador_id = $2 RETURNING id, img_path',"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 126,
+      "text": "LEFT JOIN eventos e ON e.id = p.evento_id`;"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 245,
+      "text": "const evento = await pool.query('SELECT 1 FROM eventos WHERE id = $1 AND creador_id = $2', [eventoId, req.user.id]);"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 246,
+      "text": "if (evento.rowCount === 0) return res.status(403).json({ error: 'Solo podes adjuntar uno de tus eventos.' });"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 708,
+      "text": "FROM eventos ev"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 587,
+      "text": "FROM eventos e"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 596,
+      "text": "(SELECT COUNT(*)::int FROM eventos WHERE creador_id = $1) AS eventos`,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 627,
+      "text": "JOIN eventos e ON e.id = es.event_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 679,
+      "text": "const eventos = contenidoBloqueado ? [] : eventosResult.rows.map(mapearEventoPerfil);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 694,
+      "text": "eventos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 702,
+      "text": "publicaciones: contenidoBloqueado ? 0 : Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 704,
+      "text": "eventos: contenidoBloqueado ? 0 : Number(publicacionesStats.eventos || 0),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 752,
+      "text": "(SELECT COUNT(*)::int FROM eventos e WHERE e.creador_id = u.id)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 975,
+      "text": "eventos: ['SELECT * FROM eventos WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1129,
+      "text": "eventos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1140,
+      "text": "eventos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1557,
+      "text": "const [perfil, eventos, reels] = await Promise.all(["
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1559,
+      "text": "pool.query('SELECT img_path, img_url FROM eventos WHERE creador_id = $1', [userId]),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1569,
+      "text": "...eventos.rows.map((evento) => eliminarImagenEvento("
+    },
+    {
+      "file": "Backend/services/storageService.js",
+      "line": 5,
+      "text": "const EVENTOS_BUCKET = process.env.SUPABASE_EVENTOS_BUCKET || 'eventos';"
+    },
+    {
+      "file": "Frontend/src/componentes/Navbar.jsx",
+      "line": 198,
+      "text": "return t(\"Buscar usuarios, previews o eventos...\");"
+    },
+    {
+      "file": "Frontend/src/componentes/SidebarNav.jsx",
+      "line": 10,
+      "text": "eventos:"
+    },
+    {
+      "file": "Frontend/src/componentes/SidebarNav.jsx",
+      "line": 50,
+      "text": "{ to: \"/\", label: \"Eventos\", icon: \"eventos\", end: true },"
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 37,
+      "text": "\"Buscar artistas, eventos y canciones\": \"Search artists, events and songs\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 38,
+      "text": "\"Buscar usuarios, previews o eventos...\": \"Search users, previews or events...\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 72,
+      "text": "\"Previews, eventos y publicaciones de comunidad nuevos.\": \"New previews, events and community posts.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 74,
+      "text": "\"Etiquetas con @ e invitaciones para organizar eventos.\": \"@ mentions and invitations to organize events.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 79,
+      "text": "\"Solo vos y las cuentas que seguís pueden ver tus previews, eventos y listas.\": \"Only you and the accounts you follow can see your previews, events and lists.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 95,
+      "text": "\"Elimina permanentemente tu perfil, publicaciones, eventos e interacciones.\": \"Permanently delete your profile, posts, events and interactions.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 113,
+      "text": "\"No hay eventos de este género\": \"There are no events in this genre\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 131,
+      "text": "\"Aún no hay eventos.\": \"There are no events yet.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 154,
+      "text": "\"Buscar artistas, eventos y canciones\": \"Buscar artistas, eventos e músicas\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 155,
+      "text": "\"Buscar usuarios, previews o eventos...\": \"Buscar usuários, previews ou eventos...\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 189,
+      "text": "\"Previews, eventos y publicaciones de comunidad nuevos.\": \"Novas previews, eventos e publicações da comunidade.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 191,
+      "text": "\"Etiquetas con @ e invitaciones para organizar eventos.\": \"Marcações com @ e convites para organizar eventos.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 196,
+      "text": "\"Solo vos y las cuentas que seguís pueden ver tus previews, eventos y listas.\": \"Somente você e as contas que segue podem ver suas previews, eventos e listas.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 212,
+      "text": "\"Elimina permanentemente tu perfil, publicaciones, eventos e interacciones.\": \"Exclua permanentemente seu perfil, publicações, eventos e interações.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 230,
+      "text": "\"No hay eventos de este género\": \"Não há eventos deste gênero\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 248,
+      "text": "\"Aún no hay eventos.\": \"Ainda não há eventos.\","
+    },
+    {
+      "file": "Frontend/src/paginas/Auth.jsx",
+      "line": 218,
+      "text": "<p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 12,
+      "text": "{ id: \"eventos\", label: \"Eventos\" },"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 83,
+      "text": "const [eventos, setEventos] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 115,
+      "text": "apiRequest(\"/api/eventos\", { headers }),"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 163,
+      "text": "const totalResultados = usuarios.length + reels.length + eventos.length;"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 167,
+      "text": "if (eventos[0]) return { tipo: \"evento\", item: eventos[0] };"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 169,
+      "text": "}, [usuarios, reels, eventos]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 248,
+      "text": "<p>Encontra usuarios, previews y eventos desde un solo lugar.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 282,
+      "text": "if (tabActiva === \"eventos\") {"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 283,
+      "text": "return eventos.length > 0 ? eventos.map(renderEvento) : ("
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 284,
+      "text": "<div className=\"buscar-empty\">No encontramos eventos para \"{query}\".</div>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 335,
+      "text": "{eventos.length > 0 ? ("
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 339,
+      "text": "<button type=\"button\" onClick={() => setTabActiva(\"eventos\")}>Ver mas</button>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 341,
+      "text": "{eventos.slice(0, 4).map(renderEvento)}"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 353,
+      "text": "<p>Usuarios, previews y eventos reunidos en una misma pantalla.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 361,
+      "text": "tab.id === \"eventos\" ? eventos.length :"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 22,
+      "text": "\"Publica musica, eventos, preguntas o recomendaciones vinculadas al genero.\","
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 93,
+      "text": "descripcion: \"Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.\","
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 446,
+      "text": "apiRequest(\"/api/eventos\", { headers }),"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1538,
+      "text": "aria-controls=\"recurso-eventos-genero\""
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1545,
+      "text": "<div className=\"comunidad-recurso-contenido\" id=\"recurso-eventos-genero\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1547,
+      "text": "<p className=\"comunidad-recurso-vacio\">Todavía no hay eventos de este género.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1629,
+      "text": "aria-label=\"Buscar entre todos los eventos de SONDAR\""
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1633,
+      "text": "<p className=\"comunidad-asociacion-vacio\">No encontramos eventos con esa búsqueda.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1666,
+      "text": "{eventoAsociadoSeleccionado ? \"Evento seleccionado. Tocá la card para quitarlo.\" : `${eventosAsociables.length} eventos disponibles`}"
+    },
+    {
+      "file": "Frontend/src/paginas/Configuracion.jsx",
+      "line": 530,
+      "text": "<span>{t(\"Previews, eventos y publicaciones de comunidad nuevos.\")}</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Configuracion.jsx",
+      "line": 538,
+      "text": "<span>{t(\"Etiquetas con @ e invitaciones para organizar eventos.\")}</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Configuracion.jsx",
+      "line": 571,
+      "text": "<span>Sus previews y eventos no aparecen en tu cuenta.</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Configuracion.jsx",
+      "line": 639,
+      "text": "<span>{t(\"Elimina permanentemente tu perfil, publicaciones, eventos e interacciones.\")}</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Configuracion.jsx",
+      "line": 721,
+      "text": "<p>Esta accion no se puede deshacer. Se eliminaran tu perfil, previews, eventos, comentarios, guardados y archivos publicados.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 6,
+      "text": "import \"./eventos.css\";"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 269,
+      "text": "const [eventos, setEventos] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 312,
+      "text": "// 1. Carga inicial de eventos desde el Backend"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 325,
+      "text": "const endpoint = `/api/eventos${parametros.size ? `?${parametros.toString()}` : \"\"}`;"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 342,
+      "text": "console.error(\"Error al traer eventos del servidor\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 388,
+      "text": "() => eventos.find((evento) => evento.id === eventoActivo),"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 389,
+      "text": "[eventos, eventoActivo]"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 467,
+      "text": "return eventos.filter((evento) => {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 480,
+      "text": "}, [busquedaEventos, eventos, generosVisibles]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 583,
+      "text": "eventos.length === 0 ||"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 586,
+      "text": "const eventoDestino = eventos.find((evento) => String(evento.id) === String(eventoCompartido));"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 597,
+      "text": "}, [eventoCompartido, eventos, loading, seleccionarEventoEnMapa]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 602,
+      "text": "mostrarAviso(\"Tenes que iniciar sesion para crear eventos\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 679,
+      "text": "grupoCercano.eventos.push(evento);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 680,
+      "text": "const cantidad = grupoCercano.eventos.length;"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 686,
+      "text": "grupos.push({ eventos: [evento], punto });"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 691,
+      "text": "if (grupo.eventos.length > 1) {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 696,
+      "text": "html: `<button class=\"evento-cluster\" type=\"button\" aria-label=\"${grupo.eventos.length} eventos cercanos\">${grupo.eventos.length}</button>`,"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 703,
+      "text": "const bounds = L.latLngBounds(grupo.eventos.map((evento) => evento.coords));"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 718,
+      "text": "const evento = grupo.eventos[0];"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 771,
+      "text": "mostrarAviso(\"Tenes que iniciar sesion para guardar eventos\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 784,
+      "text": "const response = await apiRequest(`/api/eventos/${id}/guardar`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 906,
+      "text": "const response = await apiRequest(`/api/eventos/${evento.id}/denunciar`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 956,
+      "text": "const response = await apiRequest(`/api/eventos/${evento.id}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 979,
+      "text": "mostrarAviso(\"Tenes que iniciar sesion para crear eventos\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1089,
+      "text": "mostrarAviso(\"Tenes que iniciar sesion para crear eventos\");"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1117,
+      "text": "const response = await apiRequest(\"/api/eventos/crear\", {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1156,
+      "text": "<div className={`eventos-container ${detalleExpandido ? \"detalle-abierto\" : \"\"}`}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1157,
+      "text": "<div ref={mapRef} className=\"eventos-mapa\" aria-label=\"Mapa de eventos\"></div>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1161,
+      "text": "Cargando mapa y eventos..."
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1166,
+      "text": "<div className=\"eventos-vacio\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1167,
+      "text": "{t(\"No hay eventos disponibles\")}"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1171,
+      "text": "<section className={`eventos-explorador ${exploradorPlegado ? \"plegado\" : \"\"} ${detalleEvento ? \"con-detalle\" : \"\"} ${detalleExpandido ? \"oculto\" : \"\"}`} aria-label=\"Buscar y filtrar eventos\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1173,
+      "text": "className=\"eventos-explorador-handle\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1175,
+      "text": "aria-label={exploradorPlegado ? \"Subir explorador de eventos\" : \"Bajar explorador de eventos\"}"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1177,
+      "text": "aria-controls=\"eventos-explorador-contenido\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1183,
+      "text": "className=\"eventos-explorador-contenido\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1184,
+      "text": "id=\"eventos-explorador-contenido\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1187,
+      "text": "<header className=\"eventos-explorador-header\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1188,
+      "text": "<span className=\"eventos-explorador-icono\" aria-hidden=\"true\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1191,
+      "text": "<span className=\"eventos-explorador-texto\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1195,
+      "text": "<em>{eventosFiltrados.length} eventos</em>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1197,
+      "text": "<div className=\"eventos-ubicacion-controles\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1217,
+      "text": "aria-label=\"Filtrar eventos por distancia\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1228,
+      "text": "<p className=\"eventos-ubicacion-aviso\">Permiti la ubicacion en el navegador para ver distancias y filtrar cercania.</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1230,
+      "text": "<label className=\"eventos-explorador-busqueda\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1231,
+      "text": "<span aria-hidden=\"true\" className=\"eventos-explorador-lupa\"></span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1236,
+      "text": "placeholder=\"Buscar eventos, lugares o artistas...\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1237,
+      "text": "aria-label=\"Buscar eventos\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1240,
+      "text": "<div className=\"eventos-explorador-generos\" aria-label=\"Filtrar eventos por genero\" onWheel={desplazarFiltrosConRueda}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1269,
+      "text": "<section className={`eventos-sheet ${detalleExpandido ? \"expandido\" : \"\"}`} aria-live=\"polite\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1271,
+      "text": "className=\"eventos-sheet-handle\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1281,
+      "text": "<div className=\"eventos-sheet-resumen\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1282,
+      "text": "<button className=\"eventos-sheet-flecha\" type=\"button\" aria-label=\"Evento anterior\" onClick={() => navegarEntreEventos(-1)} disabled={eventosFiltrados.length < 2}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1285,
+      "text": "<button className=\"eventos-sheet-identidad\" type=\"button\" onClick={() => setDetalleExpandido(true)}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1296,
+      "text": "<button className=\"eventos-sheet-flecha\" type=\"button\" aria-label=\"Evento siguiente\" onClick={() => navegarEntreEventos(1)} disabled={eventosFiltrados.length < 2}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1299,
+      "text": "<div className=\"eventos-sheet-acciones\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1306,
+      "text": "<button className=\"eventos-sheet-expandir\" type=\"button\" aria-label=\"Abrir detalle\" onClick={() => setDetalleExpandido(true)}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1313,
+      "text": "<div className=\"eventos-sheet-filtros\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1314,
+      "text": "<label className=\"eventos-explorador-busqueda eventos-sheet-busqueda\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1315,
+      "text": "<span aria-hidden=\"true\" className=\"eventos-explorador-lupa\"></span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1320,
+      "text": "placeholder=\"Buscar eventos, lugares o artistas...\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1321,
+      "text": "aria-label=\"Buscar eventos\""
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1324,
+      "text": "<div className=\"eventos-explorador-generos eventos-sheet-tags\" aria-label=\"Filtrar eventos por genero\" onWheel={desplazarFiltrosConRueda}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1336,
+      "text": "<div className=\"eventos-sheet-contenido\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 24,
+      "text": "eventos: [],"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 65,
+      "text": "if (tab === \"eventos\") return \"calendar\";"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 131,
+      "text": "{ id: \"eventos\", label: t(\"Eventos\"), mensaje: t(\"Aún no hay eventos.\") },"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 190,
+      "text": "eventos: dataPerfil.eventos || [],"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 337,
+      "text": "eventosPropios={contenido.eventos}"
+    },
+    {
+      "file": "Frontend/src/paginas/OtroPerfil.jsx",
+      "line": 36,
+      "text": "eventos: [],"
+    },
+    {
+      "file": "Frontend/src/paginas/OtroPerfil.jsx",
+      "line": 133,
+      "text": "{ id: \"eventos\", label: t(\"Eventos\"), icono: \"calendar\", mensaje: t(\"Aún no hay eventos.\") },"
+    },
+    {
+      "file": "Frontend/src/paginas/OtroPerfil.jsx",
+      "line": 182,
+      "text": "eventos: dataPerfil.eventos || [],"
+    },
+    {
+      "file": "Frontend/src/paginas/Soporte.jsx",
+      "line": 10,
+      "text": "titulo: \"Como encuentro eventos cerca mio?\","
+    },
+    {
+      "file": "Frontend/src/paginas/Soporte.jsx",
+      "line": 30,
+      "text": "\"No. Explorar eventos, descubrir musica, comentar y participar en comunidad es gratis.\","
+    }
+  ],
+  "follows": [
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 163,
+      "text": "SELECT 1 FROM follows"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 683,
+      "text": "LEFT JOIN follows f ON f.follower_id = $1 AND f.following_id = r.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 738,
+      "text": "'SELECT following_id FROM follows WHERE follower_id = $1 AND following_id = ANY($2::uuid[])',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 784,
+      "text": "SELECT 1 FROM follows f"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 634,
+      "text": "'SELECT COUNT(*)::int AS seguidores FROM follows WHERE following_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 638,
+      "text": "'SELECT COUNT(*)::int AS seguidos FROM follows WHERE follower_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 643,
+      "text": "'SELECT EXISTS(SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2) AS siguiendo',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 649,
+      "text": "FROM follows f"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 666,
+      "text": "FROM follows f"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 749,
+      "text": "(SELECT COUNT(*)::int FROM follows f WHERE f.following_id = u.id) AS seguidores,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 976,
+      "text": "seguimientos: ['SELECT * FROM follows WHERE follower_id = $1 OR following_id = $1', [req.user.id]],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1249,
+      "text": "'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1257,
+      "text": "'DELETE FROM follows WHERE follower_id = $1 AND following_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1263,
+      "text": "'INSERT INTO follows (follower_id, following_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1282,
+      "text": "(SELECT COUNT(*)::int FROM follows WHERE following_id = $1) AS seguidores,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1283,
+      "text": "(SELECT COUNT(*)::int FROM follows WHERE follower_id = $2) AS mis_seguidos`,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1341,
+      "text": "`DELETE FROM follows"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1416,
+      "text": "'SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1457,
+      "text": "FROM follows f"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 112,
+      "text": "FROM follows f"
+    }
+  ],
+  "generos": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 41,
+      "text": "const generos = [...new Set("
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 42,
+      "text": "(Array.isArray(evento.generos) ? evento.generos : [evento.genero])"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 48,
+      "text": "genero: generos[0] || evento.genero || 'otros',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 49,
+      "text": "generos: generos.length > 0 ? generos : ['otros'],"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 90,
+      "text": "const valorMultiple = primerValorDisponible(body.generos, body.genres);"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 105,
+      "text": "const generos = [...new Set("
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 111,
+      "text": "if (generos.length > MAX_GENEROS_EVENTO) {"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 112,
+      "text": "return { generos, error: `Podes elegir hasta ${MAX_GENEROS_EVENTO} generos por evento.` };"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 115,
+      "text": "const noPermitidos = generos.filter((genero) => !GENEROS_EVENTO_PERMITIDOS.has(genero));"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 117,
+      "text": "return { generos, error: `Generos no permitidos: ${noPermitidos.join(', ')}.` };"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 120,
+      "text": "return { generos, error: null };"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 125,
+      "text": "const genero = generosNormalizados.generos[0] || '';"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 133,
+      "text": "generos: generosNormalizados.generos,"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 216,
+      "text": "COALESCE(gen.generos, ARRAY[e.genero]) AS generos,"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 240,
+      "text": "SELECT array_agg(eg.genero ORDER BY eg.posicion) AS generos"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 328,
+      "text": "generos,"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 447,
+      "text": "[result.rows[0].id, generos]"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 480,
+      "text": "body: `${generos.join(', ')} - ${ubicacion}`,"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 493,
+      "text": "body: `${generos.join(', ')} - ${ubicacion}`,"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 503,
+      "text": "generos,"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 63,
+      "text": "generos: Array.isArray(row.reel_generos) ? row.reel_generos : [],"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 75,
+      "text": "generos: Array.isArray(row.evento_generos) ? row.evento_generos : [],"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 123,
+      "text": "const valorMultiple = primerValorDisponible(body.generos, body.genres);"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 138,
+      "text": "const generos = [...new Set("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 144,
+      "text": "if (generos.length > MAX_GENEROS_REEL) {"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 145,
+      "text": "return { generos, error: `Podes elegir hasta ${MAX_GENEROS_REEL} generos por preview.` };"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 148,
+      "text": "const noPermitidos = generos.filter((genero) => !GENEROS_REEL_PERMITIDOS.has(genero));"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 150,
+      "text": "return { generos, error: `Generos no permitidos: ${noPermitidos.join(', ')}.` };"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 153,
+      "text": "return { generos, error: null };"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 162,
+      "text": "genero: generosNormalizados.generos[0] || '',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 163,
+      "text": "generos: generosNormalizados.generos,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 351,
+      "text": "const generos = [...new Set("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 352,
+      "text": "(Array.isArray(reel.generos) ? reel.generos : [reel.genero])"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 363,
+      "text": "genero: generos[0] || reel.genero || 'otros',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 364,
+      "text": "generos: generos.length > 0 ? generos : ['otros'],"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 532,
+      "text": "SELECT array_agg(rg.genero ORDER BY rg.posicion) AS generos"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 537,
+      "text": "SELECT ARRAY[lower(r.genero)]::text[] AS generos"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 597,
+      "text": "COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]) AS generos,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 635,
+      "text": "AND ui.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 641,
+      "text": "AND ui.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 642,
+      "text": "ORDER BY array_position(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]), ui.genre)"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 664,
+      "text": "WHERE afinidad.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 673,
+      "text": "AND uga.genre = ANY(COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]))"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 775,
+      "text": "${generosReelSql} AS generos,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1076,
+      "text": "generos,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1139,
+      "text": "[result.rows[0].id, generos]"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1166,
+      "text": "generos: admiteMultiplesGeneros ? generos : [genero],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 136,
+      "text": "const generos = [...new Set(recibidos.map((item) => String(item || '').toLowerCase().trim()))];"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 137,
+      "text": "if (generos.length < 3) return { error: 'Elegí al menos 3 géneros para continuar.' };"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 138,
+      "text": "if (generos.length > 9 || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 141,
+      "text": "return { generos };"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 484,
+      "text": "const generos = [...new Set("
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 485,
+      "text": "(Array.isArray(reel.generos) ? reel.generos : [reel.genero])"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 493,
+      "text": "detalle: `${generos.join(' / ') || 'Preview'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 496,
+      "text": "genero: generos[0] || reel.genero || '',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 497,
+      "text": "generos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 578,
+      "text": ") AS generos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 616,
+      "text": ") AS generos,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1077,
+      "text": "[req.user.id, validacionGeneros.generos]"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1096,
+      "text": "genres: validacionGeneros.generos,"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 74,
+      "text": "generos: [],"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 408,
+      "text": "if (actual.generos.includes(genero)) {"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 409,
+      "text": "return { ...actual, generos: actual.generos.filter((item) => item !== genero) };"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 411,
+      "text": "if (actual.generos.length >= MAX_GENEROS_REEL) return actual;"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 412,
+      "text": "return { ...actual, generos: [...actual.generos, genero] };"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 419,
+      "text": "if (!nuevoReel.titulo.trim() || nuevoReel.generos.length === 0 || !nuevoReel.audioFile) {"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 446,
+      "text": "formData.append(\"genero\", nuevoReel.generos[0]);"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 447,
+      "text": "formData.append(\"generos\", JSON.stringify(nuevoReel.generos));"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 534,
+      "text": "{nuevoReel.generos.length > 0 ? ("
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 536,
+      "text": "{nuevoReel.generos.map((genero) => ("
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 552,
+      "text": "<section className=\"crear-reel-generos\" aria-labelledby=\"crear-reel-generos-titulo\">"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 553,
+      "text": "<div className=\"crear-reel-generos-encabezado\">"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 554,
+      "text": "<span id=\"crear-reel-generos-titulo\">Generos musicales</span>"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 555,
+      "text": "<small>{nuevoReel.generos.length}/{MAX_GENEROS_REEL}</small>"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 557,
+      "text": "<div className=\"crear-reel-generos-opciones\" role=\"group\" aria-label=\"Seleccionar hasta tres generos\">"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 559,
+      "text": "const seleccionado = nuevoReel.generos.includes(genero);"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 560,
+      "text": "const limiteAlcanzado = nuevoReel.generos.length >= MAX_GENEROS_REEL;"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 31,
+      "text": "const [generos, setGeneros] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 90,
+      "text": "if (generos.length < 3) {"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 102,
+      "text": "formData.append(\"genres\", JSON.stringify(generos));"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 204,
+      "text": "const activo = generos.includes(value);"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 222,
+      "text": "<button className=\"onboarding-submit\" type=\"submit\" disabled={loading || nombre.trim().length < 2 || !birthDate || generos.length < 3}>"
+    },
+    {
+      "file": "Frontend/src/componentes/OnboardingPerfilModal.jsx",
+      "line": 223,
+      "text": "{loading ? \"Guardando...\" : `Entrar a SONDAR (${Math.min(generos.length, 3)}/3)`}"
+    },
+    {
+      "file": "Frontend/src/componentes/PerfilComunidad.jsx",
+      "line": 442,
+      "text": "? (publicacion.reel.generos || []).join(\" / \") || publicacion.reel.genero || \"Preview musical\""
+    },
+    {
+      "file": "Frontend/src/componentes/PerfilComunidad.jsx",
+      "line": 443,
+      "text": ": `${(publicacion.evento.generos || []).join(\" / \") || publicacion.evento.genero || \"Evento\"} - ${new Intl.DateTimeFormat(\"es-AR\", { day: \"2-digit\", month: \"short\" }).format(new Date(publicacion.evento.fecha))}`}"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 69,
+      "text": "const generos = Array.isArray(evento?.generos) && evento.generos.length > 0"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 70,
+      "text": "? evento.generos"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 72,
+      "text": "return [...new Set(generos.filter(Boolean))].map(mostrarGenero).join(\" / \") || \"Sin genero\";"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 146,
+      "text": "coincide(evento, [\"genero\", \"generos\", \"lugar\", \"ubicacion\", \"creador\"], query)"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 197,
+      "text": "Array.isArray(evento?.generos) && evento.generos.length > 0"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 198,
+      "text": "? evento.generos"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 333,
+      "text": "[\"titulo\", \"genero\", \"generos\", \"lugar\", \"ubicacion\", \"creador\"],"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1704,
+      "text": "<small>{reel.artista || reel.usuario || \"Artista SONDAR\"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(\" / \") || \"Sin género\"}</small>"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 1705,
+      "text": "<em>{(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(\" / \") || \"Preview musical\"}</em>"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 371,
+      "text": "const recibidos = Array.isArray(reel?.generos) && reel.generos.length > 0"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 372,
+      "text": "? reel.generos"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 2312,
+      "text": "<div className=\"reel-generos\" aria-label=\"Generos de la preview\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 68,
+      "text": "generos: [],"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 96,
+      "text": "const recibidos = Array.isArray(evento?.generos) && evento.generos.length > 0"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 97,
+      "text": "? evento.generos"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 99,
+      "text": "const generos = [...new Set(recibidos.map(normalizarGenero))].slice(0, MAX_GENEROS_EVENTO);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 100,
+      "text": "return generos.length > 0 ? generos : [\"otros\"];"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 106,
+      "text": "const generos = generosDeEvento(evento);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 109,
+      "text": "genero: generos[0],"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 110,
+      "text": "generos,"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1034,
+      "text": "if (actual.generos.includes(genero)) {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1035,
+      "text": "return { ...actual, generos: actual.generos.filter((item) => item !== genero) };"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1037,
+      "text": "if (actual.generos.length >= MAX_GENEROS_EVENTO) return actual;"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1038,
+      "text": "return { ...actual, generos: [...actual.generos, genero] };"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1047,
+      "text": "if (nuevoEvento.generos.length === 0) {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1098,
+      "text": "genero: nuevoEvento.generos[0],"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1099,
+      "text": "generos: nuevoEvento.generos,"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1240,
+      "text": "<div className=\"eventos-explorador-generos\" aria-label=\"Filtrar eventos por genero\" onWheel={desplazarFiltrosConRueda}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1324,
+      "text": "<div className=\"eventos-explorador-generos eventos-sheet-tags\" aria-label=\"Filtrar eventos por genero\" onWheel={desplazarFiltrosConRueda}>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1340,
+      "text": "<div className=\"evento-sheet-generos\" aria-label=\"Géneros del evento\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1441,
+      "text": "<small>{reel.artista || reel.usuario || \"Artista SONDAR\"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(\" / \")}</small>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1566,
+      "text": "<section className=\"evento-generos-selector\" aria-labelledby=\"evento-generos-titulo\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1567,
+      "text": "<div className=\"evento-generos-encabezado\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1568,
+      "text": "<span id=\"evento-generos-titulo\">Géneros musicales</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1569,
+      "text": "<small>{nuevoEvento.generos.length}/{MAX_GENEROS_EVENTO}</small>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1571,
+      "text": "<div className=\"evento-generos-opciones\" role=\"group\" aria-label=\"Seleccionar hasta tres géneros\">"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1573,
+      "text": "const seleccionado = nuevoEvento.generos.includes(genero);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 1574,
+      "text": "const limiteAlcanzado = nuevoEvento.generos.length >= MAX_GENEROS_EVENTO;"
+    }
+  ],
+  "messages": [
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 130,
+      "text": "SELECT m.* FROM public.messages m"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 136,
+      "text": "FROM public.messages unread_message"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 161,
+      "text": "FROM public.messages m"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 163,
+      "text": "LEFT JOIN public.messages reply ON reply.id = m.reply_to_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 204,
+      "text": "SELECT m.* FROM public.messages m"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 210,
+      "text": "FROM public.messages unread_message"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 231,
+      "text": "FROM public.messages m"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 328,
+      "text": "FROM public.messages m"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 330,
+      "text": "LEFT JOIN public.messages reply ON reply.id = m.reply_to_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 384,
+      "text": "FROM public.messages"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 395,
+      "text": "'SELECT 1 FROM public.messages WHERE id = $1 AND conversation_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 404,
+      "text": "`INSERT INTO public.messages (conversation_id, sender_id, body, reply_to_id)"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 479,
+      "text": "`UPDATE public.messages"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 505,
+      "text": "`UPDATE public.messages"
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 75,
+      "text": "\"Mensajes directos\": \"Direct messages\","
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 61,
+      "text": "const [messages, setMessages] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 256,
+      "text": "}, [loadingMessages, messages.length]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 483,
+      "text": "{!loadingMessages && messages.length === 0 ? ("
+    },
+    {
+      "file": "Frontend/src/paginas/Mensajes.jsx",
+      "line": 486,
+      "text": "{messages.map((message) => {"
+    }
+  ],
+  "notification_mutes": [
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 658,
+      "text": "SELECT 1 FROM notification_mutes"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 989,
+      "text": "usuarios_silenciados: ['SELECT * FROM notification_mutes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1349,
+      "text": "`DELETE FROM notification_mutes"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1425,
+      "text": "'SELECT 1 FROM notification_mutes WHERE user_id = $1 AND muted_user_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1431,
+      "text": "'INSERT INTO notification_mutes (user_id, muted_user_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1436,
+      "text": "'DELETE FROM notification_mutes WHERE user_id = $1 AND muted_user_id = $2',"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 75,
+      "text": "SELECT 1 FROM notification_mutes"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 116,
+      "text": "SELECT 1 FROM notification_mutes nm"
+    }
+  ],
+  "notifications": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 799,
+      "text": "`DELETE FROM notifications"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 458,
+      "text": "`UPDATE public.notifications"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 13,
+      "text": "FROM notifications n"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 21,
+      "text": "'SELECT COUNT(*)::int AS total FROM notifications WHERE user_id = $1 AND read_at IS NULL',"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 39,
+      "text": "'SELECT COUNT(*)::int AS total FROM notifications WHERE user_id = $1 AND read_at IS NULL',"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 52,
+      "text": "`UPDATE notifications"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 69,
+      "text": "`UPDATE notifications"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 84,
+      "text": "'DELETE FROM notifications WHERE user_id = $1 AND read_at IS NOT NULL',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 988,
+      "text": "notificaciones: ['SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 64,
+      "text": "`INSERT INTO notifications ("
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 93,
+      "text": "await client.query('DELETE FROM notifications WHERE unique_key = $1', [uniqueKey]);"
+    },
+    {
+      "file": "Frontend/src/componentes/Navbar.jsx",
+      "line": 348,
+      "text": "<div className=\"navbar-notifications-wrap\" ref={notificacionesRef}>"
+    },
+    {
+      "file": "Frontend/src/componentes/Navbar.jsx",
+      "line": 350,
+      "text": "className={`inbox-button inbox-button--notifs ${mostrarNotifs ? \"active\" : \"\"} ${!preferencias.actividadCuenta ? \"notifications-paused\" : \"\"}`}"
+    },
+    {
+      "file": "Frontend/src/componentes/NotificationPanel.jsx",
+      "line": 109,
+      "text": "<div className=\"notifications-panel\" role=\"dialog\" aria-label=\"Notificaciones\">"
+    },
+    {
+      "file": "Frontend/src/componentes/NotificationPanel.jsx",
+      "line": 118,
+      "text": "<div className=\"notifications-toolbar\">"
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 63,
+      "text": "\"Notificaciones en la app\": \"In-app notifications\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 87,
+      "text": "\"Vuelve a activar las notificaciones y la experiencia visual predeterminada.\": \"Restore default notifications and visual experience.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 108,
+      "text": "\"Cargando notificaciones...\": \"Loading notifications...\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 109,
+      "text": "\"No tenés notificaciones por ahora.\": \"You have no notifications yet.\","
+    }
+  ],
+  "perfil_comunidad_publicaciones": [
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 123,
+      "text": "FROM perfil_comunidad_publicaciones p"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 250,
+      "text": "`INSERT INTO perfil_comunidad_publicaciones (user_id, origen, texto, reel_id, evento_id)"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 293,
+      "text": "'SELECT id, user_id FROM perfil_comunidad_publicaciones WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 379,
+      "text": "`DELETE FROM perfil_comunidad_publicaciones"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 986,
+      "text": "publicaciones_comunidad_perfil: ['SELECT * FROM perfil_comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "perfil_comunidad_respuestas": [
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 148,
+      "text": "FROM perfil_comunidad_respuestas pr"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 199,
+      "text": "FROM perfil_comunidad_respuestas pr"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 309,
+      "text": "`SELECT user_id FROM perfil_comunidad_respuestas"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 321,
+      "text": "`INSERT INTO perfil_comunidad_respuestas (publicacion_id, user_id, parent_id, texto)"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 395,
+      "text": "`DELETE FROM perfil_comunidad_respuestas"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 987,
+      "text": "respuestas_comunidad_perfil: ['SELECT * FROM perfil_comunidad_respuestas WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "profile_community_comments": [],
+  "profile_community_posts": [],
+  "reel_comment_likes": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 287,
+      "text": "CREATE TABLE IF NOT EXISTS reel_comment_likes ("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 295,
+      "text": "'CREATE INDEX IF NOT EXISTS idx_reel_comment_likes_comment_id ON reel_comment_likes(comment_id)'"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 952,
+      "text": "(SELECT COUNT(*)::int FROM reel_comment_likes rcl_count WHERE rcl_count.comment_id = rc.id) AS likes_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 958,
+      "text": "FROM reel_comment_likes rcl"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1320,
+      "text": "'SELECT 1 FROM reel_comment_likes WHERE user_id = $1 AND comment_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1327,
+      "text": "'DELETE FROM reel_comment_likes WHERE user_id = $1 AND comment_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1332,
+      "text": "'INSERT INTO reel_comment_likes (user_id, comment_id) VALUES ($1, $2)',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1354,
+      "text": "'SELECT COUNT(*)::int AS likes FROM reel_comment_likes WHERE comment_id = $1',"
+    }
+  ],
+  "reel_comments": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 71,
+      "text": "FROM reel_comments rc"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 285,
+      "text": "await pool.query('ALTER TABLE reel_comments ADD COLUMN IF NOT EXISTS responde_a text');"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 289,
+      "text": "comment_id bigint NOT NULL REFERENCES reel_comments(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 561,
+      "text": "FROM reel_comments rc"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 962,
+      "text": "FROM reel_comments rc"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 997,
+      "text": "`INSERT INTO reel_comments (reel_id, user_id, parent_id, texto, responde_a)"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1016,
+      "text": "LEFT JOIN reel_comments padre ON padre.id = $2"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1224,
+      "text": "`DELETE FROM reel_comments"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 980,
+      "text": "comentarios_reels: ['SELECT * FROM reel_comments WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "reel_generos": [
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 63,
+      "text": "generos: Array.isArray(row.reel_generos) ? row.reel_generos : [],"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 105,
+      "text": "(SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 108,
+      "text": "END AS reel_generos,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 212,
+      "text": "\"SELECT to_regclass('public.reel_generos') IS NOT NULL AS disponible\""
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 528,
+      "text": "? 'LEFT JOIN reel_generos rg ON rg.reel_id = r.id'"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 533,
+      "text": "FROM reel_generos rg"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 768,
+      "text": "(SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1136,
+      "text": "`INSERT INTO reel_generos (reel_id, genero, posicion)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 576,
+      "text": "(SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 614,
+      "text": "(SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),"
+    }
+  ],
+  "reel_likes": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 547,
+      "text": "FROM reel_likes rl"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 598,
+      "text": "(SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 621,
+      "text": "LN(1 + (SELECT COUNT(*) FROM reel_likes rl WHERE rl.reel_id = r.id)) * 5"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 688,
+      "text": "SELECT rl.user_id FROM reel_likes rl WHERE rl.reel_id = r.id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 732,
+      "text": "'SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 776,
+      "text": "(SELECT COUNT(*)::int FROM reel_likes rl_count WHERE rl_count.reel_id = r.id) AS likes_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 780,
+      "text": "SELECT 1 FROM reel_likes rl"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1261,
+      "text": "'SELECT 1 FROM reel_likes WHERE user_id = $1 AND reel_id = $2',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1267,
+      "text": "await client.query('DELETE FROM reel_likes WHERE user_id = $1 AND reel_id = $2', [req.user.id, id]);"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1269,
+      "text": "await client.query('INSERT INTO reel_likes (user_id, reel_id) VALUES ($1, $2)', [req.user.id, id]);"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1288,
+      "text": "const counts = await client.query('SELECT COUNT(*)::int AS likes FROM reel_likes WHERE reel_id = $1', [id]);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 618,
+      "text": "FROM reel_likes rl"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 977,
+      "text": "reels_que_gustan: ['SELECT * FROM reel_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "reel_playback_sessions": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 876,
+      "text": "`INSERT INTO public.reel_playback_sessions ("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 884,
+      "text": "SET listened_ms = GREATEST(public.reel_playback_sessions.listened_ms, EXCLUDED.listened_ms),"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 885,
+      "text": "duration_ms = COALESCE(EXCLUDED.duration_ms, public.reel_playback_sessions.duration_ms),"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 886,
+      "text": "completion_ratio = GREATEST(public.reel_playback_sessions.completion_ratio, EXCLUDED.completion_ratio),"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 887,
+      "text": "completed = public.reel_playback_sessions.completed OR EXCLUDED.completed,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 888,
+      "text": "skipped = public.reel_playback_sessions.skipped OR EXCLUDED.skipped,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 889,
+      "text": "replay_count = GREATEST(public.reel_playback_sessions.replay_count, EXCLUDED.replay_count),"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 891,
+      "text": "WHERE public.reel_playback_sessions.user_id = EXCLUDED.user_id"
+    }
+  ],
+  "reel_saves": [],
+  "reel_shares": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 310,
+      "text": "CREATE TABLE IF NOT EXISTS reel_shares ("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 317,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_shares_reel_id ON reel_shares(reel_id)');"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 554,
+      "text": "FROM reel_shares rs"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 599,
+      "text": "(SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 622,
+      "text": "+ LN(1 + (SELECT COUNT(*) FROM reel_shares rs WHERE rs.reel_id = r.id)) * 4"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 777,
+      "text": "(SELECT COUNT(*)::int FROM reel_shares rs_count WHERE rs_count.reel_id = r.id) AS compartidos_calculados,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1389,
+      "text": "`INSERT INTO reel_shares (user_id, reel_id)"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1396,
+      "text": "'SELECT COUNT(*)::int AS compartidos FROM reel_shares WHERE reel_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 978,
+      "text": "reels_compartidos: ['SELECT * FROM reel_shares WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    }
+  ],
+  "reel_views": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 331,
+      "text": "CREATE TABLE IF NOT EXISTS reel_views ("
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 338,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id ON reel_views(reel_id)');"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 568,
+      "text": "FROM reel_views rv"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 600,
+      "text": "(SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 623,
+      "text": "+ LN(1 + (SELECT COUNT(*) FROM reel_views rv WHERE rv.reel_id = r.id)) * 2"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 684,
+      "text": "LEFT JOIN reel_views visto ON visto.user_id = $1 AND visto.reel_id = r.id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 690,
+      "text": "SELECT rv.user_id FROM reel_views rv WHERE rv.reel_id = r.id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 778,
+      "text": "(SELECT COUNT(*)::int FROM reel_views rv_count WHERE rv_count.reel_id = r.id) AS visitas_calculadas,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 826,
+      "text": "`INSERT INTO reel_views (user_id, reel_id)"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 833,
+      "text": "'SELECT COUNT(*)::int AS visitas FROM reel_views WHERE reel_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 579,
+      "text": "(SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 617,
+      "text": "(SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas"
+    }
+  ],
+  "reels": [
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 125,
+      "text": "LEFT JOIN reels r ON r.id = p.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 241,
+      "text": "const reel = await pool.query('SELECT 1 FROM reels WHERE id = $1 AND creador_id = $2', [reelId, req.user.id]);"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 57,
+      "text": "FROM reels r"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 193,
+      "text": "AND table_name = 'reels'"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 275,
+      "text": "`INSERT INTO reels (${columnas.join(', ')})"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 312,
+      "text": "reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 333,
+      "text": "reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 548,
+      "text": "JOIN reels r ON r.id = rl.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 555,
+      "text": "JOIN reels r ON r.id = rs.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 562,
+      "text": "JOIN reels r ON r.id = rc.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 569,
+      "text": "JOIN reels r ON r.id = rv.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 658,
+      "text": "FROM reels r"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 751,
+      "text": "console.error('Error al listar reels:', error);"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 790,
+      "text": "FROM reels r"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 881,
+      "text": "FROM public.reels r"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1015,
+      "text": "FROM reels r"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1189,
+      "text": "`DELETE FROM reels"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 580,
+      "text": "FROM reels r"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 595,
+      "text": "(SELECT COUNT(*)::int FROM reels WHERE creador_id = $1) AS reels,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 619,
+      "text": "JOIN reels r ON r.id = rl.reel_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 678,
+      "text": "const reels = contenidoBloqueado ? [] : reelsResult.rows.map(mapearReelPerfil);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 693,
+      "text": "publicaciones: reels,"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 702,
+      "text": "publicaciones: contenidoBloqueado ? 0 : Number(publicacionesStats.reels || 0) + Number(publicacionesStats.eventos || 0),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 703,
+      "text": "reels: contenidoBloqueado ? 0 : Number(publicacionesStats.reels || 0),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 751,
+      "text": "(SELECT COUNT(*)::int FROM reels r WHERE r.creador_id = u.id) +"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 974,
+      "text": "reels: ['SELECT * FROM reels WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1557,
+      "text": "const [perfil, eventos, reels] = await Promise.all(["
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1560,
+      "text": "pool.query('SELECT portada_path, portada_url, audio_path, audio_url FROM reels WHERE creador_id = $1', [userId]),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1573,
+      "text": "...reels.rows.flatMap((reel) => ["
+    },
+    {
+      "file": "Backend/services/storageService.js",
+      "line": 6,
+      "text": "const REELS_BUCKET = process.env.SUPABASE_REELS_BUCKET || 'reels';"
+    },
+    {
+      "file": "Backend/services/storageService.js",
+      "line": 153,
+      "text": "const carpeta = userId ? `reels/portadas/${userId}` : 'reels/portadas';"
+    },
+    {
+      "file": "Backend/services/storageService.js",
+      "line": 158,
+      "text": "const carpeta = userId ? `reels/audios/${userId}` : 'reels/audios';"
+    },
+    {
+      "file": "Frontend/src/componentes/CrearReelModal.jsx",
+      "line": 455,
+      "text": "const response = await apiRequest(\"/api/reels/crear\", {"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 11,
+      "text": "{ id: \"reels\", label: \"Previews\" },"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 82,
+      "text": "const [reels, setReels] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 114,
+      "text": "apiRequest(\"/api/reels\", { headers }),"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 163,
+      "text": "const totalResultados = usuarios.length + reels.length + eventos.length;"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 165,
+      "text": "if (reels[0]) return { tipo: \"reel\", item: reels[0] };"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 169,
+      "text": "}, [usuarios, reels, eventos]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 276,
+      "text": "if (tabActiva === \"reels\") {"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 277,
+      "text": "return reels.length > 0 ? reels.map(renderReel) : ("
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 325,
+      "text": "{reels.length > 0 ? ("
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 329,
+      "text": "<button type=\"button\" onClick={() => setTabActiva(\"reels\")}>Ver mas</button>"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 331,
+      "text": "{reels.slice(0, 4).map(renderReel)}"
+    },
+    {
+      "file": "Frontend/src/paginas/Buscar.jsx",
+      "line": 360,
+      "text": "tab.id === \"reels\" ? reels.length :"
+    },
+    {
+      "file": "Frontend/src/paginas/Comunidad.jsx",
+      "line": 447,
+      "text": "apiRequest(\"/api/reels\", { headers }),"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 642,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/visita`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 840,
+      "text": "const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : \"\"}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 860,
+      "text": "const reelResponse = await apiRequest(`/api/reels/${reelCompartidoBackendId}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 878,
+      "text": "const comentariosResponse = await apiRequest(`/api/reels/${reel.backendId}/comentarios`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1025,
+      "text": "// La histeresis evita alternancias cuando dos reels rondan el 50%."
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1238,
+      "text": "apiRequest(`/api/reels/${reelBackendId}/interaccion`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1410,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/compartir`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1683,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/denunciar`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1731,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1772,
+      "text": "const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1884,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 1956,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/like`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 2053,
+      "text": "const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}/like`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 2144,
+      "text": "const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {"
+    },
+    {
+      "file": "Frontend/src/paginas/Descubrir.jsx",
+      "line": 2757,
+      "text": "<span><b>{formatearConteo(perfilVista.stats.reels ?? perfilVista.stats.publicaciones)}</b> Previews</span>"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 258,
+      "text": "const [reels, setReels] = useState([]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 361,
+      "text": "const response = await apiRequest(\"/api/reels\", {"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 400,
+      "text": "return reels.filter((reel) => participantes.has(String(reel.creadorId)));"
+    },
+    {
+      "file": "Frontend/src/paginas/Eventos.jsx",
+      "line": 401,
+      "text": "}, [detalleEvento, reels]);"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 31,
+      "text": "reels: 0,"
+    },
+    {
+      "file": "Frontend/src/paginas/Miperfil.jsx",
+      "line": 386,
+      "text": "<p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/OtroPerfil.jsx",
+      "line": 41,
+      "text": "reels: 0,"
+    },
+    {
+      "file": "Frontend/src/paginas/OtroPerfil.jsx",
+      "line": 533,
+      "text": "<p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>"
+    },
+    {
+      "file": "Frontend/src/paginas/Soporte.jsx",
+      "line": 15,
+      "text": "id: \"reels\","
+    }
+  ],
+  "user_blocks": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 272,
+      "text": "SELECT 1 FROM user_blocks ub"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 119,
+      "text": "SELECT 1 FROM public.user_blocks ub"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 193,
+      "text": "SELECT 1 FROM public.user_blocks ub"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 263,
+      "text": "`SELECT 1 FROM public.user_blocks"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 179,
+      "text": "`SELECT 1 FROM user_blocks"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 715,
+      "text": "SELECT 1 FROM user_blocks ub"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 564,
+      "text": "`SELECT 1 FROM user_blocks"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1238,
+      "text": "`SELECT 1 FROM user_blocks"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1308,
+      "text": "FROM user_blocks ub"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1335,
+      "text": "`INSERT INTO user_blocks (blocker_id, blocked_id)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1372,
+      "text": "'DELETE FROM user_blocks WHERE blocker_id = $1 AND blocked_id = $2',"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 18,
+      "text": "CREATE TABLE IF NOT EXISTS user_blocks ("
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 26,
+      "text": "await pool.query('CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked_id ON user_blocks(blocked_id)');"
+    }
+  ],
+  "user_genre_affinity": [
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 579,
+      "text": "FROM user_genre_affinity uga"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 671,
+      "text": "FROM user_genre_affinity uga"
+    }
+  ],
+  "user_genre_preferences": [],
+  "user_interests": [
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 176,
+      "text": "FROM user_interests ui"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 542,
+      "text": "FROM user_interests ui"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 633,
+      "text": "SELECT 1 FROM user_interests ui"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 639,
+      "text": "FROM user_interests ui"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1073,
+      "text": "await client.query('DELETE FROM user_interests WHERE user_id = $1', [req.user.id]);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1075,
+      "text": "`INSERT INTO user_interests (user_id, genre)"
+    }
+  ],
+  "user_settings": [
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 435,
+      "text": "'SELECT * FROM user_settings WHERE user_id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 914,
+      "text": "`INSERT INTO user_settings ("
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 973,
+      "text": "configuracion: ['SELECT * FROM user_settings WHERE user_id = $1', [req.user.id]],"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 44,
+      "text": "? `AND COALESCE((SELECT ${columnaPreferencia} FROM user_settings WHERE user_id = $1), true)`"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 69,
+      "text": "(SELECT actividad_cuenta FROM user_settings WHERE user_id = $1),"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 49,
+      "text": "ALTER TABLE public.user_settings"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 60,
+      "text": "ALTER TABLE public.user_settings"
+    }
+  ],
+  "users": [
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 157,
+      "text": "`INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 186,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 202,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 216,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 225,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 236,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 245,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 446,
+      "text": "LEFT JOIN users u ON u.id = cc.user_id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 660,
+      "text": "LEFT JOIN users u ON u.id = cp.user_id"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 728,
+      "text": "FROM users u"
+    },
+    {
+      "file": "Backend/Controllers/comunidadController.js",
+      "line": 867,
+      "text": "FROM users u"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 68,
+      "text": "`INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 170,
+      "text": "LEFT JOIN users u ON u.id = $1"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 200,
+      "text": "JOIN users usuario_similar ON usuario_similar.id = es.user_id"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 238,
+      "text": "LEFT JOIN users u ON u.id = e.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 255,
+      "text": "JOIN users co ON co.id = eo.user_id"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 413,
+      "text": "'SELECT id FROM users WHERE id = ANY($1::uuid[])',"
+    },
+    {
+      "file": "Backend/Controllers/eventoController.js",
+      "line": 466,
+      "text": "JOIN users u ON u.id = eo.user_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 128,
+      "text": "LEFT JOIN public.users u ON u.id = other.user_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 162,
+      "text": "LEFT JOIN public.users sender ON sender.id = m.sender_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 202,
+      "text": "LEFT JOIN public.users u ON u.id = other.user_id"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 257,
+      "text": "const target = await client.query('SELECT id FROM public.users WHERE id = $1', [targetUserId]);"
+    },
+    {
+      "file": "Backend/Controllers/mensajeController.js",
+      "line": 329,
+      "text": "LEFT JOIN public.users sender ON sender.id = m.sender_id"
+    },
+    {
+      "file": "Backend/Controllers/notificacionController.js",
+      "line": 14,
+      "text": "LEFT JOIN users a ON a.id = n.actor_id"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 124,
+      "text": "JOIN users u ON u.id = p.user_id"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 131,
+      "text": "FROM users"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 149,
+      "text": "JOIN users u ON u.id = pr.user_id"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 200,
+      "text": "JOIN users u ON u.id = pr.user_id"
+    },
+    {
+      "file": "Backend/Controllers/perfilComunidadController.js",
+      "line": 327,
+      "text": "'SELECT email, username, display_name, profile_img_url FROM users WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 89,
+      "text": "`INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 288,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 311,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 332,
+      "text": "user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 593,
+      "text": "LEFT JOIN users u ON u.id = $1"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 659,
+      "text": "LEFT JOIN users u ON u.id = r.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 692,
+      "text": "JOIN users usuario_similar ON usuario_similar.id = senal.user_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 791,
+      "text": "LEFT JOIN users u ON u.id = r.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 963,
+      "text": "LEFT JOIN users u ON u.id = rc.user_id"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1005,
+      "text": "FROM users u"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1024,
+      "text": "FROM users"
+    },
+    {
+      "file": "Backend/Controllers/reelController.js",
+      "line": 1148,
+      "text": "FROM users u"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 220,
+      "text": "`INSERT INTO auth.users ("
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 328,
+      "text": "await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 409,
+      "text": "FROM users"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 527,
+      "text": "`INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 539,
+      "text": "FROM users"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 572,
+      "text": "pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 588,
+      "text": "LEFT JOIN users u ON u.id = e.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 628,
+      "text": "LEFT JOIN users u ON u.id = e.creador_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 650,
+      "text": "JOIN users u ON u.id = f.follower_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 667,
+      "text": "JOIN users u ON u.id = f.following_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 723,
+      "text": "FROM users"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 754,
+      "text": "FROM users u"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 820,
+      "text": "INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 868,
+      "text": "'SELECT * FROM users WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 888,
+      "text": "pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 910,
+      "text": "'SELECT username FROM users WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 972,
+      "text": "cuenta: ['SELECT * FROM users WHERE id = $1', [req.user.id]],"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1046,
+      "text": "'SELECT profile_img_path FROM users WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1055,
+      "text": "`UPDATE users"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1166,
+      "text": "'SELECT profile_img_path FROM users WHERE id = $1',"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1174,
+      "text": "`UPDATE users"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1309,
+      "text": "JOIN users u ON u.id = ub.blocked_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1458,
+      "text": "JOIN users u ON u.id = f.following_id"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1485,
+      "text": "INSERT INTO users (id, email, username, user_type)"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1523,
+      "text": "await client.query('UPDATE users SET user_type = $1 WHERE id = $2', ['musico', userId]);"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1558,
+      "text": "pool.query('SELECT profile_img_path, profile_img_url FROM users WHERE id = $1', [userId]),"
+    },
+    {
+      "file": "Backend/Controllers/usuarioController.js",
+      "line": 1582,
+      "text": "const usuarioRestante = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 19,
+      "text": "blocker_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 20,
+      "text": "blocked_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 30,
+      "text": "reporter_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    },
+    {
+      "file": "Backend/services/moderationService.js",
+      "line": 31,
+      "text": "reported_user_id uuid REFERENCES users(id) ON DELETE SET NULL,"
+    },
+    {
+      "file": "Backend/services/notificationService.js",
+      "line": 196,
+      "text": "'SELECT id, username FROM users WHERE lower(username) = ANY($1::text[])',"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 8,
+      "text": "FROM public.users"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 14,
+      "text": "UPDATE public.users u"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 21,
+      "text": "UPDATE public.users"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 30,
+      "text": "ON public.users (lower(username))"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 39,
+      "text": "AND conrelid = 'public.users'::regclass"
+    },
+    {
+      "file": "Backend/services/settingsSchema.js",
+      "line": 41,
+      "text": "ALTER TABLE public.users"
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 38,
+      "text": "\"Buscar usuarios, previews o eventos...\": \"Search users, previews or events...\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 78,
+      "text": "\"Controlá cómo otros usuarios pueden ver tu cuenta.\": \"Control how other users can see your account.\","
+    },
+    {
+      "file": "Frontend/src/contextos/PreferenciasContext.jsx",
+      "line": 81,
+      "text": "\"Permite que otros usuarios vean tu email de contacto.\": \"Allow other users to see your contact email.\","
+    }
+  ]
+}
