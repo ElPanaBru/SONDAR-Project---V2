@@ -249,6 +249,15 @@ async function asegurarEsquemaComunidades() {
         )
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS comunidad_comentario_guardados (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          comentario_id bigint NOT NULL REFERENCES comunidad_comentarios(id) ON DELETE CASCADE,
+          created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT comunidad_comentario_guardados_pkey PRIMARY KEY (user_id, comentario_id)
+        )
+      `);
+
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_comunidad ON comunidad_publicaciones(comunidad_id, created_at DESC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_publicaciones_user ON comunidad_publicaciones(user_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_miembros_user ON comunidad_miembros(user_id, created_at DESC)');
@@ -257,6 +266,7 @@ async function asegurarEsquemaComunidades() {
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_publicacion ON comunidad_comentarios(publicacion_id, created_at ASC)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentarios_parent ON comunidad_comentarios(parent_id)');
       await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentario_likes_comentario ON comunidad_comentario_likes(comentario_id)');
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_comunidad_comentario_guardados_comentario ON comunidad_comentario_guardados(comentario_id)');
       await pool.query('ALTER TABLE comunidad_miembros ENABLE ROW LEVEL SECURITY');
       await pool.query(`
         DO $$
@@ -374,6 +384,7 @@ function mapearComentario(row) {
     votos: Number(row.likes_calculados ?? row.likes ?? 0),
     likes: Number(row.likes_calculados ?? row.likes ?? 0),
     liked: Boolean(row.liked),
+    guardado: Boolean(row.guardado),
     parentId: row.parent_id ? Number(row.parent_id) : null,
     tiempo: tiempoRelativo(row.created_at),
     respuestas: [],
@@ -441,7 +452,13 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
          FROM comunidad_comentario_likes ccl
          WHERE ccl.comentario_id = cc.id
            AND ccl.user_id = $2
-       ) AS liked
+       ) AS liked,
+       EXISTS (
+         SELECT 1
+         FROM comunidad_comentario_guardados ccg
+         WHERE ccg.comentario_id = cc.id
+           AND ccg.user_id = $2
+       ) AS guardado
      FROM comunidad_comentarios cc
      LEFT JOIN users u ON u.id = cc.user_id
      WHERE cc.publicacion_id = ANY($1::bigint[])
@@ -1059,6 +1076,48 @@ const comunidadController = {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar guardado de publicacion:', error);
       res.status(500).json({ error: 'No se pudo actualizar el guardado.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  alternarGuardadoComentario: async (req, res) => {
+    const { comentarioId } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      await client.query('BEGIN');
+
+      const comentario = await client.query(
+        'SELECT id FROM comunidad_comentarios WHERE id = $1',
+        [comentarioId]
+      );
+      if (comentario.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Comentario no encontrado.' });
+      }
+
+      const existe = await client.query(
+        'SELECT 1 FROM comunidad_comentario_guardados WHERE user_id = $1 AND comentario_id = $2',
+        [req.user.id, comentarioId]
+      );
+
+      const guardado = existe.rowCount === 0;
+      await client.query(
+        guardado
+          ? 'INSERT INTO comunidad_comentario_guardados (user_id, comentario_id) VALUES ($1, $2)'
+          : 'DELETE FROM comunidad_comentario_guardados WHERE user_id = $1 AND comentario_id = $2',
+        [req.user.id, comentarioId]
+      );
+      await client.query('COMMIT');
+
+      return res.json({ id: Number(comentarioId), guardado });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al alternar guardado de comentario:', error);
+      return res.status(500).json({ error: 'No se pudo actualizar el guardado del comentario.' });
     } finally {
       client.release();
     }

@@ -1038,6 +1038,32 @@
   border-color: transparent;
 }
 
+.respuesta-acciones .respuesta-guardar {
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.respuesta-guardar svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.respuesta-acciones .respuesta-guardar.activo {
+  color: #ff9500;
+  border-color: rgba(255, 149, 0, 0.5);
+}
+
+.respuesta-guardar.activo svg path {
+  fill: currentColor;
+}
+
 .respuesta-acciones .respuesta-denunciar:hover {
   color: #ffb0a8;
   background: rgba(214, 56, 56, 0.16);

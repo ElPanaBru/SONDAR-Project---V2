@@ -71,6 +71,14 @@ function iconoTab(tab) {
 
 function destinoContenido(item) {
   if (item.tipo === "evento") return `/?evento=${item.id}`;
+  if (item.tipo === "publicacion-comunidad" || item.tipo === "comentario-comunidad") {
+    const parametros = new URLSearchParams({
+      comunidad: item.comunidadId,
+      publicacion: String(item.publicacionId),
+    });
+    if (item.comentarioId) parametros.set("comentario", String(item.comentarioId));
+    return `/comunidad?${parametros.toString()}`;
+  }
   const parametros = new URLSearchParams({ lanzamiento: `db-${item.id}` });
   if (item.creadorId) parametros.set("creador", item.creadorId);
   return `/descubrir?${parametros.toString()}`;

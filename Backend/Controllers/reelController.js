@@ -30,6 +30,7 @@ const GENEROS_REEL_PERMITIDOS = new Set([
 let esquemaComentariosListo = null;
 let esquemaCompartidosListo = null;
 let esquemaVisitasListo = null;
+let esquemaGuardadosListo = null;
 let columnasReelsPromesa = null;
 let columnasReelsExpiranEn = 0;
 let relacionReelGenerosPromesa = null;
@@ -345,6 +346,27 @@ async function asegurarEsquemaVisitas() {
   return esquemaVisitasListo;
 }
 
+async function asegurarEsquemaGuardados() {
+  if (!esquemaGuardadosListo) {
+    esquemaGuardadosListo = (async () => {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS reel_saves (
+          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          reel_id bigint NOT NULL REFERENCES reels(id) ON DELETE CASCADE,
+          created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+          CONSTRAINT reel_saves_pkey PRIMARY KEY (user_id, reel_id)
+        )
+      `);
+      await pool.query('CREATE INDEX IF NOT EXISTS idx_reel_saves_reel_id ON reel_saves(reel_id)');
+    })().catch((error) => {
+      esquemaGuardadosListo = null;
+      throw error;
+    });
+  }
+
+  return esquemaGuardadosListo;
+}
+
 function mapearReel(reel) {
   const colorPrincipal = normalizarColorPrincipal(reel.color_principal);
   const colorVisual = colorPrincipal || COLOR_PRINCIPAL_REEL_FALLBACK;
@@ -376,6 +398,7 @@ function mapearReel(reel) {
     audio: reel.audio_url,
     avatar: reel.creador_avatar || reel.profile_img_url || '',
     liked: false,
+    guardado: false,
     siguiendo: false,
     recomendado: Boolean(
       reel.afinidad_score > 0
@@ -503,6 +526,7 @@ const reelController = {
   listarReels: async (req, res) => {
     try {
       await asegurarEsquemaVisitas();
+      await asegurarEsquemaGuardados();
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
       const latitudRecibida = Number(req.query?.lat);
@@ -727,9 +751,14 @@ const reelController = {
 
       const reelIds = reelsOrdenados.map((reel) => reel.id);
       const creadorIds = [...new Set(reelsOrdenados.map((reel) => reel.creador_id).filter(Boolean))];
-      const [likedSet, siguiendoSet] = await Promise.all([
+      const [likedSet, guardadoSet, siguiendoSet] = await Promise.all([
         consultarSetInteraccion(
           'SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',
+          [viewerId, reelIds],
+          'reel_id'
+        ),
+        consultarSetInteraccion(
+          'SELECT reel_id FROM reel_saves WHERE user_id = $1 AND reel_id = ANY($2::bigint[])',
           [viewerId, reelIds],
           'reel_id'
         ),
@@ -745,6 +774,7 @@ const reelController = {
       res.json(reelsOrdenados.map((reel) => ({
         ...mapearReel(reel),
         liked: likedSet.has(String(reel.id)),
+        guardado: guardadoSet.has(String(reel.id)),
         siguiendo: siguiendoSet.has(String(reel.creador_id)),
       })));
     } catch (error) {
@@ -760,6 +790,7 @@ const reelController = {
     }
 
     try {
+      await asegurarEsquemaGuardados();
       await asegurarEsquemaModeracion();
       const viewerId = await obtenerViewerId(req);
       const admiteMultiplesGeneros = await existeRelacionReelGeneros();
@@ -781,6 +812,10 @@ const reelController = {
              WHERE rl.reel_id = r.id AND rl.user_id = $2::uuid
            ) AS liked,
            EXISTS (
+             SELECT 1 FROM reel_saves rs
+             WHERE rs.reel_id = r.id AND rs.user_id = $2::uuid
+           ) AS guardado,
+           EXISTS (
              SELECT 1 FROM follows f
              WHERE f.following_id = r.creador_id AND f.follower_id = $2::uuid
            ) AS siguiendo,
@@ -801,6 +836,7 @@ const reelController = {
       return res.json({
         ...mapearReel(reel),
         liked: Boolean(reel.liked),
+        guardado: Boolean(reel.guardado),
         siguiendo: Boolean(reel.siguiendo),
       });
     } catch (error) {
@@ -1296,6 +1332,44 @@ const reelController = {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar like de reel:', error);
       res.status(500).json({ error: 'No se pudo actualizar el like.' });
+    } finally {
+      client.release();
+    }
+  },
+
+  alternarGuardado: async (req, res) => {
+    const { id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaGuardados();
+      await client.query('BEGIN');
+
+      const reel = await buscarAccesoReel(id, client);
+      if (!reel) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Preview no encontrada.' });
+      }
+
+      const existe = await client.query(
+        'SELECT 1 FROM reel_saves WHERE user_id = $1 AND reel_id = $2',
+        [req.user.id, id]
+      );
+      const guardado = existe.rowCount === 0;
+      await client.query(
+        guardado
+          ? 'INSERT INTO reel_saves (user_id, reel_id) VALUES ($1, $2)'
+          : 'DELETE FROM reel_saves WHERE user_id = $1 AND reel_id = $2',
+        [req.user.id, id]
+      );
+      await client.query('COMMIT');
+
+      return res.json({ id: Number(id), guardado });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      console.error('Error al alternar guardado de preview:', error);
+      return res.status(500).json({ error: 'No se pudo actualizar el guardado.' });
     } finally {
       client.release();
     }

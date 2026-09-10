@@ -50,6 +50,7 @@ router.post('/:id/comentarios', authMiddleware, evitarCreacionDuplicada('crear-c
 router.post('/:id/compartir', authMiddleware, reelController.registrarCompartido);
 router.post('/:id/denunciar', authMiddleware, reelController.denunciarReel);
 router.post('/:id/like', authMiddleware, reelController.alternarLike);
+router.post('/:id/guardar', authMiddleware, reelController.alternarGuardado);
 router.delete('/:id', authMiddleware, confirmarPasswordEliminacion, reelController.eliminarReel);
 
 module.exports = router;

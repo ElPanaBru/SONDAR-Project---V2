@@ -513,6 +513,23 @@ function mapearEventoPerfil(evento) {
   };
 }
 
+function mapearGuardadoComunidad(item) {
+  const esComentario = item.tipo_guardado === 'comentario';
+  return {
+    id: `${esComentario ? 'comentario' : 'publicacion'}-${item.id}`,
+    tipo: esComentario ? 'comentario-comunidad' : 'publicacion-comunidad',
+    nombre: esComentario
+      ? `Comentario en s/${item.comunidad_genero || 'comunidad'}`
+      : item.titulo || `Publicacion en s/${item.comunidad_genero || 'comunidad'}`,
+    detalle: item.texto || '',
+    imagen: item.portada_url || '',
+    comunidadId: item.comunidad_id,
+    publicacionId: Number(item.publicacion_id || item.id),
+    comentarioId: esComentario ? Number(item.id) : null,
+    guardadoEn: item.guardado_en,
+  };
+}
+
 async function asegurarUsuarioPublico(user) {
   const email = user.email || `${user.id}@sin-email.local`;
   const baseUsername =
@@ -601,6 +618,9 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const [
     likesResult,
     eventosGuardadosResult,
+    reelsGuardadosResult,
+    publicacionesComunidadGuardadasResult,
+    comentariosComunidadGuardadosResult,
     seguidoresStatsResult,
     seguidosStatsResult,
     siguiendoResult,
@@ -628,6 +648,56 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
        LEFT JOIN users u ON u.id = e.creador_id
        WHERE es.user_id = $1
        ORDER BY es.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
+       FROM reel_saves rs
+       JOIN reels r ON r.id = rs.reel_id
+       WHERE rs.user_id = $1
+       ORDER BY rs.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT
+         'publicacion' AS tipo_guardado,
+         cpg.created_at AS guardado_en,
+         cp.id,
+         cp.id AS publicacion_id,
+         cp.comunidad_id,
+         cp.titulo,
+         cp.texto,
+         c.genero AS comunidad_genero,
+         c.portada_url
+       FROM comunidad_publicacion_guardados cpg
+       JOIN comunidad_publicaciones cp ON cp.id = cpg.publicacion_id
+       JOIN comunidades c ON c.id = cp.comunidad_id
+       WHERE cpg.user_id = $1
+       ORDER BY cpg.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT
+         'comentario' AS tipo_guardado,
+         ccg.created_at AS guardado_en,
+         cc.id,
+         cc.publicacion_id,
+         cp.comunidad_id,
+         NULL::text AS titulo,
+         cc.texto,
+         c.genero AS comunidad_genero,
+         c.portada_url
+       FROM comunidad_comentario_guardados ccg
+       JOIN comunidad_comentarios cc ON cc.id = ccg.comentario_id
+       JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
+       JOIN comunidades c ON c.id = cp.comunidad_id
+       WHERE ccg.user_id = $1
+       ORDER BY ccg.created_at DESC`,
       [targetUserId]
     ),
     consultarOpcional(
@@ -681,6 +751,16 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     ...mapearEventoPerfil(evento),
     guardadoTipo: 'evento',
   }));
+  const reelsGuardados = reelsGuardadosResult.rows.map((reel) => ({
+    ...mapearReelPerfil(reel),
+    guardadoTipo: 'reel',
+  }));
+  const guardadosComunidad = [
+    ...publicacionesComunidadGuardadasResult.rows,
+    ...comentariosComunidadGuardadosResult.rows,
+  ]
+    .sort((a, b) => new Date(b.guardado_en) - new Date(a.guardado_en))
+    .map(mapearGuardadoComunidad);
 
   const configuracion = await obtenerConfiguracion(targetUserId).catch((error) => {
     if (error.code === '42P01') return CONFIGURACION_INICIAL;
@@ -693,7 +773,7 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     publicaciones: reels,
     eventos,
     likes: esPropio ? likesResult.rows.map(mapearReelPerfil) : [],
-    guardados: esPropio ? eventosGuardados : [],
+    guardados: esPropio ? [...reelsGuardados, ...eventosGuardados, ...guardadosComunidad] : [],
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),

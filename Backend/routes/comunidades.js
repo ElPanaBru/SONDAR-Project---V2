@@ -16,6 +16,7 @@ router.post('/publicaciones/:publicacionId/guardar', authMiddleware, comunidadCo
 router.post('/publicaciones/:publicacionId/denunciar', authMiddleware, comunidadController.denunciarPublicacion);
 router.delete('/publicaciones/:publicacionId', authMiddleware, confirmarPasswordEliminacion, comunidadController.eliminarPublicacion);
 router.post('/comentarios/:comentarioId/like', authMiddleware, comunidadController.alternarLikeComentario);
+router.post('/comentarios/:comentarioId/guardar', authMiddleware, comunidadController.alternarGuardadoComentario);
 router.post('/comentarios/:comentarioId/denunciar', authMiddleware, comunidadController.denunciarComentario);
 
 module.exports = router;

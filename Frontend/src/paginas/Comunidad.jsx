@@ -230,6 +230,7 @@ const normalizarComentario = (comentario) => ({
   votos: Number(comentario.votos ?? comentario.likes ?? 0),
   likes: Number(comentario.likes ?? comentario.votos ?? 0),
   liked: Boolean(comentario.liked),
+  guardado: Boolean(comentario.guardado),
   respuestas: (comentario.respuestas || []).map(normalizarComentario),
 });
 
@@ -273,6 +274,7 @@ export default function Comunidad({ usuario }) {
   const publicandoRef = useRef(false);
   const comentariosEnviandoRef = useRef(new Set());
   const likesComentariosEnviandoRef = useRef(new Set());
+  const guardadosComentariosEnviandoRef = useRef(new Set());
   const filtroRef = useRef(null);
   const notificacionesComunidadRef = useRef(null);
   const audioAsociadoRef = useRef(null);
@@ -293,6 +295,7 @@ export default function Comunidad({ usuario }) {
   const [publicando, setPublicando] = useState(false);
   const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
   const [likesComentariosEnviando, setLikesComentariosEnviando] = useState(new Set());
+  const [guardadosComentariosEnviando, setGuardadosComentariosEnviando] = useState(new Set());
   const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
@@ -980,6 +983,49 @@ export default function Comunidad({ usuario }) {
     }
   };
 
+  const guardarComentario = async (hiloId, comentarioId) => {
+    const clave = String(comentarioId);
+    if (guardadosComentariosEnviandoRef.current.has(clave)) return;
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hiloAnterior = hilos.find((hilo) => hilo.id === hiloId);
+    guardadosComentariosEnviandoRef.current.add(clave);
+    setGuardadosComentariosEnviando(new Set(guardadosComentariosEnviandoRef.current));
+    actualizarHilo(hiloId, (hilo) => ({
+      ...hilo,
+      comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+        ...comentario,
+        guardado: !comentario.guardado,
+      })),
+    }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(`/api/comunidades/comentarios/${comentarioId}/guardar`, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo guardar el comentario.");
+      actualizarHilo(hiloId, (hilo) => ({
+        ...hilo,
+        comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+          ...comentario,
+          guardado: body.guardado,
+        })),
+      }));
+    } catch (error) {
+      if (hiloAnterior) actualizarHilo(hiloId, () => hiloAnterior);
+      mostrarAviso(error.message || "No se pudo guardar el comentario.");
+    } finally {
+      guardadosComentariosEnviandoRef.current.delete(clave);
+      setGuardadosComentariosEnviando(new Set(guardadosComentariosEnviandoRef.current));
+    }
+  };
+
   const actualizarNotificacionesComunidad = async (nivel) => {
     if (!usuario || !comunidadActiva?.unido || actualizandoNotificaciones) return;
 
@@ -1109,6 +1155,19 @@ export default function Comunidad({ usuario }) {
             >
               <span aria-hidden="true">{comentario.liked ? "♥" : "♡"}</span>
               {comentario.likes}
+            </button>
+            <button
+              className={`respuesta-guardar ${comentario.guardado ? "activo" : ""}`}
+              type="button"
+              onClick={() => guardarComentario(hilo.id, comentario.id)}
+              disabled={guardadosComentariosEnviando.has(String(comentario.id))}
+              aria-label={comentario.guardado ? "Quitar comentario guardado" : "Guardar comentario"}
+              aria-pressed={Boolean(comentario.guardado)}
+              title={comentario.guardado ? "Quitar de guardados" : "Guardar comentario"}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1Z" />
+              </svg>
             </button>
             <button
               type="button"

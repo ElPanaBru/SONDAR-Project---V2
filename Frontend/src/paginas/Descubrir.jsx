@@ -2010,6 +2010,37 @@ export default function Descubrir({ usuario }) {
     }, 520);
   };
 
+  const alternarGuardadoLanzamiento = async (lanzamiento) => {
+    if (!lanzamiento.backendId) {
+      mostrarAviso("El guardado esta disponible para previews publicadas.");
+      return;
+    }
+
+    const guardadoAnterior = Boolean(lanzamiento.guardado);
+    setLanzamientos((prev) => prev.map((actual) => (
+      actual.id === lanzamiento.id ? { ...actual, guardado: !guardadoAnterior } : actual
+    )));
+
+    try {
+      const token = await obtenerTokenSesion();
+      if (!token) return;
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/guardar`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo guardar la preview.");
+      setLanzamientos((prev) => prev.map((actual) => (
+        actual.id === lanzamiento.id ? { ...actual, guardado: data.guardado } : actual
+      )));
+    } catch (error) {
+      setLanzamientos((prev) => prev.map((actual) => (
+        actual.id === lanzamiento.id ? { ...actual, guardado: guardadoAnterior } : actual
+      )));
+      mostrarAviso(error.message || "No se pudo guardar la preview.");
+    }
+  };
+
   const actualizarLikeComentarioLocal = (lanzamientoId, comentarioId, respuestaId, dataLike = null) => {
     setComentariosPorLanzamiento((prev) => ({
       ...prev,
@@ -2431,6 +2462,18 @@ export default function Descubrir({ usuario }) {
                     </button>
                     <small>{formatearConteo(lanzamiento.compartidos)}</small>
                     <span>Compartir</span>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton ${lanzamiento.guardado ? "activo" : ""}`}
+                      type="button"
+                      aria-label={lanzamiento.guardado ? "Quitar preview guardada" : "Guardar preview"}
+                      aria-pressed={Boolean(lanzamiento.guardado)}
+                      onClick={() => ejecutarConSesion(() => alternarGuardadoLanzamiento(lanzamiento))}
+                    >
+                      <Icono nombre="guardar" />
+                    </button>
+                    <span>{lanzamiento.guardado ? "Guardado" : "Guardar"}</span>
                   </div>
                   <div className="accion-item accion-menu-item">
                     <button

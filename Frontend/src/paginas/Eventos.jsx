@@ -312,6 +312,7 @@ export default function Eventos({ usuario }) {
   // 1. Carga inicial de eventos desde el Backend
   useEffect(() => {
     let isMounted = true;
+    const controlador = new AbortController();
     const cargarEventos = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -324,6 +325,7 @@ export default function Eventos({ usuario }) {
         }
         const endpoint = `/api/eventos${parametros.size ? `?${parametros.toString()}` : ""}`;
         const res = await apiRequest(endpoint, {
+          signal: controlador.signal,
           headers: token
             ? {
                 Authorization: `Bearer ${token}`
@@ -343,13 +345,17 @@ export default function Eventos({ usuario }) {
           if (isMounted) setLoading(false);
         }
       } catch (error) {
+        if (error.name === "AbortError") return;
         console.error("Error de red:", error);
         if (isMounted) setLoading(false);
       }
     };
 
     cargarEventos();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      controlador.abort();
+    };
   }, [radioKm, usuario?.id, posicionUsuario]);
 
   useEffect(() => {
