@@ -389,6 +389,7 @@ function mapearReel(reel) {
     likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
     comentarios: '0',
     compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
+    guardados: Number(reel.guardados_calculados ?? 0),
     visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
     colorPrincipal,
     colorA: colorVisual,
@@ -621,6 +622,7 @@ const reelController = {
           COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]) AS generos,
           (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
           (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
+          (SELECT COUNT(*)::int FROM reel_saves saves WHERE saves.reel_id = r.id) AS guardados_calculados,
           (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
           COALESCE(ag.puntaje, 0)::float AS afinidad_score,
           COALESCE(afinidad_aprendida.puntaje, 0)::float AS afinidad_aprendida,
@@ -806,6 +808,7 @@ const reelController = {
            ${generosReelSql} AS generos,
            (SELECT COUNT(*)::int FROM reel_likes rl_count WHERE rl_count.reel_id = r.id) AS likes_calculados,
            (SELECT COUNT(*)::int FROM reel_shares rs_count WHERE rs_count.reel_id = r.id) AS compartidos_calculados,
+          (SELECT COUNT(*)::int FROM reel_saves saves WHERE saves.reel_id = r.id) AS guardados_calculados,
            (SELECT COUNT(*)::int FROM reel_views rv_count WHERE rv_count.reel_id = r.id) AS visitas_calculadas,
            EXISTS (
              SELECT 1 FROM reel_likes rl
@@ -1365,7 +1368,11 @@ const reelController = {
       );
       await client.query('COMMIT');
 
-      return res.json({ id: Number(id), guardado });
+      const counts = await client.query(
+        'SELECT COUNT(*)::int AS guardados FROM reel_saves WHERE reel_id = $1',
+        [id]
+      );
+      return res.json({ id: Number(id), guardado, guardados: Number(counts.rows[0]?.guardados || 0) });
     } catch (error) {
       await client.query('ROLLBACK').catch(() => null);
       console.error('Error al alternar guardado de preview:', error);

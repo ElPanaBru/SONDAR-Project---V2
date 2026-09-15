@@ -1,3 +1,4 @@
+import PerfilSkeleton from "../componentes/PerfilSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
@@ -119,7 +120,7 @@ export default function OtroPerfil({ usuarioActual }) {
   const [siguiendo, setSiguiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState("");
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
@@ -397,16 +398,6 @@ export default function OtroPerfil({ usuarioActual }) {
   const renderContenidoActivo = () => {
     const items = contenido[tabActiva] || [];
 
-    if (cargando) {
-      return (
-        <div className="perfil-empty-state">
-          <span><IconoPerfil nombre={contenidoActivo?.icono || "grid"} /></span>
-          <h3>{t("Cargando perfil...")}</h3>
-          <p>Estamos trayendo el contenido desde Supabase.</p>
-        </div>
-      );
-    }
-
     if (tabActiva === "comunidad") {
       return (
         <PerfilComunidad
@@ -434,6 +425,8 @@ export default function OtroPerfil({ usuarioActual }) {
       </div>
     );
   };
+
+  if (cargando) return <PerfilSkeleton ajeno />;
 
   return (
     <section className="perfil-page otroperfil-page">

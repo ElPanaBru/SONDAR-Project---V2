@@ -1,3 +1,4 @@
+import { ConversacionesSkeleton, MensajesSkeleton } from "../componentes/MensajesSkeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -54,6 +55,7 @@ function estadoMensaje(message) {
 }
 
 export default function Mensajes({ usuario }) {
+  const usuarioId = usuario?.id;
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedConversation = searchParams.get("conversacion") || "";
   const [conversations, setConversations] = useState([]);
@@ -91,7 +93,7 @@ export default function Mensajes({ usuario }) {
   }, [activeId]);
 
   const loadConversations = useCallback(async ({ silent = false } = {}) => {
-    if (!usuario) return;
+    if (!usuarioId) return;
     if (!silent) setLoadingConversations(true);
     try {
       const response = await apiRequest("/api/mensajes/conversaciones");
@@ -112,10 +114,10 @@ export default function Mensajes({ usuario }) {
     } finally {
       if (!silent) setLoadingConversations(false);
     }
-  }, [requestedConversation, usuario]);
+  }, [requestedConversation, usuarioId]);
 
   const loadMessages = useCallback(async (conversationId, { older = false, silent = false } = {}) => {
-    if (!conversationId || !usuario) return;
+    if (!conversationId || !usuarioId) return;
     if (older) setLoadingOlder(true);
     else if (!silent) setLoadingMessages(true);
     if (!older) scrollOnNextUpdateRef.current = true;
@@ -146,23 +148,27 @@ export default function Mensajes({ usuario }) {
     } catch (error) {
       if (!silent) setNotice(error.message || "No se pudieron cargar los mensajes.");
     } finally {
-      setLoadingMessages(false);
-      setLoadingOlder(false);
+      if (activeIdRef.current === conversationId) {
+        if (!silent && !older) setLoadingMessages(false);
+        if (older) setLoadingOlder(false);
+      }
     }
-  }, [loadConversations, usuario]);
+  }, [loadConversations, usuarioId]);
 
   useEffect(() => {
-    if (!usuario) {
+    if (!usuarioId) {
       setLoadingConversations(false);
       return;
     }
     loadConversations();
     const interval = window.setInterval(() => loadConversations({ silent: true }), 12000);
     return () => window.clearInterval(interval);
-  }, [loadConversations, usuario]);
+  }, [loadConversations, usuarioId]);
 
   useEffect(() => {
+    setLoadingOlder(false);
     if (!activeId) {
+      setLoadingMessages(false);
       setMessages([]);
       cursorRef.current = null;
       lastReadMessageRef.current = null;
@@ -179,7 +185,7 @@ export default function Mensajes({ usuario }) {
   }, [activeId, loadMessages]);
 
   useEffect(() => {
-    if (!activeId || !usuario) return undefined;
+    if (!activeId || !usuarioId) return undefined;
     let disposed = false;
     let typingExpiry = null;
     const connect = async () => {
@@ -190,7 +196,7 @@ export default function Mensajes({ usuario }) {
         config: {
           private: true,
           broadcast: { ack: true, self: false },
-          presence: { key: usuario.id },
+          presence: { key: usuarioId },
         },
       });
       channelRef.current = channel;
@@ -203,19 +209,19 @@ export default function Mensajes({ usuario }) {
         .on("broadcast", { event: "UPDATE" }, refresh)
         .on("broadcast", { event: "DELETE" }, refresh)
         .on("broadcast", { event: "read" }, ({ payload }) => {
-          if (payload?.user_id === usuario.id) return;
+          if (payload?.user_id === usuarioId) return;
           setMessages((current) => current.map((message) =>
             message.propio ? { ...message, recibido: true, leido: true, estado: "leido" } : message
           ));
         })
         .on("broadcast", { event: "delivered" }, ({ payload }) => {
-          if (payload?.user_id === usuario.id) return;
+          if (payload?.user_id === usuarioId) return;
           setMessages((current) => current.map((message) =>
             message.propio && !message.leido ? { ...message, recibido: true, estado: "recibido" } : message
           ));
         })
         .on("broadcast", { event: "typing" }, ({ payload }) => {
-          if (payload?.userId === usuario.id) return;
+          if (payload?.userId === usuarioId) return;
           window.clearTimeout(typingExpiry);
           setTypingUser(Boolean(payload?.typing));
           if (payload?.typing) {
@@ -224,11 +230,11 @@ export default function Mensajes({ usuario }) {
         })
         .on("presence", { event: "sync" }, () => {
           const state = channel.presenceState();
-          setOtherOnline(Object.keys(state).some((key) => key !== usuario.id));
+          setOtherOnline(Object.keys(state).some((key) => key !== usuarioId));
         })
         .subscribe(async (status) => {
           if (status === "SUBSCRIBED") {
-            await channel.track({ userId: usuario.id, onlineAt: new Date().toISOString() });
+            await channel.track({ userId: usuarioId, onlineAt: new Date().toISOString() });
           }
         });
     };
@@ -241,12 +247,12 @@ export default function Mensajes({ usuario }) {
       window.clearTimeout(typingTimerRef.current);
       const channel = channelRef.current;
       if (channel) {
-        channel.send({ type: "broadcast", event: "typing", payload: { userId: usuario.id, typing: false } }).catch(() => null);
+        channel.send({ type: "broadcast", event: "typing", payload: { userId: usuarioId, typing: false } }).catch(() => null);
         supabase.removeChannel(channel);
       }
       if (channelRef.current === channel) channelRef.current = null;
     };
-  }, [activeId, loadConversations, loadMessages, usuario]);
+  }, [activeId, loadConversations, loadMessages, usuarioId]);
 
   useEffect(() => {
     if (!loadingMessages && scrollOnNextUpdateRef.current) {
@@ -305,11 +311,11 @@ export default function Mensajes({ usuario }) {
 
   const notifyTyping = (value) => {
     const channel = channelRef.current;
-    if (!channel || !usuario) return;
+    if (!channel || !usuarioId) return;
     channel.send({
       type: "broadcast",
       event: "typing",
-      payload: { userId: usuario.id, typing: value },
+      payload: { userId: usuarioId, typing: value },
     }).catch(() => null);
   };
 
@@ -404,7 +410,7 @@ export default function Mensajes({ usuario }) {
     }
   };
 
-  if (!usuario) {
+  if (!usuarioId) {
     return (
       <main className="mensajes-login">
         <span aria-hidden="true">✉</span>
@@ -422,7 +428,7 @@ export default function Mensajes({ usuario }) {
           <div><span>MENSAJES</span><h1>Conversaciones</h1></div>
           <button type="button" onClick={() => setShowNew(true)} aria-label="Nuevo mensaje">＋</button>
         </header>
-        {loadingConversations ? <p className="mensajes-estado">Cargando conversaciones...</p> : null}
+        {loadingConversations && conversations.length === 0 ? <ConversacionesSkeleton /> : null}
         {!loadingConversations && conversations.length === 0 ? (
           <div className="mensajes-vacio"><strong>Todavia no hay mensajes</strong><p>Busca un usuario para iniciar una conversacion.</p></div>
         ) : null}
@@ -451,7 +457,7 @@ export default function Mensajes({ usuario }) {
       </aside>
 
       <section className="mensajes-chat" aria-label="Chat activo">
-        {!activeConversation ? (
+        {loadingConversations && !activeConversation ? <MensajesSkeleton completo /> : !activeConversation ? (
           <div className="mensajes-chat-sin-seleccion"><span>✉</span><h2>Selecciona una conversacion</h2><p>O crea una nueva para empezar a hablar.</p></div>
         ) : (
           <>
@@ -479,11 +485,12 @@ export default function Mensajes({ usuario }) {
                 </div>
               ) : null}
               {cursor ? <button type="button" className="mensajes-cargar-anteriores" disabled={loadingOlder} onClick={() => loadMessages(activeId, { older: true })}>{loadingOlder ? "Cargando..." : "Cargar mensajes anteriores"}</button> : null}
-              {loadingMessages ? <p className="mensajes-estado">Cargando mensajes...</p> : null}
+              {loadingMessages ? <MensajesSkeleton /> : null}
+              {loadingOlder ? <MensajesSkeleton anteriores /> : null}
               {!loadingMessages && messages.length === 0 ? (
                 <div className="mensajes-inicio"><Avatar usuario={activeConversation.usuario} /><strong>{activeConversation.usuario.nombre}</strong><p>{activeConversation.usuario.eliminado ? "No quedaron mensajes en esta conversacion." : "Envia un mensaje para iniciar la conversacion."}</p></div>
               ) : null}
-              {messages.map((message) => {
+              {!loadingMessages && messages.map((message) => {
                 const estado = estadoMensaje(message);
                 return (
                 <article key={message.id} className={`mensaje-burbuja ${message.propio ? "propio" : "recibido"} ${message.eliminado ? "eliminado" : ""} ${estado.estado === "error" ? "mensaje-error" : ""}`}>

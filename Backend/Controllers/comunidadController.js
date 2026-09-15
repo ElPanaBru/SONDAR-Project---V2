@@ -380,6 +380,7 @@ function mapearComentario(row) {
     userId: row.user_id,
     autor: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
     usuario: usuarioVisible(row),
+    avatar: row.profile_img_url || '',
     texto: row.texto,
     votos: Number(row.likes_calculados ?? row.likes ?? 0),
     likes: Number(row.likes_calculados ?? row.likes ?? 0),
@@ -422,6 +423,7 @@ function mapearPublicacion(row, comentarios = []) {
     userId: row.user_id,
     op: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
     usuario: usuarioVisible(row),
+    avatar: row.profile_img_url || '',
     tipo: row.tipo,
     titulo: row.titulo,
     texto: row.texto,
@@ -446,7 +448,7 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
        cc.*,
        (SELECT COUNT(*)::int FROM comunidad_comentario_likes ccl_count WHERE ccl_count.comentario_id = cc.id) AS likes_calculados,
        u.username,
-       u.email,
+       u.email, u.profile_img_url,
        EXISTS (
          SELECT 1
          FROM comunidad_comentario_likes ccl
@@ -652,7 +654,7 @@ const comunidadController = {
            cp.*,
            c.genero,
            u.username,
-           u.email,
+           u.email, u.profile_img_url,
            (SELECT COUNT(*)::int FROM comunidad_publicacion_likes cpl_count WHERE cpl_count.publicacion_id = cp.id) AS likes_calculados,
            (SELECT COUNT(*)::int FROM comunidad_publicacion_guardados cpg_count WHERE cpg_count.publicacion_id = cp.id) AS guardados_calculados,
            EXISTS (
@@ -741,7 +743,7 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email
+        `SELECT u.username, u.email, u.profile_img_url
          FROM users u
          WHERE u.id = $1`,
         [req.user.id]
@@ -773,6 +775,7 @@ const comunidadController = {
       res.status(201).json(mapearPublicacion({
         ...result.rows[0],
         genero: comunidad.rows[0].genero,
+        profile_img_url: usuarioResult.rows[0]?.profile_img_url,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
         liked: false,
@@ -880,7 +883,7 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email
+        `SELECT u.username, u.email, u.profile_img_url
          FROM users u
          WHERE u.id = $1`,
         [req.user.id]
@@ -915,6 +918,7 @@ const comunidadController = {
 
       res.status(201).json(mapearComentario({
         ...result.rows[0],
+        profile_img_url: usuarioResult.rows[0]?.profile_img_url,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
         liked: false,

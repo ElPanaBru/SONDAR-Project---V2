@@ -3767,14 +3767,16 @@
   background: rgba(15, 10, 6, 0.48);
 }
 
-.acciones-laterales .accion-item:first-child .accion-boton.activo {
+.acciones-laterales .accion-item:first-child .accion-boton.activo,
+.acciones-laterales .accion-boton-guardar.activo {
   color: #ff7900;
   background: rgba(15, 10, 6, 0.62);
   border-color: rgba(255, 121, 0, 0.78);
   box-shadow: 0 0 0 3px rgba(255, 121, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
-.acciones-laterales .accion-item:first-child .accion-boton.activo svg {
+.acciones-laterales .accion-item:first-child .accion-boton.activo svg,
+.acciones-laterales .accion-boton-guardar.activo svg {
   fill: currentColor;
   filter: drop-shadow(0 0 8px rgba(255, 121, 0, 0.56));
 }

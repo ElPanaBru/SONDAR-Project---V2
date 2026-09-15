@@ -3408,3 +3408,19 @@
   color: #ffbf52;
   font-size: 0.76rem;
 }
+
+.mapa-ubicacion-usuario {
+  background: transparent;
+  border: 0;
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.65));
+}
+.mapa-ubicacion-usuario svg { display: block; width: 28px; height: 36px; }
+.mapa-ubicacion-usuario:focus-visible { outline: 2px solid #fff; outline-offset: 4px; border-radius: 8px; }
+.leaflet-tooltip.mapa-ubicacion-tooltip {
+  color: #fff;
+  background: #18120b;
+  border: 1px solid #ffae00;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.leaflet-tooltip-top.mapa-ubicacion-tooltip::before { border-top-color: #ffae00; }

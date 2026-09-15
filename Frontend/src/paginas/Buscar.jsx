@@ -1,3 +1,4 @@
+import BuscarSkeleton from "../componentes/BuscarSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -81,7 +82,9 @@ export default function Buscar({ usuario }) {
   const [usuarios, setUsuarios] = useState([]);
   const [reels, setReels] = useState([]);
   const [eventos, setEventos] = useState([]);
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(Boolean(query));
+  const [consultaCargada, setConsultaCargada] = useState(null);
+  const mostrandoCarga = Boolean(query) && (cargando || consultaCargada !== query);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -93,6 +96,8 @@ export default function Buscar({ usuario }) {
 
     const cargarResultados = async () => {
       if (!query) {
+        setCargando(false);
+        setConsultaCargada(null);
         setUsuarios([]);
         setReels([]);
         setEventos([]);
@@ -150,7 +155,10 @@ export default function Buscar({ usuario }) {
         console.error(err);
         if (activo) setError("No se pudo completar la busqueda.");
       } finally {
-        if (activo) setCargando(false);
+        if (activo) {
+          setConsultaCargada(query);
+          setCargando(false);
+        }
       }
     };
 
@@ -250,8 +258,8 @@ export default function Buscar({ usuario }) {
       );
     }
 
-    if (cargando) {
-      return <div className="buscar-empty">{t("Buscando...")}</div>;
+    if (mostrandoCarga) {
+      return <BuscarSkeleton tab={tabActiva} />;
     }
 
     if (error) {
@@ -348,7 +356,6 @@ export default function Buscar({ usuario }) {
   return (
     <section className="buscar-page">
       <header className="buscar-header">
-        <span>Busqueda global</span>
         <h1>{query ? `${t("Resultados para")} "${query}"` : t("Buscar")}</h1>
         <p>Usuarios, previews y eventos reunidos en una misma pantalla.</p>
       </header>
@@ -369,13 +376,13 @@ export default function Buscar({ usuario }) {
               onClick={() => setTabActiva(tab.id)}
             >
               {tab.label}
-              {query ? <small>{cantidad}</small> : null}
+              {query ? (mostrandoCarga ? <span className="buscar-skeleton-bloque buscar-skeleton-conteo" aria-label="Cargando cantidad de resultados" /> : <small>{cantidad}</small>) : null}
             </button>
           );
         })}
       </div>
 
-      <div className="buscar-resultados">
+      <div className="buscar-resultados" aria-busy={mostrandoCarga}>
         {renderLista()}
       </div>
     </section>

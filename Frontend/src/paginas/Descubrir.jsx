@@ -1,3 +1,4 @@
+import DescubrirSkeleton from "../componentes/DescubrirSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -514,6 +515,8 @@ export default function Descubrir({ usuario }) {
   const comentarioCompartido = searchParams.get("comentario");
   const creadorFiltrado = searchParams.get("creador")?.trim() || "";
   const [lanzamientos, setLanzamientos] = useState([]);
+  const [cargandoReels, setCargandoReels] = useState(true);
+  const [errorCargaReels, setErrorCargaReels] = useState("");
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
   const [reelAudioSeleccionado, setReelAudioSeleccionado] = useState(
     lanzamientoCompartido || null
@@ -827,6 +830,7 @@ export default function Descubrir({ usuario }) {
     let activo = true;
 
     const cargarReels = async () => {
+      setErrorCargaReels("");
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
@@ -872,6 +876,7 @@ export default function Descubrir({ usuario }) {
 
         if (activo) {
           setLanzamientos(reelsBackend);
+          setCargandoReels(false);
           const comentariosEntries = await Promise.all(
             reelsBackend.map(async (reel) => {
               try {
@@ -949,6 +954,10 @@ export default function Descubrir({ usuario }) {
         }
       } catch (error) {
         console.error(error);
+        if (activo) {
+          setErrorCargaReels(error.message || "No se pudieron cargar las previews.");
+          setCargandoReels(false);
+        }
       }
     };
 
@@ -2017,8 +2026,9 @@ export default function Descubrir({ usuario }) {
     }
 
     const guardadoAnterior = Boolean(lanzamiento.guardado);
+    const guardadosAnteriores = Number(lanzamiento.guardados || 0);
     setLanzamientos((prev) => prev.map((actual) => (
-      actual.id === lanzamiento.id ? { ...actual, guardado: !guardadoAnterior } : actual
+      actual.id === lanzamiento.id ? { ...actual, guardado: !guardadoAnterior, guardados: Math.max(0, guardadosAnteriores + (guardadoAnterior ? -1 : 1)) } : actual
     )));
 
     try {
@@ -2031,11 +2041,11 @@ export default function Descubrir({ usuario }) {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "No se pudo guardar la preview.");
       setLanzamientos((prev) => prev.map((actual) => (
-        actual.id === lanzamiento.id ? { ...actual, guardado: data.guardado } : actual
+        actual.id === lanzamiento.id ? { ...actual, guardado: data.guardado, guardados: data.guardados } : actual
       )));
     } catch (error) {
       setLanzamientos((prev) => prev.map((actual) => (
-        actual.id === lanzamiento.id ? { ...actual, guardado: guardadoAnterior } : actual
+        actual.id === lanzamiento.id ? { ...actual, guardado: guardadoAnterior, guardados: guardadosAnteriores } : actual
       )));
       mostrarAviso(error.message || "No se pudo guardar la preview.");
     }
@@ -2254,6 +2264,7 @@ export default function Descubrir({ usuario }) {
         comentariosAnimando ? "comentarios-animando" : ""
       }`}
       aria-label="Descubrir musica"
+      aria-busy={cargandoReels}
     >
       <div className="reel-fondos-globales" aria-hidden="true">
         {capasFondoReel.map((capa, indice) => (
@@ -2267,12 +2278,13 @@ export default function Descubrir({ usuario }) {
           />
         ))}
       </div>
-      <div className={`feed-pista ${lanzamientos.length === 0 ? "sin-resultados" : ""}`}>
-        {lanzamientos.length === 0 ? (
+      <div className={`feed-pista ${!cargandoReels && lanzamientos.length === 0 ? "sin-resultados" : ""}`}>
+        {cargandoReels && lanzamientos.length === 0 ? <DescubrirSkeleton /> : null}
+        {!cargandoReels && lanzamientos.length === 0 ? (
           <div className="descubrir-vacio" role="status">
             <span aria-hidden="true">♫</span>
-            <strong>{t("No hay nada que descubrir")}</strong>
-            <p>Cuando haya nuevas previews van a aparecer aca.</p>
+            <strong>{errorCargaReels || t("No hay nada que descubrir")}</strong>
+            <p>{errorCargaReels ? "Volvé a intentar cargar Descubrir." : "Cuando haya nuevas previews van a aparecer aca."}</p>
           </div>
         ) : null}
         {lanzamientos.map((lanzamiento) => {
@@ -2432,7 +2444,6 @@ export default function Descubrir({ usuario }) {
                       <Icono nombre="corazon" />
                     </button>
                     <small>{formatearConteo(lanzamiento.likes)}</small>
-                    <span>Me gusta</span>
                   </div>
                   <div className="accion-item">
                     <button
@@ -2449,7 +2460,6 @@ export default function Descubrir({ usuario }) {
                       <Icono nombre="comentario" />
                     </button>
                     <small>{comentariosDelLanzamiento.length}</small>
-                    <span>Comentarios</span>
                   </div>
                   <div className="accion-item">
                     <button
@@ -2461,11 +2471,10 @@ export default function Descubrir({ usuario }) {
                       <Icono nombre="compartir" />
                     </button>
                     <small>{formatearConteo(lanzamiento.compartidos)}</small>
-                    <span>Compartir</span>
                   </div>
                   <div className="accion-item">
                     <button
-                      className={`accion-boton ${lanzamiento.guardado ? "activo" : ""}`}
+                      className={`accion-boton accion-boton-guardar ${lanzamiento.guardado ? "activo" : ""}`}
                       type="button"
                       aria-label={lanzamiento.guardado ? "Quitar preview guardada" : "Guardar preview"}
                       aria-pressed={Boolean(lanzamiento.guardado)}
@@ -2473,7 +2482,7 @@ export default function Descubrir({ usuario }) {
                     >
                       <Icono nombre="guardar" />
                     </button>
-                    <span>{lanzamiento.guardado ? "Guardado" : "Guardar"}</span>
+                    <small>{formatearConteo(lanzamiento.guardados ?? 0)}</small>
                   </div>
                   <div className="accion-item accion-menu-item">
                     <button
@@ -2489,7 +2498,6 @@ export default function Descubrir({ usuario }) {
                     >
                       <Icono nombre="mas" />
                     </button>
-                    <span>Mas</span>
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
                         {puedeEliminar ? (

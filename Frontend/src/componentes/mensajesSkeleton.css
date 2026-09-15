@@ -1,0 +1,17 @@
+.mensajes-skeleton-bloque { background: #29292c; border-radius: 6px; animation: mensajes-skeleton-pulse 1.6s ease-in-out infinite; }
+.mensajes-skeleton-lista { overflow: hidden; }
+.mensajes-skeleton-fila { display: flex; align-items: center; gap: 12px; padding: 16px 14px; border-bottom: 1px solid #242426; }
+.mensajes-skeleton-avatar { width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; }
+.mensajes-skeleton-lineas { display: grid; gap: 10px; flex: 1; min-width: 0; }
+.mensajes-skeleton-nombre { width: 65%; height: 16px; }
+.mensajes-skeleton-resumen { width: 92%; height: 13px; }
+.mensajes-skeleton-hora { width: 32px; height: 11px; }
+.mensajes-skeleton-chat { width: 100%; }
+.mensajes-skeleton-chat.completo { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.mensajes-skeleton-burbujas { display: flex; flex-direction: column; gap: 18px; padding-block: 12px; }
+.mensajes-skeleton-chat.completo .mensajes-skeleton-burbujas { flex: 1; padding: 24px clamp(14px, 3vw, 42px); }
+.mensajes-skeleton-burbuja { width: 56%; max-width: 360px; height: 56px; border-radius: 17px 17px 17px 5px; }
+.mensajes-skeleton-burbuja.propia { width: 42%; height: 42px; align-self: flex-end; border-radius: 17px 17px 5px 17px; }
+.mensajes-skeleton-composer { height: 44px; flex-shrink: 0; margin: 16px; border-radius: 14px; }
+@keyframes mensajes-skeleton-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mensajes-skeleton-bloque { animation: none; } }

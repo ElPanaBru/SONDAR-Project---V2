@@ -1,5 +1,6 @@
+import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
@@ -282,6 +283,7 @@ export default function Comunidad({ usuario }) {
   const publicacionCompartida = searchParams.get("publicacion");
   const comentarioCompartido = searchParams.get("comentario");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
+  const [cargandoComunidades, setCargandoComunidades] = useState(true);
   const [comunidadActivaId, setComunidadActivaId] = useState("pop");
   const [comunidadCompartir, setComunidadCompartir] = useState(null);
   const [filtroActivo, setFiltroActivo] = useState("destacado");
@@ -427,6 +429,8 @@ export default function Comunidad({ usuario }) {
         if (!cancelado) {
           mostrarAviso(error.message || "Usando comunidades locales por ahora.");
         }
+      } finally {
+        if (!cancelado) setCargandoComunidades(false);
       }
     }
 
@@ -585,17 +589,17 @@ export default function Comunidad({ usuario }) {
   );
 
   useEffect(() => {
-    if (!publicacionCompartida || cargandoHilos) return;
+    if (!publicacionCompartida || cargandoHilos || cargandoComunidades) return;
     window.setTimeout(() => {
       document.getElementById(`publicacion-${publicacionCompartida}`)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 120);
-  }, [cargandoHilos, hilos, publicacionCompartida]);
+  }, [cargandoComunidades, cargandoHilos, hilos, publicacionCompartida]);
 
   useEffect(() => {
-    if (!publicacionCompartida || !comentarioCompartido || cargandoHilos) return;
+    if (!publicacionCompartida || !comentarioCompartido || cargandoHilos || cargandoComunidades) return;
     const publicacionId = Number(publicacionCompartida);
     setRespuestasAbiertas((abiertas) => abiertas.includes(publicacionId)
       ? abiertas
@@ -607,7 +611,7 @@ export default function Comunidad({ usuario }) {
         block: "center",
       });
     }, 180);
-  }, [cargandoHilos, comentarioCompartido, hilos, publicacionCompartida]);
+  }, [cargandoComunidades, cargandoHilos, comentarioCompartido, hilos, publicacionCompartida]);
 
   const handleChange = (e) => {
     setNuevoHilo({
@@ -1126,6 +1130,24 @@ export default function Comunidad({ usuario }) {
       .catch(() => mostrarAviso("No se pudo reproducir esta preview."));
   };
 
+  const renderizarAutor = (autor, soloAvatar = false) => {
+    const nombre = autor.usuario || autor.op || autor.autor || "Usuario SONDAR";
+    const destino = String(autor.userId) === String(usuario?.id)
+      ? "/perfil"
+      : `/perfil/${encodeURIComponent(autor.userId)}`;
+    const contenido = soloAvatar ? (
+      <>
+        <span>{(autor.op || autor.autor || nombre).replace(/^@/, "").charAt(0).toUpperCase()}</span>
+        {autor.avatar ? (
+          <img key={autor.avatar} src={autor.avatar} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
+        ) : null}
+      </>
+    ) : <strong>{nombre}</strong>;
+    const clase = soloAvatar ? "publicacion-avatar post-avatar comunidad-autor-avatar" : "comunidad-autor-enlace";
+    return autor.userId ? (
+      <Link to={destino} className={clase} aria-label={`Ver perfil de ${nombre}`}>{contenido}</Link>
+    ) : <span className={clase}>{contenido}</span>;
+  };
   const renderizarComentario = (hilo, comentario, nivel = 0) => {
     const claveRespuesta = `${hilo.id}:${comentario.id}`;
     const esPropio = usuario?.id && comentario.userId === usuario.id;
@@ -1140,7 +1162,8 @@ export default function Comunidad({ usuario }) {
         <div className="respuesta-linea" />
         <div className="respuesta-contenido">
           <div className="respuesta-meta">
-            <strong>{comentario.usuario}</strong>
+            {renderizarAutor(comentario, true)}
+            {renderizarAutor(comentario)}
             <span>{comentario.autor}</span>
             <span>{comentario.tiempo || "ahora"}</span>
           </div>
@@ -1181,13 +1204,17 @@ export default function Comunidad({ usuario }) {
             {!esPropio ? (
               <button
                 className="respuesta-denunciar"
+                aria-label="Denunciar comentario"
+                title="Denunciar comentario"
                 type="button"
                 onClick={() => {
                   if (!usuario) return pedirLogin();
                   setDenunciaPendiente({ tipo: "comentario", hilo, comentario });
                 }}
               >
-                Denunciar
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 21V4m0 0c5-4 9 4 14 0v11c-5 4-9-4-14 0" />
+                </svg>
               </button>
             ) : null}
           </div>
@@ -1218,6 +1245,8 @@ export default function Comunidad({ usuario }) {
       </article>
     );
   };
+
+  if (cargandoComunidades) return <ComunidadSkeleton />;
 
   return (
     <main className="comunidad-container">
@@ -1398,17 +1427,13 @@ export default function Comunidad({ usuario }) {
               ) : null}
             </div>
             <div className="comunidad-toolbar-meta">
-              <span>{hilosFiltrados.length} posts</span>
+              {cargandoHilos ? <div className="comunidad-skeleton-bloque" aria-label="Cargando cantidad de publicaciones" /> : <span>{hilosFiltrados.length} posts</span>}
               <span>{mostrarGenero(comunidadActiva.genero)}</span>
             </div>
           </div>
 
           <div className="comunidad-feed">
-            {cargandoHilos && (
-              <div className="comunidad-vacio">
-                Cargando publicaciones...
-              </div>
-            )}
+            {cargandoHilos && <PublicacionesSkeleton />}
 
             {!cargandoHilos && hilosFiltrados.map((hilo) => (
               <article
@@ -1418,11 +1443,9 @@ export default function Comunidad({ usuario }) {
               >
                 <div className="publicacion-contenido">
                   <div className="post-author-row">
-                    <div className="publicacion-avatar post-avatar">
-                      {(hilo.op || hilo.usuario || "S").charAt(0).toUpperCase()}
-                    </div>
+                    {renderizarAutor(hilo, true)}
                     <div className="publicacion-meta post-meta">
-                      <strong>{hilo.usuario}</strong>
+                      {renderizarAutor(hilo)}
                       <span>{hilo.op}</span>
                       <span>{hilo.tiempo || "ahora"}</span>
                     </div>
@@ -1437,10 +1460,14 @@ export default function Comunidad({ usuario }) {
                     ) : usuario?.id ? (
                       <button
                         className="post-menu post-denunciar"
+                        aria-label="Denunciar publicación"
+                        title="Denunciar publicación"
                         type="button"
                         onClick={() => setDenunciaPendiente({ tipo: "publicacion", hilo })}
                       >
-                        Denunciar
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M5 21V4m0 0c5-4 9 4 14 0v11c-5 4-9-4-14 0" />
+                        </svg>
                       </button>
                     ) : null}
                   </div>
@@ -1581,7 +1608,7 @@ export default function Comunidad({ usuario }) {
               </div>
               <div>
                 <dt>respuestas</dt>
-                <dd>{totalComentarios}</dd>
+                <dd>{cargandoHilos ? <div className="comunidad-skeleton-bloque" aria-label="Cargando cantidad de respuestas" /> : totalComentarios}</dd>
               </div>
             </dl>
           </section>

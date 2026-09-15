@@ -1,3 +1,4 @@
+import PerfilSkeleton from "../componentes/PerfilSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
@@ -126,7 +127,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
   const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
   const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
   const [contenido, setContenido] = useState(contenidoInicial);
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState("");
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
@@ -163,19 +164,11 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
     let activo = true;
 
     const cargarPerfil = async () => {
-      if (!usuario) {
-        const fallback = perfilDesdeUsuario(null);
-        setPerfil(fallback);
-        setPerfilEditado(fallback);
-        setContenido(contenidoInicial);
-        return;
-      }
-
       setCargando(true);
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        if (!token) return;
+        if (!token) throw new Error("Iniciá sesión para ver tu perfil.");
 
         const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: {
@@ -214,7 +207,8 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
     return () => {
       activo = false;
     };
-  }, [usuario]);
+  // La renovación de sesión al recuperar el foco no cambia el perfil consultado.
+  }, [usuario?.id]);
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -325,16 +319,6 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
   const renderContenidoActivo = () => {
     const items = contenido[tabActiva] || [];
 
-    if (cargando) {
-      return (
-        <div className="perfil-empty-state">
-          <span><IconoPerfil nombre={iconoTab(tabActiva)} size={34} /></span>
-          <h3>{t("Cargando perfil...")}</h3>
-          <p>Estamos trayendo tu contenido desde Supabase.</p>
-        </div>
-      );
-    }
-
     if (tabActiva === "comunidad") {
       return (
         <PerfilComunidad
@@ -364,6 +348,8 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
       </div>
     );
   };
+
+  if (cargando) return <PerfilSkeleton />;
 
   return (
     <section className="perfil-page">

@@ -545,6 +545,31 @@ export default function Eventos({ usuario }) {
     };
   }, []);
 
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !posicionUsuario) return;
+    const { lat, lng } = posicionUsuario;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const pin = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: "mapa-ubicacion-usuario",
+        html: '<svg viewBox="0 0 28 36" aria-hidden="true"><defs><linearGradient id="sondar-ubicacion-gradiente" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffae00"/><stop offset="100%" stop-color="#ff5e00"/></linearGradient></defs><path d="M14 34S2 21 2 14a12 12 0 0 1 24 0c0 7-12 20-12 20Z" fill="url(#sondar-ubicacion-gradiente)" stroke="#080808" stroke-width="2"/><circle cx="14" cy="14" r="4" fill="#080808"/></svg>',
+        iconSize: [28, 36],
+        iconAnchor: [14, 34],
+        tooltipAnchor: [0, -32],
+      }),
+      title: "Tu ubicación",
+      alt: "Tu ubicación",
+      zIndexOffset: 1000,
+      bubblingMouseEvents: false,
+    }).addTo(map);
+    pin.bindTooltip("Tu ubicación", {
+      direction: "top",
+      className: "mapa-ubicacion-tooltip",
+    });
+    return () => { pin.remove(); };
+  }, [posicionUsuario]);
   // Mantiene la fuente correcta incluso cuando React conserva la instancia
   // de Leaflet durante una recarga en caliente del modulo.
   useEffect(() => {
@@ -1204,14 +1229,24 @@ export default function Eventos({ usuario }) {
             <button
               type="button"
               className={estadoUbicacion === "lista" ? "ubicacion-lista" : ""}
-              onClick={solicitarUbicacion}
+              onClick={() => {
+                if (posicionUsuario && mapInstance.current) {
+                  mapInstance.current.setView(
+                    [posicionUsuario.lat, posicionUsuario.lng],
+                    Math.max(mapInstance.current.getZoom(), 14),
+                    { animate: !preferencias.reducirMovimiento }
+                  );
+                } else {
+                  solicitarUbicacion();
+                }
+              }}
               disabled={estadoUbicacion === "solicitando"}
             >
               <IconoPanel nombre="ubicacion" size={16} />
               {estadoUbicacion === "solicitando"
                 ? "Buscando ubicacion..."
                 : estadoUbicacion === "lista"
-                  ? "Ubicacion activa"
+                  ? "Ver mi ubicación"
                   : "Usar mi ubicacion"}
             </button>
             <label>

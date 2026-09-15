@@ -1,0 +1,15 @@
+.descubrir-skeleton { min-height: calc(100vh - var(--nav-alto, 55px)); display: grid; place-items: center; padding: 24px 86px; background: #101010; }
+.descubrir-skeleton-layout { position: relative; width: var(--album-size); max-width: 100%; }
+.descubrir-skeleton-bloque { background: #282828; border-radius: 6px; animation: descubrir-skeleton-pulse 1.6s ease-in-out infinite; }
+.descubrir-skeleton-portada { width: 100%; aspect-ratio: 1; border-radius: 12px; }
+.descubrir-skeleton-acciones { position: absolute; left: calc(100% + 18px); top: 50%; transform: translateY(-50%); display: grid; gap: 14px; }
+.descubrir-skeleton-accion { display: grid; justify-items: center; gap: 7px; }
+.descubrir-skeleton-icono { width: 52px; height: 52px; border-radius: 50%; }
+.descubrir-skeleton-conteo { width: 22px; height: 12px; }
+@keyframes descubrir-skeleton-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
+@media (max-width: 760px) {
+  .descubrir-skeleton { padding: 20px 70px 20px 14px; }
+  .descubrir-skeleton-acciones { left: calc(100% + 10px); gap: 12px; }
+  .descubrir-skeleton-icono { width: 45px; height: 45px; }
+}
+@media (prefers-reduced-motion: reduce) { .descubrir-skeleton-bloque { animation: none; } }

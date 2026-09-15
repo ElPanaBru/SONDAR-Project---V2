@@ -1,0 +1,23 @@
+.buscar-skeleton-bloque { background: #292929; border-radius: 6px; animation: buscar-skeleton-pulse 1.6s ease-in-out infinite; }
+.buscar-skeleton-destacado { display: flex; align-items: center; gap: 24px; padding: 22px; margin-bottom: 24px; background: #151515; border-radius: 14px; }
+.buscar-skeleton-portada { width: 120px; height: 120px; flex-shrink: 0; border-radius: 12px; }
+.buscar-skeleton-lineas { display: grid; gap: 12px; flex: 1; min-width: 0; }
+.buscar-skeleton-titulo { width: 65%; height: 30px; }
+.buscar-skeleton-detalle { width: 44%; height: 14px; }
+.buscar-skeleton-fila { display: flex; align-items: center; gap: 16px; padding: 16px 12px; border-bottom: 1px solid #242424; }
+.buscar-skeleton-thumb { width: 54px; height: 54px; flex-shrink: 0; }
+.buscar-skeleton-thumb.usuario { border-radius: 50%; }
+.buscar-skeleton-nombre { width: 65%; height: 18px; }
+.buscar-skeleton-meta { width: 90px; height: 14px; }
+.buscar-skeleton-accion { width: 70px; height: 32px; border-radius: 20px; }
+.buscar-tabs .buscar-skeleton-conteo { display: inline-block; width: 20px; height: 14px; }
+@keyframes buscar-skeleton-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
+@media (max-width: 620px) {
+  .buscar-skeleton-destacado { padding: 16px; gap: 16px; }
+  .buscar-skeleton-portada { width: 80px; height: 80px; }
+  .buscar-skeleton-titulo { height: 24px; width: 90%; }
+  .buscar-skeleton-meta { display: none; }
+  .buscar-skeleton-accion { width: 32px; }
+  .buscar-skeleton-fila { gap: 10px; padding-inline: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .buscar-skeleton-bloque { animation: none; } }
