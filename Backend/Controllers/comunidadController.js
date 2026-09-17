@@ -162,6 +162,7 @@ async function asegurarEsquemaComunidades() {
           updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
         )
       `);
+      await pool.query("ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS adjuntos jsonb NOT NULL DEFAULT '[]'::jsonb");
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS likes integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS guardados integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE comunidad_publicaciones ADD COLUMN IF NOT EXISTS fijada boolean NOT NULL DEFAULT false');
@@ -198,6 +199,12 @@ async function asegurarEsquemaComunidades() {
       `);
       await pool.query('ALTER TABLE comunidad_comentarios ADD COLUMN IF NOT EXISTS likes integer NOT NULL DEFAULT 0');
       await pool.query('ALTER TABLE comunidad_comentarios ADD COLUMN IF NOT EXISTS responde_a text');
+      await pool.query(`CREATE TABLE IF NOT EXISTS comunidad_comentario_guardados (
+        user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        comentario_id bigint NOT NULL REFERENCES comunidad_comentarios(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, comentario_id)
+      )`);
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS comunidad_comentario_likes (
@@ -290,10 +297,12 @@ function mapearComentario(row) {
     userId: row.user_id,
     autor: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
     usuario: usuarioVisible(row),
+    avatar: row.profile_img_url || '',
     texto: row.texto,
     votos: Number(row.likes || 0),
     likes: Number(row.likes || 0),
     liked: Boolean(row.liked),
+    guardado: Boolean(row.guardado),
     parentId: row.parent_id ? Number(row.parent_id) : null,
     respondeA: row.responde_a || '',
     tiempo: tiempoRelativo(row.created_at),
@@ -329,9 +338,11 @@ function mapearPublicacion(row, comentarios = []) {
   return {
     id: Number(row.id),
     comunidadId: row.comunidad_id,
+    adjuntos: row.adjuntos || [],
     userId: row.user_id,
     op: row.username || row.email?.split('@')[0] || 'Usuario SONDAR',
     usuario: usuarioVisible(row),
+    avatar: row.profile_img_url || '',
     tipo: row.tipo,
     titulo: row.titulo,
     texto: row.texto,
@@ -352,8 +363,10 @@ async function listarComentariosPublicaciones(publicacionIds, viewerId) {
   const result = await pool.query(
     `SELECT
        cc.*,
+       EXISTS (SELECT 1 FROM comunidad_comentario_guardados cg WHERE cg.comentario_id = cc.id AND cg.user_id = $2) AS guardado,
        u.username,
        u.email,
+       u.profile_img_url,
        EXISTS (
          SELECT 1
          FROM comunidad_comentario_likes ccl
@@ -480,6 +493,7 @@ const comunidadController = {
            c.genero,
            u.username,
            u.email,
+           u.profile_img_url,
            EXISTS (
              SELECT 1
              FROM comunidad_publicacion_likes cpl
@@ -541,16 +555,26 @@ const comunidadController = {
       const member = await pool.query('SELECT 1 FROM comunidad_miembros WHERE comunidad_id = $1 AND user_id = $2', [comunidadId, req.user.id]);
       if (!member.rowCount) return res.status(403).json({ code: 'MEMBERSHIP_REQUIRED', error: 'Unite a la comunidad para publicar.' });
 
+      const adjuntos = [];
+      for (const [field, table, kind] of [['eventoId', 'eventos', 'evento'], ['reelId', 'reels', 'reel']]) {
+        if (req.body[field] == null) continue;
+        const id = Number(req.body[field]);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'El contenido asociado no es valido.' });
+        const attached = await pool.query('SELECT * FROM ' + table + ' WHERE id = $1', [id]);
+        const item = attached.rows[0];
+        if (!item) return res.status(400).json({ error: 'El contenido asociado ya no esta disponible.' });
+        adjuntos.push({ id, tipo: kind, titulo: item.titulo, imagen: item.img_url || item.portada_url || '', detalle: item.lugar || item.album || item.genero || '', fecha: item.fecha || null, duracion: item.duracion || null });
+      }
       const tipoSeguro = ['destacado', 'reciente', 'popular', 'preguntas'].includes(tipo) ? tipo : 'reciente';
       const result = await pool.query(
-        `INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO comunidad_publicaciones (comunidad_id, user_id, tipo, titulo, texto, etiqueta, adjuntos)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
          RETURNING *`,
-        [comunidadId, req.user.id, tipoSeguro, titulo, texto, etiqueta || comunidad.rows[0].genero]
+        [comunidadId, req.user.id, tipoSeguro, titulo, texto, etiqueta || comunidad.rows[0].genero, JSON.stringify(adjuntos)]
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email
+        `SELECT u.username, u.email, u.profile_img_url
          FROM users u
          WHERE u.id = $1`,
         [req.user.id]
@@ -579,6 +603,7 @@ const comunidadController = {
       res.status(201).json(mapearPublicacion({
         ...result.rows[0],
         genero: comunidad.rows[0].genero,
+        profile_img_url: usuarioResult.rows[0]?.profile_img_url,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
         liked: false,
@@ -624,7 +649,7 @@ const comunidadController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email
+        `SELECT u.username, u.email, u.profile_img_url
          FROM users u
          WHERE u.id = $1`,
         [req.user.id]
@@ -660,6 +685,7 @@ const comunidadController = {
 
       res.status(201).json(mapearComentario({
         ...result.rows[0],
+        profile_img_url: usuarioResult.rows[0]?.profile_img_url,
         username: usuarioResult.rows[0]?.username,
         email: usuarioResult.rows[0]?.email || req.user.email,
         liked: false,
@@ -825,6 +851,26 @@ const comunidadController = {
     }
   },
 
+  guardarComentario: async (req, res) => {
+    try {
+      await asegurarUsuarioPublico(req.user);
+      await asegurarEsquemaComunidades();
+      const id = Number(req.params.comentarioId);
+      if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Comentario invalido.' });
+      if (req.method === 'DELETE') {
+        await pool.query('DELETE FROM comunidad_comentario_guardados WHERE user_id = $1 AND comentario_id = $2', [req.user.id, id]);
+      } else {
+        const exists = await pool.query('SELECT id FROM comunidad_comentarios WHERE id = $1', [id]);
+        if (!exists.rowCount) return res.status(404).json({ error: 'Comentario no encontrado.' });
+        await pool.query('INSERT INTO comunidad_comentario_guardados (user_id, comentario_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [req.user.id, id]);
+      }
+      res.json({ id, guardado: req.method !== 'DELETE' });
+    } catch (error) {
+      console.error('Error al guardar comentario:', error);
+      res.status(500).json({ error: 'No se pudo actualizar el guardado.' });
+    }
+  },
+
   alternarLikeComentario: async (req, res) => {
     const { comentarioId } = req.params;
     const client = await pool.connect();
@@ -901,4 +947,4 @@ const comunidadController = {
   },
 };
 
-module.exports = comunidadController;
+module.exports = { ...comunidadController, asegurarEsquemaComunidades };

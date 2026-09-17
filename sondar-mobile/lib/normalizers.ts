@@ -119,6 +119,7 @@ export function normalizeCommunityPost(item: AnyRecord = {}) {
     id: toNumber(item.id),
     comunidadId: item.comunidadId || item.comunidad_id,
     userId: item.userId || item.user_id,
+    avatar: item.avatar || item.profile_img_url || '',
     op: item.op || item.autor || item.username || 'Usuario SONDAR',
     usuario: item.usuario || normalizeHandle(item.username || item.op || item.email?.split?.('@')?.[0]),
     tipo: item.tipo || 'reciente',

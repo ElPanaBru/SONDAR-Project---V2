@@ -4,7 +4,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette } from '@/constants/sondar';
@@ -16,12 +16,17 @@ import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, Notifica
 type CommunityAttachment = { tipo: 'reel' | 'evento'; id: number; titulo: string; detalle?: string; imagen?: string };
 type CommunityComment = { id: number; userId?: string; usuario: string; nombre?: string; avatar?: string; texto: string; tiempo?: string };
 type CommunityPost = { id: number; userId?: string; usuario: string; nombre?: string; avatar?: string; texto: string; tipo: string; tiempo?: string; adjunto?: CommunityAttachment | null; comentarios?: CommunityComment[] };
-type ProfileData = { perfil: any; publicaciones: any[]; eventos: any[]; favoritos: any[]; guardados: any[]; comunidad: CommunityPost[]; seguidores: any[]; seguidos: any[]; stats: { publicaciones: number; seguidores: number; seguidos: number }; siguiendo?: boolean; silenciado?: boolean };
-const blank: ProfileData = { perfil: {}, publicaciones: [], eventos: [], favoritos: [], guardados: [], comunidad: [], seguidores: [], seguidos: [], stats: { publicaciones: 0, seguidores: 0, seguidos: 0 } };
+type ProfileData = { perfil: any; publicaciones: any[]; eventos: any[]; favoritos: any[]; guardados: any[]; guardadosComunidad: any[]; guardadosComentarios: any[]; comunidad: CommunityPost[]; seguidores: any[]; seguidos: any[]; stats: { publicaciones: number; seguidores: number; seguidos: number }; siguiendo?: boolean; silenciado?: boolean };
+const blank: ProfileData = { perfil: {}, publicaciones: [], eventos: [], favoritos: [], guardados: [], guardadosComunidad: [], guardadosComentarios: [], comunidad: [], seguidores: [], seguidos: [], stats: { publicaciones: 0, seguidores: 0, seguidos: 0 } };
 
-function openProfileContent(item: { id?: number | string; backendId?: number | string; backend_id?: number | string; tipo?: string; guardadoTipo?: string }) {
+function openProfileContent(item: { id?: number | string; backendId?: number | string; backend_id?: number | string; tipo?: string; guardadoTipo?: string; comunidadId?: string; publicacionId?: number | string }) {
   const id = item.backendId ?? item.backend_id ?? item.id;
   if (id === undefined || id === null || id === '') return;
+
+  if (['comunidad', 'comentario'].includes(item.guardadoTipo || item.tipo || '')) {
+    if (item.comunidadId) router.push({ pathname: '/community', params: { comunidadId: item.comunidadId, publicacionId: String(item.publicacionId || id) } });
+    return;
+  }
 
   if ((item.guardadoTipo || item.tipo) === 'evento') {
     router.push({ pathname: '/', params: { eventId: String(id) } });
@@ -39,6 +44,7 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'publicaciones' | 'eventos' | 'favoritos' | 'guardados' | 'comunidad'>('publicaciones');
+  const [savedFilter, setSavedFilter] = useState<'reel' | 'evento' | 'comunidad' | 'comentario'>('reel');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [preparingPhoto, setPreparingPhoto] = useState(false);
@@ -197,26 +203,58 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   if (error && !data.perfil?.id) return <Screen><Header title="Perfil" back={!own} /><ErrorNotice message={error} /><Button onPress={() => void load()}>Reintentar</Button></Screen>;
 
   const profile = data.perfil || {};
-  const content = data[tab] || [];
+  const isSaved = own && tab === 'guardados';
+  const savedItems = [...(data.guardados || []), ...(data.guardadosComunidad || []), ...(data.guardadosComentarios || [])];
+  const savedCounts = {
+    comentario: savedItems.filter(item => (item.guardadoTipo || item.tipo) === 'comentario').length,
+    comunidad: savedItems.filter(item => (item.guardadoTipo || item.tipo) === 'comunidad').length,
+    reel: savedItems.filter(item => (item.guardadoTipo || item.tipo) === 'reel').length,
+    evento: savedItems.filter(item => (item.guardadoTipo || item.tipo) === 'evento').length,
+  };
+  const content = isSaved
+    ? savedItems.filter(item => (item.guardadoTipo || item.tipo) === savedFilter)
+    : data[tab] || [];
+  const savedEmptyTitle = savedFilter === 'reel'
+    ? 'Todavía no guardaste reels'
+    : savedFilter === 'evento' ? 'Todavía no guardaste eventos' : savedFilter === 'comentario' ? 'Todavía no guardaste comentarios' : 'Todavía no guardaste publicaciones';
   const isCommunity = tab === 'comunidad';
+  const singleColumn = isCommunity || tab === 'eventos' || (isSaved && savedFilter !== 'reel');
   const profileTabs = own
     ? ([['publicaciones', 'Previews', 'grid-outline'], ['eventos', 'Eventos', 'calendar-outline'], ['favoritos', 'Likes', 'heart-outline'], ['guardados', 'Guardados', 'bookmark-outline'], ['comunidad', 'Comunidad', 'people-outline']] as const)
     : ([['publicaciones', 'Previews', 'grid-outline'], ['eventos', 'Eventos', 'calendar-outline'], ['comunidad', 'Comunidad', 'people-outline']] as const);
   return (
     <Screen>
       <Header title={own ? 'Mi perfil' : profile.nombre || 'Perfil'} subtitle={profile.usuario} back={!own} actions={own ? <><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><Pressable accessibilityRole="button" accessibilityLabel="Abrir menú de cuenta" hitSlop={8} onPress={() => setAccountMenu(true)} style={({ pressed }) => [styles.accountTrigger, accountMenu && styles.accountTriggerActive, pressed && styles.pressed]}><Avatar uri={profile.avatar} name={profile.nombre || user?.email} size={30} /><Ionicons name="chevron-down" size={13} color={accountMenu ? palette.orange : palette.muted} /></Pressable></> : <><IconButton name="chatbubble-outline" onPress={openMessages} /><IconButton name="flag-outline" onPress={() => setReporting(true)} /><IconButton name="ellipsis-horizontal" onPress={() => Alert.alert('Opciones', undefined, [{ text: data.silenciado ? 'Activar notificaciones' : 'Silenciar notificaciones', onPress: mute }, { text: 'Bloquear', style: 'destructive', onPress: block }, { text: 'Cancelar', style: 'cancel' }])} /></>} />
-      {loading ? <Loading /> : <FlatList key={`profile-${tab}`} data={content} keyExtractor={(item, index) => `${item.tipo}-${item.id}-${index}`} numColumns={isCommunity ? 1 : 2} contentContainerStyle={styles.content} columnWrapperStyle={!isCommunity && content.length > 1 ? styles.columns : undefined} ListHeaderComponent={<>
+      {loading ? <Loading /> : <FlatList key={`profile-${tab}-${singleColumn}`} data={content} keyExtractor={(item, index) => `${item.tipo}-${item.id}-${index}`} numColumns={singleColumn ? 1 : 2} contentContainerStyle={styles.content} columnWrapperStyle={!singleColumn && content.length > 1 ? styles.columns : undefined} ListHeaderComponent={<>
         <ErrorNotice message={error} />
         <View style={styles.profileTop}><Pressable disabled={!own} onPress={() => setEditing(true)} style={styles.profileAvatar}><Avatar uri={profile.avatar} name={profile.nombre} size={92} onError={() => setAvatarFailed(true)} />{own ? <View style={styles.profileCamera}><Ionicons name="camera" color="#111" size={16} /></View> : null}</Pressable><View style={{ flex: 1 }}><Text style={styles.name}>{profile.nombre || user?.email?.split('@')[0]}</Text><Text style={styles.handle}>{profile.usuario || `@${user?.user_metadata?.username || 'usuario'}`}</Text><Text style={styles.bio}>{profile.bio || 'Artista en SONDAR.'}</Text>{own && (!profile.avatar || avatarFailed) ? <Pressable onPress={() => setEditing(true)}><Text style={styles.avatarHelp}>Agregar nuevamente la foto</Text></Pressable> : null}</View></View>
         <View style={styles.stats}><Stat value={data.stats?.publicaciones || 0} label="Previews y eventos" /><Pressable onPress={() => setSocial('seguidores')}><Stat value={data.stats?.seguidores || 0} label="Seguidores" /></Pressable><Pressable onPress={() => setSocial('seguidos')}><Stat value={data.stats?.seguidos || 0} label="Seguidos" /></Pressable></View>
         <View style={styles.buttons}>{own ? <><View style={{ flex: 1 }}><Button onPress={() => setEditing(true)}>Editar perfil</Button></View><IconButton name="share-social-outline" onPress={() => Share.share({ message: `Encontrame en SONDAR como ${profile.usuario || profile.username || profile.nombre || user?.user_metadata?.username || 'usuario'}` })} /></> : <><View style={{ flex: 1 }}><Button onPress={follow}>{data.siguiendo ? 'Siguiendo' : 'Seguir'}</Button></View><IconButton name={data.silenciado ? 'notifications-off' : 'notifications-outline'} active={data.silenciado} onPress={mute} /></>}</View>
         <View style={styles.tabs}>{profileTabs.map(([id, label, icon]) => <Pressable key={id} onPress={() => setTab(id)} style={[styles.tab, tab === id && styles.tabActive]}><Ionicons name={icon} size={19} color={tab === id ? palette.orange : palette.muted} /><Text style={[styles.tabText, tab === id && { color: palette.orange }]}>{label}</Text></Pressable>)}</View>
+        {isSaved ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.savedRail} contentContainerStyle={styles.savedFilters}>
+            {([['reel', 'Reels', 'play-circle-outline'], ['evento', 'Eventos', 'calendar-outline'], ['comunidad', 'Publicaciones', 'chatbubbles-outline'], ['comentario', 'Comentarios', 'chatbox-outline']] as const).map(([id, label, icon]) => (
+              <Pressable
+                key={id}
+                accessibilityRole="button"
+                accessibilityState={{ selected: savedFilter === id }}
+                accessibilityLabel={label + ': ' + savedCounts[id]}
+                onPress={() => setSavedFilter(id)}
+                style={[styles.savedFilter, savedFilter === id && styles.savedFilterActive]}
+              >
+                <Ionicons name={icon} size={19} color={savedFilter === id ? palette.amber : palette.muted} />
+                <Text style={[styles.savedFilterText, savedFilter === id && styles.savedFilterTextActive]}>{label}</Text>
+                <View style={styles.savedCount}><Text style={[styles.savedFilterText, savedFilter === id && styles.savedFilterTextActive]}>{savedCounts[id]}</Text></View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : null}
         {own && isCommunity ? <View style={styles.communityComposer}><Text style={ui.muted}>Esta actualización se publica en la Comunidad de tu perfil. Para publicar en un foro por género, entrá a la pestaña Comunidad.</Text>
           <View style={styles.composerTop}><Avatar uri={profile.avatar} name={profile.nombre} size={42} /><View style={{ flex: 1 }}><Field value={communityText} onChangeText={setCommunityText} placeholder="Compartir una actualización…" multiline maxLength={1000} /></View></View>
           {communityAttachment ? <View style={styles.selectedAttachment}><Ionicons name={communityAttachment.tipo === 'reel' ? 'musical-note' : 'calendar'} size={20} color={palette.amber} /><View style={{ flex: 1 }}><Text style={styles.attachmentTitle} numberOfLines={1}>{communityAttachment.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{communityAttachment.detalle}</Text></View><Pressable onPress={() => setCommunityAttachment(null)}><Ionicons name="close-circle" size={22} color={palette.muted} /></Pressable></View> : null}
           <View style={styles.composerActions}><View style={styles.attachActions}><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('reel')}><Ionicons name="musical-note" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Preview</Text></Pressable><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('evento')}><Ionicons name="calendar" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Evento</Text></Pressable></View><Pressable disabled={communityBusy || (!communityText.trim() && !communityAttachment)} onPress={publishCommunity} style={[styles.publishCommunity, (communityBusy || (!communityText.trim() && !communityAttachment)) && styles.publishDisabled]}><Ionicons name="send" size={18} color="#111" /><Text style={styles.publishCommunityText}>{communityBusy ? 'Publicando…' : 'Publicar'}</Text></Pressable></View>
         </View> : null}
-      </>} ListEmptyComponent={<Empty icon={isCommunity ? 'people-outline' : undefined} title={isCommunity ? 'Todavía no hay actividad' : `No hay ${tab} todavía`} text={isCommunity ? 'Las previews, eventos y actualizaciones aparecerán acá.' : undefined} />} renderItem={({ item }) => isCommunity ? <CommunityCard item={item as CommunityPost} currentUserId={user?.id} draft={commentDrafts[item.id] || ''} onDraft={value => setCommentDrafts(current => ({ ...current, [item.id]: value }))} onComment={() => commentCommunity(item)} onDelete={() => deleteCommunity(item)} onReport={() => setCommunityReport(item)} /> : <ContentCard item={item} />} />}
+      </>} ListEmptyComponent={<Empty icon={isSaved ? (savedFilter === 'reel' ? 'play-circle-outline' : savedFilter === 'evento' ? 'calendar-outline' : savedFilter === 'comentario' ? 'chatbox-outline' : 'chatbubbles-outline') : isCommunity ? 'people-outline' : undefined} title={isSaved ? savedEmptyTitle : isCommunity ? 'Todavía no hay actividad' : `No hay ${tab} todavía`} text={isSaved ? 'Tocá el marcador de un reel, un evento, una publicación o un comentario para encontrarlo acá.' : isCommunity ? 'Las previews, eventos y actualizaciones aparecerán acá.' : undefined} />} renderItem={({ item }) => isCommunity ? <CommunityCard item={item as CommunityPost} currentUserId={user?.id} draft={commentDrafts[item.id] || ''} onDraft={value => setCommentDrafts(current => ({ ...current, [item.id]: value }))} onComment={() => commentCommunity(item)} onDelete={() => deleteCommunity(item)} onReport={() => setCommunityReport(item)} /> : singleColumn ? <ProfileContentRow item={item} /> : <ContentCard item={item} />} />}
 
       <Modal visible={editing} animationType="slide" onRequestClose={() => setEditing(false)}><Screen scroll><Header title="Editar perfil" back onBack={() => setEditing(false)} actions={<IconButton name="close" onPress={() => setEditing(false)} />} /><ErrorNotice message={error} /><Pressable onPress={pickAvatar} style={styles.avatarEdit}><Avatar uri={avatar?.uri || profile.avatar} name={form.nombre} size={112} /><View style={styles.camera}><Ionicons name="camera" color="#111" size={20} /></View></Pressable><Text style={styles.avatarEditHint}>Tocá la foto para elegir una nueva</Text><Field label="Nombre visible" value={form.nombre} onChangeText={nombre => setForm(f => ({ ...f, nombre }))} maxLength={80} /><Field label="Biografía" value={form.bio} onChangeText={bio => setForm(f => ({ ...f, bio }))} multiline maxLength={300} /><Button onPress={save} disabled={saving || preparingPhoto}>{preparingPhoto ? 'Preparando foto...' : saving ? 'Guardando...' : 'Guardar cambios'}</Button></Screen></Modal>
 
@@ -259,7 +297,23 @@ function CommunityCard({ item, currentUserId, draft, onDraft, onComment, onDelet
 }
 
 function Stat({ value, label }: { value: number; label: string }) { return <View style={styles.stat}><Text style={styles.statValue}>{new Intl.NumberFormat('es-AR', { notation: 'compact' }).format(value)}</Text><Text style={styles.statLabel}>{label}</Text></View>; }
-function ContentCard({ item }: { item: any }) { const image = item.imagen || item.portada || item.img; return <Pressable style={styles.contentCard} onPress={() => openProfileContent(item)}>{image ? <Image source={{ uri: image }} style={styles.contentImage} contentFit="cover" /> : <View style={[styles.contentImage, styles.contentFallback]}><Ionicons name={item.tipo === 'evento' ? 'calendar' : 'musical-note'} color={palette.orange} size={28} /></View>}<Text style={styles.contentTitle} numberOfLines={1}>{item.nombre || item.titulo || item.tema}</Text><Text style={ui.muted} numberOfLines={1}>{item.detalle || item.genero || item.tipo}</Text></Pressable>; }
+function ProfileContentRow({ item }: { item: any }) {
+  const event = (item.guardadoTipo || item.tipo) === 'evento';
+  const date = item.fecha ? new Date(item.fecha) : null;
+  const validDate = date && !Number.isNaN(date.getTime());
+  return <Pressable accessibilityRole="button" onPress={() => openProfileContent(item)} style={styles.savedRow}>
+    {event ? <View style={styles.eventDate}><Text style={styles.eventDay}>{validDate ? date.getDate() : '--'}</Text><Text style={styles.eventMonth}>{validDate ? date.toLocaleDateString('es-AR', { month: 'short' }).toUpperCase() : 'EVENTO'}</Text></View> : <View style={styles.savedRowIcon}><Ionicons name={item.tipo === 'comentario' ? 'chatbox-outline' : 'chatbubbles-outline'} size={26} color={palette.orange} /></View>}
+    <View style={{ flex: 1, gap: 4 }}>
+      <Text style={styles.contentTitle} numberOfLines={2}>{item.nombre || item.titulo}</Text>
+      <Text style={ui.muted} numberOfLines={2}>{item.texto || item.detalle || item.genero}</Text>
+      {event && validDate ? <Text style={styles.eventMeta}>{date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })}</Text> : null}
+      {!event ? <Text style={styles.eventMeta} numberOfLines={1}>{item.detalle}</Text> : null}
+    </View>
+    <Ionicons name="chevron-forward" size={19} color={palette.muted} />
+  </Pressable>;
+}
+
+function ContentCard({ item }: { item: any }) { const image = item.imagen || item.portada || item.img; return <Pressable style={styles.contentCard} onPress={() => openProfileContent(item)}>{image ? <Image source={{ uri: image }} style={styles.contentImage} contentFit="cover" /> : <View style={[styles.contentImage, styles.contentFallback]}><Ionicons name={item.tipo === 'comunidad' ? 'people' : item.tipo === 'evento' ? 'calendar' : 'musical-note'} color={palette.orange} size={28} /></View>}<Text style={styles.contentTitle} numberOfLines={1}>{item.nombre || item.titulo || item.tema}</Text><Text style={ui.muted} numberOfLines={1}>{item.detalle || item.genero || item.tipo}</Text></Pressable>; }
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 110, gap: 12 }, columns: { gap: 11 }, profileTop: { flexDirection: 'row', alignItems: 'center', gap: 17, paddingVertical: 10 }, name: { color: palette.text, fontSize: 23, fontWeight: '900' }, handle: { color: palette.orange, fontWeight: '700', marginTop: 2 }, bio: { color: '#D4D5D9', lineHeight: 19, marginTop: 7 },
@@ -267,6 +321,19 @@ const styles = StyleSheet.create({
   accountOverlay: { flex: 1, backgroundColor: '#0004' }, accountMenu: { position: 'absolute', right: 14, width: 225, padding: 7, borderRadius: 12, backgroundColor: '#111113', borderWidth: 1, borderColor: '#3A3A3E', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: .42, shadowRadius: 16, elevation: 14 }, accountMenuItem: { minHeight: 48, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderRadius: 8 }, accountMenuItemActive: { backgroundColor: '#261607' }, accountMenuItemDisabled: { opacity: .55 }, accountMenuLabel: { flex: 1, fontSize: 15, fontWeight: '700' }, accountDivider: { height: StyleSheet.hairlineWidth, marginVertical: 5, marginHorizontal: 7, backgroundColor: palette.border },
   stats: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 15, backgroundColor: palette.surface, borderRadius: 17, borderWidth: 1, borderColor: palette.border }, stat: { alignItems: 'center', minWidth: 80 }, statValue: { color: palette.text, fontSize: 19, fontWeight: '900' }, statLabel: { color: palette.muted, fontSize: 11, marginTop: 3 }, buttons: { flexDirection: 'row', gap: 9, marginVertical: 13 },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: palette.border, marginBottom: 13 }, tab: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 11 }, tabActive: { borderBottomWidth: 2, borderBottomColor: palette.orange }, tabText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
+  savedRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 12, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+  eventDate: { width: 58, minHeight: 68, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF79001A', borderWidth: 1, borderColor: '#FF790044' },
+  eventDay: { color: palette.amber, fontSize: 25, fontWeight: '900' },
+  eventMonth: { color: palette.orange, fontSize: 10, fontWeight: '800' },
+  eventMeta: { color: palette.orange, fontSize: 11, fontWeight: '700' },
+  savedRowIcon: { width: 48, height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FF79001A' },
+  savedRail: { flexGrow: 0, marginBottom: 16 },
+  savedCount: { minWidth: 24, height: 24, paddingHorizontal: 5, borderRadius: 12, backgroundColor: '#FFFFFF0D', alignItems: 'center', justifyContent: 'center' },
+  savedFilters: { flexDirection: 'row', gap: 8, paddingVertical: 3 },
+  savedFilter: { flexDirection: 'row', gap: 7, minHeight: 44, paddingHorizontal: 13, paddingVertical: 8, alignItems: 'center', borderRadius: 24, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+  savedFilterActive: { backgroundColor: '#FF790026', borderColor: palette.orange },
+  savedFilterText: { color: palette.muted, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  savedFilterTextActive: { color: palette.amber },
   contentCard: { flex: 1, maxWidth: '49%', padding: 9, borderRadius: 16, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, contentImage: { width: '100%', aspectRatio: 1, borderRadius: 12, marginBottom: 8 }, contentFallback: { backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center' }, contentTitle: { color: palette.text, fontWeight: '800', marginBottom: 3 },
   profileAvatar: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }, profileCamera: { position: 'absolute', right: 1, bottom: 1, width: 30, height: 30, borderRadius: 15, backgroundColor: palette.orange, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: palette.bg }, avatarHelp: { color: palette.orange, fontSize: 12, fontWeight: '800', marginTop: 8 },
   avatarEdit: { alignSelf: 'center', marginTop: 10 }, avatarEditHint: { color: palette.orange, fontSize: 12, fontWeight: '700', textAlign: 'center', marginTop: -4, marginBottom: 6 }, camera: { position: 'absolute', right: 0, bottom: 0, width: 37, height: 37, borderRadius: 19, backgroundColor: palette.orange, alignItems: 'center', justifyContent: 'center', borderWidth: 3, borderColor: palette.bg },

@@ -499,7 +499,8 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   }
   return (
     <View style={[styles.reel, { height }]}>
-      {reel.portada ? <Image source={{ uri: reel.portada }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <LinearGradient colors={[reel.colorAmbiente || '#5A2904', '#17100A', '#090A0D']} style={StyleSheet.absoluteFill} />}
+      <LinearGradient colors={[reel.colorAmbiente || '#5A2904', '#17100A', '#090A0D']} style={StyleSheet.absoluteFill} />
+      {reel.portada ? <Image source={{ uri: reel.portada }} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" /> : null}
       <LinearGradient colors={['#00000010', '#00000025', '#08090CF5']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
       <Pressable onPress={togglePlay} style={styles.playArea}>{!playing ? <View style={styles.play}><Ionicons name="play" size={33} color="#111" /></View> : null}</Pressable>
       <View style={styles.reelBottom}>

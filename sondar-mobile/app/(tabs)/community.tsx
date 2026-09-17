@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
+import { CommunityAttachmentPicker, CommunityAttachments, type CommunityAttachment } from '@/components/community-attachments';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { formatCount, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
@@ -12,9 +13,9 @@ import { api } from '@/lib/api';
 import { normalizeComment, normalizeCommunity, normalizeCommunityPost } from '@/lib/normalizers';
 
 type Community = { id: string; nombre: string; titulo?: string; genero: string; descripcion?: string; miembros: number; unido?: boolean; publicaciones: number; portada?: string };
-type Comment = { id: number; userId?: string; parentId?: number | null; usuario: string; autor?: string; texto: string; respondeA?: string; tiempo?: string; likes?: number; liked?: boolean; respuestas?: Comment[] };
+type Comment = { id: number; userId?: string; avatar?: string; parentId?: number | null; usuario: string; autor?: string; texto: string; respondeA?: string; tiempo?: string; likes?: number; liked?: boolean; guardado?: boolean; respuestas?: Comment[] };
 type ReplyTarget = { parentId: number; usuario: string };
-type Post = { id: number; userId?: string; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
+type Post = { id: number; userId?: string; avatar?: string; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; adjuntos?: CommunityAttachment[]; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
 
 const countComments = (items: Comment[]): number => items.reduce((total, item) => total + 1 + countComments(item.respuestas || []), 0);
 const removeComment = (items: Comment[], id: number): Comment[] => items
@@ -23,6 +24,7 @@ const removeComment = (items: Comment[], id: number): Comment[] => items
 
 export default function CommunityScreen() {
   const { token, user } = useAuth();
+  const { comunidadId, publicacionId } = useLocalSearchParams<{ comunidadId?: string; publicacionId?: string }>();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [active, setActive] = useState<Community | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -32,6 +34,9 @@ export default function CommunityScreen() {
   const [creating, setCreating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [form, setForm] = useState({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' });
+  const [eventAttachment, setEventAttachment] = useState<CommunityAttachment | null>(null);
+  const [reelAttachment, setReelAttachment] = useState<CommunityAttachment | null>(null);
+  const commentSaveLocks = useRef(new Set<number>());
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [comment, setComment] = useState('');
   const commentLock = useRef(false);
@@ -71,6 +76,33 @@ export default function CommunityScreen() {
     return () => clearTimeout(task);
   }, [loadPosts]);
 
+  useEffect(() => {
+    if (!comunidadId || !publicacionId || !communities.length) return;
+    let cancelled = false;
+    const community = communities.find(item => item.id === comunidadId);
+    const task = setTimeout(async () => {
+      try {
+        if (!community) throw new Error('La comunidad ya no esta disponible.');
+        const result = await api<Post[]>('/api/comunidades/' + encodeURIComponent(comunidadId) + '/publicaciones?filtro=destacado', { token });
+        if (cancelled) return;
+        const normalized = result.map(normalizeCommunityPost);
+        const post = normalized.find(item => String(item.id) === publicacionId);
+        if (!post) throw new Error('La publicacion ya no esta disponible.');
+        setActive(community);
+        setFilter('destacado');
+        setPosts(normalized);
+        setOpenPost(post);
+        setReplyTo(null);
+        setComment('');
+      } catch (e) {
+        if (!cancelled) Alert.alert('Comunidad', e instanceof Error ? e.message : 'No se pudo abrir la publicacion.');
+      } finally {
+        if (!cancelled) router.setParams({ comunidadId: undefined, publicacionId: undefined });
+      }
+    }, 0);
+    return () => { cancelled = true; clearTimeout(task); };
+  }, [comunidadId, publicacionId, communities, token]);
+
   async function membership() {
     if (!active || membershipLock.current) return;
     const id = active.id;
@@ -95,6 +127,12 @@ export default function CommunityScreen() {
     setComment('');
   }
 
+  function openCommentProfile(item: Comment) {
+    if (!item.userId) return;
+    closeThread();
+    router.push({ pathname: '/profile/[id]', params: { id: item.userId } });
+  }
+
   async function interact(post: Post, kind: 'like' | 'guardar') {
     try {
       const result = await api<any>(`/api/comunidades/publicaciones/${post.id}/${kind}`, { method: 'POST', token });
@@ -115,10 +153,11 @@ export default function CommunityScreen() {
     publishLock.current = true;
     setPublishing(true);
     try {
-      const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, etiqueta: form.etiqueta || active.genero }) });
+      const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, eventoId: eventAttachment?.id, reelId: reelAttachment?.id, etiqueta: form.etiqueta || active.genero }) });
       setPosts(items => [normalizeCommunityPost(created), ...items]);
       setCreating(false);
       setForm({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' });
+      setEventAttachment(null); setReelAttachment(null);
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo publicar.');
@@ -151,6 +190,24 @@ export default function CommunityScreen() {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder.');
     }
     finally { commentLock.current = false; setSending(false); }
+  }
+
+  async function toggleCommentSave(target: Comment) {
+    if (commentSaveLocks.current.has(target.id)) return;
+    commentSaveLocks.current.add(target.id);
+    try {
+      const result = await api<{ guardado: boolean }>('/api/comunidades/comentarios/' + target.id + '/guardar', { token, method: target.guardado ? 'DELETE' : 'PUT' });
+      const update = (post: Post) => ({ ...post, comentarios: updateComment(post.comentarios || [], target.id, item => ({ ...item, guardado: result.guardado })) });
+      setPosts(items => items.map(update));
+      setOpenPost(current => current ? update(current) : current);
+    } catch (e) {
+      Alert.alert('Guardados', e instanceof Error ? e.message : 'No se pudo guardar el comentario.');
+    } finally { commentSaveLocks.current.delete(target.id); }
+  }
+
+  function openAttachment(item: CommunityAttachment) {
+    closeThread();
+    navigateAttachment(item);
   }
 
   async function toggleCommentLike(target: Comment) {
@@ -213,7 +270,7 @@ export default function CommunityScreen() {
       <Header
         title="Comunidad"
         subtitle="Encontra tu escena"
-        actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active disabled={!active?.unido} onPress={() => setCreating(true)} /></>}
+        actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /></>}
       />
       {loading && !communities.length ? <Loading /> : <>
         <View style={styles.communityRail}>
@@ -258,7 +315,7 @@ export default function CommunityScreen() {
             ['popular', 'Populares'],
             ['preguntas', 'Preguntas'],
           ].map(([id, label]) => (
-            <Pressable key={id} onPress={() => setFilter(id)} style={[styles.filter, filter === id && styles.filterActive]}>
+            <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: filter === id }} onPress={() => setFilter(id)} style={[styles.filter, filter === id && styles.filterActive]}>
               <Text style={[styles.filterText, filter === id && { color: '#111' }]}>{label}</Text>
             </Pressable>
           ))}
@@ -277,16 +334,34 @@ export default function CommunityScreen() {
         )}
       </>}
 
-      <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>
+      <Modal visible={creating} animationType="slide" onRequestClose={() => { if (!publishing) setCreating(false); }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Screen scroll>
-          <Header title="Nueva publicacion" back onBack={() => setCreating(false)} actions={<IconButton name="close" onPress={() => setCreating(false)} />} />
+          <Header title="Crear post" back onBack={() => { if (!publishing) setCreating(false); }} actions={<IconButton name="close" disabled={publishing} onPress={() => setCreating(false)} />} />
           <ErrorNotice message={error} />
-          <Text style={ui.muted}>Publicando en {active?.titulo || active?.nombre}</Text>
+          <View style={styles.publishContext}><Ionicons name="people-outline" size={23} color={palette.orange} /><View><Text style={styles.author}>Crear post</Text><Text style={ui.muted}>{active?.titulo || active?.nombre}</Text></View></View>
           <Field label="Titulo" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Abri una conversacion" maxLength={140} />
-          <Field label="Texto" value={form.texto} onChangeText={texto => setForm(f => ({ ...f, texto }))} placeholder="Que queres compartir?" multiline maxLength={3000} />
+          <Text style={styles.formLabel}>TIPO DE PUBLICACION</Text>
+          <View style={styles.postTypes}>
+            {([['reciente', 'Publicacion general', 'chatbubble-outline'], ['preguntas', 'Pregunta', 'help-circle-outline']] as const).map(([id, label, icon]) => (
+              <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: form.tipo === id }} style={[styles.postType, form.tipo === id && styles.postTypeActive]} onPress={() => setForm(f => ({ ...f, tipo: id }))}>
+                <Ionicons name={icon} size={19} color={form.tipo === id ? palette.orange : palette.muted} /><Text style={styles.postTypeText}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {creating ? <>
+            <CommunityAttachmentPicker type="evento" token={token} value={eventAttachment} onChange={setEventAttachment} />
+            <CommunityAttachmentPicker type="reel" token={token} value={reelAttachment} onChange={setReelAttachment} />
+          </> : null}
+          <Field label="DESCRIPCION" value={form.texto} onChangeText={texto => setForm(f => ({ ...f, texto }))} placeholder="Compartir una idea o mencionar a @usuario..." multiline maxLength={3000} style={{ minHeight: 145, textAlignVertical: 'top' }} />
+          <Text style={styles.formCounter}>{form.texto.length}/3000</Text>
           <Field label="Etiqueta" value={form.etiqueta} onChangeText={etiqueta => setForm(f => ({ ...f, etiqueta }))} placeholder={active?.genero || 'musica'} />
-          <Button onPress={publish} disabled={publishing}>{publishing ? 'Publicando…' : 'Publicar'}</Button>
+          <View style={styles.publishActions}>
+            <View style={{ flex: 1 }}><Button kind="secondary" disabled={publishing} onPress={() => setCreating(false)}>Cancelar</Button></View>
+            <View style={{ flex: 1 }}><Button icon="send" onPress={publish} disabled={publishing || !form.titulo.trim() || !form.texto.trim()}>{publishing ? 'Publicando...' : 'Publicar'}</Button></View>
+          </View>
         </Screen>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal visible={Boolean(openPost)} animationType="slide" transparent onRequestClose={closeThread}>
@@ -297,21 +372,31 @@ export default function CommunityScreen() {
               <IconButton name="close" onPress={closeThread} />
             </View>
             {openPost ? <>
+              <FlatList
+                ListHeaderComponent={<>
+              <View style={styles.threadAuthor}>
+                <Avatar uri={openPost.avatar} name={(openPost.usuario || openPost.op).replace(/^@/, '')} size={38} />
+                <View style={styles.authorInfo}>
+                  <Text style={styles.author}>{openPost.usuario || openPost.op}</Text>
+                  <Text style={ui.muted}>{openPost.tiempo}</Text>
+                </View>
+              </View>
               <Text style={styles.postTitle}>{openPost.titulo}</Text>
               <Text style={styles.postText}>{openPost.texto}</Text>
+              <CommunityAttachments items={openPost.adjuntos} onOpen={openAttachment} />
               <View style={styles.postActions}>
                 <Button kind="ghost" icon={openPost.liked ? 'heart' : 'heart-outline'} onPress={() => interact(openPost, 'like')}>{formatCount(openPost.likes || 0)}</Button>
                 <Button kind="ghost" icon={openPost.guardado ? 'bookmark' : 'bookmark-outline'} onPress={() => interact(openPost, 'guardar')}>Guardar</Button>
                 {openPost.userId !== user?.id ? <Button kind="ghost" icon="flag-outline" onPress={() => setReportTarget(openPost)}>Denunciar</Button> : null}
               </View>
-              <FlatList
+                </>}
                 data={openPost.comentarios || []}
                 keyExtractor={item => String(item.id)}
                 style={{ flex: 1 }}
                 contentContainerStyle={{ gap: 13, paddingVertical: 12 }}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={<Empty title="Sin respuestas todavia" />}
-                renderItem={({ item }) => <CommunityComment item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} />}
+                renderItem={({ item }) => <CommunityComment item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} onSave={toggleCommentSave} onProfile={openCommentProfile} />}
               />
               {replyTo ? (
                 <View style={styles.replyBanner}>
@@ -325,7 +410,7 @@ export default function CommunityScreen() {
                 <View style={{ flex: 1 }}>
                   <Field value={comment} onChangeText={setComment} placeholder={replyTo ? `Responder a ${replyTo.usuario}...` : 'Escribi una respuesta...'} />
                 </View>
-                <IconButton name="send" active disabled={sending} onPress={sendComment} />
+                <Button icon="send" disabled={sending || !comment.trim()} onPress={sendComment}>{sending ? 'Enviando...' : 'Enviar'}</Button>
               </View> : <Text style={[ui.muted, { paddingVertical: 14 }]}>Unite a esta comunidad para responder.</Text>}
             </> : null}
           </View>
@@ -336,16 +421,20 @@ export default function CommunityScreen() {
   );
 }
 
-function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; nested?: boolean; rootId?: number }) {
+function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, onSave, onProfile, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; onSave: (item: Comment) => void; onProfile: (item: Comment) => void; nested?: boolean; rootId?: number }) {
   const parentId = rootId || item.id;
   const displayName = item.usuario || (item.autor ? `@${String(item.autor).replace(/^@/, '')}` : '@usuario');
   const canDelete = Boolean(currentUserId && item.userId === currentUserId);
   return (
     <View style={nested && styles.nestedComment}>
       <View style={styles.comment}>
-        <View style={styles.commentLine} />
+        <Pressable accessibilityRole="button" accessibilityLabel={'Ver perfil de ' + displayName} disabled={!item.userId} onPress={() => onProfile(item)}>
+          <Avatar uri={item.avatar} name={displayName.replace(/^@/, '')} size={nested ? 28 : 34} />
+        </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.author}>{displayName}</Text>{nested && item.respondeA ? <Text style={styles.replyTarget}>En respuesta a {item.respondeA}</Text> : null}<Text style={ui.muted}>{item.tiempo}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={'Ver perfil de ' + displayName} disabled={!item.userId} onPress={() => onProfile(item)}>
+            <Text style={styles.author}>{displayName}</Text>
+          </Pressable>{nested && item.respondeA ? <Text style={styles.replyTarget}>En respuesta a {item.respondeA}</Text> : null}<Text style={ui.muted}>{item.tiempo}</Text>
           <Text style={styles.commentText}>{item.texto}</Text>
           <View style={styles.commentActions}>
             <Pressable onPress={() => onReply({ parentId, usuario: displayName })} hitSlop={8}>
@@ -354,6 +443,10 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nest
             <Pressable onPress={() => onLike(item)} hitSlop={8} style={styles.commentLike}>
               <Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={15} color={item.liked ? palette.orange : palette.muted} />
               <Text style={styles.commentActionText}>{formatCount(item.likes || 0)} me gusta</Text>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={item.guardado ? 'Quitar comentario de guardados' : 'Guardar comentario'} onPress={() => onSave(item)} hitSlop={8} style={styles.commentLike}>
+              <Ionicons name={item.guardado ? 'bookmark' : 'bookmark-outline'} size={15} color={item.guardado ? palette.orange : palette.muted} />
+              <Text style={styles.commentActionText}>{item.guardado ? 'Guardado' : 'Guardar'}</Text>
             </Pressable>
             {canDelete ? (
               <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.commentLike}>
@@ -364,7 +457,7 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, nest
           </View>
         </View>
       </View>
-      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} nested rootId={parentId} />)}
+      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} onSave={onSave} onProfile={onProfile} nested rootId={parentId} />)}
     </View>
   );
 }
@@ -374,8 +467,11 @@ function PostCard({ post, own, onOpen, onLike, onSave, onReport }: { post: Post;
     <View style={styles.post}>
       <View style={styles.postHeader}>
         <Pressable onPress={onOpen} style={styles.postHeaderInfo}>
-          <Text style={styles.author}>{post.usuario || `@${post.op}`}</Text>
-          <Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text>
+          <Avatar uri={post.avatar} name={(post.usuario || post.op).replace(/^@/, '')} size={38} />
+          <View style={styles.authorInfo}>
+            <Text style={styles.author}>{post.usuario || `@${post.op}`}</Text>
+            <Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text>
+          </View>
         </Pressable>
         <View style={styles.postHeaderActions}>{!own ? <IconButton name="flag-outline" onPress={onReport} /> : null}<IconButton name={post.guardado ? 'bookmark' : 'bookmark-outline'} active={post.guardado} onPress={onSave} /></View>
       </View>
@@ -383,6 +479,7 @@ function PostCard({ post, own, onOpen, onLike, onSave, onReport }: { post: Post;
         <Text style={styles.postTitle}>{post.titulo}</Text>
         <Text style={styles.postText} numberOfLines={4}>{post.texto}</Text>
       </Pressable>
+      <CommunityAttachments items={post.adjuntos} onOpen={navigateAttachment} />
       <View style={styles.postFooter}>
         <Pressable onPress={onLike} style={styles.metric}>
           <Ionicons name={post.liked ? 'heart' : 'heart-outline'} size={18} color={post.liked ? palette.orange : palette.muted} />
@@ -401,6 +498,11 @@ function PostCard({ post, own, onOpen, onLike, onSave, onReport }: { post: Post;
   );
 }
 
+function navigateAttachment(item: CommunityAttachment) {
+  if (item.tipo === 'evento') router.push({ pathname: '/', params: { eventId: String(item.id) } });
+  else router.push({ pathname: '/discover', params: { reelId: String(item.id) } });
+}
+
 function updateComment(items: Comment[], id: number, updater: (item: Comment) => Comment): Comment[] {
   return items.map(item => item.id === id ? updater(item) : { ...item, respuestas: updateComment(item.respuestas || [], id, updater) });
 }
@@ -410,6 +512,14 @@ function appendReply(items: Comment[], id: number, reply: Comment): Comment[] {
 }
 
 const styles = StyleSheet.create({
+  publishContext: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
+  formLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
+  postTypes: { flexDirection: 'row', gap: 8 },
+  postType: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
+  postTypeActive: { borderColor: palette.orange, backgroundColor: '#FF790018' },
+  postTypeText: { flex: 1, color: palette.text, fontSize: 12, fontWeight: '700' },
+  formCounter: { color: palette.muted, textAlign: 'right', fontSize: 11 },
+  publishActions: { flexDirection: 'row', gap: 10, paddingTop: 10, paddingBottom: 16 },
   communityRail: { height: 116, flexShrink: 0 },
   communitiesList: { flexGrow: 0, height: 108 },
   communities: { paddingHorizontal: 14, paddingVertical: 8, gap: 10 },
@@ -425,15 +535,17 @@ const styles = StyleSheet.create({
   membershipText: { color: palette.text, fontSize: 12, fontWeight: '700' },
   membershipPrimaryText: { color: '#111' },
   activeIntro: { marginHorizontal: 14, padding: 12, gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border },
-  filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface2, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.border },
-  filterActive: { backgroundColor: palette.amber, borderColor: palette.orange },
-  filterText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
+  filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
+  filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' },
+  filterActive: { backgroundColor: palette.orange },
+  filterText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 },
   post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 },
   postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   postHeaderActions: { flexDirection: 'row', gap: 6 },
-  postHeaderInfo: { flex: 1, paddingVertical: 2 },
+  postHeaderInfo: { flex: 1, paddingVertical: 2, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  authorInfo: { flex: 1, minWidth: 0 },
+  threadAuthor: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 },
   postBody: { gap: 9 },
   author: { color: palette.amber, fontWeight: '800' },
   postTitle: { color: palette.text, fontSize: 17, fontWeight: '800' },
@@ -447,10 +559,9 @@ const styles = StyleSheet.create({
   postActions: { flexDirection: 'row', gap: 5, borderBottomWidth: 1, borderBottomColor: palette.border },
   comment: { flexDirection: 'row', gap: 11 },
   nestedComment: { marginLeft: 22, marginTop: 12, gap: 12 },
-  commentLine: { width: 3, borderRadius: 2, backgroundColor: palette.border },
   replyTarget: { color: palette.orange, fontWeight: '800' },
   commentText: { color: palette.text, lineHeight: 20, marginTop: 4 },
-  commentActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 7 },
+  commentActions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 14, marginTop: 7 },
   commentActionText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
   commentLike: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   replyBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingVertical: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8, marginBottom: 8 },

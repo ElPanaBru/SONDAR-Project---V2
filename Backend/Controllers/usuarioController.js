@@ -589,6 +589,7 @@ async function consultarOpcional(query, params = [], fallbackRows = []) {
 }
 
 async function obtenerDatosPerfil(targetUserId, viewerUserId) {
+  await require('./comunidadController').asegurarEsquemaComunidades();
   await require('../services/profileCommunityService').ensureProfileCommunitySchema();
   await asegurarEsquemaModeracion();
   const bloqueoResult = viewerUserId && targetUserId !== viewerUserId
@@ -632,6 +633,8 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     seguidoresResult,
     silenciadoResult,
     seguidosResult,
+    comunidadGuardadaResult,
+    comentariosGuardadosResult,
   ] = await Promise.all([
     consultarOpcional(
       `SELECT r.*
@@ -696,6 +699,26 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
        ORDER BY f.created_at DESC`,
       [targetUserId]
     ),
+    targetUserId === viewerUserId
+      ? consultarOpcional(
+          `SELECT cp.id, cp.comunidad_id, cp.titulo, cp.texto, c.titulo AS comunidad_titulo, c.portada_url
+           FROM comunidad_publicacion_guardados cg
+           JOIN comunidad_publicaciones cp ON cp.id = cg.publicacion_id
+           JOIN comunidades c ON c.id = cp.comunidad_id
+           WHERE cg.user_id = $1 AND c.activa = true
+           ORDER BY cg.created_at DESC, cp.id DESC`,
+          [targetUserId]
+        )
+      : Promise.resolve({ rows: [] }),
+    targetUserId === viewerUserId
+      ? consultarOpcional(
+          `SELECT cc.id, cc.texto, cc.publicacion_id, cp.comunidad_id, cp.titulo, u.username
+           FROM comunidad_comentario_guardados cg
+           JOIN comunidad_comentarios cc ON cc.id = cg.comentario_id
+           JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
+           LEFT JOIN users u ON u.id = cc.user_id
+           WHERE cg.user_id = $1 ORDER BY cg.created_at DESC, cc.id DESC`, [targetUserId])
+      : Promise.resolve({ rows: [] }),
   ]);
 
   const usuario = usuarioResult.rows[0];
@@ -726,6 +749,22 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
     eventos,
     favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
     guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
+    guardadosComentarios: esPropio ? comentariosGuardadosResult.rows.map(item => ({
+      id: Number(item.id), tipo: 'comentario', guardadoTipo: 'comentario',
+      comunidadId: item.comunidad_id, publicacionId: Number(item.publicacion_id),
+      nombre: item.username ? '@' + item.username : 'Comentario',
+      detalle: item.titulo, texto: item.texto,
+    })) : [],
+    guardadosComunidad: esPropio ? comunidadGuardadaResult.rows.map(item => ({
+      id: Number(item.id),
+      tipo: 'comunidad',
+      guardadoTipo: 'comunidad',
+      comunidadId: item.comunidad_id,
+      nombre: item.titulo,
+      detalle: item.comunidad_titulo,
+      texto: item.texto,
+      imagen: item.portada_url || '',
+    })) : [],
     comunidad,
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
