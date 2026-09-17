@@ -1,4 +1,6 @@
-.mensajes-skeleton-bloque { background: #29292c; border-radius: 6px; animation: mensajes-skeleton-pulse 1.6s ease-in-out infinite; }
+@import './skeletonShimmer.css';
+
+.mensajes-skeleton-bloque { background: #29292c; border-radius: 6px; }
 .mensajes-skeleton-lista { overflow: hidden; }
 .mensajes-skeleton-fila { display: flex; align-items: center; gap: 12px; padding: 16px 14px; border-bottom: 1px solid #242426; }
 .mensajes-skeleton-avatar { width: 48px; height: 48px; flex-shrink: 0; border-radius: 50%; }
@@ -13,5 +15,3 @@
 .mensajes-skeleton-burbuja { width: 56%; max-width: 360px; height: 56px; border-radius: 17px 17px 17px 5px; }
 .mensajes-skeleton-burbuja.propia { width: 42%; height: 42px; align-self: flex-end; border-radius: 17px 17px 5px 17px; }
 .mensajes-skeleton-composer { height: 44px; flex-shrink: 0; margin: 16px; border-radius: 14px; }
-@keyframes mensajes-skeleton-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .mensajes-skeleton-bloque { animation: none; } }

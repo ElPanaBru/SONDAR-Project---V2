@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
@@ -388,7 +389,7 @@ function Navbar({ usuario, onCrearReel }) {
                     setMostrarPerfil((value) => !value);
                   }}
                 >
-                  {perfilEditado.avatar ? <img src={perfilEditado.avatar} alt="" /> : <span>{inicialPerfil}</span>}
+                  {perfilEditado.avatar ? <ImagenAvatar src={perfilEditado.avatar} inicial={perfilEditado.nombre} /> : <span>{inicialPerfil}</span>}
                 </button>
 
                 {mostrarPerfil ? (
@@ -444,7 +445,7 @@ function Navbar({ usuario, onCrearReel }) {
             <div className="profile-edit-body">
               <div className="profile-edit-avatar">
                 {perfilEditado.avatar ? (
-                  <img src={perfilEditado.avatar} alt="" />
+                  <ImagenAvatar src={perfilEditado.avatar} inicial={perfilEditado.nombre} />
                 ) : (
                   <span>{perfilEditado.nombre?.charAt(0)?.toUpperCase() || "S"}</span>
                 )}

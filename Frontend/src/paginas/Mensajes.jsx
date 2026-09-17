@@ -1,3 +1,4 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import { ConversacionesSkeleton, MensajesSkeleton } from "../componentes/MensajesSkeleton";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -13,7 +14,7 @@ function Avatar({ usuario, size = "normal" }) {
     : (usuario?.nombre || usuario?.username || "S").charAt(0).toUpperCase();
   return (
     <span className={`mensajes-avatar mensajes-avatar-${size} ${usuario?.eliminado ? "usuario-eliminado" : ""}`} aria-hidden="true">
-      {usuario?.avatar ? <img src={usuario.avatar} alt="" /> : inicial}
+      {usuario?.avatar ? <ImagenAvatar src={usuario.avatar} inicial={inicial} /> : inicial}
     </span>
   );
 }

@@ -1,3 +1,4 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -1139,7 +1140,7 @@ export default function Comunidad({ usuario }) {
       <>
         <span>{(autor.op || autor.autor || nombre).replace(/^@/, "").charAt(0).toUpperCase()}</span>
         {autor.avatar ? (
-          <img key={autor.avatar} src={autor.avatar} alt="" loading="lazy" onError={(event) => { event.currentTarget.hidden = true; }} />
+          <ImagenAvatar src={autor.avatar} inicial={nombre} loading="lazy" className="avatar-imagen-superpuesta" />
         ) : null}
       </>
     ) : <strong>{nombre}</strong>;

@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -156,7 +157,7 @@ export default function SidebarNav({ usuario }) {
                 style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
                 aria-hidden="true"
               >
-                {perfil.avatar ? <img src={perfil.avatar} alt="" /> : perfil.nombre.charAt(0).toUpperCase()}
+                {perfil.avatar ? <ImagenAvatar src={perfil.avatar} inicial={perfil.nombre} /> : perfil.nombre.charAt(0).toUpperCase()}
               </span>
               <span className="sidebar-link-text">
                 <strong>{perfil.nombre}</strong>

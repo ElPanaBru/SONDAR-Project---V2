@@ -1,7 +1,8 @@
+@import './skeletonShimmer.css';
+
 .comunidad-skeleton-bloque {
   background: #272727;
   border-radius: 6px;
-  animation: comunidad-skeleton-pulse 1.6s ease-in-out infinite;
 }
 .comunidad-skeleton-fila { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .comunidad-skeleton-avatar { width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; }
@@ -19,9 +20,7 @@
 .comunidad-skeleton-resumen { display: grid; gap: 20px; }
 .comunidad-toolbar-meta .comunidad-skeleton-bloque { width: 65px; height: 16px; }
 .subreddit-stats .comunidad-skeleton-bloque { width: 28px; height: 22px; }
-@keyframes comunidad-skeleton-pulse { 0%, 100% { opacity: 0.65; } 50% { opacity: 1; } }
 @media (max-width: 560px) {
   .comunidad-skeleton-cover { height: 120px; }
   .comunidad-skeleton-post { gap: 13px; }
 }
-@media (prefers-reduced-motion: reduce) { .comunidad-skeleton-bloque { animation: none; } }

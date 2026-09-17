@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 function IconoSharePerfil({ tipo }) {
   if (tipo === "copy") {
     return (
@@ -104,7 +105,7 @@ export default function CompartirPerfilModal({ perfil, enlace, onClose, onAviso 
         <div className="perfil-share-preview">
           <span>
             {perfil.avatar ? (
-              <img src={perfil.avatar} alt="" />
+              <ImagenAvatar src={perfil.avatar} inicial={perfil.nombre} />
             ) : (
               perfil.nombre?.charAt(0).toUpperCase() || "S"
             )}

@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -58,7 +59,7 @@ function Avatar({ autor, compacto = false }) {
   return (
     <span className={`perfil-comunidad-avatar ${compacto ? "compacto" : ""}`} aria-hidden="true">
       {autor?.avatar ? (
-        <img src={autor.avatar} alt="" />
+        <ImagenAvatar src={autor.avatar} inicial={autor.nombre} />
       ) : (
         String(autor?.nombre || "S").charAt(0).toUpperCase()
       )}

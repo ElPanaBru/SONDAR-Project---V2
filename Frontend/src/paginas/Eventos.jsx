@@ -1,3 +1,4 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -1427,12 +1428,12 @@ export default function Eventos({ usuario }) {
                 <span>MÚSICOS</span>
                 <div className="evento-sheet-organizador-lista">
                   <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
-                    {detalleEvento.avatar ? <img src={detalleEvento.avatar} alt="" /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
+                    {detalleEvento.avatar ? <ImagenAvatar src={detalleEvento.avatar} inicial={detalleEvento.creador} /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
                     {detalleEvento.creador || "Anónimo"}
                   </button>
                   {(detalleEvento.organizadores || []).map((organizador) => (
                     <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
-                      {organizador.avatar ? <img src={organizador.avatar} alt="" /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
+                      {organizador.avatar ? <ImagenAvatar src={organizador.avatar} inicial={organizador.nombre} /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
                       {organizador.nombre || organizador.username}
                     </button>
                   ))}

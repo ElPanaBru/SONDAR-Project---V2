@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useId } from "react";
 import "./perfilSocialModal.css";
 
@@ -45,7 +46,7 @@ export default function PerfilSocialModal({
               >
                 <span>
                   {perfilSocial.avatar ? (
-                    <img src={perfilSocial.avatar} alt="" />
+                    <ImagenAvatar src={perfilSocial.avatar} inicial={perfilSocial.nombre} />
                   ) : (
                     perfilSocial.nombre?.charAt(0).toUpperCase() || "S"
                   )}

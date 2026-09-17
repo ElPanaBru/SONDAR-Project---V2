@@ -1,7 +1,8 @@
+@import './skeletonShimmer.css';
+
 .perfil-skeleton {
   background: #242424;
   border-radius: 6px;
-  animation: perfil-skeleton-pulse 1.6s ease-in-out infinite;
 }
 .perfil-skeleton-page .perfil-skeleton-avatar {
   border: 0;
@@ -35,10 +36,6 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
-@keyframes perfil-skeleton-pulse {
-  0%, 100% { opacity: 0.65; }
-  50% { opacity: 1; }
-}
 @media (max-width: 560px) {
   .perfil-skeleton-title { height: 26px; }
   .perfil-skeleton-button { width: 80px; height: 32px; }
@@ -46,7 +43,4 @@
   .perfil-skeleton-stat { width: 52px; height: 14px; }
   .perfil-skeleton-tabs > div { max-width: 38px; }
   .perfil-skeleton-card { border-radius: 4px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .perfil-skeleton { animation: none; }
 }

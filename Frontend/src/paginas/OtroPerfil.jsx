@@ -1,3 +1,5 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
 import PerfilSkeleton from "../componentes/PerfilSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -77,6 +79,8 @@ function destinoContenido(item) {
 }
 
 function tarjetaContenido(item, onAbrir) {
+  if (item.tipo === "evento") return <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={onAbrir} />;
+
   return (
     <article
       className="perfil-publicacion-card"
@@ -411,7 +415,7 @@ export default function OtroPerfil({ usuarioActual }) {
 
     if (items.length > 0) {
       return (
-        <div className="perfil-publicaciones-grid">
+        <div className={tabActiva === "eventos" ? "perfil-eventos-lista" : "perfil-publicaciones-grid"}>
           {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
         </div>
       );
@@ -434,7 +438,7 @@ export default function OtroPerfil({ usuarioActual }) {
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar otroperfil-avatar">
             {perfil.avatar ? (
-              <img src={perfil.avatar} alt={perfil.nombre} />
+              <ImagenAvatar src={perfil.avatar} alt={perfil.nombre} inicial={perfil.nombre} />
             ) : (
               <span>{perfil.nombre.charAt(0).toUpperCase()}</span>
             )}

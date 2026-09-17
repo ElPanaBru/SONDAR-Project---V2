@@ -1,3 +1,6 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import PerfilGuardados from "../componentes/PerfilGuardados";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
 import PerfilSkeleton from "../componentes/PerfilSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -86,6 +89,8 @@ function destinoContenido(item) {
 }
 
 function tarjetaContenido(item, onAbrir) {
+  if (item.tipo === "evento") return <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={onAbrir} />;
+
   return (
     <article
       className="perfil-publicacion-card"
@@ -332,9 +337,13 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
       );
     }
 
+    if (tabActiva === "guardados") {
+      return <PerfilGuardados items={items} renderItem={(item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem)))} />;
+    }
+
     if (items.length > 0) {
       return (
-        <div className="perfil-publicaciones-grid">
+        <div className={tabActiva === "eventos" ? "perfil-eventos-lista" : "perfil-publicaciones-grid"}>
           {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
         </div>
       );
@@ -357,7 +366,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar">
             {perfil.avatar ? (
-              <img src={perfil.avatar} alt={perfil.nombre} />
+              <ImagenAvatar src={perfil.avatar} alt={perfil.nombre} inicial={perfil.nombre} />
             ) : (
               <span>{inicial}</span>
             )}
@@ -410,7 +419,7 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
               <div className="perfil-modal-avatar">
                 <div className="perfil-avatar">
                   {perfilEditado.avatar ? (
-                    <img src={perfilEditado.avatar} alt={perfilEditado.nombre} />
+                    <ImagenAvatar src={perfilEditado.avatar} alt={perfilEditado.nombre} inicial={perfilEditado.nombre} />
                   ) : (
                     <span>{perfilEditado.nombre.trim().charAt(0).toUpperCase() || "S"}</span>
                   )}

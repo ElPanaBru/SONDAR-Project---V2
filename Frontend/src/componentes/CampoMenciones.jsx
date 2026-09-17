@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
 import "./menciones.css";
@@ -135,7 +136,7 @@ export default function CampoMenciones({
               onClick={() => seleccionar(usuario)}
             >
               <span className="mencion-avatar">
-                {usuario.avatar ? <img src={usuario.avatar} alt="" /> : (usuario.nombre || "S").charAt(0).toUpperCase()}
+                {usuario.avatar ? <ImagenAvatar src={usuario.avatar} inicial={usuario.nombre} /> : (usuario.nombre || "S").charAt(0).toUpperCase()}
               </span>
               <span>
                 <strong>{usuario.nombre}</strong>

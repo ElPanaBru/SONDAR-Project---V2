@@ -1,3 +1,4 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -373,7 +374,7 @@ export default function Configuracion({ usuario }) {
 
         <div className="config-account">
           <div className="config-avatar" aria-hidden="true">
-            {perfilCuenta?.avatar ? <img src={perfilCuenta.avatar} alt="" /> : inicial}
+            {perfilCuenta?.avatar ? <ImagenAvatar src={perfilCuenta.avatar} inicial={inicial} /> : inicial}
           </div>
           <div>
             <strong>{nombreCuenta}</strong>
@@ -577,7 +578,7 @@ export default function Configuracion({ usuario }) {
                 {bloqueados.map((cuenta) => (
                   <div className="config-bloqueado-item" key={cuenta.id}>
                     <span className="config-bloqueado-avatar">
-                      {cuenta.avatar ? <img src={cuenta.avatar} alt="" /> : cuenta.nombre?.charAt(0).toUpperCase()}
+                      {cuenta.avatar ? <ImagenAvatar src={cuenta.avatar} inicial={cuenta.nombre} /> : cuenta.nombre?.charAt(0).toUpperCase()}
                     </span>
                     <div>
                       <strong>{cuenta.nombre}</strong>

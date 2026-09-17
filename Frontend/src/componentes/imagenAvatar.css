@@ -1,0 +1,37 @@
+@import './skeletonShimmer.css';
+
+.avatar-imagen.avatar-imagen {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: #272727;
+  color: #ddd;
+  font: inherit;
+}
+
+.avatar-imagen.avatar-imagen > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.avatar-imagen.avatar-imagen > .avatar-imagen-inicial {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  font-size: inherit;
+}
+
+.avatar-imagen.avatar-imagen.avatar-imagen-superpuesta {
+  position: absolute;
+  inset: 0;
+}

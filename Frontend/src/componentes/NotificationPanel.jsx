@@ -1,3 +1,4 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -136,7 +137,7 @@ function NotificationPanel({ usuario, onClose, onCountChange }) {
           >
             <span className="notif-avatar">
               {notificacion.actor_avatar ? (
-                <img src={notificacion.actor_avatar} alt="" />
+                <ImagenAvatar src={notificacion.actor_avatar} />
               ) : (
                 String(notificacion.actor_name || "S").charAt(0).toUpperCase()
               )}

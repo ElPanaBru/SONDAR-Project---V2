@@ -1,3 +1,4 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import DescubrirSkeleton from "../componentes/DescubrirSkeleton";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -456,7 +457,7 @@ function inicialAvatar(valor) {
 
 function AvatarComentario({ comentario }) {
   if (comentario?.avatar) {
-    return <img src={comentario.avatar} alt="" />;
+    return <ImagenAvatar src={comentario.avatar} inicial={inicialComentario(comentario)} />;
   }
 
   return inicialComentario(comentario);
@@ -2369,15 +2370,7 @@ export default function Descubrir({ usuario }) {
                         {inicialAvatar(lanzamiento.artista || lanzamiento.usuario)}
                       </span>
                       {lanzamiento.avatar ? (
-                        <img
-                          src={lanzamiento.avatar}
-                          alt=""
-                          onError={(event) => {
-                            event.currentTarget.hidden = true;
-                            event.currentTarget.style.display = "none";
-                            event.currentTarget.parentElement?.classList.add("sin-avatar");
-                          }}
-                        />
+                        <ImagenAvatar src={lanzamiento.avatar} inicial={lanzamiento.artista || lanzamiento.usuario} className="avatar-imagen-superpuesta" />
                       ) : null}
                     </button>
                     <button
@@ -2738,7 +2731,7 @@ export default function Descubrir({ usuario }) {
             >
               <span className="comentario-avatar">
                 {compartirActivo.lanzamiento.avatar ? (
-                  <img src={compartirActivo.lanzamiento.avatar} alt="" />
+                  <ImagenAvatar src={compartirActivo.lanzamiento.avatar} inicial={compartirActivo.lanzamiento.artista} />
                 ) : (
                   inicialAvatar(compartirActivo.lanzamiento.artista || compartirActivo.lanzamiento.usuario)
                 )}
@@ -2790,7 +2783,7 @@ export default function Descubrir({ usuario }) {
             <header>
               <div className="perfil-vista-avatar">
                 {perfilVista.perfil.avatar ? (
-                  <img src={perfilVista.perfil.avatar} alt="" />
+                  <ImagenAvatar src={perfilVista.perfil.avatar} inicial={perfilVista.perfil.nombre} />
                 ) : (
                   <span>{perfilVista.perfil.nombre?.charAt(0).toUpperCase() || "S"}</span>
                 )}
