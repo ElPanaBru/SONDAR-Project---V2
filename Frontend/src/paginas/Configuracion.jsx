@@ -29,6 +29,8 @@ export default function Configuracion({ usuario }) {
   const [bloqueados, setBloqueados] = useState([]);
   const [cargandoBloqueados, setCargandoBloqueados] = useState(false);
   const [perfilCuenta, setPerfilCuenta] = useState(null);
+  const [perfilCargadoPara, setPerfilCargadoPara] = useState(null);
+  const cargandoPerfil = Boolean(usuario?.id && perfilCargadoPara !== usuario.id);
 
   useEffect(() => {
     const configuracionGuardada = usuario?.user_metadata?.configuracion;
@@ -138,6 +140,8 @@ export default function Configuracion({ usuario }) {
         if (vigente) setPerfilCuenta(body.perfil || null);
       } catch {
         if (vigente) setPerfilCuenta(null);
+      } finally {
+        if (vigente) setPerfilCargadoPara(usuario.id);
       }
     };
 
@@ -374,7 +378,11 @@ export default function Configuracion({ usuario }) {
 
         <div className="config-account">
           <div className="config-avatar" aria-hidden="true">
-            {perfilCuenta?.avatar ? <ImagenAvatar src={perfilCuenta.avatar} inicial={inicial} /> : inicial}
+            {cargandoPerfil ? (
+              <span className="avatar-imagen avatar-imagen-cargando" />
+            ) : (
+              <ImagenAvatar src={perfilCuenta?.avatar} inicial={inicial} />
+            )}
           </div>
           <div>
             <strong>{nombreCuenta}</strong>

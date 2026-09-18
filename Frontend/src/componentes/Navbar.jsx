@@ -39,6 +39,8 @@ function Navbar({ usuario, onCrearReel }) {
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilGuardado(usuario));
+  const [perfilCargadoPara, setPerfilCargadoPara] = useState(null);
+  const cargandoPerfil = Boolean(usuario?.id && perfilCargadoPara !== usuario.id);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
   const [avatarArrastrado, setAvatarArrastrado] = useState(false);
   const crearRef = useRef(null);
@@ -144,6 +146,8 @@ function Navbar({ usuario, onCrearReel }) {
       } catch (error) {
         console.error("Error al cargar perfil en navbar:", error);
         if (activo) setPerfilEditado(perfilGuardado(usuario));
+      } finally {
+        if (activo) setPerfilCargadoPara(usuario.id);
       }
     };
 
@@ -285,7 +289,7 @@ function Navbar({ usuario, onCrearReel }) {
     }
   };
 
-  const inicialPerfil = (perfilEditado.nombre || usuario?.email || "S").charAt(0).toUpperCase();
+  const inicialPerfil = (perfilEditado.nombre || perfilEditado.usuario || usuario?.email || "S").replace(/^@/, "").charAt(0).toUpperCase();
 
   return (
     <>
@@ -389,7 +393,11 @@ function Navbar({ usuario, onCrearReel }) {
                     setMostrarPerfil((value) => !value);
                   }}
                 >
-                  {perfilEditado.avatar ? <ImagenAvatar src={perfilEditado.avatar} inicial={perfilEditado.nombre} /> : <span>{inicialPerfil}</span>}
+                  {cargandoPerfil ? (
+                    <span className="avatar-imagen avatar-imagen-cargando" role="status" aria-label="Cargando foto de perfil" aria-busy="true" />
+                  ) : (
+                    <ImagenAvatar src={perfilEditado.avatar} inicial={inicialPerfil} />
+                  )}
                 </button>
 
                 {mostrarPerfil ? (

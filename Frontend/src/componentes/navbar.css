@@ -870,7 +870,7 @@
   display: grid;
   place-items: center;
   color: #080808;
-  background: linear-gradient(135deg, #ffae00, #ff5e00);
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
   font-size: 18px;
   font-weight: 900;
 }

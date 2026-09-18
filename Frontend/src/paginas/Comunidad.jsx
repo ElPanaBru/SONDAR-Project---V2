@@ -1,3 +1,4 @@
+import FechaEvento from "../componentes/FechaEvento";
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1132,13 +1133,13 @@ export default function Comunidad({ usuario }) {
   };
 
   const renderizarAutor = (autor, soloAvatar = false) => {
-    const nombre = autor.usuario || autor.op || autor.autor || "Usuario SONDAR";
+    const nombre = autor.op || autor.autor || autor.usuario || "Usuario SONDAR";
     const destino = String(autor.userId) === String(usuario?.id)
       ? "/perfil"
       : `/perfil/${encodeURIComponent(autor.userId)}`;
     const contenido = soloAvatar ? (
       <>
-        <span>{(autor.op || autor.autor || nombre).replace(/^@/, "").charAt(0).toUpperCase()}</span>
+        <span>{nombre.replace(/^@/, "").charAt(0).toUpperCase()}</span>
         {autor.avatar ? (
           <ImagenAvatar src={autor.avatar} inicial={nombre} loading="lazy" className="avatar-imagen-superpuesta" />
         ) : null}
@@ -1165,7 +1166,7 @@ export default function Comunidad({ usuario }) {
           <div className="respuesta-meta">
             {renderizarAutor(comentario, true)}
             {renderizarAutor(comentario)}
-            <span>{comentario.autor}</span>
+            <span>{comentario.usuario}</span>
             <span>{comentario.tiempo || "ahora"}</span>
           </div>
           <p><TextoConMenciones texto={comentario.texto} /></p>
@@ -1447,7 +1448,7 @@ export default function Comunidad({ usuario }) {
                     {renderizarAutor(hilo, true)}
                     <div className="publicacion-meta post-meta">
                       {renderizarAutor(hilo)}
-                      <span>{hilo.op}</span>
+                      <span>{hilo.usuario}</span>
                       <span>{hilo.tiempo || "ahora"}</span>
                     </div>
                     {usuario?.id && String(hilo.userId) === String(usuario.id) ? (
@@ -1487,7 +1488,7 @@ export default function Comunidad({ usuario }) {
                       type="button"
                       onClick={() => navigate(`/?evento=${encodeURIComponent(hilo.eventoAsociado.id)}`)}
                     >
-                      <span className="asociada-icono">E</span>
+                      <FechaEvento fecha={hilo.eventoAsociado.fecha} />
                       <span>
                         <small className="publicacion-asociada-etiqueta">Evento asociado</small>
                         <strong>{hilo.eventoAsociado.creador || "Artista SONDAR"}</strong>

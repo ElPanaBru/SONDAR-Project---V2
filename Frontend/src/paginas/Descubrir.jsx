@@ -448,7 +448,7 @@ function obtenerClaveUsuario(usuario) {
 }
 
 function inicialComentario(comentario) {
-  return comentario?.usuario?.replace(/^@/, "").charAt(0).toUpperCase() || "S";
+  return (comentario?.nombre || comentario?.usuario)?.replace(/^@/, "").charAt(0).toUpperCase() || "S";
 }
 
 function inicialAvatar(valor) {
@@ -574,9 +574,36 @@ export default function Descubrir({ usuario }) {
     id: null,
     color: COLOR_PORTADA_PREDETERMINADO,
   });
-  const usuarioComentario = obtenerUsuarioActual(usuario);
+  const [perfilComentario, setPerfilComentario] = useState(null);
+  useEffect(() => {
+    let activo = true;
+    setPerfilComentario(null);
+    const actualizar = (event) => setPerfilComentario(event.detail);
+    window.addEventListener("sondar-perfil-actualizado", actualizar);
+    if (usuario?.id) {
+      (async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session?.access_token) return;
+          const response = await apiRequest("/api/usuarios/me/perfil", {
+            headers: { Authorization: "Bearer " + data.session.access_token },
+          });
+          if (!response.ok) return;
+          const resultado = await response.json();
+          if (activo) setPerfilComentario(resultado.perfil);
+        } catch (error) {
+          console.error("Error al cargar el avatar de comentarios:", error);
+        }
+      })();
+    }
+    return () => {
+      activo = false;
+      window.removeEventListener("sondar-perfil-actualizado", actualizar);
+    };
+  }, [usuario?.id]);
+  const usuarioComentario = perfilComentario?.usuario || obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
-  const inicialUsuario = usuario ? usuarioComentario.charAt(1).toUpperCase() : "";
+  const inicialUsuario = usuario ? inicialAvatar(perfilComentario?.nombre || perfilComentario?.usuario || usuarioComentario) : "";
   const audioReproduciendo = lanzamientos.find(
     (lanzamiento) => lanzamiento.id === reproduciendo
   )?.audio;
@@ -2554,8 +2581,9 @@ export default function Descubrir({ usuario }) {
                             type="button"
                             onClick={() => abrirVistaPerfilComentario(comentario)}
                           >
-                            {comentario.usuario}
+                            {comentario.nombre || comentario.usuario?.replace(/^@/, "")}
                           </button>{" "}
+                          <span className="comentario-handle">{comentario.usuario}</span>{" "}
                           <span>{comentario.tiempo}</span>
                         </strong>
                         <p><TextoConMenciones texto={comentario.texto} /></p>
@@ -2607,8 +2635,9 @@ export default function Descubrir({ usuario }) {
                                       type="button"
                                       onClick={() => abrirVistaPerfilComentario(respuesta)}
                                     >
-                                      {respuesta.usuario}
+                                      {respuesta.nombre || respuesta.usuario?.replace(/^@/, "")}
                                     </button>
+                                    <span className="comentario-handle"> {respuesta.usuario}</span>
                                     {respuesta.respondeA ? (
                                       <span className="respuesta-para-linea"> para {respuesta.respondeA}</span>
                                     ) : null}{" "}
@@ -2684,7 +2713,7 @@ export default function Descubrir({ usuario }) {
                     {!usuario ? (
                       <IconoPersona />
                     ) : (
-                      inicialUsuario
+                      <ImagenAvatar src={perfilComentario?.avatar} inicial={inicialUsuario} />
                     )}
                   </div>
                   <CampoMenciones

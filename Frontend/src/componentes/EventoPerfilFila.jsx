@@ -1,3 +1,4 @@
+import FechaEvento from "./FechaEvento";
 import "./eventoPerfilFila.css";
 
 export default function EventoPerfilFila({ evento, onAbrir }) {
@@ -10,11 +11,7 @@ export default function EventoPerfilFila({ evento, onAbrir }) {
 
   return (
     <button className="perfil-evento-fila" type="button" onClick={() => onAbrir(evento)}>
-      <span className="perfil-evento-calendario" aria-hidden="true">
-        {tieneFecha ? <><strong>{fecha.getDate()}</strong><small>{new Intl.DateTimeFormat("es-AR", { month: "short" }).format(fecha)}</small></> : (
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 11h18" /></svg>
-        )}
-      </span>
+      <FechaEvento fecha={evento.fecha} />
       <span className="perfil-evento-info">
         <strong>{evento.nombre || "Evento"}</strong>
         <span>{evento.detalle || evento.genero || "Evento de SONDAR"}</span>

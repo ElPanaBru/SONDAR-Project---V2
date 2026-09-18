@@ -472,6 +472,7 @@ function mapearComentario(row) {
 
   return {
     id: row.id,
+    nombre: row.display_name || username,
     reelId: row.reel_id,
     userId: row.user_id,
     usuario: `@${String(username).replace(/^@/, '')}`,
@@ -989,7 +990,7 @@ const reelController = {
         `SELECT
           rc.*,
           (SELECT COUNT(*)::int FROM reel_comment_likes rcl_count WHERE rcl_count.comment_id = rc.id) AS likes_calculados,
-          u.username,
+          u.username, u.display_name,
           u.email,
           u.profile_img_url,
           EXISTS (
@@ -1040,7 +1041,7 @@ const reelController = {
       );
 
       const usuarioResult = await pool.query(
-        `SELECT u.username, u.email, u.profile_img_url
+        `SELECT u.username, u.display_name, u.email, u.profile_img_url
          FROM users u
          WHERE u.id = $1`,
         [req.user.id]
@@ -1099,6 +1100,7 @@ const reelController = {
       res.status(201).json(mapearComentario({
         ...result.rows[0],
         username: usuarioResult.rows[0]?.username,
+        display_name: usuarioResult.rows[0]?.display_name,
         email: usuarioResult.rows[0]?.email || req.user.email,
         profile_img_url: usuarioResult.rows[0]?.profile_img_url,
       }));

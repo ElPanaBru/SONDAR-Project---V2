@@ -9,8 +9,8 @@
   flex-shrink: 0;
   overflow: hidden;
   border-radius: inherit;
-  background: #272727;
-  color: #ddd;
+  background: linear-gradient(90deg, #ffae00, #ff5e00);
+  color: #080808;
   font: inherit;
 }
 
@@ -34,4 +34,8 @@
 .avatar-imagen.avatar-imagen.avatar-imagen-superpuesta {
   position: absolute;
   inset: 0;
+}
+
+.avatar-imagen.avatar-imagen.avatar-imagen-cargando {
+  background: #272727;
 }
