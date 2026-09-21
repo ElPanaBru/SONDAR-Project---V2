@@ -1,7 +1,7 @@
 import FechaEvento from "./FechaEvento";
 import "./eventoPerfilFila.css";
 
-export default function EventoPerfilFila({ evento, onAbrir }) {
+export default function EventoPerfilFila({ evento, onAbrir, seleccionado = false }) {
   const diaCalendario = String(evento.fecha || "").slice(0, 10);
   const fecha = /^\d{4}-\d{2}-\d{2}$/.test(diaCalendario) ? new Date(`${diaCalendario}T12:00:00`) : null;
   const tieneFecha = fecha && !Number.isNaN(fecha.getTime());
@@ -10,7 +10,7 @@ export default function EventoPerfilFila({ evento, onAbrir }) {
     : "Fecha a confirmar";
 
   return (
-    <button className="perfil-evento-fila" type="button" onClick={() => onAbrir(evento)}>
+    <button className={`perfil-evento-fila${seleccionado ? " seleccionado" : ""}`} aria-current={seleccionado ? "true" : undefined} type="button" onClick={() => onAbrir(evento)}>
       <FechaEvento fecha={evento.fecha} />
       <span className="perfil-evento-info">
         <strong>{evento.nombre || "Evento"}</strong>

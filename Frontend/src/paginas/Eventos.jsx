@@ -17,6 +17,7 @@ import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
 import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
 import PerfilToast from "../componentes/PerfilToast";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
@@ -227,6 +228,8 @@ export default function Eventos({ usuario }) {
   const generosIniciales = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
   // Referencias para el mapa principal
   const mapRef = useRef(null);
+  const listaEventosRef = useRef(null);
+  const [listaEventosAbierta, setListaEventosAbierta] = useState(false);
   const mapInstance = useRef(null);
   const tilesLayerRef = useRef(null);
   const markersLayer = useRef(null);
@@ -497,7 +500,7 @@ export default function Eventos({ usuario }) {
     setEventoActivo(evento.id);
     setDetalleExpandido(expandir);
     setMenuEventoAbierto(false);
-    if (evento.coords && mapInstance.current) {
+    if (tieneCoordenadasValidas(evento) && mapInstance.current) {
       mapInstance.current.flyTo(evento.coords, 16, {
         duration: DURACION_ACERCAMIENTO_MAPA,
         easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
@@ -525,7 +528,6 @@ export default function Eventos({ usuario }) {
       maxBoundsViscosity: 1
     }).setView([-34.6037, -58.3816], 12);
 
-    L.control.zoom({ position: "topright" }).addTo(map);
     map.on("zoomend", () => setZoomMapa(map.getZoom()));
     map.on("click", (event) => {
       const objetivo = event.originalEvent?.target;
@@ -1185,8 +1187,59 @@ export default function Eventos({ usuario }) {
     }
   };
   return (
-    <div className={`eventos-container ${detalleExpandido ? "detalle-abierto" : ""}`}>
+    <div className={`eventos-container ${detalleExpandido ? "detalle-abierto" : ""} ${listaEventosAbierta && !detalleExpandido ? "lista-abierta" : ""}`}>
       <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
+
+      {!detalleExpandido && (
+        <aside
+          className={`eventos-lista-desplegable ${listaEventosAbierta ? "abierta" : ""}`}
+          aria-label="Lista de eventos"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setListaEventosAbierta(false);
+              listaEventosRef.current.focus();
+            }
+          }}
+        >
+          <button
+            ref={listaEventosRef}
+            type="button"
+            className="eventos-lista-tirador"
+            aria-expanded={listaEventosAbierta}
+            aria-controls="eventos-lista-panel"
+            aria-label={listaEventosAbierta ? "Cerrar lista de eventos" : "Abrir lista de eventos"}
+            title={listaEventosAbierta ? "Cerrar eventos" : "Ver eventos"}
+            onClick={() => setListaEventosAbierta((abierta) => !abierta)}
+          >
+            <IconoPanel nombre="izquierda" size={20} />
+          </button>
+          <div id="eventos-lista-panel" className="eventos-lista-panel" inert={!listaEventosAbierta} aria-hidden={!listaEventosAbierta}>
+          <header className="eventos-lista-header">
+            <IconoPanel nombre="calendario" size={19} />
+            <strong>Eventos</strong>
+            <span className="eventos-lista-cantidad">{eventosFiltrados.length}</span>
+          </header>
+          <div className="eventos-lista-contenido" aria-busy={loading}>
+            {loading ? (
+              <p role="status">Cargando eventos...</p>
+            ) : eventosFiltrados.length === 0 ? (
+              <p>{t("No hay eventos disponibles")}</p>
+            ) : eventosFiltrados.map((evento) => (
+              <EventoPerfilFila
+                key={evento.id}
+                seleccionado={eventoActivo === evento.id}
+                evento={{
+                  ...evento,
+                  nombre: evento.nombre || `Evento de ${evento.creador || "Artista SONDAR"}`,
+                  detalle: `${mostrarGenerosEvento(evento)} · ${evento.lugar || evento.ubicacion || "Lugar a confirmar"}`,
+                }}
+                onAbrir={() => seleccionarEventoEnMapa(evento)}
+              />
+            ))}
+          </div>
+          </div>
+        </aside>
+      )}
 
       {loading && (
         <div style={{ position: "absolute", zIndex: 1000, top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(0,0,0,0.8)", padding: "1rem 2rem", borderRadius: "8px", color: "white" }}>

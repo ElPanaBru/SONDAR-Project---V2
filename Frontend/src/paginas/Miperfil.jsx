@@ -1,10 +1,12 @@
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import PerfilGuardados from "../componentes/PerfilGuardados";
 import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
 import PerfilSkeleton from "../componentes/PerfilSkeleton";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import PerfilComunidad from "../componentes/PerfilComunidad";
 import PerfilSocialModal from "../componentes/PerfilSocialModal";
 import PerfilToast from "../componentes/PerfilToast";
@@ -14,6 +16,7 @@ import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./miperfil.css";
 
 const iconosPerfil = {
+  eliminar: "M280-80q-33 0-56.5-23.5T200-160v-600h-40v-80h200v-40h240v40h200v80h-40v600q0 33-23.5 56.5T680-80H280Zm400-680H280v600h400v-600ZM360-240h80v-440h-80v440Zm160 0h80v-440h-80v440Z",
   grid: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-480h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-360h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-200h160v-80H200v80Zm240 0h160v-80H440v80Zm240 0h80v-80h-80v80Z",
   calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
   heart: "m480-120-58-52q-101-91-167-157T150-447q-39-51-54.5-94T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 50-15.5 93T810-447q-39 52-105 118T538-172l-58 52Z",
@@ -88,7 +91,62 @@ function destinoContenido(item) {
   return `/descubrir?${parametros.toString()}`;
 }
 
-function tarjetaContenido(item, onAbrir) {
+function EventoPerfilConAcciones({ item, onAbrir, onEliminar, onCompartir }) {
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+  const botonRef = useRef(null);
+  const opcionesId = useId();
+
+  useEffect(() => {
+    if (!abierto) return;
+    const cerrarFuera = (event) => {
+      if (!contenedorRef.current?.contains(event.target)) setAbierto(false);
+    };
+    document.addEventListener("pointerdown", cerrarFuera);
+    return () => document.removeEventListener("pointerdown", cerrarFuera);
+  }, [abierto]);
+
+  const ejecutar = (accion) => {
+    setAbierto(false);
+    botonRef.current?.focus();
+    accion(item);
+  };
+
+  return (
+    <div className="perfil-evento-con-acciones">
+      <EventoPerfilFila evento={item} onAbrir={onAbrir} />
+      <div className="perfil-evento-acciones" ref={contenedorRef}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setAbierto(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setAbierto(false);
+            botonRef.current?.focus();
+          }
+        }}
+      >
+        <button ref={botonRef} className="perfil-evento-opciones" type="button"
+          title="Opciones del evento" aria-label={`Opciones del evento de ${item.nombre || "mi perfil"}`}
+          aria-expanded={abierto} aria-controls={opcionesId} onClick={() => setAbierto(!abierto)}
+        ><span aria-hidden="true">...</span></button>
+        {abierto && (
+          <div className="perfil-evento-menu" id={opcionesId}>
+            <button type="button" onClick={() => ejecutar(onCompartir)}><IconoPerfil nombre="share" size={18} />Compartir</button>
+            {onEliminar && <button className="perfil-evento-menu-eliminar" type="button" onClick={() => ejecutar(onEliminar)}><IconoPerfil nombre="eliminar" size={18} />Eliminar</button>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function tarjetaContenido(item, onAbrir, onEliminar, onCompartir) {
+  if (item.tipo === "evento" && onCompartir) {
+    return (
+      <EventoPerfilConAcciones key={`evento-${item.id}`} item={item} onAbrir={onAbrir} onEliminar={onEliminar} onCompartir={onCompartir} />
+    );
+  }
   if (item.tipo === "evento") return <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={onAbrir} />;
 
   return (
@@ -134,6 +192,8 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
   const [contenido, setContenido] = useState(contenidoInicial);
   const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState("");
+  const [eventoEliminar, setEventoEliminar] = useState(null);
+  const [eventoCompartir, setEventoCompartir] = useState(null);
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
@@ -214,6 +274,36 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
     };
   // La renovación de sesión al recuperar el foco no cambia el perfil consultado.
   }, [usuario?.id]);
+
+  const eliminarEvento = async (password) => {
+    if (!usuario?.id || eventoEliminar?.creadorId !== usuario.id) {
+      throw new Error("No tenes permiso para eliminar este evento.");
+    }
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+
+    const response = await apiRequest(`/api/eventos/${eventoEliminar.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      body: { password },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "No se pudo eliminar el evento.");
+    }
+
+    const conservarItem = (item) => !(item.tipo === "evento" && item.id === eventoEliminar.id);
+    setContenido((actual) => ({
+      ...actual,
+      eventos: actual.eventos.filter(conservarItem),
+      likes: actual.likes.filter(conservarItem),
+      guardados: actual.guardados.filter(conservarItem),
+    }));
+    setEventoEliminar(null);
+    setAviso("Evento eliminado");
+    window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
+  };
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -344,7 +434,14 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
     if (items.length > 0) {
       return (
         <div className={tabActiva === "eventos" ? "perfil-eventos-lista" : "perfil-publicaciones-grid"}>
-          {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
+          {items.map((item) => tarjetaContenido(
+            item,
+            (contenidoItem) => navigate(destinoContenido(contenidoItem)),
+            tabActiva === "eventos" && usuario?.id && item.creadorId === usuario.id
+              ? setEventoEliminar
+              : undefined,
+            tabActiva === "eventos" ? setEventoCompartir : undefined
+          ))}
         </div>
       );
     }
@@ -404,6 +501,26 @@ export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
       </header>
 
       <PerfilToast mensaje={aviso} onClose={() => setAviso("")} />
+      {eventoCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir evento"
+          nombre={eventoCompartir.nombre}
+          detalle={eventoCompartir.detalle}
+          imagen={eventoCompartir.imagen}
+          imagenContenida
+          enlace={new URL(destinoContenido(eventoCompartir), window.location.origin).toString()}
+          textoCompartir={`${eventoCompartir.nombre}: ${new URL(destinoContenido(eventoCompartir), window.location.origin)}`}
+          onClose={() => setEventoCompartir(null)}
+          onAviso={setAviso}
+        />
+      ) : null}
+      {eventoEliminar ? (
+        <ConfirmarEliminacionModal
+          contenido={`el evento de ${eventoEliminar.nombre || "tu perfil"}`}
+          onClose={() => setEventoEliminar(null)}
+          onConfirm={eliminarEvento}
+        />
+      ) : null}
 
       {editando ? (
         <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
