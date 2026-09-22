@@ -1,3 +1,5 @@
+import { formatearPrecioEvento } from "../lib/formatearPrecioEvento";
+import { ordenarEventos } from "../lib/ordenarEventos";
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -166,6 +168,7 @@ const formatearFechaVisible = (fecha) => {
 };
 
 const formatearDistancia = (distancia) => {
+  if (distancia == null || String(distancia).trim() === "") return "";
   const kilometros = Number(distancia);
   if (!Number.isFinite(kilometros)) return "";
   if (kilometros < 1) return `${Math.max(1, Math.round(kilometros * 1000))} m`;
@@ -230,6 +233,21 @@ export default function Eventos({ usuario }) {
   const mapRef = useRef(null);
   const listaEventosRef = useRef(null);
   const [listaEventosAbierta, setListaEventosAbierta] = useState(false);
+  const [criterioOrdenEventos, setCriterioOrdenEventos] = useState("fecha");
+  const [sentidoOrdenEventos, setSentidoOrdenEventos] = useState("asc");
+  const [menuOrdenAbierto, setMenuOrdenAbierto] = useState(false);
+  const menuOrdenRef = useRef(null);
+  const botonOrdenRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOrdenAbierto) return;
+    const cerrarFuera = (event) => {
+      if (!menuOrdenRef.current?.contains(event.target)) setMenuOrdenAbierto(false);
+    };
+    document.addEventListener("pointerdown", cerrarFuera);
+    return () => document.removeEventListener("pointerdown", cerrarFuera);
+  }, [menuOrdenAbierto]);
+
   const mapInstance = useRef(null);
   const tilesLayerRef = useRef(null);
   const markersLayer = useRef(null);
@@ -488,6 +506,11 @@ export default function Eventos({ usuario }) {
       ].some((campo) => normalizarBusqueda(campo).includes(termino));
     });
   }, [busquedaEventos, eventos, generosVisibles]);
+
+  const eventosOrdenados = useMemo(
+    () => ordenarEventos(eventosFiltrados, criterioOrdenEventos + "-" + sentidoOrdenEventos),
+    [eventosFiltrados, criterioOrdenEventos, sentidoOrdenEventos]
+  );
 
   const eventosConCoordenadas = useMemo(
     () => eventosFiltrados.filter(tieneCoordenadasValidas),
@@ -1209,7 +1232,7 @@ export default function Eventos({ usuario }) {
             aria-controls="eventos-lista-panel"
             aria-label={listaEventosAbierta ? "Cerrar lista de eventos" : "Abrir lista de eventos"}
             title={listaEventosAbierta ? "Cerrar eventos" : "Ver eventos"}
-            onClick={() => setListaEventosAbierta((abierta) => !abierta)}
+            onClick={() => { setListaEventosAbierta((abierta) => !abierta); setMenuOrdenAbierto(false); }}
           >
             <IconoPanel nombre="izquierda" size={20} />
           </button>
@@ -1218,16 +1241,80 @@ export default function Eventos({ usuario }) {
             <IconoPanel nombre="calendario" size={19} />
             <strong>Eventos</strong>
             <span className="eventos-lista-cantidad">{eventosFiltrados.length}</span>
+            <div
+              className="eventos-lista-orden"
+              ref={menuOrdenRef}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setMenuOrdenAbierto(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && menuOrdenAbierto) {
+                  event.stopPropagation();
+                  setMenuOrdenAbierto(false);
+                  botonOrdenRef.current?.focus();
+                }
+              }}
+            >
+              <button
+                ref={botonOrdenRef}
+                type="button"
+                className="eventos-lista-orden-criterio"
+                aria-expanded={menuOrdenAbierto}
+                aria-controls="eventos-menu-orden"
+                aria-label={"Ordenar por " + criterioOrdenEventos}
+                onClick={() => setMenuOrdenAbierto((actual) => !actual)}
+              >
+                {{ fecha: "Fecha", precio: "Precio", distancia: "Distancia" }[criterioOrdenEventos]}
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              <button
+                type="button"
+                className="eventos-lista-orden-sentido"
+                onClick={() => setSentidoOrdenEventos((actual) => actual === "asc" ? "desc" : "asc")}
+                aria-label={sentidoOrdenEventos === "asc" ? "Orden creciente. Cambiar a decreciente" : "Orden decreciente. Cambiar a creciente"}
+                title={sentidoOrdenEventos === "asc" ? "Creciente: cambiar a decreciente" : "Decreciente: cambiar a creciente"}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={sentidoOrdenEventos === "asc" ? "M12 19V5m-6 6 6-6 6 6" : "M12 5v14m-6-6 6 6 6-6"} />
+                </svg>
+              </button>
+              {menuOrdenAbierto ? (
+                <div id="eventos-menu-orden" className="eventos-menu-orden" role="group" aria-label="Ordenar eventos por">
+                  {[
+                    { valor: "fecha", texto: "Fecha" },
+                    { valor: "precio", texto: "Precio" },
+                    { valor: "distancia", texto: "Distancia" },
+                  ].map(({ valor, texto }) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={criterioOrdenEventos === valor}
+                      disabled={valor === "distancia" && !posicionUsuario}
+                      onClick={() => {
+                        setCriterioOrdenEventos(valor);
+                        setMenuOrdenAbierto(false);
+                        botonOrdenRef.current?.focus();
+                      }}
+                    >
+                      {texto}
+                      {criterioOrdenEventos === valor ? <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 12 4 4L19 6" /></svg> : null}
+                    </button>
+                  ))}
+                  {!posicionUsuario ? <small>Activa tu ubicaci&oacute;n para ordenar por distancia.</small> : null}
+                </div>
+              ) : null}
+            </div>
           </header>
           <div className="eventos-lista-contenido" aria-busy={loading}>
             {loading ? (
               <p role="status">Cargando eventos...</p>
             ) : eventosFiltrados.length === 0 ? (
               <p>{t("No hay eventos disponibles")}</p>
-            ) : eventosFiltrados.map((evento) => (
+            ) : eventosOrdenados.map((evento) => (
               <EventoPerfilFila
                 key={evento.id}
                 seleccionado={eventoActivo === evento.id}
+                mostrarPrecioYDistancia
                 evento={{
                   ...evento,
                   nombre: evento.nombre || `Evento de ${evento.creador || "Artista SONDAR"}`,
@@ -1384,6 +1471,7 @@ export default function Eventos({ usuario }) {
               <small>{mostrarGenerosEvento(detalleEvento)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
               <em>
                 {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
+                {" ? " + formatearPrecioEvento(detalleEvento.precio)}
                 {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
               </em>
             </span>
@@ -1477,6 +1565,17 @@ export default function Eventos({ usuario }) {
                 </span>
               </div>
 
+              <dl className="evento-sheet-precio-distancia">
+                <div>
+                  <dt>Precio de entrada</dt>
+                  <dd>{formatearPrecioEvento(detalleEvento.precio)}</dd>
+                </div>
+                <div>
+                  <dt>Distancia</dt>
+                  <dd>{formatearDistancia(detalleEvento.distancia_km) ? formatearDistancia(detalleEvento.distancia_km) + " de vos" : "Distancia no disponible"}</dd>
+                </div>
+              </dl>
+
               <div className="evento-sheet-organizadores">
                 <span>MÚSICOS</span>
                 <div className="evento-sheet-organizador-lista">
@@ -1495,7 +1594,7 @@ export default function Eventos({ usuario }) {
 
               {detalleEvento.link ? (
                 <div className="evento-sheet-botones">
-                  <a href={detalleEvento.link} target="_blank" rel="noreferrer">{detalleEvento.precio ? `Entradas · $${Number(detalleEvento.precio).toLocaleString("es-AR")}` : "Ver entradas"}</a>
+                  <a href={detalleEvento.link} target="_blank" rel="noreferrer">Ver entradas</a>
                 </div>
               ) : null}
             </div>

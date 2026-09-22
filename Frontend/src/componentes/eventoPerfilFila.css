@@ -94,3 +94,18 @@ button.perfil-evento-fila:focus-visible { outline: 2px solid #f5a000; outline-of
   button.perfil-evento-fila { grid-template-columns: 46px minmax(0, 1fr) 24px; gap: 12px; padding: 14px 4px; }
   .perfil-evento-calendario { height: 54px; }
 }
+
+.perfil-evento-info > .perfil-evento-precio-distancia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 3px;
+  color: #e5e5e5;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.perfil-evento-precio-distancia > span {
+  padding: 3px 6px;
+  border: 1px solid #414141;
+  border-radius: 4px;
+}

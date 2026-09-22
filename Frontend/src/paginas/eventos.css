@@ -117,6 +117,64 @@
 
 .eventos-lista-header > svg { flex-shrink: 0; color: #e5e5e5; }
 .eventos-lista-cantidad { margin-left: auto; color: #aaa; }
+.eventos-lista-orden { position: relative; display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.eventos-lista-header { gap: 6px; }
+.eventos-lista-cantidad { margin-left: 0; font-size: 12px; }
+.eventos-lista-orden-criterio,
+.eventos-lista-orden-sentido {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #eee;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.eventos-lista-orden-sentido { color: #f5a000; width: 28px; flex-shrink: 0; }
+.eventos-lista-orden-criterio:hover,
+.eventos-lista-orden-sentido:hover { background: #252525; }
+.eventos-lista-orden button:focus-visible { outline: 2px solid #f5a000; outline-offset: -2px; }
+.eventos-menu-orden {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  width: 150px;
+  max-width: calc(100vw - 130px);
+  padding: 4px;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9px;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.38);
+}
+.eventos-menu-orden button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.eventos-menu-orden button:hover,
+.eventos-menu-orden button:focus-visible { color: #fff; background: #252525; }
+.eventos-menu-orden button[aria-pressed="true"] svg { color: #f5a000; }
+.eventos-menu-orden button:disabled { opacity: 0.4; cursor: default; background: transparent; }
+.eventos-menu-orden small { display: block; padding: 6px 10px; color: #aaa; font-size: 11px; }
+.eventos-lista-panel { overflow: visible; }
 .eventos-lista-contenido {
   flex: 1;
   min-height: 0;
@@ -3544,3 +3602,19 @@
   font-weight: 700;
 }
 .leaflet-tooltip-top.mapa-ubicacion-tooltip::before { border-top-color: #ffae00; }
+
+.evento-sheet-precio-distancia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 16px 0;
+}
+.evento-sheet-precio-distancia > div { min-width: 0; }
+.evento-sheet-precio-distancia dt { color: #aaa; font-size: 12px; }
+.evento-sheet-precio-distancia dd {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
