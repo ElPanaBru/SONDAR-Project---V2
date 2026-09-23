@@ -785,7 +785,8 @@
 }
 
 .publicacion-asociada-evento {
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
+  font: inherit;
   cursor: pointer;
 }
 
@@ -1870,9 +1871,12 @@
     grid-template-columns: 1fr;
   }
 
-  .publicacion-asociada,
-  .publicacion-asociada-evento {
+  .publicacion-asociada {
     grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .publicacion-asociada-evento {
+    grid-template-columns: 52px minmax(0, 1fr);
   }
 
   .publicacion-asociada button {
@@ -1924,3 +1928,17 @@
 .publicacion-asociada-evento .perfil-evento-calendario { width: 52px; flex-shrink: 0; }
 .publicacion-asociada-evento .perfil-evento-calendario strong { color: inherit; font-size: 23px; line-height: 1.1; }
 .publicacion-asociada-evento .perfil-evento-calendario small { color: inherit; font-size: 11px; }
+
+.publicacion-asociada-evento > span:last-child {
+  min-width: 0;
+}
+
+.publicacion-asociada-evento em {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.publicacion-asociada-evento:focus-visible {
+  outline: 2px solid #ffae00;
+  outline-offset: 3px;
+}

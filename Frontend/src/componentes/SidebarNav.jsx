@@ -47,6 +47,8 @@ function Icono({ nombre }) {
   );
 }
 
+const LIMITE_SEGUIDOS = 7;
+
 const links = [
   { to: "/", label: "Eventos", icon: "eventos", end: true },
   { to: "/descubrir", label: "Preview", icon: "descubrir" },
@@ -59,6 +61,7 @@ export default function SidebarNav({ usuario }) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [seguidos, setSeguidos] = useState([]);
+  const [mostrarTodos, setMostrarTodos] = useState(false);
   const [listaSeguidosAbierta, setListaSeguidosAbierta] = useState(false);
 
   useEffect(() => {
@@ -146,25 +149,45 @@ export default function SidebarNav({ usuario }) {
           >
             {t("Siguiendo")}
           </button>
-          {seguidos.map((perfil) => (
-            <NavLink
-              key={perfil.id}
-              to={`/perfil/${perfil.id}`}
-              className="sidebar-link sidebar-following-link"
-            >
-              <span
-                className="sidebar-following-avatar"
-                style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
-                aria-hidden="true"
+          <div id="sidebar-seguidos" className="sidebar-following-list">
+            {(mostrarTodos ? seguidos : seguidos.slice(0, LIMITE_SEGUIDOS)).map((perfil) => (
+              <NavLink
+                key={perfil.id}
+                to={`/perfil/${perfil.id}`}
+                className="sidebar-link sidebar-following-link"
               >
-                {perfil.avatar ? <ImagenAvatar src={perfil.avatar} inicial={perfil.nombre} /> : perfil.nombre.charAt(0).toUpperCase()}
+                <span
+                  className="sidebar-following-avatar"
+                  style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
+                  aria-hidden="true"
+                >
+                  {perfil.avatar ? <ImagenAvatar src={perfil.avatar} inicial={perfil.nombre} /> : perfil.nombre.charAt(0).toUpperCase()}
+                </span>
+                <span className="sidebar-link-text">
+                  <strong>{perfil.nombre}</strong>
+                  <small>{perfil.usuario}</small>
+                </span>
+              </NavLink>
+            ))}
+          </div>
+          {seguidos.length > LIMITE_SEGUIDOS && (
+            <button
+              type="button"
+              className="sidebar-link sidebar-following-toggle"
+              onClick={() => setMostrarTodos((value) => !value)}
+              aria-expanded={mostrarTodos}
+              aria-controls="sidebar-seguidos"
+              aria-label={t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}
+              title={t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}
+            >
+              <span className="sidebar-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={mostrarTodos ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
+                </svg>
               </span>
-              <span className="sidebar-link-text">
-                <strong>{perfil.nombre}</strong>
-                <small>{perfil.usuario}</small>
-              </span>
-            </NavLink>
-          ))}
+              <span className="sidebar-link-text">{t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}</span>
+            </button>
+          )}
         </div>
       </div>
 
