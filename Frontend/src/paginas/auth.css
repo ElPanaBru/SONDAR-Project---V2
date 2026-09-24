@@ -9,6 +9,12 @@
   background: #050505;
 }
 
+.auth-scene {
+  position: relative;
+  display: grid;
+  min-height: 100%;
+}
+
 .auth-video,
 .auth-overlay {
   position: absolute;
@@ -33,7 +39,7 @@
 .auth-shell {
   position: relative;
   z-index: 2;
-  min-height: 100%;
+  min-height: 0;
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   display: grid;

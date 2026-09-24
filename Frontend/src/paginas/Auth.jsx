@@ -196,136 +196,138 @@ export default function Auth() {
 
   return (
     <section className="auth-page">
-      <video
-        className="auth-video"
-        src="/auth-background.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        onLoadedMetadata={(event) => {
-          event.currentTarget.playbackRate = 1.45;
-        }}
-        aria-hidden="true"
-      />
-      <div className="auth-overlay" />
+      <div className="auth-scene">
+        <video
+          className="auth-video"
+          src="/auth-background.mp4"
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
+          onLoadedMetadata={(event) => {
+            event.currentTarget.playbackRate = 1.45;
+          }}
+          aria-hidden="true"
+        />
+        <div className="auth-overlay" />
 
-      <div className="auth-shell">
-        <div className="auth-hero">
-          <img className="sondar-brand-image auth-brand" src="/sondar-logo.png?v=19" alt="SONDAR" />
-          <h1>{t("Tu música empieza acá.")}</h1>
-          <p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>
-        </div>
-
-        <div className="auth-card">
-          <div className="switch-container" role="tablist" aria-label="Modo de acceso">
-            <button
-              type="button"
-              onClick={() => { navigate("/auth"); setMensaje(""); setPasswordRepetida(""); }}
-              className={`switch-btn ${modo === "login" ? "active" : ""}`}
-              aria-selected={modo === "login"}
-            >
-              Login
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { navigate("/auth?modo=registro"); setMensaje(""); setPasswordRepetida(""); }}
-              className={`switch-btn ${modo === "registro" ? "active" : ""}`}
-              aria-selected={modo === "registro"}
-            >
-              Registro
-            </button>
+        <div className="auth-shell">
+          <div className="auth-hero">
+            <img className="sondar-brand-image auth-brand" src="/sondar-logo.png?v=19" alt="SONDAR" />
+            <h1>{t("Tu música empieza acá.")}</h1>
+            <p>Conecta con artistas, eventos y comunidades que estan sonando cerca tuyo.</p>
           </div>
 
-          <div className="auth-heading">
-            <span>{modo === "login" ? "Bienvenido de vuelta" : "Nuevo en SONDAR"}</span>
-            <h2>{modo === "login" ? t("Iniciar sesión") : t("Crear cuenta")}</h2>
-          </div>
+          <div className="auth-card">
+            <div className="switch-container" role="tablist" aria-label="Modo de acceso">
+              <button
+                type="button"
+                onClick={() => { navigate("/auth"); setMensaje(""); setPasswordRepetida(""); }}
+                className={`switch-btn ${modo === "login" ? "active" : ""}`}
+                aria-selected={modo === "login"}
+              >
+                Login
+              </button>
 
-          <form className="auth-form" onSubmit={handleSubmit}>
-            {modo === "registro" && (
+              <button
+                type="button"
+                onClick={() => { navigate("/auth?modo=registro"); setMensaje(""); setPasswordRepetida(""); }}
+                className={`switch-btn ${modo === "registro" ? "active" : ""}`}
+                aria-selected={modo === "registro"}
+              >
+                Registro
+              </button>
+            </div>
+
+            <div className="auth-heading">
+              <span>{modo === "login" ? "Bienvenido de vuelta" : "Nuevo en SONDAR"}</span>
+              <h2>{modo === "login" ? t("Iniciar sesión") : t("Crear cuenta")}</h2>
+            </div>
+
+            <form className="auth-form" onSubmit={handleSubmit}>
+              {modo === "registro" && (
+                <label className="auth-field">
+                  @ de usuario
+                  <input
+                    type="text"
+                    placeholder="tu_usuario"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").toLowerCase())}
+                    minLength={3}
+                    maxLength={30}
+                    pattern="[a-z0-9._-]{3,30}"
+                    autoComplete="username"
+                    required
+                    className="auth-input"
+                  />
+                </label>
+              )}
+
               <label className="auth-field">
-                @ de usuario
+                Correo
                 <input
-                  type="text"
-                  placeholder="tu_usuario"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.replace(/^@+/, "").toLowerCase())}
-                  minLength={3}
-                  maxLength={30}
-                  pattern="[a-z0-9._-]{3,30}"
-                  autoComplete="username"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   className="auth-input"
                 />
               </label>
-            )}
 
-            <label className="auth-field">
-              Correo
-              <input
-                type="email"
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="auth-input"
-              />
-            </label>
-
-            <label className="auth-field">
-              Contraseña
-              <div className="auth-password-control">
-                <input
-                  type={passwordVisible ? "text" : "password"}
-                  placeholder={modo === "registro" ? "Mínimo 8 caracteres" : "Tu contraseña"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="auth-input"
-                  autoComplete={modo === "registro" ? "new-password" : "current-password"}
-                />
-                <button type="button" onClick={() => setPasswordVisible((visible) => !visible)}>
-                  {passwordVisible ? "Ocultar" : "Ver"}
-                </button>
-              </div>
-            </label>
-
-            {modo === "registro" ? (
-              <>
-                <div className="auth-password-strength" aria-label={`Seguridad de contraseña: ${fuerzaPassword} de 4`}>
-                  {[1, 2, 3, 4].map((nivel) => <span className={fuerzaPassword >= nivel ? "active" : ""} key={nivel} />)}
-                </div>
-                <p className="auth-password-help">8 caracteres, mayúscula, minúscula, número y símbolo.</p>
-                <label className="auth-field">
-                  Repetir contraseña
+              <label className="auth-field">
+                Contraseña
+                <div className="auth-password-control">
                   <input
                     type={passwordVisible ? "text" : "password"}
-                    value={passwordRepetida}
-                    onChange={(e) => setPasswordRepetida(e.target.value)}
+                    placeholder={modo === "registro" ? "Mínimo 8 caracteres" : "Tu contraseña"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
-                    className={`auth-input ${passwordRepetida && password !== passwordRepetida ? "error" : ""}`}
-                    autoComplete="new-password"
+                    className="auth-input"
+                    autoComplete={modo === "registro" ? "new-password" : "current-password"}
                   />
-                  {passwordRepetida ? (
-                    <small className={password === passwordRepetida ? "auth-password-match" : "auth-password-mismatch"}>
-                      {password === passwordRepetida ? "✓ Las contraseñas coinciden" : "Las contraseñas todavía no coinciden"}
-                    </small>
-                  ) : null}
-                </label>
-              </>
-            ) : null}
+                  <button type="button" onClick={() => setPasswordVisible((visible) => !visible)}>
+                    {passwordVisible ? "Ocultar" : "Ver"}
+                  </button>
+                </div>
+              </label>
 
-            <button type="submit" disabled={loading} className="auth-btn">
-              {loading
-                ? (modo === "login" ? "Ingresando..." : "Registrando...")
-                : (modo === "login" ? "Ingresar" : "Registrarse")}
-            </button>
-          </form>
+              {modo === "registro" ? (
+                <>
+                  <div className="auth-password-strength" aria-label={`Seguridad de contraseña: ${fuerzaPassword} de 4`}>
+                    {[1, 2, 3, 4].map((nivel) => <span className={fuerzaPassword >= nivel ? "active" : ""} key={nivel} />)}
+                  </div>
+                  <p className="auth-password-help">8 caracteres, mayúscula, minúscula, número y símbolo.</p>
+                  <label className="auth-field">
+                    Repetir contraseña
+                    <input
+                      type={passwordVisible ? "text" : "password"}
+                      value={passwordRepetida}
+                      onChange={(e) => setPasswordRepetida(e.target.value)}
+                      required
+                      className={`auth-input ${passwordRepetida && password !== passwordRepetida ? "error" : ""}`}
+                      autoComplete="new-password"
+                    />
+                    {passwordRepetida ? (
+                      <small className={password === passwordRepetida ? "auth-password-match" : "auth-password-mismatch"}>
+                        {password === passwordRepetida ? "✓ Las contraseñas coinciden" : "Las contraseñas todavía no coinciden"}
+                      </small>
+                    ) : null}
+                  </label>
+                </>
+              ) : null}
 
-          {mensaje && <p className="auth-msg">{mensaje}</p>}
+              <button type="submit" disabled={loading} className="auth-btn">
+                {loading
+                  ? (modo === "login" ? "Ingresando..." : "Registrando...")
+                  : (modo === "login" ? "Ingresar" : "Registrarse")}
+              </button>
+            </form>
+
+            {mensaje && <p className="auth-msg">{mensaje}</p>}
+          </div>
         </div>
       </div>
     </section>
