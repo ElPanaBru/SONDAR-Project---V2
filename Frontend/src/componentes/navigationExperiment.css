@@ -163,3 +163,36 @@
   .sidebar-brand-wordmark { width: 68px; flex-basis: 68px; }
   .custom-navbar { left: 158px; grid-template-columns: minmax(0, 1fr) auto; }
 }
+
+/* Centrado respecto a la ventana, independiente del ancho del logo y las acciones. */
+@media (min-width: 621px) {
+  .custom-navbar .navbar-center {
+    position: fixed;
+    top: 27.5px;
+    left: 50%;
+    width: min(560px, calc(100vw - 600px));
+    padding: 0;
+    transform: translate(-50%, -50%);
+  }
+
+  .custom-navbar .search-form {
+    width: 100%;
+    min-width: 0;
+    gap: 0;
+  }
+}
+
+/* Reserva espacio para el logo y los controles en ventanas angostas. */
+@media (min-width: 621px) and (max-width: 900px) {
+  .custom-navbar .navbar-center {
+    width: calc(100vw - 420px);
+  }
+
+  .custom-navbar .navbar-create-button {
+    width: 40px;
+    min-width: 40px;
+    padding: 0;
+    gap: 0;
+    font-size: 0;
+  }
+}
