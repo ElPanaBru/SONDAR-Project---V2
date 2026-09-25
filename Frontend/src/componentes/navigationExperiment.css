@@ -196,3 +196,25 @@
     font-size: 0;
   }
 }
+
+/* El mapa llega hasta arriba: los creadores oscurecen toda la ventana.
+   El padding mantiene el formulario libre de la cabecera y la barra lateral. */
+.app-container :is(.evento-modal-overlay, .crear-reel-overlay) {
+  inset: 0;
+  width: auto;
+  height: auto;
+  box-sizing: border-box;
+  padding: 75px 20px 20px 76px;
+}
+
+@media (max-width: 860px) {
+  .app-container .evento-modal-overlay {
+    padding: 65px 10px 10px 66px;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-container .crear-reel-overlay {
+    padding: 65px 10px 10px 66px;
+  }
+}

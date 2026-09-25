@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 import "./App.css";
@@ -24,14 +24,16 @@ import "./componentes/navigationExperiment.css";
 
 function App() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [usuario, setUsuario] = useState(null);
   const [onboardingToken, setOnboardingToken] = useState(null);
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
 
   const abrirCrearPreview = useCallback(() => {
     window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-evento"));
+    navigate("/descubrir");
     setMostrarCrearReel(true);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
