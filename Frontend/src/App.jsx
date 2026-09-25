@@ -20,6 +20,8 @@ import OnboardingPerfilModal from "./componentes/OnboardingPerfilModal";
 import CrearReelModal from "./componentes/CrearReelModal";
 import { PreferenciasProvider } from "./contextos/PreferenciasContext";
 
+import "./componentes/navigationExperiment.css";
+
 function App() {
   const location = useLocation();
   const [usuario, setUsuario] = useState(null);

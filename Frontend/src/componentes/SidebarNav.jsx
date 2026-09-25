@@ -108,6 +108,7 @@ export default function SidebarNav({ usuario }) {
 
   return (
     <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegación principal">
+      <div className="sidebar-header">
       <button
         type="button"
         className="sidebar-toggle"
@@ -121,10 +122,18 @@ export default function SidebarNav({ usuario }) {
           <span />
         </span>
       </button>
+      <NavLink to="/" className="sidebar-brand" aria-label="SONDAR - Inicio">
+        <span className="sidebar-brand-icon" aria-hidden="true">
+          <img src="/sondar-brand-transparent.png" alt="" />
+        </span>
+        <span className="sidebar-brand-wordmark" aria-hidden="true">
+          <img src="/sondar-brand-transparent.png" alt="" />
+        </span>
+      </NavLink>
+      </div>
 
       <div className="sidebar-content" role="navigation">
         <div className="sidebar-section">
-          <div className="sidebar-section-title">{t("Ir a...")}</div>
           {links.map((item) => (
             <NavLink
               key={item.to}

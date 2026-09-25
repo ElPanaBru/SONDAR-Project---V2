@@ -1,0 +1,165 @@
+/* Encabezado flotante; la barra lateral usa sus estilos originales. */
+.custom-navbar {
+  top: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+/* Los espacios entre controles dejan ver y manipular el contenido. */
+.custom-navbar :is(a, button, input, .profile-dropdown, .navbar-create-menu, .notifications-panel) {
+  pointer-events: auto;
+}
+
+.custom-navbar :is(button, a, input):focus-visible {
+  outline: 2px solid var(--color-1, #F09800);
+  outline-offset: -3px;
+}
+
+/* Extiende solo el mapa: sus paneles conservan su espacio junto a los controles. */
+.eventos-container > .eventos-mapa {
+  position: fixed;
+  inset: 0;
+}
+
+/* Una unica capsula opaca detras del campo y del boton de busqueda. */
+.custom-navbar .search-form {
+  background: #0b0b0b;
+  border-radius: 999px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+}
+
+/* Marca lateral compacta, con el buscador en su columna original. */
+.custom-navbar { left: 190px; }
+.custom-navbar .navbar-center { grid-column: 2; }
+.custom-navbar .navbar-actions { grid-column: 3; }
+/* El mismo fondo lateral llega hasta arriba y se ensancha al abrir el menu. */
+.sidebar-nav {
+  --sidebar-top: 0px;
+  padding-top: 64px;
+}
+
+.sidebar-brand {
+  width: 124px;
+  height: 40px;
+  flex: 0 0 124px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border-radius: 9px;
+  transform: translateX(10px);
+
+}
+
+
+.sidebar-brand:focus-visible {
+  outline: 2px solid var(--color-1, #F09800);
+  outline-offset: -2px;
+}
+
+.sidebar-brand-icon {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 29px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sidebar-brand-icon img {
+  position: absolute;
+  width: 125%;
+  max-width: none;
+  height: auto;
+  left: -12.5%;
+  top: -27.5862%;
+}
+
+
+
+@media (max-width: 620px) {
+  .custom-navbar .navbar-actions { grid-column: 2; }
+}
+
+
+
+/* Preview comparte el fondo oscuro de la barra lateral. */
+.custom-navbar.navbar-preview {
+  background: #070707;
+  pointer-events: auto;
+}
+
+/* Oculta el indicador sin impedir desplazar la lista lateral. */
+.sidebar-nav .sidebar-content {
+  scrollbar-width: none;
+}
+
+.sidebar-nav .sidebar-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Menu y marca juntos, sin cambiar su posicion al desplegar la barra. */
+.sidebar-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 190px;
+  height: 55px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 7px;
+  background: transparent;
+}
+
+.sidebar-header .sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  flex: 0 0 40px;
+}
+
+/* Letras de la primera referencia, recortadas mediante CSS. */
+.sidebar-brand-wordmark {
+  position: relative;
+  display: block;
+  width: 80px;
+  flex: 0 0 80px;
+  aspect-ratio: 76 / 12;
+  overflow: hidden;
+}
+
+.sidebar-brand-wordmark img {
+  position: absolute;
+  width: 131.5789%;
+  max-width: none;
+  height: auto;
+  left: -15.7895%;
+  top: -625%;
+}
+
+.sidebar-header .sidebar-toggle {
+  background: #1a1a1a;
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 620px) {
+  .sidebar-header { width: 158px; gap: 4px; }
+  .sidebar-header .sidebar-toggle { width: 36px; flex-basis: 36px; }
+  .sidebar-brand { width: 104px; flex-basis: 104px; transform: translateX(6px); }
+  .sidebar-brand-icon {
+  position: relative;
+  display: block;
+  width: 32px;
+  height: 23.2px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+  .sidebar-brand-wordmark { width: 68px; flex-basis: 68px; }
+  .custom-navbar { left: 158px; grid-template-columns: minmax(0, 1fr) auto; }
+}

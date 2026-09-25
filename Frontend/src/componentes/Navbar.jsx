@@ -293,12 +293,8 @@ function Navbar({ usuario, onCrearReel }) {
 
   return (
     <>
-      <nav className="custom-navbar">
-        <Link to="/" className="navbar-brand">
-          <img src="/sondar-logo.png?v=19" alt="SONDAR" className="sondar-brand-image logo" />
-        </Link>
-
-        <div className="navbar-center">
+      <nav className={`custom-navbar ${location.pathname === "/descubrir" ? "navbar-preview" : ""}`}>
+<div className="navbar-center">
           <form className="search-form" onSubmit={handleSearch}>
             <input
               className="search-input"
