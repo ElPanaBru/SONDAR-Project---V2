@@ -42,18 +42,49 @@ const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
 const URL_TILES_OPENSTREETMAP = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const URL_ESTILO_MAPA_OSCURO = "https://tiles.openfreemap.org/styles/dark";
-const VERSION_CAPA_MAPA_OSCURO = 2;
+const URL_ESTILO_MAPA_OSCURO = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png";
+const JAWG_ACCESS_TOKEN = import.meta.env.VITE_JAWG_ACCESS_TOKEN?.trim();
+const URL_TILES_LAGOON = "https://tile.jawg.io/jawg-lagoon/{z}/{x}/{y}{r}.png";
+// Mantiene un mapa claro disponible mientras se configura el token de Jawg Lagoon.
+const URL_ESTILO_MAPA_CLARO = JAWG_ACCESS_TOKEN
+  ? URL_TILES_LAGOON + "?access-token=" + encodeURIComponent(JAWG_ACCESS_TOKEN)
+  : "https://tiles.openfreemap.org/styles/liberty";
+const CLAVE_TEMA_MAPA = "sondar:tema-mapa";
+const VERSION_CAPA_MAPA = 5;
 const ATRIBUCION_OPENSTREETMAP = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const ATRIBUCION_OPENFREEMAP = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const crearCapaMapaPrincipal = () => {
+const ATRIBUCION_STADIA = '&copy; <a href="https://stadiamaps.com/attribution/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' + ATRIBUCION_OPENSTREETMAP;
+const ATRIBUCION_JAWG = '&copy; <a href="https://www.jawg.io/" title="Tiles Courtesy of Jawg Maps">Jawg Maps</a> ' + ATRIBUCION_OPENSTREETMAP;
+const crearCapaMapaPrincipal = (estilo) => {
+  if (JAWG_ACCESS_TOKEN && estilo === URL_ESTILO_MAPA_CLARO) {
+    const capa = L.tileLayer(estilo, {
+      maxNativeZoom: 22,
+      maxZoom: 24,
+      attribution: ATRIBUCION_JAWG,
+    });
+    capa.sondarStyleUrl = estilo;
+    capa.sondarStyleVersion = VERSION_CAPA_MAPA;
+    return capa;
+  }
+  if (estilo === URL_ESTILO_MAPA_OSCURO) {
+    // En localhost no requiere credenciales; en produccion se autoriza el dominio en Stadia.
+    const capa = L.tileLayer(estilo, {
+      maxNativeZoom: 20,
+      maxZoom: 24,
+      attribution: ATRIBUCION_STADIA,
+    });
+    capa.sondarStyleUrl = estilo;
+    capa.sondarStyleVersion = VERSION_CAPA_MAPA;
+    return capa;
+  }
+
   const capa = maplibreGL({
-    style: URL_ESTILO_MAPA_OSCURO,
+    style: estilo,
     attributionControl: false,
     interactive: false,
   });
-  capa.sondarStyleUrl = URL_ESTILO_MAPA_OSCURO;
-  capa.sondarStyleVersion = VERSION_CAPA_MAPA_OSCURO;
+  capa.sondarStyleUrl = estilo;
+  capa.sondarStyleVersion = VERSION_CAPA_MAPA;
   capa.getAttribution = () => ATRIBUCION_OPENFREEMAP;
   return capa;
 };
@@ -177,6 +208,8 @@ const formatearDistancia = (distancia) => {
 
 function IconoPanel({ nombre, size = 20 }) {
   const trazos = {
+    sol: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5" /></>,
+    luna: <path d="M20.5 13A8.5 8.5 0 0 1 11 3.5 8.5 8.5 0 1 0 20.5 13Z" />,
     calendario: <><path d="M7 2v3M17 2v3M3.5 9h17" /><rect x="3.5" y="4.5" width="17" height="16" rx="3" /></>,
     ubicacion: <><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
     guardar: <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1Z" />,
@@ -231,6 +264,22 @@ export default function Eventos({ usuario }) {
   const generosIniciales = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
   // Referencias para el mapa principal
   const mapRef = useRef(null);
+  const botonTemaRef = useRef(null);
+  const [temaMapa, setTemaMapa] = useState(() => {
+    try {
+      return localStorage.getItem(CLAVE_TEMA_MAPA) === "claro" ? "claro" : "oscuro";
+    } catch {
+      return "oscuro";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE_TEMA_MAPA, temaMapa);
+    } catch {
+      // El cambio funciona incluso si el navegador bloquea el almacenamiento.
+    }
+  }, [temaMapa]);
   const listaEventosRef = useRef(null);
   const [listaEventosAbierta, setListaEventosAbierta] = useState(false);
   const [criterioOrdenEventos, setCriterioOrdenEventos] = useState("fecha");
@@ -596,6 +645,32 @@ export default function Eventos({ usuario }) {
     });
     return () => { pin.remove(); };
   }, [posicionUsuario]);
+  // Mantiene el control por encima de los paneles que ocupan su espacio.
+  useEffect(() => {
+    const boton = botonTemaRef.current;
+    const contenedor = mapRef.current?.parentElement;
+    if (!boton || !contenedor) return;
+    const paneles = contenedor.querySelectorAll(".eventos-sheet, .eventos-explorador");
+    const colocarBoton = () => {
+      const limites = contenedor.getBoundingClientRect();
+      const control = boton.getBoundingClientRect();
+      let margen = 18;
+      paneles.forEach((panel) => {
+        if (getComputedStyle(panel).opacity === "0") return;
+        const rect = panel.getBoundingClientRect();
+        if (rect.left < control.right && rect.right > control.left) {
+          margen = Math.max(margen, limites.bottom - rect.top + 12);
+        }
+      });
+      boton.style.bottom = margen + "px";
+    };
+    const observer = new ResizeObserver(colocarBoton);
+    observer.observe(contenedor);
+    paneles.forEach((panel) => observer.observe(panel));
+    colocarBoton();
+    return () => observer.disconnect();
+  }, [detalleEvento, detalleExpandido]);
+
   // Mantiene la fuente correcta incluso cuando React conserva la instancia
   // de Leaflet durante una recarga en caliente del modulo.
   useEffect(() => {
@@ -603,11 +678,12 @@ export default function Eventos({ usuario }) {
     const contenedor = mapRef.current;
     if (!map || !contenedor) return;
 
+    const estilo = temaMapa === "claro" ? URL_ESTILO_MAPA_CLARO : URL_ESTILO_MAPA_OSCURO;
     const capaActual = tilesLayerRef.current;
     const usaFuenteActual = capaActual
       && map.hasLayer(capaActual)
-      && capaActual.sondarStyleUrl === URL_ESTILO_MAPA_OSCURO
-      && capaActual.sondarStyleVersion === VERSION_CAPA_MAPA_OSCURO;
+      && capaActual.sondarStyleUrl === estilo
+      && capaActual.sondarStyleVersion === VERSION_CAPA_MAPA;
 
     if (!usaFuenteActual) {
       map.eachLayer((capa) => {
@@ -615,10 +691,10 @@ export default function Eventos({ usuario }) {
           map.removeLayer(capa);
         }
       });
-      tilesLayerRef.current = crearCapaMapaPrincipal().addTo(map);
+      tilesLayerRef.current = crearCapaMapaPrincipal(estilo).addTo(map);
     }
 
-    contenedor.classList.add("mapa-dark-matter");
+    contenedor.classList.toggle("mapa-dark-matter", temaMapa === "oscuro");
   });
 
   useEffect(() => {
@@ -1211,7 +1287,18 @@ export default function Eventos({ usuario }) {
   };
   return (
     <div className={`eventos-container ${detalleExpandido ? "detalle-abierto" : ""} ${listaEventosAbierta && !detalleExpandido ? "lista-abierta" : ""}`}>
-      <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
+      <div ref={mapRef} className={`eventos-mapa mapa-tema-${temaMapa}`} aria-label="Mapa de eventos"></div>
+      <button
+        ref={botonTemaRef}
+        type="button"
+        className={`eventos-tema-mapa tema-${temaMapa}`}
+        onClick={() => setTemaMapa((actual) => actual === "oscuro" ? "claro" : "oscuro")}
+        aria-label={temaMapa === "oscuro" ? "Cambiar a mapa claro" : "Cambiar a mapa oscuro"}
+        title={temaMapa === "oscuro" ? "Cambiar a mapa claro" : "Cambiar a mapa oscuro"}
+      >
+        <IconoPanel nombre={temaMapa === "oscuro" ? "sol" : "luna"} size={20} />
+        <span>{temaMapa === "oscuro" ? "Mapa claro" : "Mapa oscuro"}</span>
+      </button>
 
       {!detalleExpandido && (
         <aside
