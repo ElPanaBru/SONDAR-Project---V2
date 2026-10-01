@@ -23,7 +23,7 @@ export async function avisarDenunciaASoporte({
     throw new Error("Debes iniciar sesión para enviar una denuncia.");
   }
 
-  const response = await fetch(`${API_URL}/api/soporte`, {
+  const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

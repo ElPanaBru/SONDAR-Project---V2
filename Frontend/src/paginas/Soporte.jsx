@@ -114,7 +114,7 @@ export default function Soporte({ usuario }) {
         );
       }
 
-      const response = await fetch(`${API_URL}/api/soporte`, {
+      const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

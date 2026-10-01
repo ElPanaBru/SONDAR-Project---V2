@@ -11,7 +11,6 @@ const notificacionesRoutes = require('./routes/notificaciones');
 const soporteRoutes = require('./routes/soporte');
 const mensajesRoutes = require('./routes/mensajes');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const allowedOrigins = new Set([
