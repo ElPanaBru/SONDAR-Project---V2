@@ -171,64 +171,112 @@ export default function Auth() {
     }
   };
 
-  /*
-   * Detecta automáticamente cuando Supabase recupera la sesión.
-   *
-   * Esto permite que, después de hacer clic en el correo de
-   * verificación, el usuario entre a SONDAR sin volver a escribir
-   * email y contraseña.
-   */
   useEffect(() => {
-    let activo = true;
+  let activo = true;
 
-    const recuperarSesion = async () => {
-      try {
+  const procesarCallbackAuth = async () => {
+    try {
+      const hash = window.location.hash;
+
+      const tieneAccessToken =
+        hash.includes("access_token=") &&
+        hash.includes("type=signup");
+
+      if (tieneAccessToken) {
+        console.log("Callback de verificación detectado.");
+
         const {
-          data: { session }
+          data: { session },
+          error
         } = await supabase.auth.getSession();
 
-        if (!activo || !session) {
+        if (!activo) return;
+
+        if (error) {
+          console.error(
+            "Error recuperando sesión después de verificar:",
+            error
+          );
+          setMensaje(
+            "El correo fue verificado, pero no se pudo recuperar la sesión."
+          );
           return;
         }
 
-        await procesarSesion(session);
-      } catch (error) {
-        console.error("Error recuperando sesión:", error);
-      }
-    };
+        if (session) {
+          console.log("Sesión recuperada después de verificar.");
 
-    recuperarSesion();
+          /*
+           * Eliminamos el hash de la URL.
+           * El token ya fue procesado por Supabase.
+           */
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + window.location.search
+          );
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!activo) {
+          await procesarSesion(session);
+        } else {
+          console.error(
+            "Supabase no devolvió una sesión después de verificar."
+          );
+
+          setMensaje(
+            "El correo fue verificado, pero no se pudo iniciar la sesión automáticamente."
+          );
+        }
+
         return;
       }
 
       /*
-       * SIGNED_IN ocurre después de iniciar sesión normalmente
-       * y también después de confirmar el correo cuando Supabase
-       * recupera la sesión.
+       * Login normal o sesión ya existente.
        */
-      if (event === "SIGNED_IN" && session) {
-        /*
-         * Dejamos que termine el callback de Supabase antes de
-         * realizar las llamadas adicionales al backend.
-         */
-        setTimeout(() => {
-          if (activo) {
-            procesarSesion(session);
-          }
-        }, 0);
-      }
-    });
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
 
-    return () => {
-      activo = false;
-      subscription.unsubscribe();
-    };
-  }, []);
+      if (!activo || !session) {
+        return;
+      }
+
+      await procesarSesion(session);
+    } catch (error) {
+      console.error("Error procesando autenticación:", error);
+
+      if (activo) {
+        setMensaje(
+          error.message ||
+          "No se pudo completar la autenticación."
+        );
+      }
+    }
+  };
+
+  procesarCallbackAuth();
+
+  const {
+    data: { subscription }
+  } = supabase.auth.onAuthStateChange((event, session) => {
+    if (!activo) return;
+
+    console.log("Supabase Auth Event:", event);
+
+    if (event === "SIGNED_IN" && session) {
+      setTimeout(() => {
+        if (activo) {
+          procesarSesion(session);
+        }
+      }, 0);
+    }
+  });
+
+  return () => {
+    activo = false;
+    subscription.unsubscribe();
+  };
+}, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
