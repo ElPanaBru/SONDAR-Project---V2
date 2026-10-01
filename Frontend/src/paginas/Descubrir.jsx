@@ -1208,6 +1208,7 @@ export default function Descubrir({ usuario }) {
     audioReelActivoIdRef.current = idReel;
     const controlProgreso = controlesProgresoReelRef.current.get(String(idReel));
     let animacionProgresoId = null;
+    let audioVigente = true;
 
     const sincronizarProgresoReel = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
@@ -1325,9 +1326,15 @@ export default function Descubrir({ usuario }) {
     }
 
     sincronizarProgresoReel();
-    audio.play().catch(() => setReproduciendo(null));
+    audio.play().catch(() => {
+      // Un play cancelado al pausar o cambiar de reel no debe parar el nuevo audio.
+      if (!audioVigente || audioReelRef.current !== audio) return;
+      reproduciendoRef.current = null;
+      setReproduciendo(null);
+    });
 
     return () => {
+      audioVigente = false;
       if (Number.isFinite(audio.currentTime)) {
         tiemposReel[idReel] = audio.currentTime;
       }
@@ -1842,18 +1849,13 @@ export default function Descubrir({ usuario }) {
   };
 
   const alternarReproduccion = (id) => {
+    const actual = reproduciendoRef.current;
+    const siguiente = actual === id ? null : id;
+    if (actual === id) guardarTiempoAudioActual();
+    reelPausadoPorUsuarioRef.current = siguiente === null ? id : null;
+    reproduciendoRef.current = siguiente;
     setReelAudioSeleccionado(id);
-    setReproduciendo((actual) => {
-      const siguiente = actual === id ? null : id;
-      if (actual === id) {
-        guardarTiempoAudioActual();
-        reelPausadoPorUsuarioRef.current = id;
-      } else {
-        reelPausadoPorUsuarioRef.current = null;
-      }
-      reproduciendoRef.current = siguiente;
-      return siguiente;
-    });
+    setReproduciendo(siguiente);
   };
 
   const cambiarProgresoReel = (id, event) => {

@@ -3482,6 +3482,8 @@
 
 .reel-info-inferior,
 .descubrir-feed.comentarios-globales .reel-info-inferior {
+  /* El texto y el degradado dejan llegar el clic al control de reproduccion. */
+  pointer-events: none;
   position: absolute;
   top: auto;
   right: auto;
@@ -3506,6 +3508,10 @@
   border-radius: 0 0 11px 11px;
   text-align: left;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.72);
+}
+
+.reel-info-inferior :is(button, a, input) {
+  pointer-events: auto;
 }
 
 .reel-info-inferior .reel-titulo,
