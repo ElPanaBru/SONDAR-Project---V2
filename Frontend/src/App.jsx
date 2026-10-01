@@ -45,13 +45,25 @@ function App() {
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUsuario(session?.user || null);
-      if (!session) setOnboardingToken(null);
+      if (!session) {
+        setOnboardingToken(null);
+        window.localStorage.removeItem("sondar:onboarding-pending");
+      }
       if (session && window.localStorage.getItem("sondar:onboarding-pending") === "true") {
         setOnboardingToken(session.access_token);
       }
     });
 
     return () => listener.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const activarOnboarding = (event) => {
+      if (event.detail?.token) setOnboardingToken(event.detail.token);
+    };
+
+    window.addEventListener("sondar:iniciar-onboarding", activarOnboarding);
+    return () => window.removeEventListener("sondar:iniciar-onboarding", activarOnboarding);
   }, []);
 
   useEffect(() => {

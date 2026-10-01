@@ -131,8 +131,9 @@ export default function Auth() {
 
     try {
       const perfil = await verificarPerfilBackend(accessToken);
+      const perfilNuevo = !perfil.existe;
 
-      if (!perfil.existe) {
+      if (perfilNuevo) {
         const pendingUsername =
           user.user_metadata?.username ||
           window.localStorage.getItem("sondar:pending-username");
@@ -154,7 +155,12 @@ export default function Auth() {
       }
 
       window.localStorage.removeItem("sondar:pending-username");
-      window.localStorage.removeItem("sondar:onboarding-pending");
+      if (perfilNuevo) {
+        window.localStorage.setItem("sondar:onboarding-pending", "true");
+        window.dispatchEvent(new CustomEvent("sondar:iniciar-onboarding", {
+          detail: { token: accessToken }
+        }));
+      }
 
       navigate("/", { replace: true });
 
