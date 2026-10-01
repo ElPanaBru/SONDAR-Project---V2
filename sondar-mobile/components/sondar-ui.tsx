@@ -31,7 +31,7 @@ export function Header({ title, subtitle, back = false, onBack, actions }: { tit
   const topInset = Math.max(insets.top, fallbackTop);
   return (
     <View style={[styles.header, { minHeight: 58 + topInset, paddingTop: topInset }]}>
-      {back ? <IconButton name="arrow-back" onPress={onBack || (() => router.back())} /> : <View style={styles.brand}><Image source={require('../assets/images/icon.png')} style={styles.brandLogo} contentFit="contain" /></View>}
+      {back ? <IconButton name="arrow-back" onPress={onBack || (() => router.back())} /> : <View style={styles.brand}><Image source={require('../assets/sondar-brand-icon-2026.png')} style={styles.brandLogo} contentFit="contain" /></View>}
       <View style={styles.headerText}><Text style={styles.title} numberOfLines={1}>{title}</Text>{subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}</View>
       <View style={styles.headerActions}>{actions}</View>
     </View>

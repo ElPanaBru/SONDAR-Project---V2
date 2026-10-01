@@ -4,7 +4,7 @@
     "slug": "sondar-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/sondar-brand-icon-2026.png",
     "scheme": "sondar",
     "userInterfaceStyle": "dark",
     "ios": {
@@ -24,14 +24,14 @@
         "READ_MEDIA_AUDIO"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#08090C",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/sondar-brand-icon-2026.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/sondar-brand-icon-2026.png"
     },
     "plugins": [
       "expo-router",
@@ -51,10 +51,10 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/sondar-brand-icon-2026.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#000000",
           "dark": {
             "backgroundColor": "#000000"
           }

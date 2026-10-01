@@ -850,7 +850,7 @@ const handleImagen = (e) => {
 
             <div
               className="evento-detalle-imagen"
-              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/sondar-icon.png"})` }}
+              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/sondar-brand-icon-2026.png"})` }}
             >
               <span>{mostrarGenero(detalleEvento.genero)}</span>
             </div>

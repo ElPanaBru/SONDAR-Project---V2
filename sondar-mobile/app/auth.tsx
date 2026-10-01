@@ -98,7 +98,7 @@ export default function AuthScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView style={styles.scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={[styles.inner, { width: contentWidth }]}>
-            <Image source={require('../assets/sondar-logo-auth-v3.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
+            <Image source={require('../assets/sondar-brand-transparent-2026.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
             <Text style={styles.heroTitle}>La música pasa cerca tuyo.</Text>
             <Text style={styles.tagline}>Descubrí artistas, lanzamientos y eventos de tu escena.</Text>
             <View style={styles.card}>

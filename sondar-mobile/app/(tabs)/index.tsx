@@ -359,7 +359,7 @@ function EventPreviewRow({ preview, active, onActiveChange, onOpen }: { preview:
 /* eslint-enable react-hooks/immutability */
 
 function EventCard({ event, onPress, onSave }: { event: EventItem; onPress: () => void; onSave: () => void }) {
-  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}><View style={styles.cardImage}><Image source={require('../../assets/images/icon.png')} style={styles.cardLogo} contentFit="contain" /></View><View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
+  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}><View style={styles.cardImage}><Image source={require('../../assets/sondar-brand-icon-2026.png')} style={styles.cardLogo} contentFit="contain" /></View><View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
 }
 
 const styles = StyleSheet.create({
