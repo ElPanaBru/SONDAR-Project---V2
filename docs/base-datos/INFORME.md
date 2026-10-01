@@ -38,7 +38,6 @@ El frontend React consume la API Express para los datos. Supabase se usa ademas 
 | Mensajeria — `mensajeController.js` | `conversations`, `conversation_members`, `messages` | Chats privados, respuestas, edicion/borrado, no leidos, entrega, historial de usuarios eliminados. |
 | Notificaciones y denuncias | `notifications`, `content_reports` | Bandeja, lectura, deduplicacion y denuncias persistidas. |
 
-Soporte envia mensajes por EmailJS (`soporteController.js`); no hay una tabla de tickets que deba inventarse. `Backend/data/local-db.json` no es consumido por los modulos actuales. La carpeta `sondar-mobile` disponible contiene configuracion/cache de Expo, sin codigo de aplicacion adicional auditable. No se infiere el comportamiento de una version movil externa.
 
 ## Decisiones para no alterar comportamiento
 

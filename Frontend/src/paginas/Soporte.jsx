@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { apiJson } from "../lib/api";
 import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./soporte.css";
 
@@ -49,7 +49,6 @@ export default function Soporte({ usuario }) {
   const [loading, setLoading] = useState(false);
 
   const emailUsuario = usuario?.email?.trim() || "";
-  const API_URL = import.meta.env.VITE_API_URL;
 
   const handleChange = (e) => {
     setFormData((actual) => ({
@@ -88,58 +87,13 @@ export default function Soporte({ usuario }) {
       return;
     }
 
-    if (!API_URL) {
-      setEstado({
-        tipo: "error",
-        texto: "No se pudo conectar con el servidor de soporte.",
-      });
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        throw sessionError;
-      }
-
-      if (!session?.access_token) {
-        throw new Error(
-          "Tu sesión no es válida. Inicia sesión nuevamente."
-        );
-      }
-
-      const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
+      await apiJson("/api/soporte/mensaje", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          tipo: "contacto",
-          subject,
-          message,
-        }),
+        body: { tipo: "contacto", subject, message },
       });
-
-      let data = {};
-
-      try {
-        data = await response.json();
-      } catch {
-        // La respuesta puede no contener JSON.
-      }
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error || "No se pudo enviar el mensaje al equipo de soporte."
-        );
-      }
 
       setEstado({
         tipo: "success",

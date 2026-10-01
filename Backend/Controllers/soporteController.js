@@ -1,7 +1,5 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 function limpiarTexto(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
 }
@@ -11,6 +9,11 @@ const soporteController = {
     const tipo = req.body?.tipo === 'denuncia' ? 'denuncia' : 'contacto';
 
     const email = limpiarTexto(req.user?.email, 254);
+    if (!email) {
+      return res.status(401).json({
+        error: 'La sesion no tiene un correo verificado para contactar soporte.',
+      });
+    }
 
     const nombre = limpiarTexto(
       req.user?.user_metadata?.username
@@ -65,6 +68,7 @@ const soporteController = {
         throw new Error('Falta SUPPORT_EMAIL en las variables de entorno.');
       }
 
+      const resend = new Resend(process.env.RESEND_API_KEY);
       const { error } = await resend.emails.send({
         from: 'SONDAR <no-reply@sond-ar.com>',
         to: [process.env.SUPPORT_EMAIL],

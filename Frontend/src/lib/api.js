@@ -1,7 +1,11 @@
 import { supabase } from "./supabaseClient";
 
 function resolverApiUrl() {
-  const configurada = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const configurada = import.meta.env.VITE_API_URL
+    || (import.meta.env.DEV ? "http://localhost:3000" : "");
+  if (!configurada) {
+    throw new Error("Falta configurar VITE_API_URL para conectar con el backend.");
+  }
   if (typeof window === "undefined") return configurada;
 
   try {
@@ -67,9 +71,14 @@ export async function apiRequest(path, options = {}) {
   let timeoutId = null;
   let timeoutAgotado = false;
 
-  if (auth && !preparados.headers.has("Authorization")) {
-    const token = await obtenerToken();
-    if (token) preparados.headers.set("Authorization", `Bearer ${token}`);
+  try {
+    if (auth && !preparados.headers.has("Authorization")) {
+      const token = await obtenerToken();
+      if (token) preparados.headers.set("Authorization", `Bearer ${token}`);
+    }
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError("No se pudo validar la sesión actual.", { cause: error });
   }
 
   const abortarPorSignalExterno = () => controller.abort();

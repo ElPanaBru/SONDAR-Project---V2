@@ -1,5 +1,4 @@
-import { supabase } from "../lib/supabaseClient";
-const API_URL = import.meta.env.VITE_API_URL;
+import { apiJson } from "./api";
 export async function avisarDenunciaASoporte({
   tipo,
   contenidoId,
@@ -12,24 +11,9 @@ export async function avisarDenunciaASoporte({
 }) {
   const urlContenido = url || window.location.href;
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
-  if (sessionError) {
-    throw sessionError;
-  }
-  if (!session?.access_token) {
-    throw new Error("Debes iniciar sesión para enviar una denuncia.");
-  }
-
-  const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
+  return apiJson("/api/soporte/mensaje", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
+    body: {
       tipo: "denuncia",
       contenidoTipo: tipo,
       contenidoId,
@@ -39,21 +23,6 @@ export async function avisarDenunciaASoporte({
       detalle,
       nombreUsuario,
       url: urlContenido,
-    }),
+    },
   });
-
-  let data = {};
-  try {
-    data = await response.json();
-  } catch {
-    // La respuesta puede no contener JSON.
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data?.error || "No se pudo enviar la denuncia al equipo de soporte."
-    );
-  }
-
-  return data;
 }
