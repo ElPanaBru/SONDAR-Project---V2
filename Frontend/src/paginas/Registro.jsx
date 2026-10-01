@@ -8,27 +8,35 @@ export default function Register({ onSwitch }) {
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async (e) => {
-    e.preventDefault();
-    setMensaje("");
-    setLoading(true);
+  e.preventDefault();
+  setMensaje("");
+  setLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password.trim()
-      });
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: password.trim()
+    });
 
-      if (error) throw error;
+    console.log("========== REGISTRO ==========");
+    console.log("DATA:", data);
+    console.log("SESSION:", data?.session);
+    console.log("USER:", data?.user);
+    console.log("ERROR:", error);
+    console.log("==============================");
 
-      setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
-      setEmail("");
-      setPassword("");
-    } catch (error) {
-      setMensaje(error.message || "Error al crear la cuenta.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (error) throw error;
+
+    setMensaje("Cuenta creada. Revisa tu correo para confirmar el registro.");
+    setEmail("");
+    setPassword("");
+  } catch (error) {
+    console.error("ERROR REGISTRO:", error);
+    setMensaje(error.message || "Error al crear la cuenta.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={styles.container}>
