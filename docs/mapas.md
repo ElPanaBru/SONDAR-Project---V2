@@ -1,6 +1,6 @@
 # Temas del mapa
 
-El modo oscuro usa Stadia Alidade Smooth Dark. El modo claro usa Jawg Lagoon cuando se configura su token; sin el conserva OpenFreeMap Liberty.
+El modo oscuro usa OpenFreeMap Dark. El modo claro usa Jawg Lagoon cuando se configura su token; sin el conserva OpenFreeMap Liberty. Ambos estilos de OpenFreeMap usan MapLibre y no requieren credenciales.
 
 ## Activar Jawg Lagoon
 

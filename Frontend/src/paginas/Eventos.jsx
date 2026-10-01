@@ -42,7 +42,7 @@ const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
 const URL_TILES_OPENSTREETMAP = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
-const URL_ESTILO_MAPA_OSCURO = "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png";
+const URL_ESTILO_MAPA_OSCURO = "https://tiles.openfreemap.org/styles/dark";
 const JAWG_ACCESS_TOKEN = import.meta.env.VITE_JAWG_ACCESS_TOKEN?.trim();
 const URL_TILES_LAGOON = "https://tile.jawg.io/jawg-lagoon/{z}/{x}/{y}{r}.png";
 // Mantiene un mapa claro disponible mientras se configura el token de Jawg Lagoon.
@@ -50,10 +50,9 @@ const URL_ESTILO_MAPA_CLARO = JAWG_ACCESS_TOKEN
   ? URL_TILES_LAGOON + "?access-token=" + encodeURIComponent(JAWG_ACCESS_TOKEN)
   : "https://tiles.openfreemap.org/styles/liberty";
 const CLAVE_TEMA_MAPA = "sondar:tema-mapa";
-const VERSION_CAPA_MAPA = 5;
+const VERSION_CAPA_MAPA = 6;
 const ATRIBUCION_OPENSTREETMAP = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const ATRIBUCION_OPENFREEMAP = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const ATRIBUCION_STADIA = '&copy; <a href="https://stadiamaps.com/attribution/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' + ATRIBUCION_OPENSTREETMAP;
 const ATRIBUCION_JAWG = '&copy; <a href="https://www.jawg.io/" title="Tiles Courtesy of Jawg Maps">Jawg Maps</a> ' + ATRIBUCION_OPENSTREETMAP;
 const crearCapaMapaPrincipal = (estilo) => {
   if (JAWG_ACCESS_TOKEN && estilo === URL_ESTILO_MAPA_CLARO) {
@@ -66,18 +65,6 @@ const crearCapaMapaPrincipal = (estilo) => {
     capa.sondarStyleVersion = VERSION_CAPA_MAPA;
     return capa;
   }
-  if (estilo === URL_ESTILO_MAPA_OSCURO) {
-    // En localhost no requiere credenciales; en produccion se autoriza el dominio en Stadia.
-    const capa = L.tileLayer(estilo, {
-      maxNativeZoom: 20,
-      maxZoom: 24,
-      attribution: ATRIBUCION_STADIA,
-    });
-    capa.sondarStyleUrl = estilo;
-    capa.sondarStyleVersion = VERSION_CAPA_MAPA;
-    return capa;
-  }
-
   const capa = maplibreGL({
     style: estilo,
     attributionControl: false,
