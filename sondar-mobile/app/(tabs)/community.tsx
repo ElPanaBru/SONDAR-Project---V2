@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { CommunityAttachmentPicker, CommunityAttachments, type CommunityAttachment } from '@/components/community-attachments';
@@ -24,6 +26,8 @@ const removeComment = (items: Comment[], id: number): Comment[] => items
 
 export default function CommunityScreen() {
   const { token, user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const { comunidadId, publicacionId } = useLocalSearchParams<{ comunidadId?: string; publicacionId?: string }>();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [active, setActive] = useState<Community | null>(null);
@@ -336,31 +340,41 @@ export default function CommunityScreen() {
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => { if (!publishing) setCreating(false); }}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Screen scroll>
-          <Header title="Crear post" back onBack={() => { if (!publishing) setCreating(false); }} actions={<IconButton name="close" disabled={publishing} onPress={() => setCreating(false)} />} />
+        <ScrollView style={styles.createScreen} contentContainerStyle={[styles.createContent, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+          <View style={styles.createHeader}>
+            <Text style={styles.createTitle}>Crear post</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cerrar crear post" disabled={publishing} onPress={() => setCreating(false)} style={styles.createClose}><Ionicons name="close" color={palette.text} size={22} /></Pressable>
+          </View>
+          <Text style={styles.createCommunity}>s/{(active?.titulo || active?.nombre || active?.genero || '').replace(/^@/, '').replace(/^s[/]/, '')}</Text>
           <ErrorNotice message={error} />
-          <View style={styles.publishContext}><Ionicons name="people-outline" size={23} color={palette.orange} /><View><Text style={styles.author}>Crear post</Text><Text style={ui.muted}>{active?.titulo || active?.nombre}</Text></View></View>
-          <Field label="Titulo" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Abri una conversacion" maxLength={140} />
-          <Text style={styles.formLabel}>TIPO DE PUBLICACION</Text>
-          <View style={styles.postTypes}>
-            {([['reciente', 'Publicacion general', 'chatbubble-outline'], ['preguntas', 'Pregunta', 'help-circle-outline']] as const).map(([id, label, icon]) => (
-              <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: form.tipo === id }} style={[styles.postType, form.tipo === id && styles.postTypeActive]} onPress={() => setForm(f => ({ ...f, tipo: id }))}>
-                <Ionicons name={icon} size={19} color={form.tipo === id ? palette.orange : palette.muted} /><Text style={styles.postTypeText}>{label}</Text>
-              </Pressable>
-            ))}
+          <View style={styles.createSection}>
+            <Text style={styles.formLabel}>TÍTULO</Text>
+            <Field editable={!publishing} value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Título de la publicación" maxLength={300} style={styles.createField} />
+            <Text style={styles.formCounter}>{form.titulo.length}/300</Text>
+          </View>
+          <View style={styles.createSection}>
+            <Text style={styles.formLabel}>TIPO DE PUBLICACIÓN</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Tipo de publicación" accessibilityState={{ expanded: typeMenuOpen, disabled: publishing }} disabled={publishing} onPress={() => setTypeMenuOpen(value => !value)} style={styles.typeSelect}>
+              <Text style={styles.typeSelectText}>{form.tipo === 'preguntas' ? 'Solo preguntas' : 'Publicación general'}</Text>
+              <Ionicons name={typeMenuOpen ? 'chevron-up' : 'chevron-down'} size={20} color={palette.text} />
+            </Pressable>
+            {typeMenuOpen ? <View style={styles.typeOptions}>{[['reciente', 'Publicación general'], ['preguntas', 'Solo preguntas']].map(([id, label]) => <Pressable key={id} accessibilityRole="radio" accessibilityState={{ checked: form.tipo === id }} disabled={publishing} onPress={() => { setForm(f => ({ ...f, tipo: id })); setTypeMenuOpen(false); }} style={styles.typeOption}><Text style={styles.typeSelectText}>{label}</Text>{form.tipo === id ? <Ionicons name="checkmark" size={20} color={palette.amber} /> : null}</Pressable>)}</View> : null}
           </View>
           {creating ? <>
-            <CommunityAttachmentPicker type="evento" token={token} value={eventAttachment} onChange={setEventAttachment} />
-            <CommunityAttachmentPicker type="reel" token={token} value={reelAttachment} onChange={setReelAttachment} />
+            <CommunityAttachmentPicker type="evento" token={token} value={eventAttachment} onChange={setEventAttachment} disabled={publishing} />
+            <CommunityAttachmentPicker type="reel" token={token} value={reelAttachment} onChange={setReelAttachment} disabled={publishing} />
           </> : null}
-          <Field label="DESCRIPCION" value={form.texto} onChangeText={texto => setForm(f => ({ ...f, texto }))} placeholder="Compartir una idea o mencionar a @usuario..." multiline maxLength={3000} style={{ minHeight: 145, textAlignVertical: 'top' }} />
-          <Text style={styles.formCounter}>{form.texto.length}/3000</Text>
-          <Field label="Etiqueta" value={form.etiqueta} onChangeText={etiqueta => setForm(f => ({ ...f, etiqueta }))} placeholder={active?.genero || 'musica'} />
-          <View style={styles.publishActions}>
-            <View style={{ flex: 1 }}><Button kind="secondary" disabled={publishing} onPress={() => setCreating(false)}>Cancelar</Button></View>
-            <View style={{ flex: 1 }}><Button icon="send" onPress={publish} disabled={publishing || !form.titulo.trim() || !form.texto.trim()}>{publishing ? 'Publicando...' : 'Publicar'}</Button></View>
+          <View style={styles.createSection}>
+            <Text style={styles.formLabel}>DESCRIPCIÓN</Text>
+            <Field editable={!publishing} value={form.texto} onChangeText={texto => setForm(f => ({ ...f, texto }))} placeholder={'Escribí en ' + (active?.nombre || '@' + active?.genero) + ' o mencioná con @usuario'} multiline maxLength={3000} style={[styles.createField, styles.createDescription]} />
           </View>
-        </Screen>
+          <View style={styles.publishActions}>
+            <Pressable accessibilityRole="button" disabled={publishing} onPress={() => setCreating(false)} style={[styles.createAction, styles.createCancel, publishing && styles.createDisabled]}><Text style={styles.createActionText}>Cancelar</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Publicar post" accessibilityState={{ disabled: publishing || !form.titulo.trim() || !form.texto.trim() }} onPress={publish} disabled={publishing || !form.titulo.trim() || !form.texto.trim()} style={[styles.createAction, publishing && styles.createDisabled]}>
+              <LinearGradient colors={['#FFAE00', '#FF5E00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.createGradient}><Text style={[styles.createActionText, { color: '#000' }]}>{publishing ? 'Publicando...' : 'Post'}</Text></LinearGradient>
+            </Pressable>
+          </View>
+        </ScrollView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -512,8 +526,26 @@ function appendReply(items: Comment[], id: number, reply: Comment): Comment[] {
 }
 
 const styles = StyleSheet.create({
+  createScreen: { flex: 1, backgroundColor: '#101010' },
+  createContent: { paddingHorizontal: 16, gap: 22 },
+  createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  createTitle: { color: '#FFF', fontSize: 28, fontWeight: '700' },
+  createClose: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: '#665000', backgroundColor: '#1C1C1C', alignItems: 'center', justifyContent: 'center' },
+  createCommunity: { color: '#FFAE00', fontSize: 18, fontWeight: '900' },
+  createSection: { gap: 12 },
+  createField: { backgroundColor: '#222', borderColor: '#333', borderRadius: 10, minHeight: 54, paddingHorizontal: 14, fontSize: 16 },
+  createDescription: { minHeight: 160, textAlignVertical: 'top' },
+  typeSelect: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, minHeight: 54, borderRadius: 10, borderWidth: 1, borderColor: '#333', backgroundColor: '#222' },
+  typeSelectText: { color: '#FFF', fontSize: 16, flexShrink: 1 },
+  typeOptions: { borderRadius: 10, borderWidth: 1, borderColor: '#333', backgroundColor: '#222', overflow: 'hidden' },
+  typeOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, paddingHorizontal: 16 },
+  createAction: { flex: 1, minHeight: 50, borderRadius: 28, overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
+  createCancel: { backgroundColor: '#333' },
+  createGradient: { width: '100%', minHeight: 50, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 10 },
+  createActionText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+  createDisabled: { opacity: .5 },
   publishContext: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
-  formLabel: { color: palette.text, fontSize: 12, fontWeight: '800' },
+  formLabel: { color: '#C8C8C8', fontSize: 13, fontWeight: '800' },
   postTypes: { flexDirection: 'row', gap: 8 },
   postType: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface },
   postTypeActive: { borderColor: palette.orange, backgroundColor: '#FF790018' },
