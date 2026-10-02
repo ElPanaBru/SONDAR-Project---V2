@@ -6,19 +6,20 @@ import { palette } from '@/constants/sondar';
 
 type Props = {
   state: MapState;
+  theme?: 'light' | 'dark';
   picker?: boolean;
   style?: StyleProp<ViewStyle>;
   onSelect?: (id: string) => void;
   onCoordinate?: (coordinate: Coordinate) => void;
 };
 
-export function LeafletMap({ state, picker = false, style, onSelect, onCoordinate }: Props) {
+export function LeafletMap({ state, theme, picker = false, style, onSelect, onCoordinate }: Props) {
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
   const [generation, setGeneration] = useState(0);
   const source = useMemo(() => ({ html: createMapHTML(picker) }), [picker]);
-  const serialized = serializeMapState(state);
+  const serialized = serializeMapState({ ...state, theme: theme || state.theme });
 
   useEffect(() => {
     if (ready) web.current?.injectJavaScript('window.updateSondarMap(' + serialized + ');true;');

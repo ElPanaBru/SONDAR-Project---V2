@@ -5,6 +5,7 @@ export type MapEvent = Coordinate & { id: string; title: string };
 export type MapState = {
   center: Coordinate;
   events: MapEvent[];
+  theme?: 'light' | 'dark';
   userLocation?: Coordinate | null;
   locationFocus?: number;
   coordinate?: Coordinate;
@@ -25,12 +26,13 @@ export function serializeMapState(state: MapState) {
 }
 
 export function createMapHTML(picker: boolean) {
-  const config = JSON.stringify({ picker }).replace(/</g, '\\u003c');
+  const config = JSON.stringify({ picker, stadiaKey: process.env.EXPO_PUBLIC_STADIA_MAPS_API_KEY || '' }).replace(/</g, '\\u003c');
   return `<!doctype html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>${leafletCSS}
 html,body,#map{height:100%;width:100%;margin:0;background:#202020}
 .leaflet-container{font-family:system-ui;background:#202020}
+.leaflet-layer.dark-fallback .leaflet-tile{filter:invert(1) hue-rotate(180deg) brightness(.82) contrast(.9)}
 .leaflet-bottom{bottom:24px}
 .leaflet-control-attribution{font-size:9px!important;background:#111d!important;color:#ccc}
 .leaflet-control-attribution a{color:#ccc}
@@ -44,24 +46,34 @@ html,body,#map{height:100%;width:100%;margin:0;background:#202020}
 <script>${leafletJS}</script><script>
 (function(){
 'use strict';
-var config=${config}, map, state, lastEventsKey=null, lastFocus=null, picked=null, user=null;
+var config=${config}, map, state, lastEventsKey=null, lastFocus=null, picked=null, user=null, tiles=null, activeTheme=null;
 function send(data){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(data));}
 function notice(text){var el=document.getElementById('notice');el.textContent=text;el.style.display=text?'block':'none';}
+var tileErrors=0;
+function watchTiles(layer){layer.on('tileerror',function(){
+ tileErrors++;
+ if(tileErrors>=3){notice('No se pudo cargar el mapa. Revisa tu conexion y toca Reintentar.');send({type:'tilesError'});}
+});layer.on('tileload',function(){tileErrors=0;notice('');send({type:'tilesLoaded'});});}
 try{
 map=L.map('map',{zoomControl:false,worldCopyJump:false,minZoom:2,maxZoom:19,maxBounds:[[-85,-180],[85,180]],maxBoundsViscosity:1}).setView([-34.6037,-58.3816],12);
 L.control.zoom({position:'bottomleft'}).addTo(map);
 map.attributionControl.setPosition('bottomright');
 var eventsLayer=L.layerGroup().addTo(map);
-var tileErrors=0;
-var tiles=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
- attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
- maxZoom:19,noWrap:true,keepBuffer:2
-}).addTo(map);
-tiles.on('tileerror',function(){
- tileErrors++;
- if(tileErrors>=3){notice('No se pudo cargar el mapa. Revisa tu conexion y toca Reintentar.');send({type:'tilesError'});}
-});
-tiles.on('tileload',function(){tileErrors=0;notice('');send({type:'tilesLoaded'});});
+function setTheme(theme){
+ if(activeTheme===theme&&tiles)return;
+ activeTheme=theme;
+ if(tiles)map.removeLayer(tiles);
+ var dark=theme==='dark', hasStadiaKey=Boolean(config.stadiaKey);
+ var url=dark&&hasStadiaKey
+  ?'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png?api_key='+encodeURIComponent(config.stadiaKey)
+  :'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+ var attribution=dark&&hasStadiaKey
+  ?'&copy; <a href="https://stadiamaps.com/attribution/">Stadia Maps</a>, &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  :'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+ tiles=L.tileLayer(url,{attribution:attribution,maxZoom:19,noWrap:true,keepBuffer:2,className:dark&&!hasStadiaKey?'dark-fallback':''});
+ tileErrors=0;watchTiles(tiles);tiles.addTo(map);
+}
+setTheme('light');
 function icon(count,location){
  return L.divIcon({className:location?'user-pin':'event-pin',html:location?'':count>1?String(count):'S',iconSize:location?[24,24]:[42,42],iconAnchor:location?[12,12]:[21,21]});
 }
@@ -97,6 +109,7 @@ function selectPosition(latlng){
 if(config.picker)map.on('click',function(e){selectPosition(e.latlng);});
 window.updateSondarMap=function(next){
  state=next;
+ setTheme(state.theme||'light');
  if(config.picker&&state.coordinate){
    var target=coords(state.coordinate);
    if(!picked){

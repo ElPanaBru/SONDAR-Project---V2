@@ -6,9 +6,11 @@ desde un CDN. Las imagenes del mapa si requieren conexion.
 
 ## Estilo
 
-Usa exclusivamente CARTO Dark Matter, igual que Frontend/src/paginas/Eventos.jsx.
-No usa Stadia ni requiere una clave de Stadia o Google Maps.
-Las atribuciones de CARTO y OpenStreetMap permanecen visibles.
+El mapa permite alternar entre OpenStreetMap claro y modo oscuro. Si se configura
+`EXPO_PUBLIC_STADIA_MAPS_API_KEY`, el modo oscuro usa Stadia Alidade Smooth Dark,
+como en la captura de la versión web. Sin clave, oscurece las teselas de
+OpenStreetMap para que ambos modos sigan disponibles. Las atribuciones del
+proveedor activo permanecen visibles.
 
 ## Comprobacion en Expo Go
 

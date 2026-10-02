@@ -62,6 +62,7 @@ export default function EventsScreen() {
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
   const [locationFocus, setLocationFocus] = useState(0);
+  const [mapTheme, setMapTheme] = useState<'light' | 'dark'>('light');
   const [sortBy, setSortBy] = useState<EventSort>('date');
   const [descending, setDescending] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -243,8 +244,9 @@ export default function EventsScreen() {
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={[styles.body, { paddingBottom: tabBarHeight }]}>
-        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} userLocation={userLocation} locationFocus={locationFocus} onSelect={setSelected} style={styles.map} />
+        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} userLocation={userLocation} locationFocus={locationFocus} mapTheme={mapTheme} onSelect={setSelected} style={styles.map} />
         <Pressable accessibilityRole="button" accessibilityLabel="Mostrar mi ubicación en el mapa" disabled={locating} onPress={showMyLocation} style={styles.locateButton}><Ionicons name="locate" size={20} color={palette.orange} /><Text style={styles.controlText}>{locating ? 'Ubicando…' : 'Mi ubicación'}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={mapTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} accessibilityState={{ selected: mapTheme === 'dark' }} onPress={() => setMapTheme(value => value === 'light' ? 'dark' : 'light')} style={styles.mapThemeButton}><Ionicons name={mapTheme === 'light' ? 'moon' : 'sunny'} size={19} color={palette.orange} /><Text style={styles.controlText}>{mapTheme === 'light' ? 'Modo oscuro' : 'Modo claro'}</Text></Pressable>
         <View style={styles.sheet}>
           <View style={styles.sortBar}>
             <Text style={styles.controlText}>Eventos · {filtered.length}</Text>
@@ -410,6 +412,7 @@ function EventCard({ event, distance, onPress, onSave }: { event: EventItem; dis
 
 const styles = StyleSheet.create({
   locateButton: { position: 'absolute', top: 14, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  mapThemeButton: { position: 'absolute', top: 68, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
   sortActions: { flexDirection: 'row', gap: 5 },
   sortButton: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, backgroundColor: palette.surface },
