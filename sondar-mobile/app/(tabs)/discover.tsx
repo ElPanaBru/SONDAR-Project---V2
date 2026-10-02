@@ -44,6 +44,7 @@ export default function DiscoverScreen() {
   const commentLock = useRef(false);
   const publishLock = useRef(false);
   const [sending, setSending] = useState(false);
+  const followLocks = useRef(new Set<string>());
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -123,9 +124,11 @@ export default function DiscoverScreen() {
   }
 
   async function toggleFollow(reel: Reel) {
-    if (!reel.creadorId) return;
+    if (!reel.creadorId || followLocks.current.has(reel.creadorId)) return;
+    followLocks.current.add(reel.creadorId);
     try { const result = await api<any>(`/api/usuarios/${reel.creadorId}/seguir`, { method: 'POST', token }); setReels(items => items.map(item => item.creadorId === reel.creadorId ? { ...item, siguiendo: result.siguiendo ?? result.following } : item)); }
     catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo seguir.'); }
+    finally { followLocks.current.delete(reel.creadorId); }
   }
 
   async function registerShare(reel: Reel) {
@@ -323,7 +326,7 @@ export default function DiscoverScreen() {
 
       <Modal visible={Boolean(commentReel)} animationType="slide" transparent onRequestClose={() => setCommentReel(null)}>
         <KeyboardArea style={styles.backdrop}><View style={styles.commentsModal}><View style={styles.modalTop}><Text style={ui.h2}>Comentarios · {countComments(comments)}</Text><IconButton name="close" onPress={() => setCommentReel(null)} /></View>
-          <FlatList data={comments} keyExtractor={item => String(item.id)} style={{ flex: 1 }} contentContainerStyle={{ gap: 15, paddingVertical: 12 }} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty title="Todavía no hay comentarios" />} renderItem={({ item }) => <CommentRow item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} />} />
+          <FlatList data={comments} keyExtractor={item => String(item.id)} style={{ flex: 1 }} contentContainerStyle={{ gap: 15, paddingVertical: 12 }} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty title="Todavía no hay comentarios" />} renderItem={({ item }) => <CommentRow item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} onProfile={id => { setCommentReel(null); router.push({ pathname: '/profile/[id]', params: { id } }); }} />} />
           {replyTo ? <View style={styles.replyBanner}><Text style={styles.time}>Respondiendo a {replyTo.usuario}</Text><Pressable onPress={() => setReplyTo(null)}><Ionicons name="close-circle" size={20} color={palette.muted} /></Pressable></View> : null}
           <View style={styles.commentComposer}><View style={{ flex: 1 }}><Field placeholder={replyTo ? `Responder a ${replyTo.usuario}…` : 'Sumate a la conversación…'} value={comment} onChangeText={setComment} /></View><IconButton name="send" active disabled={sending} onPress={sendComment} /></View>
         </View></KeyboardArea>
@@ -438,6 +441,9 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   const { isPlaying: playing } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const [progress, setProgress] = useState({ current: 0, duration: fragmentLength });
   const [barWidth, setBarWidth] = useState(1);
+  const [scrubbing, setScrubbing] = useState(false);
+  const scrubbingRef = useRef(false);
+  const resumeAfterSeek = useRef(false);
   const manuallyPaused = useRef(false);
   const playable = Boolean(reel.audio);
   const duration = progress.duration || fragmentLength;
@@ -460,6 +466,7 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   useEffect(() => {
     if (!active || !screenFocused || !playable) return;
     const interval = setInterval(() => {
+      if (scrubbingRef.current) return;
       if (player.currentTime >= fragmentEnd) {
         player.currentTime = fragmentStart;
         if (active && screenFocused) player.play();
@@ -490,13 +497,21 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   function seek(event: GestureResponderEvent) {
     if (!playable || duration <= 0) return;
     const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / barWidth));
-    const nextTime = fragmentStart + (ratio * duration);
+    const nextTime = fragmentStart + Math.min(ratio * duration, Math.max(0, duration - .05));
     player.currentTime = nextTime;
     setProgress(value => ({ ...value, current: nextTime - fragmentStart }));
-    if (active && screenFocused && !playing) {
-      manuallyPaused.current = false;
-      player.play();
-    }
+  }
+  function beginSeek(event: GestureResponderEvent) {
+    scrubbingRef.current = true;
+    resumeAfterSeek.current = playing;
+    setScrubbing(true);
+    player.pause();
+    seek(event);
+  }
+  function endSeek() {
+    scrubbingRef.current = false;
+    setScrubbing(false);
+    if (resumeAfterSeek.current && active && screenFocused) player.play();
   }
   return (
     <View style={[styles.reel, { height }]}>
@@ -505,14 +520,14 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
       <LinearGradient colors={['#00000010', '#00000025', '#08090CF5']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
       <Pressable onPress={togglePlay} style={styles.playArea}>{!playing ? <View style={styles.play}><Ionicons name="play" size={33} color="#111" /></View> : null}</Pressable>
       <View style={styles.reelBottom}>
-        <View style={styles.artist}><Pressable style={styles.artistIdentity} onPress={() => reel.creadorId && router.push({ pathname: '/profile/[id]', params: { id: reel.creadorId } })}><Avatar uri={reel.avatar} name={reel.artista} size={43} /><View style={{ flex: 1 }}><Text style={styles.artistName}>{reel.artista}</Text><Text style={styles.handle}>{reel.usuario}</Text></View></Pressable>{!mine ? <Pressable onPress={onFollow} style={[styles.follow, reel.siguiendo && styles.following]}><Text style={styles.followText}>{reel.siguiendo ? 'Siguiendo' : 'Seguir'}</Text></Pressable> : null}</View>
+        <View style={styles.artist}><Pressable style={styles.artistIdentity} onPress={() => reel.creadorId && router.push({ pathname: '/profile/[id]', params: { id: reel.creadorId } })}><Avatar uri={reel.avatar} name={reel.artista} size={43} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.artistName}>{reel.artista}{mine ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text><Text numberOfLines={1} style={styles.handle}>{reel.usuario}</Text></View></Pressable>{!mine && reel.creadorId ? <Pressable accessibilityRole="button" accessibilityLabel={reel.siguiendo ? 'Dejar de seguir' : 'Seguir artista'} onPress={onFollow} style={[styles.follow, reel.siguiendo && styles.following]}><Ionicons name={reel.siguiendo ? 'checkmark' : 'add'} size={15} color={reel.siguiendo ? palette.text : '#111'} /><Text style={[styles.followText, reel.siguiendo && { color: palette.text }]}>{reel.siguiendo ? 'Siguiendo' : 'Seguir'}</Text></Pressable> : null}</View>
         <Text style={styles.song}>{reel.tema}</Text><Text style={styles.album}>{reel.album} · {formatGenre(reel.genero)}</Text>{reel.descripcion ? <Text style={styles.reelDescription} numberOfLines={2}>{reel.descripcion}</Text> : null}
         <View style={styles.progressBox}>
-          <Pressable onPress={seek} onLayout={onProgressLayout} style={styles.progressTrack}>
-            <View style={styles.progressBase} />
-            <View style={[styles.progressFill, { width: `${percent}%` }]} />
-            <View style={[styles.progressKnob, { left: `${percent}%` }]} />
-          </Pressable>
+          <View accessible accessibilityLabel="Posición de reproducción" accessibilityValue={{ min: 0, max: Math.round(duration), now: Math.round(progress.current) }} onStartShouldSetResponder={() => playable} onMoveShouldSetResponder={() => playable} onResponderGrant={beginSeek} onResponderMove={seek} onResponderRelease={endSeek} onResponderTerminate={endSeek} onResponderTerminationRequest={() => false} onLayout={onProgressLayout} style={styles.progressTrack}>
+            <View pointerEvents="none" style={styles.progressBase} />
+            <View pointerEvents="none" style={[styles.progressFill, { width: `${percent}%` }]} />
+            <View pointerEvents="none" style={[styles.progressKnob, scrubbing && styles.progressKnobActive, { left: `${percent}%` }]} />
+          </View>
           <View style={styles.progressTimes}><Text style={styles.progressText}>{formatTime(progress.current)}</Text><Text style={styles.progressText}>{formatTime(duration)}</Text></View>
         </View>
       </View>
@@ -541,24 +556,26 @@ function formatTime(value?: number) {
   return `${minutes}:${seconds}`;
 }
 
-function CommentRow({ item, currentUserId, onLike, onReply, onDelete, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; nested?: boolean; rootId?: number }) {
+function CommentRow({ item, currentUserId, onLike, onReply, onDelete, onProfile, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; onProfile: (id: string) => void; nested?: boolean; rootId?: number }) {
   const parentId = rootId || item.id;
   const canDelete = Boolean(currentUserId && item.userId === currentUserId);
-  return <View style={nested && styles.nestedComment}><View style={styles.comment}><Avatar uri={item.avatar} name={item.usuario} size={nested ? 30 : 36} /><View style={{ flex: 1 }}><Text style={styles.username}>{item.usuario}{nested && item.respondeA ? <Text style={styles.replyTarget}> para {item.respondeA}</Text> : null} <Text style={styles.time}>{item.tiempo}</Text></Text><Text style={styles.commentText}>{item.texto}</Text><Pressable onPress={() => onReply({ parentId, usuario: item.usuario })} hitSlop={8}><Text style={styles.replyAction}>Responder</Text></Pressable></View><View style={styles.commentTools}><Pressable onPress={() => onLike(item)} hitSlop={10} style={styles.commentLike}><Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={17} color={item.liked ? palette.orange : palette.muted} /><Text style={styles.time}>{formatCount(item.likes || 0)}</Text></Pressable>{canDelete ? <Pressable onPress={() => onDelete(item)} hitSlop={10} style={styles.commentDelete}><Ionicons name="trash-outline" size={17} color={palette.muted} /></Pressable> : null}</View></View>{item.respuestas?.map(reply => <CommentRow key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} nested rootId={parentId} />)}</View>;
+  return <View style={nested && styles.nestedComment}><View style={styles.comment}><Pressable accessibilityRole="button" accessibilityLabel="Ver perfil" disabled={!item.userId} onPress={() => item.userId && onProfile(item.userId)}><Avatar uri={item.avatar} name={item.usuario} size={nested ? 30 : 36} /></Pressable><View style={{ flex: 1 }}><Text onPress={() => item.userId && onProfile(item.userId)} style={styles.username}>{item.usuario}{canDelete ? <Text style={styles.youLabel}>  Tú</Text> : null}{nested && item.respondeA ? <Text style={styles.replyTarget}> para {item.respondeA}</Text> : null} <Text style={styles.time}>{item.tiempo}</Text></Text><Text style={styles.commentText}>{item.texto}</Text><Pressable onPress={() => onReply({ parentId, usuario: item.usuario })} hitSlop={8}><Text style={styles.replyAction}>Responder</Text></Pressable></View><View style={styles.commentTools}><Pressable onPress={() => onLike(item)} hitSlop={10} style={styles.commentLike}><Ionicons name={item.liked ? 'heart' : 'heart-outline'} size={17} color={item.liked ? palette.orange : palette.muted} /><Text style={styles.time}>{formatCount(item.likes || 0)}</Text></Pressable>{canDelete ? <Pressable onPress={() => onDelete(item)} hitSlop={10} style={styles.commentDelete}><Ionicons name="trash-outline" size={17} color={palette.muted} /></Pressable> : null}</View></View>{item.respuestas?.map(reply => <CommentRow key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} onProfile={onProfile} nested rootId={parentId} />)}</View>;
 }
 
 function updateComment(items: Comment[], id: number, updater: (item: Comment) => Comment): Comment[] { return items.map(item => item.id === id ? updater(item) : { ...item, respuestas: updateComment(item.respuestas || [], id, updater) }); }
 function appendReply(items: Comment[], id: number, reply: Comment): Comment[] { return updateComment(items, id, item => ({ ...item, respuestas: [...(item.respuestas || []), reply] })); }
 
 const styles = StyleSheet.create({
+  youLabel: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   reelsList: { flexGrow: 0, flexShrink: 0, backgroundColor: palette.bg },
   reel: { backgroundColor: palette.surface, overflow: 'hidden' }, playArea: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' }, play: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#FFFFFFDC', alignItems: 'center', justifyContent: 'center' },
-  reelBottom: { position: 'absolute', left: 16, right: 78, bottom: 22, gap: 4 }, artist: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 }, artistIdentity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 }, artistName: { color: '#fff', fontSize: 15, fontWeight: '800' }, handle: { color: '#D0D1D5', fontSize: 12 }, follow: { borderRadius: 10, borderWidth: 1, borderColor: palette.amber, paddingVertical: 6, paddingHorizontal: 11 }, following: { backgroundColor: '#FFAE0030' }, followText: { color: palette.text, fontSize: 12, fontWeight: '700' }, song: { color: '#fff', fontSize: 21, fontWeight: '900' }, album: { color: palette.amber, fontSize: 13, fontWeight: '800' }, reelDescription: { color: '#E4E4E6', fontSize: 13, lineHeight: 17, marginTop: 2 },
+  reelBottom: { position: 'absolute', left: 16, right: 78, bottom: 22, gap: 4 }, artist: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 }, artistIdentity: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 9 }, artistName: { color: '#fff', fontSize: 15, fontWeight: '800' }, handle: { color: '#D0D1D5', fontSize: 12 }, follow: { flexShrink: 0, minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderRadius: 18, borderWidth: 1, borderColor: palette.orange, backgroundColor: palette.orange, paddingHorizontal: 10 }, following: { backgroundColor: '#101010CC', borderColor: '#FFFFFF66' }, followText: { color: '#111', fontSize: 12, fontWeight: '800' }, song: { color: '#fff', fontSize: 21, fontWeight: '900' }, album: { color: palette.amber, fontSize: 13, fontWeight: '800' }, reelDescription: { color: '#E4E4E6', fontSize: 13, lineHeight: 17, marginTop: 2 },
   progressBox: { gap: 5, paddingTop: 7 },
-  progressTrack: { height: 20, justifyContent: 'center' },
-  progressBase: { ...StyleSheet.absoluteFill, top: 8, bottom: 8, borderRadius: 2, backgroundColor: '#FFFFFF26' },
+  progressTrack: { height: 36, justifyContent: 'center' },
+  progressBase: { ...StyleSheet.absoluteFill, top: 16, bottom: 16, borderRadius: 2, backgroundColor: '#FFFFFF26' },
   progressFill: { height: 4, borderRadius: 2, backgroundColor: palette.orange },
-  progressKnob: { position: 'absolute', top: 4, width: 12, height: 12, marginLeft: -6, borderRadius: 6, backgroundColor: palette.text, borderWidth: 2, borderColor: palette.orange },
+  progressKnob: { position: 'absolute', top: 12, width: 12, height: 12, marginLeft: -6, borderRadius: 6, backgroundColor: palette.text, borderWidth: 2, borderColor: palette.orange },
+  progressKnobActive: { top: 7, width: 22, height: 22, marginLeft: -11, borderRadius: 11, backgroundColor: palette.orange, borderWidth: 3, borderColor: '#fff', elevation: 6, shadowColor: palette.orange, shadowOpacity: .8, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
   progressTimes: { flexDirection: 'row', justifyContent: 'space-between' },
   progressText: { color: '#D0D1D5', fontSize: 10, fontWeight: '700' },
   actions: { position: 'absolute', right: 10, bottom: 18, gap: 8 }, reelAction: { width: 52, alignItems: 'center', gap: 3, minHeight: 58 }, actionCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#101010D9', borderWidth: 1, borderColor: '#FFFFFF22' }, actionActive: { borderColor: palette.amber }, actionLabel: { minWidth: 26, minHeight: 17, paddingHorizontal: 5, borderRadius: 8, overflow: 'hidden', backgroundColor: '#000000A8', color: '#fff', textAlign: 'center', fontSize: 11, lineHeight: 15, fontWeight: '900' }, actionSpacer: { height: 17 },

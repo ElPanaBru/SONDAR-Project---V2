@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   sortOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardMeta: { color: palette.muted, fontSize: 11 },
 
-  body: { flex: 1 }, map: { flex: 1 }, sheet: { minHeight: 270, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
+  body: { flex: 1 }, map: { flex: 1, minHeight: 150 }, sheet: { height: 270, flexShrink: 0, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
   genreRail: { height: 50, flexShrink: 0 },
   genreList: { height: 44, flexGrow: 0, flexShrink: 0 },
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },

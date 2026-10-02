@@ -137,7 +137,7 @@ export default function CommunityScreen() {
     setComment('');
   }
 
-  function openCommentProfile(item: Comment) {
+  function openCommentProfile(item: { userId?: string }) {
     if (!item.userId) return;
     closeThread();
     router.push({ pathname: '/profile/[id]', params: { id: item.userId } });
@@ -339,7 +339,7 @@ export default function CommunityScreen() {
             refreshing={loading}
             onRefresh={loadPosts}
             ListEmptyComponent={<Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." />}
-            renderItem={({ item }) => <PostCard post={item} own={item.userId === user?.id} onOpen={() => openThread(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onReport={() => setReportTarget(item)} />}
+            renderItem={({ item }) => <PostCard post={item} own={item.userId === user?.id} onOpen={() => openThread(item)} onProfile={() => openCommentProfile(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onReport={() => setReportTarget(item)} />}
           />
         )}
       </>}
@@ -396,13 +396,13 @@ export default function CommunityScreen() {
             {openPost ? <>
               <FlatList
                 ListHeaderComponent={<>
-              <View style={styles.threadAuthor}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Ver perfil del autor" disabled={!openPost.userId} onPress={() => openCommentProfile(openPost)} style={styles.threadAuthor}>
                 <Avatar uri={openPost.avatar} name={(openPost.usuario || openPost.op).replace(/^@/, '')} size={38} />
                 <View style={styles.authorInfo}>
-                  <Text style={styles.author}>{openPost.usuario || openPost.op}</Text>
+                  <Text style={styles.author}>{openPost.usuario || openPost.op}{user?.id && openPost.userId === user.id ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text>
                   <Text style={ui.muted}>{openPost.tiempo}</Text>
                 </View>
-              </View>
+              </Pressable>
               <Text style={styles.postTitle}>{openPost.titulo}</Text>
               <Text style={styles.postText}>{openPost.texto}</Text>
               <CommunityAttachments items={openPost.adjuntos} onOpen={openAttachment} />
@@ -467,7 +467,7 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, onSa
         </Pressable>
         <View style={{ flex: 1 }}>
           <Pressable accessibilityRole="button" accessibilityLabel={'Ver perfil de ' + displayName} disabled={!item.userId} onPress={() => onProfile(item)}>
-            <Text style={styles.author}>{displayName}</Text>
+            <Text style={styles.author}>{displayName}{canDelete ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text>
           </Pressable>{nested && item.respondeA ? <Text style={styles.replyTarget}>En respuesta a {item.respondeA}</Text> : null}<Text style={ui.muted}>{item.tiempo}</Text>
           <Text style={styles.commentText}>{item.texto}</Text>
           <View style={styles.commentActions}>
@@ -496,14 +496,14 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, onSa
   );
 }
 
-function PostCard({ post, own, onOpen, onLike, onSave, onReport }: { post: Post; own: boolean; onOpen: () => void; onLike: () => void; onSave: () => void; onReport: () => void }) {
+function PostCard({ post, own, onOpen, onProfile, onLike, onSave, onReport }: { post: Post; own: boolean; onOpen: () => void; onProfile: () => void; onLike: () => void; onSave: () => void; onReport: () => void }) {
   return (
     <View style={styles.post}>
       <View style={styles.postHeader}>
-        <Pressable onPress={onOpen} style={styles.postHeaderInfo}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ver perfil del autor" disabled={!post.userId} onPress={onProfile} style={styles.postHeaderInfo}>
           <Avatar uri={post.avatar} name={(post.usuario || post.op).replace(/^@/, '')} size={38} />
           <View style={styles.authorInfo}>
-            <Text style={styles.author}>{post.usuario || `@${post.op}`}</Text>
+            <Text style={styles.author}>{post.usuario || `@${post.op}`}{own ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text>
             <Text style={ui.muted}>{post.tiempo} · {post.etiqueta}</Text>
           </View>
         </Pressable>
@@ -546,6 +546,7 @@ function appendReply(items: Comment[], id: number, reply: Comment): Comment[] {
 }
 
 const styles = StyleSheet.create({
+  youLabel: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   createScreen: { flex: 1, backgroundColor: '#101010' },
   createContent: { paddingHorizontal: 16, gap: 22 },
   createHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
