@@ -359,7 +359,7 @@ export default function Configuracion({ usuario }) {
       if (!response.ok) throw new Error(body.error || "No se pudo eliminar la cuenta.");
 
       await supabase.auth.signOut({ scope: "local" });
-      navigate("/auth", { replace: true });
+      navigate("/auth?mensaje=cuenta-programada", { replace: true });
     } catch (error) {
       setEliminando(false);
       setPasswordEliminar("");
@@ -726,8 +726,8 @@ export default function Configuracion({ usuario }) {
       {mostrarEliminar && (
         <div className="config-modal-backdrop" role="presentation" onMouseDown={() => { if (!eliminando) { setPasswordEliminar(""); setMostrarEliminar(false); } }}>
           <form className="config-modal config-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onSubmit={eliminarCuenta} onMouseDown={(e) => e.stopPropagation()}>
-            <h2 id="delete-title">Eliminar cuenta permanentemente</h2>
-            <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, previews, eventos, comentarios, guardados y archivos publicados.</p>
+            <h2 id="delete-title">Programar eliminación de cuenta</h2>
+            <p>Tu cuenta y tus datos se conservarán durante 7 días antes de eliminarse definitivamente. Si inicias sesión durante ese plazo, se cancelará la eliminación y recuperarás tu cuenta.</p>
             <label>
               Ingresa tu contrasena para confirmar
               <input type="password" value={passwordEliminar} onChange={(e) => setPasswordEliminar(e.target.value)} placeholder="Contrasena actual" autoComplete="current-password" autoFocus required />
@@ -735,7 +735,7 @@ export default function Configuracion({ usuario }) {
             <div className="config-modal-actions">
               <button type="button" onClick={() => { setPasswordEliminar(""); setMostrarEliminar(false); }} disabled={eliminando}>Cancelar</button>
               <button className="config-confirm-delete" type="submit" disabled={eliminando || !passwordEliminar}>
-                {eliminando ? "Verificando y eliminando..." : "Eliminar definitivamente"}
+                {eliminando ? "Verificando..." : "Programar eliminación"}
               </button>
             </div>
           </form>

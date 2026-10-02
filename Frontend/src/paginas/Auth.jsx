@@ -32,6 +32,12 @@ export default function Auth() {
       ? "registro"
       : "login";
 
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("mensaje") === "cuenta-programada") {
+      setMensaje("Tu cuenta quedó programada para eliminarse dentro de 7 días. Si inicias sesión durante ese plazo, se recuperará automáticamente.");
+    }
+  }, [location.search]);
+
   const fuerzaPassword = useMemo(() => {
     let puntos = 0;
 

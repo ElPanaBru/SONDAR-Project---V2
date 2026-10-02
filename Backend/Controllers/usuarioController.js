@@ -406,8 +406,12 @@ async function crearUsuarioAuth({ email, password, username, userType }) {
 async function buscarCuentaLocalExistente(email, username) {
   const result = await pool.query(
     `SELECT id, email, username
-     FROM users
+     FROM public.users
      WHERE lower(email) = lower($1) OR lower(username) = lower($2)
+     UNION ALL
+     SELECT id, email, raw_user_meta_data->>'username' AS username
+     FROM auth.users
+     WHERE lower(email) = lower($1)
      LIMIT 1`,
     [email, username]
   );
@@ -538,7 +542,13 @@ async function asegurarUsuarioPublico(user) {
     email.split('@')[0] ||
     'usuario';
   const username = normalizarUsername(baseUsername).replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
-  const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
+  const usernameExistente = await pool.query(
+    'SELECT 1 FROM public.users WHERE lower(username) = lower($1) AND id <> $2 LIMIT 1',
+    [username, user.id]
+  );
+  const usernameSeguro = username.length >= 3 && usernameExistente.rowCount === 0
+    ? username
+    : `${username}_${user.id.slice(0, 8)}`;
 
   await pool.query(
     `INSERT INTO users (id, email, username, user_type)
