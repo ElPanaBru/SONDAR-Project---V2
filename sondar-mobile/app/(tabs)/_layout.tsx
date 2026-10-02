@@ -20,6 +20,7 @@ export default function TabLayout() {
   return (
     <Tabs screenOptions={({ route }) => ({
       headerShown: false,
+      tabBarHideOnKeyboard: true,
       sceneStyle: { backgroundColor: palette.bg },
       tabBarActiveTintColor: palette.orange,
       tabBarInactiveTintColor: palette.muted,

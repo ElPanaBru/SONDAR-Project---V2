@@ -3,26 +3,29 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import type { PropsWithChildren, ReactNode } from 'react';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, Pressable, RefreshControl, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Platform, Pressable, RefreshControl, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/auth';
 
+import { KeyboardArea, KeyboardScrollView, useKeyboardField } from './keyboard-layout';
+
 import { palette } from '@/constants/sondar';
 
-export function Screen({ children, scroll = false, refreshing, onRefresh }: PropsWithChildren<{ scroll?: boolean; refreshing?: boolean; onRefresh?: () => void }>) {
+export function Screen({ children, scroll = false, keyboardAvoid = true, refreshing, onRefresh }: PropsWithChildren<{ scroll?: boolean; keyboardAvoid?: boolean; refreshing?: boolean; onRefresh?: () => void }>) {
   const body = scroll ? (
-    <ScrollView
+    <KeyboardScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={styles.scroll}
       stickyHeaderIndices={[0]}
       keyboardShouldPersistTaps="handled"
       refreshControl={onRefresh ? <RefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} tintColor={palette.orange} /> : undefined}>
       {children}
-    </ScrollView>
+    </KeyboardScrollView>
   ) : children;
-  return <View style={styles.screen}>{body}</View>;
+  return !keyboardAvoid ? <View style={styles.screen}>{body}</View> : <KeyboardArea style={styles.screen}>{body}</KeyboardArea>;
 }
 
 export function Header({ title, subtitle, back = false, onBack, actions }: { title: string; subtitle?: string; back?: boolean; onBack?: () => void; actions?: ReactNode }) {
@@ -58,9 +61,9 @@ export function NotificationButton() {
   return <IconButton name="notifications-outline" badge={count} onPress={() => router.push('/notifications')} />;
 }
 
-export function IconButton({ name, onPress, active, badge, danger, disabled }: { name: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; active?: boolean; badge?: number; danger?: boolean; disabled?: boolean }) {
+export function IconButton({ name, onPress, active, badge, danger, disabled, accessibilityLabel }: { name: React.ComponentProps<typeof Ionicons>['name']; onPress: () => void; active?: boolean; badge?: number; danger?: boolean; disabled?: boolean; accessibilityLabel?: string }) {
   return (
-    <Pressable disabled={disabled} accessibilityState={{ disabled }} hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
+    <Pressable disabled={disabled} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityState={{ disabled }} hitSlop={10} onPress={onPress} style={({ pressed }) => [styles.iconButton, active && styles.iconButtonActive, pressed && styles.pressed]}>
       <Ionicons name={name} size={22} color={danger ? palette.danger : active ? palette.orange : palette.text} />
       {badge ? <View style={styles.badge}><Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text></View> : null}
     </Pressable>
@@ -77,8 +80,10 @@ export function Button({ children, onPress, kind = 'primary', disabled, icon }: 
 }
 
 export function Field(props: React.ComponentProps<typeof TextInput> & { label?: string }) {
-  const { label, multiline, style, ...rest } = props;
-  return <View style={styles.fieldWrap}>{label ? <Text style={styles.label}>{label}</Text> : null}<TextInput placeholderTextColor={palette.muted} multiline={multiline} style={[styles.field, multiline && styles.multiline, style]} {...rest} /></View>;
+  const { label, multiline, style, onFocus, onBlur, ...rest } = props;
+  const input = useRef<TextInput>(null);
+  const focus = useKeyboardField();
+  return <View style={styles.fieldWrap}>{label ? <Text style={styles.label}>{label}</Text> : null}<TextInput ref={input} onFocus={event => { focus(input.current); onFocus?.(event); }} onBlur={event => { focus(null); onBlur?.(event); }} placeholderTextColor={palette.muted} multiline={multiline} style={[styles.field, multiline && styles.multiline, style]} {...rest} /></View>;
 }
 
 export function Avatar({ uri, name, size = 44, onError }: { uri?: string | null; name?: string; size?: number; onError?: () => void }) {

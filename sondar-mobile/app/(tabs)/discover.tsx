@@ -1,3 +1,4 @@
+import { KeyboardArea } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { useEvent } from 'expo';
 import { useBottomTabBarHeight } from 'expo-router/js-tabs';
@@ -10,7 +11,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
-import { AppState, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { AppState, Alert, FlatList, Modal, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
@@ -321,11 +322,11 @@ export default function DiscoverScreen() {
       </Modal>
 
       <Modal visible={Boolean(commentReel)} animationType="slide" transparent onRequestClose={() => setCommentReel(null)}>
-        <View style={styles.backdrop}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.commentsModal}><View style={styles.modalTop}><Text style={ui.h2}>Comentarios · {countComments(comments)}</Text><IconButton name="close" onPress={() => setCommentReel(null)} /></View>
+        <KeyboardArea style={styles.backdrop}><View style={styles.commentsModal}><View style={styles.modalTop}><Text style={ui.h2}>Comentarios · {countComments(comments)}</Text><IconButton name="close" onPress={() => setCommentReel(null)} /></View>
           <FlatList data={comments} keyExtractor={item => String(item.id)} style={{ flex: 1 }} contentContainerStyle={{ gap: 15, paddingVertical: 12 }} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty title="Todavía no hay comentarios" />} renderItem={({ item }) => <CommentRow item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} />} />
           {replyTo ? <View style={styles.replyBanner}><Text style={styles.time}>Respondiendo a {replyTo.usuario}</Text><Pressable onPress={() => setReplyTo(null)}><Ionicons name="close-circle" size={20} color={palette.muted} /></Pressable></View> : null}
           <View style={styles.commentComposer}><View style={{ flex: 1 }}><Field placeholder={replyTo ? `Responder a ${replyTo.usuario}…` : 'Sumate a la conversación…'} value={comment} onChangeText={setComment} /></View><IconButton name="send" active disabled={sending} onPress={sendComment} /></View>
-        </KeyboardAvoidingView></View>
+        </View></KeyboardArea>
       </Modal>
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>

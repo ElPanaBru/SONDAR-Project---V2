@@ -1,10 +1,11 @@
+import { KeyboardArea, KeyboardScrollView } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { CommunityAttachmentPicker, CommunityAttachments, type CommunityAttachment } from '@/components/community-attachments';
@@ -107,16 +108,21 @@ export default function CommunityScreen() {
     return () => { cancelled = true; clearTimeout(task); };
   }, [comunidadId, publicacionId, communities, token]);
 
-  async function membership() {
-    if (!active || membershipLock.current) return;
-    const id = active.id;
+  const threadCommunity = communities.find(item => String(item.id) === String(openPost?.comunidadId));
+
+  async function updateMembership(id: string, join: boolean) {
+    if (membershipLock.current) return;
     membershipLock.current = true; setMembershipBusy(true);
     try {
-      const result = await api<{ unido: boolean; miembros: number }>(`/api/comunidades/${id}/membresia`, { token, method: active.unido ? 'DELETE' : 'PUT' });
+      const result = await api<{ unido: boolean; miembros: number }>(`/api/comunidades/${id}/membresia`, { token, method: join ? 'PUT' : 'DELETE' });
       setCommunities(items => items.map(item => item.id === id ? { ...item, ...result } : item));
       setActive(item => item?.id === id ? { ...item, ...result } : item);
     } catch (e) { Alert.alert('Comunidad', e instanceof Error ? e.message : 'No se pudo actualizar.'); }
     finally { membershipLock.current = false; setMembershipBusy(false); }
+  }
+
+  async function membership() {
+    if (active) await updateMembership(active.id, !active.unido);
   }
 
   function openThread(post: Post) {
@@ -170,7 +176,7 @@ export default function CommunityScreen() {
   }
 
   async function sendComment() {
-    if (!communities.find(item => item.id === openPost?.comunidadId)?.unido) { Alert.alert('Comunidad', 'Unite a la comunidad para responder.'); return; }
+    if (!threadCommunity?.unido) { Alert.alert('Comunidad', 'Unite a la comunidad para responder.'); return; }
     if (commentLock.current) return;
     if (!openPost || !comment.trim()) return;
     commentLock.current = true;
@@ -339,8 +345,9 @@ export default function CommunityScreen() {
       </>}
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => { if (!publishing) setCreating(false); }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView style={styles.createScreen} contentContainerStyle={[styles.createContent, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+
+        <KeyboardArea style={{ flex: 1 }}>
+        <KeyboardScrollView style={styles.createScreen} contentContainerStyle={[styles.createContent, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
           <View style={styles.createHeader}>
             <Text style={styles.createTitle}>Crear post</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Cerrar crear post" disabled={publishing} onPress={() => setCreating(false)} style={styles.createClose}><Ionicons name="close" color={palette.text} size={22} /></Pressable>
@@ -374,13 +381,14 @@ export default function CommunityScreen() {
               <LinearGradient colors={['#FFAE00', '#FF5E00']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.createGradient}><Text style={[styles.createActionText, { color: '#000' }]}>{publishing ? 'Publicando...' : 'Post'}</Text></LinearGradient>
             </Pressable>
           </View>
-        </ScrollView>
-        </KeyboardAvoidingView>
+        </KeyboardScrollView>
+        </KeyboardArea>
+
       </Modal>
 
       <Modal visible={Boolean(openPost)} animationType="slide" transparent onRequestClose={closeThread}>
-        <View style={styles.backdrop}>
-          <View style={styles.thread}>
+        <KeyboardArea style={styles.backdrop}>
+          <View style={[styles.thread, { paddingBottom: Math.max(insets.bottom, 17) }]}>
             <View style={styles.threadTop}>
               <Text style={ui.h2}>Conversacion</Text>
               <IconButton name="close" onPress={closeThread} />
@@ -420,15 +428,27 @@ export default function CommunityScreen() {
                   </Pressable>
                 </View>
               ) : null}
-              {communities.find(item => item.id === openPost.comunidadId)?.unido ? <View style={styles.composer}>
-                <View style={{ flex: 1 }}>
-                  <Field value={comment} onChangeText={setComment} placeholder={replyTo ? `Responder a ${replyTo.usuario}...` : 'Escribi una respuesta...'} />
+              {!threadCommunity?.unido ? <View style={styles.joinToComment}>
+                <Text style={ui.muted}>Unite a esta comunidad para enviar tu comentario.</Text>
+                <Button disabled={membershipBusy} onPress={() => void updateMembership(openPost.comunidadId, true)}>
+                  {membershipBusy ? 'Uniendo...' : 'Unirme para comentar'}
+                </Button>
+              </View> : null}
+              <View style={styles.composer}>
+                <View style={styles.commentInput}>
+                  <Field label="Tu comentario" value={comment} onChangeText={setComment} editable={!sending} placeholder={replyTo ? `Responder a ${replyTo.usuario}...` : 'Escribi una respuesta...'} />
                 </View>
-                <Button icon="send" disabled={sending || !comment.trim()} onPress={sendComment}>{sending ? 'Enviando...' : 'Enviar'}</Button>
-              </View> : <Text style={[ui.muted, { paddingVertical: 14 }]}>Unite a esta comunidad para responder.</Text>}
+                <IconButton
+                  name={sending ? 'hourglass-outline' : 'send'}
+                  accessibilityLabel={sending ? 'Enviando comentario' : 'Enviar comentario'}
+                  active
+                  disabled={sending || !comment.trim() || !threadCommunity?.unido}
+                  onPress={sendComment}
+                />
+              </View>
             </> : null}
           </View>
-        </View>
+        </KeyboardArea>
       </Modal>
       <ReportModal visible={Boolean(reportTarget)} subject={reportTarget?.usuario || reportTarget?.titulo} busy={reportBusy} onClose={() => setReportTarget(null)} onSubmit={submitReport} />
     </Screen>
@@ -586,6 +606,7 @@ const styles = StyleSheet.create({
   metric: { minHeight: 30, flexDirection: 'row', gap: 6, alignItems: 'center', paddingHorizontal: 9, borderRadius: 8, backgroundColor: palette.surface2, borderWidth: 1, borderColor: palette.border },
   metricText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' },
+  joinToComment: { gap: 8, paddingVertical: 10 },
   thread: { height: '84%', padding: 17, backgroundColor: palette.bg, borderTopLeftRadius: 27, borderTopRightRadius: 27 },
   threadTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   postActions: { flexDirection: 'row', gap: 5, borderBottomWidth: 1, borderBottomColor: palette.border },
@@ -598,5 +619,6 @@ const styles = StyleSheet.create({
   commentLike: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   replyBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, paddingVertical: 8, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8, marginBottom: 8 },
   replyBannerText: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  composer: { flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 10 },
+  commentInput: { flex: 1, minWidth: 0 },
+  composer: { width: '100%', flexDirection: 'row', flexShrink: 0, alignItems: 'flex-end', gap: 8, borderTopWidth: 1, borderTopColor: palette.border, paddingTop: 10 },
 });

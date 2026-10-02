@@ -4,7 +4,7 @@ const { asegurarEsquemaModeracion } = require('../services/moderationService');
 const { crearNotificacion } = require('../services/notificationService');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const CONVERSATION_ID_PATTERN = /^\d+$/;
+const CONVERSATION_ID_PATTERN = /^(?:[1-9]\d*|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 const conversacionSql = `
   SELECT
@@ -31,7 +31,7 @@ const conversacionSql = `
   LEFT JOIN LATERAL (
     SELECT COUNT(*) AS total
     FROM messages
-    WHERE conversation_id = c.id AND sender_id <> $1 AND read_at IS NULL
+    WHERE conversation_id = c.id AND sender_id <> $1 AND created_at > COALESCE(propio.last_read_at, '-infinity'::timestamptz)
   ) no_leidos ON true
 `;
 
@@ -83,7 +83,7 @@ const mensajeController = {
     if (!UUID_PATTERN.test(recipientId)) return res.status(400).json({ error: 'Destinatario inválido.' });
     if (recipientId === req.user.id) return res.status(400).json({ error: 'No podes enviarte mensajes a vos mismo.' });
 
-    const client = await pool.connect();
+    let client;
     try {
       await Promise.all([asegurarEsquemaMensajes(), asegurarEsquemaModeracion()]);
       const [destinatario, bloqueo] = await Promise.all([
@@ -99,6 +99,7 @@ const mensajeController = {
       if (bloqueo.rowCount > 0) return res.status(403).json({ error: 'No se puede iniciar esta conversación.' });
 
       const directKey = [req.user.id, recipientId].sort().join(':');
+      client = await pool.connect();
       await client.query('BEGIN');
       const creada = await client.query(
         `INSERT INTO conversations (direct_key)
@@ -116,14 +117,14 @@ const mensajeController = {
       );
       await client.query('COMMIT');
 
-      const conversation = await buscarConversacion(req.user.id, conversationId);
+      const conversation = await buscarConversacion(req.user.id, conversationId, client);
       res.status(201).json(conversation);
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => null);
+      if (client) await client.query('ROLLBACK').catch(() => null);
       console.error('Error al crear conversación:', error);
       res.status(500).json({ error: 'No se pudo iniciar la conversación.' });
     } finally {
-      client.release();
+      client?.release();
     }
   },
 
@@ -137,9 +138,9 @@ const mensajeController = {
       if (!conversation) return res.status(404).json({ error: 'Conversación no encontrada.' });
 
       await pool.query(
-        `UPDATE messages
-         SET read_at = COALESCE(read_at, timezone('utc'::text, now()))
-         WHERE conversation_id = $1 AND sender_id <> $2 AND read_at IS NULL`,
+        `UPDATE conversation_members
+         SET last_read_at = now()
+         WHERE conversation_id = $1 AND user_id = $2`,
         [req.params.id, req.user.id]
       );
       const result = await pool.query(
@@ -174,7 +175,7 @@ const mensajeController = {
     if (!text) return res.status(400).json({ error: 'Escribí un mensaje.' });
     if (text.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo.' });
 
-    const client = await pool.connect();
+    let client;
     try {
       await Promise.all([asegurarEsquemaMensajes(), asegurarEsquemaModeracion()]);
       const miembro = await pool.query(
@@ -197,6 +198,7 @@ const mensajeController = {
       );
       if (bloqueo.rowCount > 0) return res.status(403).json({ error: 'No se puede enviar este mensaje.' });
 
+      client = await pool.connect();
       await client.query('BEGIN');
       const insertado = await client.query(
         `INSERT INTO messages (conversation_id, sender_id, body)
@@ -227,11 +229,11 @@ const mensajeController = {
       });
       res.status(201).json(message);
     } catch (error) {
-      await client.query('ROLLBACK').catch(() => null);
+      if (client) await client.query('ROLLBACK').catch(() => null);
       console.error('Error al enviar mensaje:', error);
       res.status(500).json({ error: 'No se pudo enviar el mensaje.' });
     } finally {
-      client.release();
+      client?.release();
     }
   },
 };

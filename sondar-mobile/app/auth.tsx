@@ -1,10 +1,11 @@
+import { KeyboardArea, KeyboardScrollView } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { Button, ErrorNotice, Field } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
@@ -95,8 +96,9 @@ export default function AuthScreen() {
         <VideoView player={backgroundPlayer} style={styles.backgroundMedia} contentFit="cover" nativeControls={false} />
         <LinearGradient colors={['#00000045', '#00000018', '#000000A8']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
       </View>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <ScrollView style={styles.scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+
+      <KeyboardArea style={{ flex: 1 }}>
+        <KeyboardScrollView style={styles.scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={[styles.inner, { width: contentWidth }]}>
             <Image source={require('../assets/sondar-brand-transparent-2026.png')} style={[styles.logo, { width: logoWidth }]} contentFit="contain" />
             <Text style={styles.heroTitle}>La música pasa cerca tuyo.</Text>
@@ -115,15 +117,16 @@ export default function AuthScreen() {
               <Button onPress={submit} disabled={busy || !configured}>{busy ? 'Procesando…' : register ? 'Crear mi cuenta' : 'Entrar a SONDAR'}</Button>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardScrollView>
+      </KeyboardArea>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, overflow: 'hidden', backgroundColor: palette.bg }, backgroundClip: { ...StyleSheet.absoluteFill, overflow: 'hidden' }, backgroundMedia: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
-  flex: { flex: 1 }, scroller: { width: '100%' }, content: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 28, justifyContent: 'center', alignItems: 'flex-start' },
+  scroller: { flex: 1, width: '100%' }, content: { flexGrow: 1, paddingHorizontal: 16, paddingVertical: 28, justifyContent: 'center', alignItems: 'flex-start' },
   inner: { maxWidth: 358 },
   logo: { height: 84, alignSelf: 'center' }, heroTitle: { color: palette.text, fontSize: 26, lineHeight: 31, fontWeight: '900', textAlign: 'center', marginTop: 4, alignSelf: 'stretch' }, tagline: { color: '#E6E6E6', textAlign: 'center', fontWeight: '600', lineHeight: 20, marginTop: 7, marginBottom: 22, alignSelf: 'stretch' },
   card: { alignSelf: 'stretch', padding: 18, gap: 15, borderRadius: 14, borderWidth: 1, borderColor: '#FFFFFF29', backgroundColor: '#080808D9' },

@@ -1,7 +1,8 @@
+import { KeyboardArea } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 
 import { Avatar, Empty, ErrorNotice, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
@@ -50,14 +51,21 @@ export default function MessagesScreen() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Contact[]>([]);
   const [searchBusy, setSearchBusy] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const openingRef = useRef(false);
+  const conversationRevision = useRef(0);
   const [error, setError] = useState('');
   const listRef = useRef<FlatList<Message>>(null);
   const openedRecipient = useRef('');
 
   const loadConversations = useCallback(async (quiet = false) => {
+    if (!token) return;
+    const revision = conversationRevision.current;
     if (!quiet) setLoading(true);
     try {
       const data = await api<Conversation[]>('/api/mensajes', { token });
+      if (revision !== conversationRevision.current) return;
       setConversations(current => data.map(item => ({
         ...item,
         messages: current.find(existing => existing.id === item.id)?.messages,
@@ -79,6 +87,7 @@ export default function MessagesScreen() {
 
   const openById = useCallback(async (conversationId: string) => {
     if (!conversationId) return;
+    conversationRevision.current += 1;
     setSelectedId(conversationId);
     setChatBusy(true);
     try {
@@ -94,8 +103,11 @@ export default function MessagesScreen() {
   }, [token]);
 
   const openConversation = useCallback(async (person: Contact) => {
-    if (!person.id) return;
-    setSearchBusy(true);
+    if (!person.id || openingRef.current) return;
+    openingRef.current = true;
+    conversationRevision.current += 1;
+    setOpening(true);
+    setSearchError('');
     try {
       const conversation = await api<Conversation>('/api/mensajes', {
         method: 'POST',
@@ -109,9 +121,12 @@ export default function MessagesScreen() {
       setError('');
       await openById(conversation.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo iniciar la conversación.');
+      const message = e instanceof Error ? e.message : 'No se pudo iniciar la conversación.';
+      setSearchError(message);
+      setError(message);
     } finally {
-      setSearchBusy(false);
+      openingRef.current = false;
+      setOpening(false);
     }
   }, [openById, token]);
 
@@ -149,10 +164,10 @@ export default function MessagesScreen() {
         const data = await api<any[]>(`/api/usuarios?query=${encodeURIComponent(term)}`, { token });
         if (cancelled) return;
         setResults(data.map(contactFrom).filter(item => item.id && item.id !== user?.id));
-        setError('');
+        setSearchError('');
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : 'No se pudieron buscar usuarios.');
+        setSearchError(e instanceof Error ? e.message : 'No se pudieron buscar usuarios.');
       } finally {
         if (!cancelled) setSearchBusy(false);
       }
@@ -240,7 +255,7 @@ export default function MessagesScreen() {
   );
 
   const chat = (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.chat}>
+    <View style={styles.chat}>
       {selected ? <>
         <View style={styles.chatTop}>
           {!wide ? <IconButton name="arrow-back" onPress={() => setSelectedId(null)} /> : null}
@@ -273,7 +288,7 @@ export default function MessagesScreen() {
           <IconButton name={sending ? 'hourglass-outline' : 'send'} active onPress={send} />
         </View>
       </> : <Empty icon="mail-outline" title="Seleccioná una conversación" text="O creá una nueva para hablar." />}
-    </KeyboardAvoidingView>
+    </View>
   );
 
   return (
@@ -283,13 +298,14 @@ export default function MessagesScreen() {
       <View style={styles.layout}>{wide ? <>{conversationList}{chat}</> : selected ? chat : conversationList}</View>
 
       <Modal visible={searching} transparent animationType="fade" onRequestClose={() => setSearching(false)}>
-        <View style={styles.searchBackdrop}>
+        <KeyboardArea style={styles.searchBackdrop}>
           <View style={styles.searchCard}>
             <View style={styles.sidebarTop}><Text style={ui.h2}>Nuevo mensaje</Text><IconButton name="close" onPress={() => setSearching(false)} /></View>
-            <View style={styles.searchBox}><Ionicons name="search" size={20} color={palette.muted} /><TextInput autoFocus value={query} onChangeText={updateQuery} placeholder="Buscar por nombre o @usuario" placeholderTextColor={palette.muted} style={styles.searchInput} /></View>
-            {searchBusy ? <Loading /> : <FlatList data={results} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty icon="search-outline" title={query.trim().length < 2 ? 'Buscá una persona' : 'Sin resultados'} />} renderItem={({ item }) => <Pressable style={styles.result} onPress={() => openConversation(item)}><Avatar uri={item.avatar} name={item.nombre} /><View style={{ flex: 1 }}><Text style={styles.personName}>{item.nombre}</Text><Text style={styles.handle}>{item.usuario}</Text></View><Ionicons name="chevron-forward" size={20} color={palette.muted} /></Pressable>} />}
+            <View style={styles.searchBox}><Ionicons name="search" size={20} color={palette.muted} /><TextInput autoFocus editable={!opening} value={query} onChangeText={updateQuery} placeholder="Buscar por nombre o @usuario" placeholderTextColor={palette.muted} style={styles.searchInput} /></View>
+            <ErrorNotice message={searchError} />
+            {searchBusy || opening ? <Loading /> : <FlatList data={results} keyExtractor={item => item.id} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Empty icon="search-outline" title={query.trim().length < 2 ? 'Buscá una persona' : 'Sin resultados'} />} renderItem={({ item }) => <Pressable style={styles.result} onPress={() => openConversation(item)}><Avatar uri={item.avatar} name={item.nombre} /><View style={{ flex: 1 }}><Text style={styles.personName}>{item.nombre}</Text><Text style={styles.handle}>{item.usuario}</Text></View><Ionicons name="chevron-forward" size={20} color={palette.muted} /></Pressable>} />}
           </View>
-        </View>
+        </KeyboardArea>
       </Modal>
     </Screen>
   );

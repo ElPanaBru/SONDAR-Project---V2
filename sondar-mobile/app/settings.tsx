@@ -1,7 +1,8 @@
+import { KeyboardArea, KeyboardScrollView } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { Avatar, Button, ErrorNotice, Field, Header, IconButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { palette } from '@/constants/sondar';
@@ -88,14 +89,14 @@ export default function SettingsScreen() {
     <Section icon="folder-outline" title="Tus datos"><Button kind="secondary" icon="share-outline" onPress={exportData}>Exportar mis datos</Button><Button kind="secondary" icon="help-circle-outline" onPress={() => router.push('/support')}>Centro de soporte</Button></Section>
     <Section icon="warning-outline" title="Zona de cuenta"><Button kind="secondary" icon="log-out-outline" onPress={async () => { await signOut(); router.replace('/auth'); }}>Cerrar sesión</Button><Button kind="danger" icon="trash-outline" onPress={deleteAccount} disabled={deleting}>{deleting ? 'Eliminando...' : 'Eliminar cuenta'}</Button></Section>
     <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.deleteBackdrop}>
-        <View style={styles.deleteCard}>
+      <KeyboardArea style={styles.deleteBackdrop}>
+        <KeyboardScrollView automaticallyAdjustKeyboardInsets={false} style={{ flexGrow: 0, flexShrink: 1, width: '100%', maxWidth: 540, alignSelf: 'center', borderRadius: 14 }} contentContainerStyle={styles.deleteCard}>
           <View style={styles.deleteTop}><View style={{ flex: 1 }}><Text style={styles.deleteKicker}>ZONA DE CUENTA</Text><Text style={styles.deleteTitle}>Eliminar cuenta permanentemente</Text></View><IconButton name="close" onPress={() => setDeleteOpen(false)} /></View>
           <Text style={styles.deleteCopy}>Esta acción no se puede deshacer. Se eliminarán tu perfil, previews, eventos, comentarios, guardados y archivos publicados.</Text>
           <Field label="Ingresá tu contraseña para confirmar" value={deletePassword} onChangeText={setDeletePassword} secureTextEntry placeholder="Contraseña actual" />
           <View style={styles.deleteActions}><View style={{ flex: 1 }}><Button kind="secondary" onPress={() => setDeleteOpen(false)}>Cancelar</Button></View><View style={{ flex: 1.35 }}><Button kind="danger" icon="trash-outline" onPress={() => void confirmDeleteAccount()} disabled={!deletePassword || deleting}>{deleting ? 'Eliminando…' : 'Eliminar definitivamente'}</Button></View></View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardScrollView>
+      </KeyboardArea>
     </Modal>
   </Screen>;
 }

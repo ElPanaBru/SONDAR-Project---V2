@@ -17,6 +17,7 @@ import { formatGenre, genres, musicGenres, palette } from '@/constants/sondar';
 import { useAuth } from '@/contexts/auth';
 import { api } from '@/lib/api';
 import { normalizeEvent } from '@/lib/normalizers';
+import { eventDistance, formatEventPrice, sortEvents, type Coordinate, type EventSort } from '@/lib/event-order';
 
 type EventPreview = {
   id: number | string; backendId?: number | string; artista: string; usuario: string; tema: string; album?: string;
@@ -57,6 +58,13 @@ export default function EventsScreen() {
   const { eventId } = useLocalSearchParams<{ eventId?: string | string[] }>();
   const [events, setEvents] = useState<EventItem[]>([]);
   const [genre, setGenre] = useState('todos');
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [locationFocus, setLocationFocus] = useState(0);
+  const [sortBy, setSortBy] = useState<EventSort>('date');
+  const [descending, setDescending] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const [selected, setSelected] = useState<EventItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -107,7 +115,27 @@ export default function EventsScreen() {
     return () => clearTimeout(timeout);
   }, [organizerQuery, token]);
 
-  const filtered = useMemo(() => events.filter(event => genre === 'todos' || eventGenres(event.genero).includes(genre)), [events, genre]);
+  const filtered = useMemo(() => sortEvents(events.filter(event => genre === 'todos' || eventGenres(event.genero).includes(genre)), sortBy, descending, userLocation), [events, genre, sortBy, descending, userLocation]);
+
+  async function showMyLocation() {
+    if (locating) return;
+    setLocating(true);
+    setLocationError('');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setLocationError('Activá el permiso de ubicación para ver tu posición y ordenar por distancia.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude });
+      setLocationFocus(value => value + 1);
+    } catch {
+      setLocationError('No pudimos obtener tu ubicación. Revisá el GPS e intent? nuevamente.');
+    } finally {
+      setLocating(false);
+    }
+  }
 
   async function locateMe() {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -215,15 +243,33 @@ export default function EventsScreen() {
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={[styles.body, { paddingBottom: tabBarHeight }]}>
-        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} onSelect={setSelected} style={styles.map} />
+        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} userLocation={userLocation} locationFocus={locationFocus} onSelect={setSelected} style={styles.map} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Mostrar mi ubicación en el mapa" disabled={locating} onPress={showMyLocation} style={styles.locateButton}><Ionicons name="locate" size={20} color={palette.orange} /><Text style={styles.controlText}>{locating ? 'Ubicando…' : 'Mi ubicación'}</Text></Pressable>
         <View style={styles.sheet}>
+          <View style={styles.sortBar}>
+            <Text style={styles.controlText}>Eventos · {filtered.length}</Text>
+            <View style={styles.sortActions}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Ordenar eventos" onPress={() => setSortOpen(true)} style={styles.sortButton}><Text style={styles.controlText}>{{ date: 'Fecha', price: 'Precio', distance: 'Distancia' }[sortBy]}</Text><Ionicons name="chevron-down" size={16} color={palette.text} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={descending ? 'Orden descendente. Cambiar a ascendente' : 'Orden ascendente. Cambiar a descendente'} onPress={() => setDescending(value => !value)} style={styles.sortButton}><Ionicons name={descending ? 'arrow-down' : 'arrow-up'} size={22} color={palette.orange} /></Pressable>
+            </View>
+          </View>
           <View style={styles.genreRail}>
             <FlatList horizontal bounces={false} directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} style={styles.genreList} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item === 'todos' ? 'Todos' : formatGenre(item)}</Text></Pressable>} />
           </View>
-          <ErrorNotice message={error} />
-          <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
+          <ErrorNotice message={error || locationError} />
+          <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} distance={eventDistance(item, userLocation)} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
         </View>
       </View>}
+
+      <Modal visible={sortOpen} animationType="fade" transparent onRequestClose={() => setSortOpen(false)}>
+        <Pressable style={styles.sortBackdrop} onPress={() => setSortOpen(false)}>
+          <Pressable style={styles.sortMenu} onPress={event => event.stopPropagation()}>
+            <Text style={ui.h2}>Ordenar eventos</Text>
+            {(['date', 'price', 'distance'] as const).map(value => <Pressable key={value} accessibilityRole="button" accessibilityState={{ selected: sortBy === value, disabled: value === 'distance' && !userLocation }} disabled={value === 'distance' && !userLocation} onPress={() => { setSortBy(value); setSortOpen(false); }} style={[styles.sortOption, value === 'distance' && !userLocation && { opacity: .4 }]}><Text style={styles.controlText}>{{ date: 'Fecha', price: 'Precio', distance: 'Distancia' }[value]}</Text>{sortBy === value ? <Ionicons name="checkmark" size={22} color={palette.orange} /> : null}</Pressable>)}
+            {!userLocation ? <><Text style={ui.muted}>Activá tu ubicación para ordenar por distancia.</Text><Button disabled={locating} onPress={showMyLocation}>{locating ? 'Ubicando…' : 'Activar ubicación'}</Button><ErrorNotice message={locationError} /></> : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={Boolean(selected)} animationType="slide" transparent onRequestClose={() => setSelected(null)}>
         <View style={styles.modalBackdrop}><ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalCard}>{selected ? <>
@@ -234,7 +280,7 @@ export default function EventsScreen() {
           <View style={styles.detailGenres}>{eventGenres(selected.genero).map(item => <View key={item} style={styles.detailGenre}><Text style={styles.detailGenreText}>{formatGenre(item)}</Text></View>)}</View>
           <View style={styles.detailLine}><Ionicons name="calendar" size={19} color={palette.orange} /><Text style={ui.text}>{new Date(selected.fecha).toLocaleString('es-AR')}</Text></View>
           <View style={styles.detailLine}><Ionicons name="location" size={19} color={palette.orange} /><Text style={ui.text}>{selected.lugar || selected.ubicacion}</Text></View>
-          <View style={styles.detailLine}><Ionicons name="ticket" size={19} color={palette.orange} /><Text style={ui.text}>{selected.precio ? `$ ${selected.precio}` : 'Entrada libre / consultar'}</Text></View>
+          <View style={styles.detailLine}><Ionicons name="ticket" size={19} color={palette.orange} /><Text style={ui.text}>{formatEventPrice(selected.precio)}</Text></View>
           <Text style={styles.description}>{selected.descripcion || 'Sin descripción.'}</Text>
           {externalEventUrl(selected.link) ? <Button icon="open-outline" onPress={() => openEventLink(selected)}>Comprar entradas</Button> : null}
 
@@ -358,16 +404,26 @@ function EventPreviewRow({ preview, active, onActiveChange, onOpen }: { preview:
 }
 /* eslint-enable react-hooks/immutability */
 
-function EventCard({ event, onPress, onSave }: { event: EventItem; onPress: () => void; onSave: () => void }) {
-  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}><View style={styles.cardImage}><Image source={require('../../assets/sondar-brand-icon-2026.png')} style={styles.cardLogo} contentFit="contain" /></View><View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
+function EventCard({ event, distance, onPress, onSave }: { event: EventItem; distance: number | null; onPress: () => void; onSave: () => void }) {
+  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}><View style={styles.cardImage}><Image source={require('../../assets/sondar-brand-icon-2026.png')} style={styles.cardLogo} contentFit="contain" /></View><View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text><Text style={styles.cardMeta}>{formatEventPrice(event.precio)}</Text><Text style={styles.cardMeta}>{distance === null ? 'Distancia no disponible' : distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toLocaleString('es-AR', { maximumFractionDigits: 1 })} km`}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
 }
 
 const styles = StyleSheet.create({
-  body: { flex: 1 }, map: { flex: 1 }, sheet: { height: 206, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
+  locateButton: { position: 'absolute', top: 14, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
+  sortActions: { flexDirection: 'row', gap: 5 },
+  sortButton: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, backgroundColor: palette.surface },
+  controlText: { color: palette.text, fontWeight: '700', fontSize: 14 },
+  sortBackdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'center', padding: 28 },
+  sortMenu: { padding: 20, gap: 12, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  sortOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  cardMeta: { color: palette.muted, fontSize: 11 },
+
+  body: { flex: 1 }, map: { flex: 1 }, sheet: { minHeight: 270, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
   genreRail: { height: 50, flexShrink: 0 },
   genreList: { height: 44, flexGrow: 0, flexShrink: 0 },
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
-  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 292, height: 104, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 11 }, cardImage: { width: 82, height: 82, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', borderWidth: 1, borderColor: palette.amber }, cardLogo: { width: 74, height: 74 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 310, minHeight: 138, flexDirection: 'row', alignItems: 'center', padding: 10, gap: 11, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 11 }, cardImage: { width: 82, height: 82, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', borderWidth: 1, borderColor: palette.amber }, cardLogo: { width: 74, height: 74 }, cardInfo: { flex: 1, gap: 4 }, cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800' }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
   marker: { width: 48, height: 48, borderRadius: 24, padding: 3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: palette.amber, borderWidth: 3, borderColor: '#080808' }, markerImage: { width: 38, height: 38, borderRadius: 19 }, markerTip: { width: 0, height: 0, alignSelf: 'center', borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#080808', marginTop: -2 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalScroll: { width: '100%', maxHeight: '94%' }, modalCard: { minHeight: '100%', backgroundColor: palette.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 48, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }, modalTitle: { flex: 1, minWidth: 0, gap: 3 }, modalActions: { flexDirection: 'row', gap: 6 }, eventEyebrow: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, detailGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, detailGenre: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2B180B', borderWidth: 1, borderColor: '#63330E' }, detailGenreText: { color: palette.amber, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
   participantsSection: { gap: 9 }, sectionLabel: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, participantsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, participantChip: { minWidth: 142, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface }, participantName: { maxWidth: 130, color: palette.text, fontSize: 12, fontWeight: '800' }, participantRole: { color: palette.muted, fontSize: 10, marginTop: 1 },

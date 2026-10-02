@@ -1,5 +1,6 @@
+import { KeyboardArea, KeyboardScrollView } from '@/components/keyboard-layout';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { palette } from '@/constants/sondar';
 import { Button, Field, IconButton, ui } from './sondar-ui';
@@ -42,9 +43,9 @@ export function ReportModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onShow={resetForm}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.backdrop}>
+      <KeyboardArea style={styles.backdrop}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Cerrar denuncia" />
-        <View style={styles.card}>
+        <KeyboardScrollView automaticallyAdjustKeyboardInsets={false} style={{ flexGrow: 0, flexShrink: 1, width: '100%', maxWidth: 540, alignSelf: 'center', borderRadius: 14 }} contentContainerStyle={styles.card}>
           <View style={styles.top}>
             <View style={{ flex: 1 }}>
               <Text style={styles.kicker}>DENUNCIAR</Text>
@@ -86,8 +87,8 @@ export function ReportModal({
               </Button>
             </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardScrollView>
+      </KeyboardArea>
     </Modal>
   );
 }

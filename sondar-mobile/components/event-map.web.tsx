@@ -5,6 +5,8 @@ import { palette } from '@/constants/sondar';
 
 type EventMapProps = {
   events: any[];
+  userLocation?: { latitude: number; longitude: number } | null;
+  locationFocus?: number;
   onSelect: (event: any) => void;
   style?: any;
 };

@@ -7,6 +7,8 @@ import { palette } from '@/constants/sondar';
 
 type EventMapProps = {
   events: any[];
+  userLocation?: { latitude: number; longitude: number } | null;
+  locationFocus?: number;
   initialRegion: any;
   customMapStyle: any[];
   onSelect: (event: any) => void;
@@ -70,7 +72,7 @@ function clusterEvents(points: EventPoint[], region: Region, width: number, heig
   return groups.map(({ x: _x, y: _y, ...cluster }) => cluster);
 }
 
-export function EventMap({ events, initialRegion, customMapStyle, onSelect, style }: EventMapProps) {
+export function EventMap({ events, initialRegion, customMapStyle, userLocation, locationFocus, onSelect, style }: EventMapProps) {
   const mapRef = useRef<MapView | null>(null);
   const [region, setRegion] = useState<Region>(initialRegion);
   const [viewport, setViewport] = useState({ width: 390, height: 480 });
@@ -106,6 +108,12 @@ export function EventMap({ events, initialRegion, customMapStyle, onSelect, styl
 
     return () => clearTimeout(timeout);
   }, [focusKey, initialRegion, points]);
+
+  useEffect(() => {
+    if (userLocation && locationFocus) {
+      mapRef.current?.animateToRegion({ ...userLocation, latitudeDelta: .025, longitudeDelta: .025 }, 350);
+    }
+  }, [userLocation, locationFocus]);
 
   function focusCluster(cluster: EventCluster) {
     if (cluster.items.length === 1) {
@@ -147,6 +155,7 @@ export function EventMap({ events, initialRegion, customMapStyle, onSelect, styl
         setViewport(current => current.width === width && current.height === height ? current : { width, height });
       }}
       onRegionChangeComplete={setRegion}>
+      {userLocation ? <Marker key="my-location" coordinate={userLocation} title="Tu ubicación" description="Estás acá" pinColor={palette.orange} zIndex={1000} /> : null}
       {clusters.map(cluster => {
         const first = cluster.items[0].event;
         const clustered = cluster.items.length > 1;
