@@ -11,6 +11,7 @@ const upload = multer({
 
 router.post('/crear-cuenta', usuariosController.crearCuenta);
 router.get('/me', authMiddleware, usuariosController.verificarUsuario);
+router.post('/me/recuperar-cuenta', authMiddleware, usuariosController.recuperarCuentaPendiente);
 router.get('/me/configuracion', authMiddleware, usuariosController.obtenerConfiguracionActual);
 router.put('/me/configuracion', authMiddleware, usuariosController.actualizarConfiguracionActual);
 router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActuales);

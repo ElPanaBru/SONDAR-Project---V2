@@ -21,6 +21,8 @@ CREATE TABLE public.users (
   profile_img_path text,
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  deletion_requested_at timestamptz,
+  deletion_scheduled_at timestamptz,
   CONSTRAINT users_username_formato_check
     CHECK (username ~ '^[a-z0-9._-]{3,30}$')
 );

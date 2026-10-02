@@ -2,6 +2,12 @@ const pool = require('../Pool_DB');
 
 async function asegurarEsquemaConfiguracion() {
   await pool.query(`
+    ALTER TABLE public.users
+      ADD COLUMN IF NOT EXISTS deletion_requested_at timestamptz,
+      ADD COLUMN IF NOT EXISTS deletion_scheduled_at timestamptz
+  `);
+
+  await pool.query(`
     WITH preparados AS (
       SELECT id, created_at,
              left(regexp_replace(regexp_replace(lower(username), '^@+', ''), '[^a-z0-9._-]', '', 'g'), 30) AS candidato

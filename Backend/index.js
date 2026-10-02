@@ -11,6 +11,7 @@ const notificacionesRoutes = require('./routes/notificaciones');
 const soporteRoutes = require('./routes/soporte');
 const mensajesRoutes = require('./routes/mensajes');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
+const { iniciarEliminacionCuentasVencidas } = require('./scripts/eliminarCuentasVencidas');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const allowedOrigins = new Set([
@@ -73,6 +74,7 @@ app.use('/api/mensajes', mensajesRoutes);
 async function iniciarServidor() {
   try {
     await asegurarEsquemaConfiguracion();
+    iniciarEliminacionCuentasVencidas();
     app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
   } catch (error) {
     console.error('No se pudo preparar el esquema de configuracion:', error);

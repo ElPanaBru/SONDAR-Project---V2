@@ -8,7 +8,7 @@ import "./auth.css";
 const mensajesSupabase = {
   "Invalid login credentials": "Email o contraseña incorrectos",
   "Email not confirmed": "Tenes que confirmar tu correo antes de ingresar",
-  "User already registered": "El correo ya esta registrado",
+  "User already registered": "El correo ya esta registrado. Inicia sesion para recuperar tu cuenta si tiene una eliminacion pendiente.",
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres",
   "Password should be at least 8 characters": "La contraseña debe tener al menos 8 caracteres"
 };
@@ -131,6 +131,16 @@ export default function Auth() {
 
     try {
       const perfil = await verificarPerfilBackend(accessToken);
+
+      // Si el perfil existe, el backend cancela cualquier baja aún vigente.
+      if (perfil.existe && perfil.user?.deletion_scheduled_at) {
+        const respuesta = await apiRequest("/api/usuarios/me/recuperar-cuenta", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        const recuperacion = await respuesta.json().catch(() => ({}));
+        if (!respuesta.ok) throw new Error(recuperacion.error || "No se pudo recuperar la cuenta.");
+      }
 
       if (!perfil.existe) {
         const pendingUsername =
@@ -364,6 +374,24 @@ export default function Auth() {
         "sondar:pending-username",
         cleanUsername
       );
+
+      // El backend verifica el correo antes de que Supabase pueda enviar
+      // otro correo de confirmacion por un intento de registro duplicado.
+      const prevalidacion = await apiRequest("/api/usuarios/crear-cuenta", {
+        method: "POST",
+        auth: false,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: cleanPassword,
+          username: cleanUsername,
+          prevalidar: true,
+        }),
+      });
+      if (!prevalidacion.ok) {
+        const resultado = await prevalidacion.json().catch(() => ({}));
+        throw new Error(resultado.error || "No se pudo validar la cuenta.");
+      }
 
       /*
        * ==========================

@@ -885,6 +885,9 @@ const usuariosController = {
       if (cuentaExistente?.username?.toLowerCase() === cleanUsername) {
         return res.status(400).json({ error: 'Ese nombre de usuario ya esta en uso.' });
       }
+      if (req.body?.prevalidar === true) {
+        return res.json({ disponible: true });
+      }
 
       const { user, creadoEnEsteRequest } = await crearUsuarioAuth({
         email: cleanEmail,
@@ -945,7 +948,7 @@ const usuariosController = {
 
     try {
       const result = await pool.query(
-        'SELECT * FROM users WHERE id = $1',
+        'SELECT id, email, username, user_type, display_name, bio, birth_date, profile_img_url, created_at, updated_at, deletion_scheduled_at FROM users WHERE id = $1',
         [userId]
       );
 
@@ -1617,6 +1620,22 @@ const usuariosController = {
     }
   },
 
+  recuperarCuentaPendiente: async (req, res) => {
+    try {
+      const result = await pool.query(`
+        UPDATE public.users
+        SET deletion_requested_at = NULL, deletion_scheduled_at = NULL,
+            updated_at = timezone('utc'::text, now())
+        WHERE id = $1 AND deletion_scheduled_at > now()
+        RETURNING id
+      `, [req.user.id]);
+      res.json({ success: true, recuperada: result.rowCount > 0 });
+    } catch (error) {
+      console.error('Error al recuperar cuenta pendiente:', error);
+      res.status(500).json({ error: 'No se pudo recuperar la cuenta.' });
+    }
+  },
+
   eliminarCuentaActual: async (req, res) => {
     const userId = req.user.id;
     const password = String(req.body?.password || '');
@@ -1634,37 +1653,16 @@ const usuariosController = {
         return res.status(401).json({ error: 'La contrasena es incorrecta.' });
       }
 
-      const [perfil, eventos, reels] = await Promise.all([
-        pool.query('SELECT profile_img_path, profile_img_url FROM users WHERE id = $1', [userId]),
-        pool.query('SELECT img_path, img_url FROM eventos WHERE creador_id = $1', [userId]),
-        pool.query('SELECT portada_path, portada_url, audio_path, audio_url FROM reels WHERE creador_id = $1', [userId]),
-      ]);
-
-      const eliminacionesStorage = [
-        eliminarAvatarUsuario(
-          perfil.rows[0]?.profile_img_path
-            || extraerRutaPublica(perfil.rows[0]?.profile_img_url, PERFILES_BUCKET),
-          req.accessToken
-        ),
-        ...eventos.rows.map((evento) => eliminarImagenEvento(
-          evento.img_path || extraerRutaPublica(evento.img_url, EVENTOS_BUCKET),
-          req.accessToken
-        )),
-        ...reels.rows.flatMap((reel) => [
-          eliminarArchivoReel(reel.portada_path || extraerRutaPublica(reel.portada_url, REELS_BUCKET), req.accessToken),
-          eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET), req.accessToken),
-        ]),
-      ];
-      await Promise.all(eliminacionesStorage);
-
-      await eliminarUsuarioAuthCreado(userId, { ignorarErrores: false });
-
-      const usuarioRestante = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);
-      if (usuarioRestante.rowCount > 0) {
-        throw new Error('La cuenta de autenticacion se elimino, pero el perfil publico sigue presente.');
-      }
-
-      res.json({ success: true });
+      const programada = await pool.query(`
+        UPDATE public.users
+        SET deletion_requested_at = now(),
+            deletion_scheduled_at = now() + interval '7 days',
+            updated_at = timezone('utc'::text, now())
+        WHERE id = $1
+        RETURNING deletion_scheduled_at
+      `, [userId]);
+      if (!programada.rowCount) throw new Error('No se encontro el perfil para programar su eliminacion.');
+      res.json({ success: true, deletionScheduledAt: programada.rows[0].deletion_scheduled_at });
     } catch (error) {
       console.error('Error al eliminar cuenta:', error);
       res.status(500).json({ error: 'No se pudo eliminar la cuenta.' });
