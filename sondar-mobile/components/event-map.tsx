@@ -7,6 +7,7 @@ type EventMapProps = {
   events: any[];
   userLocation?: { latitude: number; longitude: number } | null;
   locationFocus?: number;
+  mapTheme?: 'light' | 'dark';
   initialRegion?: any;
   customMapStyle?: any[];
   onSelect: (event: any) => void;

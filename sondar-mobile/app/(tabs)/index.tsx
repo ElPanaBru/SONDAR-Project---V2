@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 
 import { EventMap } from '@/components/event-map';
+import { EventPanel } from '@/components/event-panel';
 import { EventLocationPicker } from '@/components/event-location-picker';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
@@ -244,10 +245,10 @@ export default function EventsScreen() {
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={[styles.body, { paddingBottom: tabBarHeight }]}>
-        <EventMap events={filtered} initialRegion={initialRegion} customMapStyle={darkMap} userLocation={userLocation} locationFocus={locationFocus} mapTheme={mapTheme} onSelect={setSelected} style={styles.map} />
+        <EventMap events={filtered} initialRegion={initialRegion} userLocation={userLocation} locationFocus={locationFocus} mapTheme={mapTheme} onSelect={setSelected} style={styles.map} />
         <Pressable accessibilityRole="button" accessibilityLabel="Mostrar mi ubicación en el mapa" disabled={locating} onPress={showMyLocation} style={styles.locateButton}><Ionicons name="locate" size={20} color={palette.orange} /><Text style={styles.controlText}>{locating ? 'Ubicando…' : 'Mi ubicación'}</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={mapTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} accessibilityState={{ selected: mapTheme === 'dark' }} onPress={() => setMapTheme(value => value === 'light' ? 'dark' : 'light')} style={styles.mapThemeButton}><Ionicons name={mapTheme === 'light' ? 'moon' : 'sunny'} size={19} color={palette.orange} /><Text style={styles.controlText}>{mapTheme === 'light' ? 'Modo oscuro' : 'Modo claro'}</Text></Pressable>
-        <View style={styles.sheet}>
+        <Pressable accessibilityRole="button" accessibilityLabel={mapTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} accessibilityState={{ selected: mapTheme === 'dark' }} onPress={() => setMapTheme(value => value === 'light' ? 'dark' : 'light')} hitSlop={6} style={({ pressed }) => [styles.mapThemeButton, pressed && { opacity: 0.75 }]}><Ionicons name={mapTheme === 'light' ? 'moon' : 'sunny'} size={23} color={palette.orange} /></Pressable>
+        <EventPanel>
           <View style={styles.sortBar}>
             <Text style={styles.controlText}>Eventos · {filtered.length}</Text>
             <View style={styles.sortActions}>
@@ -260,7 +261,7 @@ export default function EventsScreen() {
           </View>
           <ErrorNotice message={error || locationError} />
           <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} distance={eventDistance(item, userLocation)} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
-        </View>
+        </EventPanel>
       </View>}
 
       <Modal visible={sortOpen} animationType="fade" transparent onRequestClose={() => setSortOpen(false)}>
@@ -319,7 +320,6 @@ export default function EventsScreen() {
           <EventLocationPicker
             coordinate={{ latitude: form.latitud, longitude: form.longitud }}
             onChange={coordinate => setForm(current => ({ ...current, latitud: coordinate.latitude, longitud: coordinate.longitude }))}
-            customMapStyle={darkMap}
           />
           <View style={styles.locationMeta}><Text style={styles.coordinates}>{form.latitud.toFixed(5)}, {form.longitud.toFixed(5)}</Text><Pressable onPress={locateMe} style={styles.inlineAction}><Ionicons name="navigate" size={16} color={palette.amber} /><Text style={styles.inlineActionText}>Usar mi ubicación</Text></Pressable></View>
 
@@ -412,7 +412,7 @@ function EventCard({ event, distance, onPress, onSave }: { event: EventItem; dis
 
 const styles = StyleSheet.create({
   locateButton: { position: 'absolute', top: 14, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
-  mapThemeButton: { position: 'absolute', top: 68, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
+  mapThemeButton: { position: 'absolute', top: 14, left: 14, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, elevation: 3, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
   sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
   sortActions: { flexDirection: 'row', gap: 5 },
   sortButton: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, backgroundColor: palette.surface },
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   sortOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardMeta: { color: palette.muted, fontSize: 11 },
 
-  body: { flex: 1 }, map: { flex: 1, minHeight: 150 }, sheet: { height: 270, flexShrink: 0, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: palette.bg, overflow: 'hidden', paddingTop: 10, paddingBottom: 12 },
+  body: { flex: 1 }, map: { flex: 1, minHeight: 150 },
   genreRail: { height: 50, flexShrink: 0 },
   genreList: { height: 44, flexGrow: 0, flexShrink: 0 },
   chips: { gap: 8, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 36, paddingHorizontal: 14, marginRight: 7, borderRadius: 8, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
@@ -439,5 +439,3 @@ const styles = StyleSheet.create({
   organizerHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }, genreCounter: { color: palette.amber, fontWeight: '900' }, addOrganizer: { minHeight: 48, borderRadius: 9, borderWidth: 1, borderStyle: 'dashed', borderColor: palette.amber, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 7 }, addOrganizerText: { color: palette.amber, fontWeight: '900' },
   genreWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, genreChoice: { paddingVertical: 9, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface2 }, genreChoiceActive: { backgroundColor: palette.amber, borderColor: palette.amber }, genreChoiceText: { color: palette.muted, fontSize: 12, fontWeight: '800' }, genreChoiceTextActive: { color: '#111' },
 });
-
-const darkMap = [{ elementType: 'geometry', stylers: [{ color: '#17191e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#8a8f9b' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#17191e' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#282b33' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#090b10' }] }];

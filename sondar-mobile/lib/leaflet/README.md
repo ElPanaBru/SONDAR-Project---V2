@@ -6,15 +6,15 @@ desde un CDN. Las imagenes del mapa si requieren conexion.
 
 ## Estilo
 
-El mapa permite alternar entre OpenStreetMap claro y modo oscuro. Si se configura
-`EXPO_PUBLIC_STADIA_MAPS_API_KEY`, el modo oscuro usa Stadia Alidade Smooth Dark,
-como en la captura de la versión web. Sin clave, oscurece las teselas de
-OpenStreetMap para que ambos modos sigan disponibles. Las atribuciones del
-proveedor activo permanecen visibles.
+El mapa usa OpenStreetMap en modo claro y OpenFreeMap Dark en modo oscuro.
+OpenFreeMap se dibuja con MapLibre GL JS dentro de la misma vista Leaflet en
+Android e iOS. No utiliza Stadia ni CARTO y no requiere una API key.
+Las atribuciones permanecen visibles. El modo oscuro requiere WebGL.
 
 ## Comprobacion en Expo Go
 
-- Abrir Eventos en Android/iOS: mapa oscuro, zoom y desplazamiento tactil.
+- Abrir Eventos en Android/iOS: mismo mapa, zoom y desplazamiento tactil.
+- Boton circular arriba a la izquierda: luna para activar oscuro, sol para volver a claro.
 - Cambiar genero: mismos eventos en mapa y lista; cambiar orden no recentra.
 - Tocar un pin: abre el evento. Grupos: acercamiento o lista para pines coincidentes.
 - Mi ubicacion: pedir permiso, pin naranja y centrado. Repetir para actualizar.
@@ -27,3 +27,6 @@ proveedor activo permanecen visibles.
 vendor.ts contiene leafletJS y leafletCSS exportados como cadenas JSON desde
 leaflet/dist/leaflet.js y leaflet/dist/leaflet.css. Conservar LICENSE (BSD-2-Clause)
 y actualizar ambos archivos juntos. Version actual: 1.9.4.
+
+MapLibre GL JS 5.6.2 y MapLibre GL Leaflet 0.1.3 estan incluidos en
+maplibre-vendor.ts; sus licencias se conservan en esta carpeta.

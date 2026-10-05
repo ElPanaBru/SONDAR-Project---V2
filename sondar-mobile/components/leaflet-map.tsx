@@ -18,7 +18,7 @@ export function LeafletMap({ state, theme, picker = false, style, onSelect, onCo
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
   const [generation, setGeneration] = useState(0);
-  const source = useMemo(() => ({ html: createMapHTML(picker) }), [picker]);
+  const source = useMemo(() => ({ html: createMapHTML(picker) }), [picker, createMapHTML]);
   const serialized = serializeMapState({ ...state, theme: theme || state.theme });
 
   useEffect(() => {
@@ -50,7 +50,7 @@ export function LeafletMap({ state, theme, picker = false, style, onSelect, onCo
       onRenderProcessGone={retry}
       onShouldStartLoadWithRequest={request => {
         if (request.url === 'about:blank' || request.url.startsWith('data:text/html')) return true;
-        if (/^https:\/\/(www\.openstreetmap\.org|carto\.com|leafletjs\.com)(\/|$)/.test(request.url)) void Linking.openURL(request.url).catch(() => null);
+        if (/^https:\/\/(www\.openstreetmap\.org|leafletjs\.com|openfreemap\.org|(?:www\.)?openmaptiles\.org)(\/|$)/.test(request.url)) void Linking.openURL(request.url).catch(() => null);
         return false;
       }}
       onMessage={event => {

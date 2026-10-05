@@ -215,12 +215,12 @@ function Sync-MobileEnv([string]$ApiUrl) {
 function Show-ExpoQr([string]$Url) {
   Write-Host ''
   Write-Host 'QR para Expo Go:' -ForegroundColor Green
-  $qrBin = Join-Path $mobile 'node_modules\qrcode-terminal\bin\qrcode-terminal.js'
+  $qrBin = Join-Path $PSScriptRoot 'show-expo-qr.cjs'
   $qrPrinted = $false
 
   if ($node -and (Test-Path $qrBin)) {
     try {
-      & $node $qrBin $Url 2>$null
+      & $node $qrBin $Url
       $qrPrinted = ($LASTEXITCODE -eq 0)
     } catch {
       $qrPrinted = $false
@@ -288,14 +288,35 @@ if (-not (Test-LocalPort 3000)) {
   }
 }
 
-try {
-  $databaseHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$apiPort/api/health?database=1" -TimeoutSec 12
-  if (-not $databaseHealth.ok -or $databaseHealth.database -ne 'ready') {
-    throw 'El backend no confirmo la conexion con PostgreSQL. Reinicialo para cargar la version actual.'
+function Wait-DatabaseReady([int]$Port) {
+  $maxAttempts = 3
+  $lastFailure = 'sin respuesta'
+
+  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+    try {
+      $databaseHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health?database=1" -TimeoutSec 12
+      if ($databaseHealth.ok -and $databaseHealth.database -eq 'ready') {
+        return
+      }
+      $lastFailure = 'el backend no confirmo database=ready; puede necesitar un reinicio'
+    } catch {
+      if ($_.Exception.Response) {
+        $lastFailure = "HTTP $([int]$_.Exception.Response.StatusCode) al verificar PostgreSQL"
+      } else {
+        $lastFailure = 'el backend no respondio a tiempo o no se pudo conectar'
+      }
+    }
+
+    if ($attempt -lt $maxAttempts) {
+      Write-Host "PostgreSQL todavia no esta listo ($attempt/$maxAttempts). Reintentando en 2 segundos..." -ForegroundColor Yellow
+      Start-Sleep -Seconds 2
+    }
   }
-} catch {
-  throw 'El backend inicio, pero no pudo verificar PostgreSQL. Revisa Backend/.env y la conexion a Supabase. En este equipo se verifico el pooler en el puerto 6543. No se iniciara Expo con la base de datos desconectada.'
+
+  throw "No se pudo verificar PostgreSQL despues de $maxAttempts intentos: $lastFailure. Revisa la conexion y Backend/.env. Si el backend quedo desactualizado, ejecuta npm run dev:mobile:clear. Expo no se iniciara hasta que la base de datos responda."
 }
+
+Wait-DatabaseReady $apiPort
 
 if ($Clear -or $Tunnel) {
   Stop-MobileDevProcesses
@@ -341,7 +362,8 @@ if ($Tunnel) {
   } else {
     Write-Host "API mobile: /api via Expo -> $env:SONDAR_LOCAL_API_URL" -ForegroundColor DarkGray
   }
-  Write-Host 'Espera el QR oficial de Expo y escanea ese desde Expo Go.' -ForegroundColor DarkGray
+  Show-ExpoQr $expoUrl
+  Write-Host 'Escanea el QR cuando Expo termine de iniciar.' -ForegroundColor DarkGray
 }
 
 if ($Tunnel -and $Clear) {
