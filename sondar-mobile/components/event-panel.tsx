@@ -28,7 +28,7 @@ export function EventPanel({ children }: PropsWithChildren) {
 
   return (
     <Animated.View pointerEvents="box-none" style={[styles.panel, {
-      height: progress.interpolate({ inputRange: [0, 1], outputRange: [44, 304] }),
+      height: progress.interpolate({ inputRange: [0, 1], outputRange: [56, 272] }),
       backgroundColor: progress.interpolate({ inputRange: [0, 1], outputRange: ['transparent', palette.bg] }),
     }]}>
       <View {...gesture.panHandlers} style={styles.handleRow} pointerEvents="box-none">
@@ -38,6 +38,7 @@ export function EventPanel({ children }: PropsWithChildren) {
           accessibilityHint="Tambien podes deslizar hacia arriba para abrir o hacia abajo para cerrar"
           accessibilityState={{ expanded }}
           onPress={() => setExpanded(value => !value)}
+          hitSlop={8}
           style={({ pressed }) => [styles.handleButton, !expanded && styles.handleClosed, pressed && { opacity: 0.7 }]}
         >
           <View style={[styles.handleBar, !expanded && styles.handleBarClosed]} />
@@ -56,11 +57,11 @@ export function EventPanel({ children }: PropsWithChildren) {
 }
 
 const styles = StyleSheet.create({
-  panel: { flexShrink: 0, marginTop: -22, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  panel: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
   handleRow: { height: 44, alignItems: 'center', justifyContent: 'center' },
-  handleButton: { width: 160, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  handleButton: { width: 96, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   handleClosed: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   handleBar: { width: 72, height: 5, borderRadius: 3, backgroundColor: palette.muted },
-  handleBarClosed: { width: 104, backgroundColor: palette.orange },
-  content: { position: 'absolute', top: 44, left: 0, right: 0, height: 260, paddingBottom: 12 },
+  handleBarClosed: { backgroundColor: palette.orange },
+  content: { position: 'absolute', top: 44, left: 0, right: 0, height: 228, paddingBottom: 12 },
 });

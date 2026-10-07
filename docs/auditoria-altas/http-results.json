@@ -1,0 +1,345 @@
+[
+  {
+    "method": "PUT",
+    "route": "/api/usuarios/me/configuracion",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "PUT",
+    "route": "/api/usuarios/me/perfil",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "PUT",
+    "route": "/api/usuarios/me/onboarding",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/me/comunidad",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/comunidad/:id/comentarios",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/comunidad/:id/denunciar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/usuarios/comunidad/:id",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/registrar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/convertir-a-musico",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/usuarios/me",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/:identificador/seguir",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/:identificador/bloquear",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/usuarios/:identificador/bloquear",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/:identificador/denunciar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/usuarios/:identificador/silenciar-notificaciones",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/eventos/crear",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/eventos/:id/guardar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/eventos/:id/denunciar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/eventos/:id",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/visita",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/comentarios/:comentarioId/like",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/reels/comentarios/:comentarioId",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/crear",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/comentarios",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/compartir",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/denunciar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/like",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/reels/:id/guardar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/reels/:id",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "PUT",
+    "route": "/api/comunidades/:comunidadId/membresia",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/comunidades/:comunidadId/membresia",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/:comunidadId/publicaciones",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/publicaciones/:publicacionId/comentarios",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/publicaciones/:publicacionId/like",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/publicaciones/:publicacionId/guardar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/publicaciones/:publicacionId/denunciar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/comunidades/comentarios/:comentarioId/like",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "PUT",
+    "route": "/api/comunidades/comentarios/:comentarioId/guardar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/comunidades/comentarios/:comentarioId/guardar",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/comunidades/comentarios/:comentarioId",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/mensajes/",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/mensajes/:id",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/notificaciones/leer-todas",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "POST",
+    "route": "/api/notificaciones/:id/leer",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "method": "DELETE",
+    "route": "/api/notificaciones/leidas",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  },
+  {
+    "route": "POST /api/usuarios/crear-cuenta",
+    "case": "empty",
+    "expected": 400,
+    "status": 400,
+    "pass": true
+  },
+  {
+    "route": "POST /api/usuarios/crear-cuenta",
+    "case": "weak password",
+    "expected": 400,
+    "status": 400,
+    "pass": true
+  },
+  {
+    "route": "POST /api/usuarios/crear-cuenta",
+    "case": "invalid username",
+    "expected": 400,
+    "status": 400,
+    "pass": true
+  },
+  {
+    "route": "POST /api/eventos/crear",
+    "case": "invalid token",
+    "expected": 401,
+    "status": 401,
+    "pass": true
+  }
+]

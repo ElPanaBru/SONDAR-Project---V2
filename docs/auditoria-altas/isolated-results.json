@@ -1,0 +1,449 @@
+[
+  {
+    "name": "evento válido",
+    "pass": true,
+    "expected": 201,
+    "observed": 201,
+    "eventInserts": 1
+  },
+  {
+    "name": "evento sin título",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "descripción >1000",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "precio negativo",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "precio no numérico",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "organizadores JSON inválido",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "más de 8 organizadores",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "título sólo espacios",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "eventInserts": 1
+  },
+  {
+    "name": "coordenadas fuera de rango",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "eventInserts": 1
+  },
+  {
+    "name": "fecha inválida antes de SQL",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "eventInserts": 1
+  },
+  {
+    "name": "fecha pasada",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "eventInserts": 1
+  },
+  {
+    "name": "coordenada numérica cero válida",
+    "pass": false,
+    "expected": 201,
+    "observed": 400,
+    "eventInserts": 0
+  },
+  {
+    "name": "reel sin audio",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "reel válido",
+    "pass": true,
+    "expected": 201,
+    "observed": 201
+  },
+  {
+    "name": "fragmento >30s",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "fragmento negativo",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "fragmento menor de 1 segundo",
+    "pass": false,
+    "expected": 400,
+    "observed": 201
+  },
+  {
+    "name": "reel con título espacios",
+    "pass": false,
+    "expected": 400,
+    "observed": 201
+  },
+  {
+    "name": "reel conserva archivos tras INSERT confirmado y fallo de lectura",
+    "pass": false,
+    "expected": "No borrar archivos de una fila persistida",
+    "observed": {
+      "status": 500,
+      "inserts": 1,
+      "deleted": [
+        "cover",
+        "audio"
+      ],
+      "rollback": false
+    }
+  },
+  {
+    "name": "reel comentario vacío",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "reel comentario válido",
+    "pass": true,
+    "expected": 201,
+    "observed": 201,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "reel comentario padre de otro contenido",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "reel comentario tipo incorrecto",
+    "pass": false,
+    "expected": 400,
+    "observed": "texto?.trim is not a function",
+    "parentScopedLookup": false
+  },
+  {
+    "name": "comunidad comentario vacío",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "comunidad comentario válido",
+    "pass": true,
+    "expected": 201,
+    "observed": 201,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "comunidad comentario padre de otro contenido",
+    "pass": false,
+    "expected": 400,
+    "observed": 201,
+    "parentScopedLookup": false
+  },
+  {
+    "name": "comunidad comentario tipo incorrecto",
+    "pass": false,
+    "expected": 400,
+    "observed": "req.body.texto?.trim is not a function",
+    "parentScopedLookup": false
+  },
+  {
+    "name": "comunidad exige membresía para comentar",
+    "pass": true,
+    "observed": 403
+  },
+  {
+    "name": "perfil conserva ID y fecha del comentario",
+    "pass": false,
+    "expected": {
+      "id": 21,
+      "tiempo": "ahora"
+    },
+    "observed": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "userId": "11111111-1111-4111-8111-111111111111",
+      "usuario": "@audit",
+      "nombre": "audit",
+      "avatar": "",
+      "texto": "Hola",
+      "tiempo": "hace 2471 días"
+    }
+  },
+  {
+    "name": "perfil rechaza adjunto ajeno",
+    "pass": true,
+    "observed": 403
+  },
+  {
+    "name": "registrar no permite autoasignar admin",
+    "pass": false,
+    "expected": "rechazo o rol no privilegiado",
+    "observed": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "user_type": "admin"
+    }
+  },
+  {
+    "name": "crear cuenta no permite elegir admin",
+    "pass": false,
+    "expected": "rechazo o rol no privilegiado",
+    "observed": {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "user_type": "admin",
+      "creadoConAdmin": true
+    }
+  },
+  {
+    "name": "contraseña débil",
+    "pass": true,
+    "observed": 400
+  },
+  {
+    "name": "username inválido",
+    "pass": true,
+    "observed": 400
+  },
+  {
+    "name": "auth sin perfil no puede llamar registrar",
+    "pass": true,
+    "observed": 403,
+    "note": "Confirma bloqueo; por ello registrar no recupera un perfil faltante."
+  },
+  {
+    "name": "mensaje vacío",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "mensaje >2000",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "chat ID inválido",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "chat consigo mismo",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "destinatario inválido",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "chat ajeno",
+    "pass": true,
+    "expected": 404,
+    "observed": 404
+  },
+  {
+    "name": "denunciar contenido propio rechazado",
+    "pass": true,
+    "observed": 400
+  },
+  {
+    "name": "imagen MIME inválido",
+    "pass": true,
+    "observed": "Formato de imagen no permitido."
+  },
+  {
+    "name": "imagen >5MB",
+    "pass": true,
+    "observed": "La imagen no puede superar los 5MB."
+  },
+  {
+    "name": "audio >20MB",
+    "pass": true,
+    "observed": "El audio no puede superar los 20MB."
+  },
+  {
+    "name": "web comunidad conserva borrador y no simula comentario si falla API",
+    "pass": false,
+    "expected": "sin alta local; conserva texto",
+    "observed": {
+      "localComments": 1,
+      "draft": ""
+    }
+  },
+  {
+    "name": "onboarding válido",
+    "pass": true,
+    "expected": 200,
+    "observed": 200,
+    "committed": true
+  },
+  {
+    "name": "onboarding nombre vacío",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "committed": false
+  },
+  {
+    "name": "onboarding bio >180",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "committed": false
+  },
+  {
+    "name": "onboarding menos de 3 géneros",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "committed": false
+  },
+  {
+    "name": "onboarding géneros duplicados",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "committed": false
+  },
+  {
+    "name": "onboarding fecha futura",
+    "pass": true,
+    "expected": 400,
+    "observed": 400,
+    "committed": false
+  },
+  {
+    "name": "onboarding fecha inexistente",
+    "pass": false,
+    "expected": 400,
+    "observed": 200,
+    "committed": true
+  },
+  {
+    "name": "perfil válido",
+    "pass": true,
+    "expected": 200,
+    "observed": 200
+  },
+  {
+    "name": "perfil vacío",
+    "pass": true,
+    "expected": 400,
+    "observed": 400
+  },
+  {
+    "name": "perfil nombre >80",
+    "pass": false,
+    "expected": 400,
+    "observed": 200
+  },
+  {
+    "name": "perfil bio >180",
+    "pass": false,
+    "expected": 400,
+    "observed": 200
+  },
+  {
+    "name": "perfil permite borrar bio sin restaurar artist_bio",
+    "pass": false,
+    "expected": "Bio vacía o placeholder",
+    "observed": "Bio anterior"
+  },
+  {
+    "name": "configuración válida",
+    "pass": true,
+    "observed": 200
+  },
+  {
+    "name": "configuración idioma inválido",
+    "pass": true,
+    "observed": 400
+  },
+  {
+    "name": "configuración booleano inválido",
+    "pass": true,
+    "observed": 400
+  },
+  {
+    "name": "membresía PUT idempotente",
+    "pass": true,
+    "observed": {
+      "unido": true,
+      "miembros": 1
+    }
+  },
+  {
+    "name": "mensaje bloqueado rechazado",
+    "pass": true,
+    "observed": 403
+  },
+  {
+    "name": "notificación ajena no se marca",
+    "pass": true,
+    "observed": 404
+  },
+  {
+    "name": "denuncia repetida no duplica",
+    "pass": true,
+    "observed": {
+      "denunciado": true,
+      "nuevaDenuncia": false
+    }
+  },
+  {
+    "name": "comunidad exige membresía para publicar",
+    "pass": true,
+    "observed": 403
+  },
+  {
+    "name": "comunidad rechaza adjunto inexistente",
+    "pass": true,
+    "observed": 400
+  }
+]

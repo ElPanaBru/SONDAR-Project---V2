@@ -1,0 +1,30 @@
+{
+  "auditDate": "2026-10-07",
+  "health": {
+    "status": 200,
+    "database": "ready"
+  },
+  "http": {
+    "total": 49,
+    "passed": 49,
+    "failed": 0
+  },
+  "isolated": {
+    "total": 67,
+    "passed": 47,
+    "failed": 20
+  },
+  "mobileTypecheck": {
+    "command": "node node_modules/typescript/bin/tsc --noEmit",
+    "cwd": "sondar-mobile",
+    "exitCode": 0
+  },
+  "webBuild": {
+    "command": "npm run build",
+    "cwd": "Frontend",
+    "exitCode": 1,
+    "error": "Could not resolve @emailjs/browser in Soporte.jsx and reportarContenido.js"
+  },
+  "liveSuccessfulWritesTested": false,
+  "deviceUITested": false
+}
