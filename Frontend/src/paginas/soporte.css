@@ -1,6 +1,11 @@
 .soporte-page {
-  min-height: calc(100vh - 112px);
-  margin: -20px;
+  position: fixed;
+  top: 75px;
+  right: 0;
+  bottom: 0;
+  left: 74px;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(22px, 4vw, 46px);
   color: #ffffff;
   background:
@@ -51,10 +56,44 @@
 
 .soporte-brand {
   width: clamp(210px, 24vw, 340px);
-  height: auto;
-  display: block;
-  object-fit: contain;
+  display: flex;
+  align-items: center;
+  gap: 3.2258%;
   filter: drop-shadow(0 18px 38px rgba(0, 0, 0, 0.48));
+}
+
+.soporte-brand > span {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.soporte-brand-icon {
+  width: 32.2581%;
+  aspect-ratio: 40 / 29;
+}
+
+.soporte-brand-wordmark {
+  width: 64.5161%;
+  aspect-ratio: 76 / 12;
+}
+
+.soporte-brand img {
+  position: absolute;
+  max-width: none;
+  height: auto;
+}
+
+.soporte-brand-icon img {
+  width: 125%;
+  left: -12.5%;
+  top: -27.5862%;
+}
+
+.soporte-brand-wordmark img {
+  width: 131.5789%;
+  left: -15.7895%;
+  top: -625%;
 }
 
 .soporte-grid {
@@ -282,8 +321,8 @@
 
 @media (min-width: 1101px) {
   .soporte-page {
-    min-height: calc(100vh - 76px);
-    margin: -15px;
+    top: 55px;
+    left: 56px;
   }
 }
 
@@ -295,7 +334,6 @@
 
 @media (max-width: 620px) {
   .soporte-page {
-    margin: -20px -20px -20px 0;
     padding: 18px 12px;
   }
 

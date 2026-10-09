@@ -425,7 +425,7 @@ const eventoController = {
       const query = `
         INSERT INTO eventos (genero, lugar, fecha, precio, link, creador_id, latitud, longitud)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *`;
+        RETURNING *, (SELECT profile_img_url FROM users WHERE id = $6) AS avatar`;
 
       const values = [
         genero,

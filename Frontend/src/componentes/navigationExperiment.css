@@ -87,10 +87,25 @@
 
 
 
-/* Preview comparte el fondo oscuro de la barra lateral. */
-.custom-navbar.navbar-preview {
-  background: #070707;
-  pointer-events: auto;
+/* Fuera del mapa, el fondo lateral empieza debajo de la marca. */
+.app-page .sidebar-nav {
+  --sidebar-top: 55px;
+  padding-top: 9px;
+}
+
+.app-page .sidebar-nav::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: calc(var(--sidebar-collapsed) - 1px);
+  width: 1px;
+  height: 55px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.app-page .sidebar-nav.open::before {
+  left: calc(var(--sidebar-open) - 1px);
 }
 
 /* Oculta el indicador sin impedir desplazar la lista lateral. */

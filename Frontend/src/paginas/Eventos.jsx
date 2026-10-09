@@ -838,7 +838,8 @@ export default function Eventos({ usuario }) {
       const evento = grupo.eventos[0];
       const posicionFinal = evento.coords;
       const activo = eventoActivo === evento.id;
-      const imagenEvento = LOGO_EVENTO_PREDETERMINADO;
+      const avatarUrl = /^https?:\/\//i.test(String(evento.avatar || "")) ? evento.avatar : "";
+      const inicialCreador = escaparHtml(String(evento.creador || "A").trim().charAt(0).toUpperCase() || "A");
       const compacto = zoomMapa <= 11;
 
       const marker = L.marker(posicionFinal, {
@@ -847,7 +848,8 @@ export default function Eventos({ usuario }) {
           html: `
             <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(`Evento de ${evento.creador || "Artista SONDAR"} en ${evento.lugar || evento.ubicacion || "ubicacion a confirmar"}`)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" onerror="this.onerror=null;this.src='/sondar-icon.png?v=19'" />
+                <span class="evento-pin-inicial" aria-hidden="true">${inicialCreador}</span>
+                ${avatarUrl ? `<img src="${escaparHtml(avatarUrl)}" alt="" onerror="this.remove()" />` : ""}
               </span>
               <strong>${escaparHtml(evento.creador || "Artista SONDAR")}</strong>
             </button>
@@ -1432,7 +1434,7 @@ export default function Eventos({ usuario }) {
         >
           <header className="eventos-explorador-header">
             <span className="eventos-explorador-icono" aria-hidden="true">
-              <img src={LOGO_EVENTO_PREDETERMINADO} alt="" />
+              <img src="/sondar-explorar-mapa.png" alt="" />
             </span>
             <span className="eventos-explorador-texto">
               <strong>Explora el mapa</strong>
@@ -1539,7 +1541,9 @@ export default function Eventos({ usuario }) {
             <IconoPanel nombre="izquierda" />
           </button>
           <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
-            <img src={LOGO_EVENTO_PREDETERMINADO} alt="Logo de SONDAR" onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }} />
+            <span className="eventos-sheet-avatar">
+              <ImagenAvatar src={detalleEvento.avatar} inicial={detalleEvento.creador || "A"} />
+            </span>
             <span>
               <strong>{detalleEvento.creador || "Artista SONDAR"}</strong>
               <small>{mostrarGenerosEvento(detalleEvento)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>

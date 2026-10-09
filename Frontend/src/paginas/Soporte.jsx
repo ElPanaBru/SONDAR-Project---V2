@@ -180,11 +180,14 @@ export default function Soporte({ usuario }) {
             </p>
           </div>
 
-          <img
-            className="sondar-brand-image soporte-brand"
-            src="/sondar-logo.png?v=19"
-            alt="SONDAR"
-          />
+          <div className="soporte-brand" role="img" aria-label="SONDAR">
+            <span className="soporte-brand-icon" aria-hidden="true">
+              <img src="/sondar-brand-transparent.png" alt="" />
+            </span>
+            <span className="soporte-brand-wordmark" aria-hidden="true">
+              <img src="/sondar-brand-transparent.png" alt="" />
+            </span>
+          </div>
         </header>
 
         <div className="soporte-grid">

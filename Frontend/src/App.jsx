@@ -95,7 +95,7 @@ function App() {
 
   return (
     <PreferenciasProvider usuario={usuario}>
-    <div className="app-container">
+    <div className={`app-container ${location.pathname === "/" ? "app-map" : "app-page"}`}>
       {!shouldHideNavbar && <Navbar usuario={usuario} onCrearReel={abrirCrearPreview} />}
       {!shouldHideNavbar && <SidebarNav usuario={usuario} />}
 

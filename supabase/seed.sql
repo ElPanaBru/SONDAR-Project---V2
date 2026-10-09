@@ -20,3 +20,5 @@ ON CONFLICT (slug) DO UPDATE SET
   nombre = EXCLUDED.nombre,
   activo = EXCLUDED.activo,
   orden = EXCLUDED.orden;
+
+COMMIT;

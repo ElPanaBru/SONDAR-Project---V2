@@ -496,11 +496,14 @@ export default function Auth() {
 
         <div className="auth-shell">
           <div className="auth-hero">
-            <img
-              className="sondar-brand-image auth-brand"
-              src="/sondar-logo.png?v=19"
-              alt="SONDAR"
-            />
+            <div className="auth-brand" role="img" aria-label="SONDAR">
+              <span className="auth-brand-icon" aria-hidden="true">
+                <img src="/sondar-brand-transparent.png" alt="" />
+              </span>
+              <span className="auth-brand-wordmark" aria-hidden="true">
+                <img src="/sondar-brand-transparent.png" alt="" />
+              </span>
+            </div>
 
             <h1>{t("Tu música empieza acá.")}</h1>
 
