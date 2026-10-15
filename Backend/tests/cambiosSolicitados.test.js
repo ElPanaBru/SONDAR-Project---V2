@@ -406,21 +406,13 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   assert.doesNotMatch(migracion, /DROP TABLE IF EXISTS public\.comunidad_miembros/);
 });
 
-test('comunidades incluye todos los generos vigentes y retira otros', () => {
-  const raiz = path.join(__dirname, '..', '..');
-  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
-  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'comunidadController.js'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Actualizar_Comunidades_Generos.sql'), 'utf8');
-
-  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
-    assert.match(paginaComunidad, new RegExp(`id: "${genero}"`));
-    assert.match(controlador, new RegExp(`id: '${genero}'`));
-    assert.match(migracion, new RegExp(`\\('${genero}',`));
+test('comunidades comparte el catalogo definitivo entre frontend y backend', () => {
+  const { catalogo } = require('../../shared/generos.json');
+  assert.deepEqual(catalogo.map(({ slug }) => slug), ['pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore']);
+  for (const archivo of ['Frontend/src/paginas/Comunidad.jsx', 'Backend/Controllers/comunidadController.js']) {
+    const fuente = fs.readFileSync(path.join(__dirname, '../..', archivo), 'utf8');
+    assert.match(fuente, /CATALOGO_GENEROS\.map/);
   }
-  assert.doesNotMatch(paginaComunidad, /id: "otros"/);
-  assert.doesNotMatch(controlador, /id: 'otros'/);
-  assert.match(controlador, /AND c\.id = ANY\(\$1::text\[\]\)/);
-  assert.match(migracion, /SET activa = false[\s\S]*lower\(id\) = 'otros'[\s\S]*lower\(genero\) = 'otros'/);
 });
 
 test('los temas asociados de comunidad usan iconos para reproducir y abrir', () => {

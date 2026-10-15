@@ -1,0 +1,1023 @@
+diff --git a/Backend/Controllers/comunidadController.js b/Backend/Controllers/comunidadController.js
+index d94e798..c6b203a 100644
+--- a/Backend/Controllers/comunidadController.js
++++ b/Backend/Controllers/comunidadController.js
+@@ -1,3 +1,4 @@
++const { CATALOGO_GENEROS } = require('../services/generos');
+ const pool = require('../Pool_DB');
+ const supabase = require('../services/supabaseClient');
+ const supabaseAuth = supabase.authClient || supabase;
+@@ -10,112 +11,9 @@ const {
+ } = require('../services/notificationService');
+ const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+ 
+-const COMUNIDADES_GENERO = [
+-  {
+-    id: 'pop',
+-    nombre: '@pop',
+-    titulo: 'Pop',
+-    genero: 'pop',
+-    descripcion: 'Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.',
+-    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'rock',
+-    nombre: '@rock',
+-    titulo: 'Rock',
+-    genero: 'rock',
+-    descripcion: 'Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.',
+-    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'edm',
+-    nombre: '@edm',
+-    titulo: 'EDM',
+-    genero: 'edm',
+-    descripcion: 'Sets, drops, produccion, festivales y novedades de la comunidad EDM.',
+-    portada: 'https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'jazz',
+-    nombre: '@jazz',
+-    titulo: 'Jazz',
+-    genero: 'jazz',
+-    descripcion: 'Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.',
+-    portada: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'blues',
+-    nombre: '@blues',
+-    titulo: 'Blues',
+-    genero: 'blues',
+-    descripcion: 'Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.',
+-    portada: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'cumbia',
+-    nombre: '@cumbia',
+-    titulo: 'Cumbia',
+-    genero: 'cumbia',
+-    descripcion: 'Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.',
+-    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'trap',
+-    nombre: '@trap',
+-    titulo: 'Trap',
+-    genero: 'trap',
+-    descripcion: 'Beats, barras, productores, lanzamientos y debates de la escena trap.',
+-    portada: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'metal',
+-    nombre: '@metal',
+-    titulo: 'Metal',
+-    genero: 'metal',
+-    descripcion: 'Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.',
+-    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'folklore',
+-    nombre: '@folklore',
+-    titulo: 'Folklore',
+-    genero: 'folklore',
+-    descripcion: 'Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.',
+-    portada: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'alternativo',
+-    nombre: '@alternativo',
+-    titulo: 'Alternativo',
+-    genero: 'alternativo',
+-    descripcion: 'Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.',
+-    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'punk',
+-    nombre: '@punk',
+-    titulo: 'Punk',
+-    genero: 'punk',
+-    descripcion: 'Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.',
+-    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'reggae',
+-    nombre: '@reggae',
+-    titulo: 'Reggae',
+-    genero: 'reggae',
+-    descripcion: 'Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.',
+-    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
+-  },
+-  {
+-    id: 'latina',
+-    nombre: '@latina',
+-    titulo: 'Latina',
+-    genero: 'latina',
+-    descripcion: 'Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.',
+-    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
+-  },
+-];
++const COMUNIDADES_GENERO = CATALOGO_GENEROS.map(({ slug, nombre, descripcion }) => ({
++  id: slug, nombre: '@' + slug, titulo: nombre, genero: slug, descripcion, portada: null,
++}));
+ 
+ const DIAS_RELEVANCIA_COMUNIDAD = Math.max(
+   1,
+diff --git a/Backend/Controllers/eventoController.js b/Backend/Controllers/eventoController.js
+index 1f4a0ea..e8f0756 100644
+--- a/Backend/Controllers/eventoController.js
++++ b/Backend/Controllers/eventoController.js
+@@ -1,3 +1,4 @@
++const { GENEROS_MUSICALES } = require('../services/generos');
+ const pool = require('../Pool_DB');
+ const supabase = require('../services/supabaseClient');
+ const supabaseAuth = supabase.authClient || supabase;
+@@ -10,10 +11,7 @@ const {
+ const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+ 
+ const MAX_GENEROS_EVENTO = 3;
+-const GENEROS_EVENTO_PERMITIDOS = new Set([
+-  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
+-  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
+-]);
++const GENEROS_EVENTO_PERMITIDOS = new Set(GENEROS_MUSICALES);
+ 
+ async function obtenerViewerId(req) {
+   const authorization = req.headers.authorization || '';
+diff --git a/Backend/Controllers/reelController.js b/Backend/Controllers/reelController.js
+index 882d54c..323d6ff 100644
+--- a/Backend/Controllers/reelController.js
++++ b/Backend/Controllers/reelController.js
+@@ -1,3 +1,4 @@
++const { GENEROS_MUSICALES } = require('../services/generos');
+ const pool = require('../Pool_DB');
+ const supabase = require('../services/supabaseClient');
+ const supabaseAuth = supabase.authClient || supabase;
+@@ -22,10 +23,7 @@ const PATRON_COLOR_HEX_COMPLETO = /^#[0-9a-fA-F]{6}$/;
+ const VIGENCIA_COLUMNAS_REELS_MS = 60 * 1000;
+ const VIGENCIA_RELACION_REEL_GENEROS_MS = 60 * 1000;
+ const MAX_GENEROS_REEL = 3;
+-const GENEROS_REEL_PERMITIDOS = new Set([
+-  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
+-  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
+-]);
++const GENEROS_REEL_PERMITIDOS = new Set(GENEROS_MUSICALES);
+ 
+ let esquemaComentariosListo = null;
+ let esquemaCompartidosListo = null;
+diff --git a/Backend/Controllers/usuarioController.js b/Backend/Controllers/usuarioController.js
+index 1626eab..133d8b0 100644
+--- a/Backend/Controllers/usuarioController.js
++++ b/Backend/Controllers/usuarioController.js
+@@ -1,3 +1,4 @@
++const { GENEROS_MUSICALES } = require('../services/generos');
+ const pool = require('../Pool_DB');
+ const supabase = require('../services/supabaseClient');
+ const {
+@@ -36,7 +37,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
+ const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
+ const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
+ const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
+-const GENEROS_ONBOARDING = new Set(['pop', 'rock', 'trap', 'cumbia', 'edm', 'jazz', 'blues', 'metal', 'folklore']);
++const GENEROS_ONBOARDING = new Set(GENEROS_MUSICALES);
+ const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
+ 
+ function normalizarUsername(valor = '') {
+@@ -135,7 +136,7 @@ function validarGenerosOnboarding(valor) {
+   if (!Array.isArray(recibidos)) return { error: 'La selección de géneros no es válida.' };
+   const generos = [...new Set(recibidos.map((item) => String(item || '').toLowerCase().trim()))];
+   if (generos.length < 3) return { error: 'Elegí al menos 3 géneros para continuar.' };
+-  if (generos.length > 9 || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
++  if (generos.length > GENEROS_MUSICALES.length || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
+     return { error: 'La selección de géneros no es válida.' };
+   }
+   return { generos };
+diff --git a/Backend/scripts/probarOnboardingTemporal.js b/Backend/scripts/probarOnboardingTemporal.js
+index fde3b58..b62b058 100644
+--- a/Backend/scripts/probarOnboardingTemporal.js
++++ b/Backend/scripts/probarOnboardingTemporal.js
+@@ -80,7 +80,7 @@ async function main() {
+     formData.append('nombre', 'Codex Onboarding');
+     formData.append('bio', 'Prueba temporal de onboarding.');
+     formData.append('birthDate', '2013-08-01');
+-    formData.append('genres', JSON.stringify(['trap', 'cumbia', 'edm']));
++    formData.append('genres', JSON.stringify(['urbano', 'funk', 'jazz']));
+     formData.append('avatar', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
+ 
+     started = Date.now();
+diff --git a/Backend/tests/cambiosSolicitados.test.js b/Backend/tests/cambiosSolicitados.test.js
+index 57a8c50..9e82edd 100644
+--- a/Backend/tests/cambiosSolicitados.test.js
++++ b/Backend/tests/cambiosSolicitados.test.js
+@@ -406,21 +406,13 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', ()
+   assert.doesNotMatch(migracion, /DROP TABLE IF EXISTS public\.comunidad_miembros/);
+ });
+ 
+-test('comunidades incluye todos los generos vigentes y retira otros', () => {
+-  const raiz = path.join(__dirname, '..', '..');
+-  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
+-  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'comunidadController.js'), 'utf8');
+-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Actualizar_Comunidades_Generos.sql'), 'utf8');
+-
+-  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
+-    assert.match(paginaComunidad, new RegExp(`id: "${genero}"`));
+-    assert.match(controlador, new RegExp(`id: '${genero}'`));
+-    assert.match(migracion, new RegExp(`\\('${genero}',`));
++test('comunidades comparte el catalogo definitivo entre frontend y backend', () => {
++  const { catalogo } = require('../../shared/generos.json');
++  assert.deepEqual(catalogo.map(({ slug }) => slug), ['pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore']);
++  for (const archivo of ['Frontend/src/paginas/Comunidad.jsx', 'Backend/Controllers/comunidadController.js']) {
++    const fuente = fs.readFileSync(path.join(__dirname, '../..', archivo), 'utf8');
++    assert.match(fuente, /CATALOGO_GENEROS\.map/);
+   }
+-  assert.doesNotMatch(paginaComunidad, /id: "otros"/);
+-  assert.doesNotMatch(controlador, /id: 'otros'/);
+-  assert.match(controlador, /AND c\.id = ANY\(\$1::text\[\]\)/);
+-  assert.match(migracion, /SET activa = false[\s\S]*lower\(id\) = 'otros'[\s\S]*lower\(genero\) = 'otros'/);
+ });
+ 
+ test('los temas asociados de comunidad usan iconos para reproducir y abrir', () => {
+diff --git a/Backend/tests/eventosSimplificados.test.js b/Backend/tests/eventosSimplificados.test.js
+index cd4213a..27e3b80 100644
+--- a/Backend/tests/eventosSimplificados.test.js
++++ b/Backend/tests/eventosSimplificados.test.js
+@@ -142,7 +142,7 @@ test('crear evento persiste hasta tres generos ordenados y conserva el primero c
+       user_metadata: { username: 'festival-prueba' },
+     },
+     body: {
+-      generos: [' Alternativo ', 'punk', 'reggae', 'punk'],
++      generos: [' Urbano ', 'funk', 'jazz', 'funk'],
+       ubicacion: 'La Plata',
+       fecha: '2026-09-23T20:00:00.000Z',
+       latitud: -34.9214,
+@@ -152,14 +152,14 @@ test('crear evento persiste hasta tres generos ordenados y conserva el primero c
+   }, res);
+ 
+   assert.equal(res.statusCode, 201);
+-  assert.equal(res.body.genero, 'alternativo');
+-  assert.deepEqual(res.body.generos, ['alternativo', 'punk', 'reggae']);
++  assert.equal(res.body.genero, 'urbano');
++  assert.deepEqual(res.body.generos, ['urbano', 'funk', 'jazz']);
+ 
+   const nuevasConsultas = consultasCliente.slice(cantidadConsultasInicial);
+   const altaEvento = nuevasConsultas.find(({ texto }) => /INSERT INTO eventos/.test(texto));
+   const altaGeneros = nuevasConsultas.find(({ texto }) => /INSERT INTO evento_generos/.test(texto));
+-  assert.equal(altaEvento.params[0], 'alternativo');
+-  assert.deepEqual(altaGeneros.params, [81, ['alternativo', 'punk', 'reggae']]);
++  assert.equal(altaEvento.params[0], 'urbano');
++  assert.deepEqual(altaGeneros.params, [81, ['urbano', 'funk', 'jazz']]);
+ });
+ 
+ test('crear evento rechaza mas de tres generos o generos fuera del catalogo', async () => {
+@@ -180,7 +180,7 @@ test('crear evento rechaza mas de tres generos o generos fuera del catalogo', as
+   const demasiados = crearRespuesta();
+   await eventoController.crearEvento({
+     ...reqBase,
+-    body: { ...reqBase.body, generos: ['rock', 'punk', 'reggae', 'latina'] },
++    body: { ...reqBase.body, generos: ['rock', 'funk', 'jazz', 'metal'] },
+   }, demasiados);
+   assert.equal(demasiados.statusCode, 400);
+   assert.match(demasiados.body.error, /hasta 3 generos/);
+diff --git a/Backend/tests/reelsCompatibilidadEsquema.test.js b/Backend/tests/reelsCompatibilidadEsquema.test.js
+index 0fef11b..fabc24f 100644
+--- a/Backend/tests/reelsCompatibilidadEsquema.test.js
++++ b/Backend/tests/reelsCompatibilidadEsquema.test.js
+@@ -248,15 +248,15 @@ test('crear reel persiste hasta tres generos ordenados y conserva el primero com
+   const escenario = cargarControlador([]);
+   const respuesta = crearRespuesta();
+   const solicitud = crearSolicitud();
+-  solicitud.body.generos = JSON.stringify([' Alternativo ', 'punk', 'reggae', 'punk']);
++  solicitud.body.generos = JSON.stringify([' Urbano ', 'funk', 'jazz', 'funk']);
+ 
+   await escenario.controlador.crearReel(solicitud, respuesta);
+ 
+   assert.equal(respuesta.statusCode, 201);
+-  assert.equal(escenario.obtenerInsercion().valores[1], 'alternativo');
+-  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['alternativo', 'punk', 'reggae']]);
+-  assert.equal(respuesta.body.genero, 'alternativo');
+-  assert.deepEqual(respuesta.body.generos, ['alternativo', 'punk', 'reggae']);
++  assert.equal(escenario.obtenerInsercion().valores[1], 'urbano');
++  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['urbano', 'funk', 'jazz']]);
++  assert.equal(respuesta.body.genero, 'urbano');
++  assert.deepEqual(respuesta.body.generos, ['urbano', 'funk', 'jazz']);
+ });
+ 
+ test('listar reels conserva compatibilidad cuando reel_generos aun no existe', async () => {
+@@ -276,7 +276,7 @@ test('crear reel en esquema anterior guarda el genero principal sin consultar re
+   const escenario = cargarControlador([], { reelGenerosDisponible: false });
+   const respuesta = crearRespuesta();
+   const solicitud = crearSolicitud();
+-  solicitud.body.generos = ['rock', 'punk'];
++  solicitud.body.generos = ['rock', 'funk'];
+ 
+   await escenario.controlador.crearReel(solicitud, respuesta);
+ 
+@@ -289,7 +289,7 @@ test('crear reel rechaza mas de tres generos o generos fuera del catalogo', asyn
+   const demasiados = cargarControlador([]);
+   const respuestaDemasiados = crearRespuesta();
+   const solicitudDemasiados = crearSolicitud();
+-  solicitudDemasiados.body.generos = ['rock', 'punk', 'reggae', 'latina'];
++  solicitudDemasiados.body.generos = ['rock', 'funk', 'jazz', 'metal'];
+ 
+   await demasiados.controlador.crearReel(solicitudDemasiados, respuestaDemasiados);
+ 
+diff --git a/Frontend/src/componentes/CrearReelModal.jsx b/Frontend/src/componentes/CrearReelModal.jsx
+index 052f70a..39eac95 100644
+--- a/Frontend/src/componentes/CrearReelModal.jsx
++++ b/Frontend/src/componentes/CrearReelModal.jsx
+@@ -1,3 +1,4 @@
++import { GENEROS_MUSICALES, ETIQUETAS_GENEROS } from "../lib/generos";
+ import { useEffect, useRef, useState } from "react";
+ import { apiRequest } from "../lib/api";
+ import {
+@@ -19,27 +20,9 @@ import { supabase } from "../lib/supabaseClient";
+ import PerfilToast from "./PerfilToast";
+ import "../paginas/descubrir.css";
+ 
+-const GENEROS_REEL = [
+-  "pop",
+-  "rock",
+-  "edm",
+-  "jazz",
+-  "blues",
+-  "cumbia",
+-  "trap",
+-  "metal",
+-  "folklore",
+-  "alternativo",
+-  "punk",
+-  "reggae",
+-  "latina",
+-  "otros",
+-];
++const GENEROS_REEL = GENEROS_MUSICALES;
+ const MAX_GENEROS_REEL = 3;
+-const ETIQUETAS_GENERO_REEL = {
+-  edm: "Electronica",
+-  trap: "Urbano",
+-};
++const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
+ const MAX_PORTADA_REEL_BYTES = 5 * 1024 * 1024;
+ const MAX_AUDIO_REEL_BYTES = 20 * 1024 * 1024;
+ const MIME_PORTADA_POR_EXTENSION = {
+diff --git a/Frontend/src/componentes/OnboardingPerfilModal.jsx b/Frontend/src/componentes/OnboardingPerfilModal.jsx
+index 91f45e1..3d17489 100644
+--- a/Frontend/src/componentes/OnboardingPerfilModal.jsx
++++ b/Frontend/src/componentes/OnboardingPerfilModal.jsx
+@@ -1,3 +1,4 @@
++import { CATALOGO_GENEROS } from "../lib/generos";
+ import { useEffect, useMemo, useState } from "react";
+ import { createPortal } from "react-dom";
+ import { apiRequest } from "../lib/api";
+@@ -8,17 +9,7 @@ const fechaMaxima = new Date(Date.UTC(hoy.getUTCFullYear() - 13, hoy.getUTCMonth
+   .toISOString()
+   .slice(0, 10);
+ 
+-const GENEROS = [
+-  ["pop", "✨", "Pop"],
+-  ["rock", "🎸", "Rock"],
+-  ["trap", "🎤", "Trap"],
+-  ["cumbia", "💃", "Cumbia"],
+-  ["edm", "🎧", "EDM"],
+-  ["jazz", "🎷", "Jazz"],
+-  ["blues", "🎵", "Blues"],
+-  ["metal", "🤘", "Metal"],
+-  ["folklore", "🪕", "Folklore"],
+-];
++const GENEROS = CATALOGO_GENEROS.map(({ slug, icono, nombre }) => [slug, icono, nombre]);
+ 
+ const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+ const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+diff --git a/Frontend/src/paginas/Buscar.jsx b/Frontend/src/paginas/Buscar.jsx
+index ad4f078..0ec050c 100644
+--- a/Frontend/src/paginas/Buscar.jsx
++++ b/Frontend/src/paginas/Buscar.jsx
+@@ -1,3 +1,4 @@
++import { nombreGeneroMusical } from "../lib/generos";
+ import BuscarSkeleton from "../componentes/BuscarSkeleton";
+ import { useEffect, useMemo, useState } from "react";
+ import { useNavigate, useSearchParams } from "react-router-dom";
+@@ -63,7 +64,7 @@ function formatearFecha(fecha) {
+ 
+ function mostrarGenero(genero) {
+   if (!genero) return "Sin genero";
+-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
++  return nombreGeneroMusical(genero);
+ }
+ 
+ function mostrarGenerosEvento(evento) {
+diff --git a/Frontend/src/paginas/Comunidad.jsx b/Frontend/src/paginas/Comunidad.jsx
+index 7ad9cca..9296b37 100644
+--- a/Frontend/src/paginas/Comunidad.jsx
++++ b/Frontend/src/paginas/Comunidad.jsx
+@@ -1,3 +1,5 @@
++import PortadaComunidad from "../componentes/PortadaComunidad";
++import { CATALOGO_GENEROS, nombreGeneroMusical } from "../lib/generos";
+ import FechaEvento from "../componentes/FechaEvento";
+ import ImagenAvatar from "../componentes/ImagenAvatar";
+ import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
+@@ -27,164 +29,10 @@ const reglasForo = [
+   "Evita spam repetido y agrega contexto cuando compartas enlaces o lanzamientos.",
+ ];
+ 
+-const comunidadesPorGenero = [
+-  {
+-    id: "pop",
+-    nombre: "@pop",
+-    titulo: "Pop",
+-    genero: "pop",
+-    descripcion: "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
+-    categoria: "pop",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "rock",
+-    nombre: "@rock",
+-    titulo: "Rock",
+-    genero: "rock",
+-    descripcion: "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
+-    categoria: "rock",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "edm",
+-    nombre: "@edm",
+-    titulo: "EDM",
+-    genero: "edm",
+-    descripcion: "Sets, drops, produccion, festivales y novedades de la comunidad EDM.",
+-    categoria: "edm",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "jazz",
+-    nombre: "@jazz",
+-    titulo: "Jazz",
+-    genero: "jazz",
+-    descripcion: "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
+-    categoria: "jazz",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "blues",
+-    nombre: "@blues",
+-    titulo: "Blues",
+-    genero: "blues",
+-    descripcion: "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
+-    categoria: "blues",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "cumbia",
+-    nombre: "@cumbia",
+-    titulo: "Cumbia",
+-    genero: "cumbia",
+-    descripcion: "Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.",
+-    categoria: "cumbia",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "trap",
+-    nombre: "@trap",
+-    titulo: "Trap",
+-    genero: "trap",
+-    descripcion: "Beats, barras, productores, lanzamientos y debates de la escena trap.",
+-    categoria: "trap",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "metal",
+-    nombre: "@metal",
+-    titulo: "Metal",
+-    genero: "metal",
+-    descripcion: "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
+-    categoria: "metal",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "folklore",
+-    nombre: "@folklore",
+-    titulo: "Folklore",
+-    genero: "folklore",
+-    descripcion: "Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
+-    categoria: "folklore",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "alternativo",
+-    nombre: "@alternativo",
+-    titulo: "Alternativo",
+-    genero: "alternativo",
+-    descripcion: "Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.",
+-    categoria: "alternativo",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "punk",
+-    nombre: "@punk",
+-    titulo: "Punk",
+-    genero: "punk",
+-    descripcion: "Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.",
+-    categoria: "punk",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "reggae",
+-    nombre: "@reggae",
+-    titulo: "Reggae",
+-    genero: "reggae",
+-    descripcion: "Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.",
+-    categoria: "reggae",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
+-  },
+-  {
+-    id: "latina",
+-    nombre: "@latina",
+-    titulo: "Latina",
+-    genero: "latina",
+-    descripcion: "Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.",
+-    categoria: "latina",
+-    miembros: 0,
+-    publicaciones: 0,
+-    actividad: "Sin publicaciones todavia",
+-    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
+-  },
+-];
++const comunidadesPorGenero = CATALOGO_GENEROS.map(({ slug, nombre, descripcion }) => ({
++  id: slug, nombre: '@' + slug, titulo: nombre, genero: slug, descripcion,
++  categoria: slug, miembros: 0, publicaciones: 0, actividad: 'Sin publicaciones todavia',
++}));
+ 
+ const crearHeadersJson = (token) => ({
+   "Content-Type": "application/json",
+@@ -193,7 +41,7 @@ const crearHeadersJson = (token) => ({
+ 
+ const mostrarGenero = (genero) => {
+   if (!genero) return "";
+-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
++  return nombreGeneroMusical(genero);
+ };
+ 
+ const generosDeEvento = (evento) => (
+@@ -418,7 +266,10 @@ export default function Comunidad({ usuario }) {
+ 
+         if (!response.ok) throw new Error("No se pudieron cargar las comunidades.");
+ 
+-        const dataComunidades = await response.json();
++        const recibidas = await response.json();
++        const dataComunidades = comunidadesPorGenero.map((base) => ({
++          ...base, ...recibidas.find((comunidad) => comunidad.id === base.id),
++        }));
+         if (!cancelado && dataComunidades.length > 0) {
+           setComunidades(dataComunidades);
+           setComunidadActivaId((actual) =>
+@@ -679,11 +530,11 @@ export default function Comunidad({ usuario }) {
+           : comunidad
+       )));
+       if (resultado.unido) {
+-        mostrarAviso(`Ahora formas parte de s/${mostrarGenero(comunidadActiva.genero)}`);
++        mostrarAviso(`Ahora formas parte de ${mostrarGenero(comunidadActiva.genero)}`);
+       } else {
+         setMostrarModal(false);
+         setMostrarNotificacionesComunidad(false);
+-        mostrarAviso(`Saliste de s/${mostrarGenero(comunidadActiva.genero)}`);
++        mostrarAviso(`Saliste de ${mostrarGenero(comunidadActiva.genero)}`);
+       }
+     } catch (error) {
+       mostrarAviso(error.message || "No se pudo actualizar tu membresia.");
+@@ -1052,9 +903,9 @@ export default function Comunidad({ usuario }) {
+       setMostrarNotificacionesComunidad(false);
+ 
+       const mensajes = {
+-        todas: `Vas a recibir todas las publicaciones de s/${mostrarGenero(comunidadActiva.genero)}`,
+-        relevantes: `Solo vas a recibir publicaciones relevantes de s/${mostrarGenero(comunidadActiva.genero)}`,
+-        silenciadas: `Silenciaste las notificaciones de s/${mostrarGenero(comunidadActiva.genero)}`,
++        todas: `Vas a recibir todas las publicaciones de ${mostrarGenero(comunidadActiva.genero)}`,
++        relevantes: `Solo vas a recibir publicaciones relevantes de ${mostrarGenero(comunidadActiva.genero)}`,
++        silenciadas: `Silenciaste las notificaciones de ${mostrarGenero(comunidadActiva.genero)}`,
+       };
+       mostrarAviso(mensajes[nivel]);
+     } catch (error) {
+@@ -1267,7 +1118,7 @@ export default function Comunidad({ usuario }) {
+                 >
+                   <div className="comunidad-mini-icon">{comunidad.titulo.charAt(0)}</div>
+                   <div>
+-                    <strong>s/{mostrarGenero(comunidad.genero)}</strong>
++                    <strong>{mostrarGenero(comunidad.genero)}</strong>
+                     <span>{comunidad.publicaciones || 0} publicaciones</span>
+                   </div>
+                 </button>
+@@ -1278,14 +1129,11 @@ export default function Comunidad({ usuario }) {
+ 
+         <div className="comunidad-contenido">
+         <header className="comunidad-portada">
+-            <div
+-              className="comunidad-cover"
+-              style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18)), url(${comunidadActiva.portada})` }}
+-            ></div>
++            <PortadaComunidad genero={comunidadActiva.genero} />
+             <div className="comunidad-identidad">
+               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
+               <div className="comunidad-titulos">
+-                <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
++                <h1>{mostrarGenero(comunidadActiva.genero)}</h1>
+               </div>
+               <div className="comunidad-header-actions">
+                 {comunidadActiva.unido ? (
+@@ -1596,7 +1444,7 @@ export default function Comunidad({ usuario }) {
+           <section className="comunidad-panel comunidad-panel-info">
+             <header>
+               <span>Información del foro</span>
+-              <h2>s/{mostrarGenero(comunidadActiva.genero)}</h2>
++              <h2>{mostrarGenero(comunidadActiva.genero)}</h2>
+             </header>
+             <p>{comunidadActiva.descripcion}</p>
+             <dl className="subreddit-stats">
+@@ -1678,7 +1526,7 @@ export default function Comunidad({ usuario }) {
+             <header className="comunidad-modal-header">
+               <div>
+                 <h2>Crear post</h2>
+-                <p>s/{mostrarGenero(comunidadActiva.genero)}</p>
++                <p>{mostrarGenero(comunidadActiva.genero)}</p>
+               </div>
+               <button className="comunidad-modal-cerrar" type="button" onClick={() => setMostrarModal(false)} aria-label="Cerrar">
+                 x
+@@ -1828,11 +1676,11 @@ export default function Comunidad({ usuario }) {
+       {comunidadCompartir ? (
+         <CompartirContenidoModal
+           titulo="Compartir comunidad"
+-          nombre={`s/${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
++          nombre={`${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
+           detalle={comunidadCompartir.comunidad.descripcion}
+-          imagen={comunidadCompartir.comunidad.portada}
++          imagen="/sondar-icon.png?v=19"
+           enlace={comunidadCompartir.enlace}
+-          textoCompartir={`Unite a s/${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
++          textoCompartir={`Unite a ${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
+           mensajeCopiado="Enlace de la comunidad copiado"
+           onClose={() => setComunidadCompartir(null)}
+           onAviso={mostrarAviso}
+diff --git a/Frontend/src/paginas/Descubrir.jsx b/Frontend/src/paginas/Descubrir.jsx
+index 8f268f3..4ea94ec 100644
+--- a/Frontend/src/paginas/Descubrir.jsx
++++ b/Frontend/src/paginas/Descubrir.jsx
+@@ -1,3 +1,4 @@
++import { ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
+ import ImagenAvatar from "../componentes/ImagenAvatar";
+ import DescubrirSkeleton from "../componentes/DescubrirSkeleton";
+ import { useEffect, useRef, useState } from "react";
+@@ -312,27 +313,7 @@ const comentariosPorLanzamientoIniciales = {
+   ],
+ };
+ 
+-const GENEROS_REEL = [
+-  "pop",
+-  "rock",
+-  "edm",
+-  "jazz",
+-  "blues",
+-  "cumbia",
+-  "trap",
+-  "metal",
+-  "folklore",
+-  "alternativo",
+-  "punk",
+-  "reggae",
+-  "latina",
+-  "otros",
+-];
+-const GENEROS_REEL_SET = new Set(GENEROS_REEL);
+-const ETIQUETAS_GENERO_REEL = {
+-  edm: "Electronica",
+-  trap: "Urbano",
+-};
++const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
+ const coloresPortadaCache = new Map();
+ 
+ async function obtenerColorPortada(url, signal) {
+@@ -357,10 +338,7 @@ function crearVariablesFondoReel(color) {
+   };
+ }
+ 
+-function normalizarGeneroReel(genero) {
+-  const valor = genero?.trim().toLowerCase() || "";
+-  return GENEROS_REEL_SET.has(valor) ? valor : "";
+-}
++const normalizarGeneroReel = normalizarGeneroMusical;
+ 
+ function mostrarGeneroReel(genero) {
+   const valor = normalizarGeneroReel(genero);
+diff --git a/Frontend/src/paginas/Eventos.jsx b/Frontend/src/paginas/Eventos.jsx
+index 63a240d..38e5512 100644
+--- a/Frontend/src/paginas/Eventos.jsx
++++ b/Frontend/src/paginas/Eventos.jsx
+@@ -1,3 +1,4 @@
++import { GENEROS_MUSICALES, ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
+ import { formatearPrecioEvento } from "../lib/formatearPrecioEvento";
+ import { ordenarEventos } from "../lib/ordenarEventos";
+ import ImagenAvatar from "../componentes/ImagenAvatar";
+@@ -25,17 +26,10 @@ import "../componentes/eventoOrganizadorPopover.css";
+ 
+ setWorkerUrl(maplibreWorkerUrl);
+ 
+-const GENEROS_PERMITIDOS = [
+-  "pop", "rock", "edm", "jazz", "blues",
+-  "cumbia", "trap", "metal", "folklore", "alternativo",
+-  "punk", "reggae", "latina", "otros"
+-];
++const GENEROS_PERMITIDOS = GENEROS_MUSICALES;
+ const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
+ const MAX_GENEROS_EVENTO = 3;
+-const ETIQUETAS_GENERO = {
+-  edm: "Electronica",
+-  trap: "Urbano",
+-};
++const ETIQUETAS_GENERO = ETIQUETAS_GENEROS;
+ 
+ const DURACION_ACERCAMIENTO_MAPA = 0.8;
+ const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
+@@ -99,10 +93,7 @@ const crearEventoVacio = () => ({
+ const tieneCoordenadasValidas = (evento) =>
+   evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1]);
+ 
+-const normalizarGenero = (genero) => {
+-  const gen = genero?.trim().toLowerCase() || "otros";
+-  return GENEROS_PERMITIDOS_SET.has(gen) ? gen : "otros";
+-};
++const normalizarGenero = normalizarGeneroMusical;
+ 
+ const normalizarBusqueda = (valor) => String(valor || "")
+   .normalize("NFD")
+@@ -118,8 +109,8 @@ const generosDeEvento = (evento) => {
+   const recibidos = Array.isArray(evento?.generos) && evento.generos.length > 0
+     ? evento.generos
+     : [evento?.genero];
+-  const generos = [...new Set(recibidos.map(normalizarGenero))].slice(0, MAX_GENEROS_EVENTO);
+-  return generos.length > 0 ? generos : ["otros"];
++  const generos = [...new Set(recibidos.map(normalizarGenero).filter(Boolean))].slice(0, MAX_GENEROS_EVENTO);
++  return generos;
+ };
+ 
+ const mostrarGenerosEvento = (evento) => generosDeEvento(evento).map(mostrarGenero).join(" / ");
+@@ -530,7 +521,7 @@ export default function Eventos({ usuario }) {
+     const termino = normalizarBusqueda(busquedaEventos).trim();
+     return eventos.filter((evento) => {
+       const generosEvento = generosDeEvento(evento);
+-      const generoVisible = generosEvento.some((genero) => generosVisibles.includes(genero));
++      const generoVisible = generosVisibles.length === GENEROS_PERMITIDOS.length || generosEvento.some((genero) => generosVisibles.includes(genero));
+       if (!generoVisible) return false;
+       if (!termino) return true;
+ 
+diff --git a/Frontend/src/paginas/comunidad.css b/Frontend/src/paginas/comunidad.css
+index 7142812..a0ba9b9 100644
+--- a/Frontend/src/paginas/comunidad.css
++++ b/Frontend/src/paginas/comunidad.css
+@@ -19,13 +19,12 @@
+ }
+ 
+ .comunidad-layout.reddit-layout {
+-  --comunidad-desplazamiento: clamp(88px, 9vw, 160px);
+-  width: min(100%, calc(1480px + var(--comunidad-desplazamiento)));
++  width: 100%;
+   min-height: 100%;
+   display: grid;
+   grid-template-columns: 200px minmax(0, 1fr);
+   align-items: start;
+-  column-gap: calc(14px + var(--comunidad-desplazamiento));
++  column-gap: 16px;
+   row-gap: 0;
+   margin: 0;
+ }
+@@ -177,13 +176,51 @@
+ }
+ 
+ .comunidad-cover {
++  position: relative;
+   height: 112px;
+-  background-position: center;
+-  background-size: cover;
++  overflow: hidden;
++  background:
++    repeating-linear-gradient(var(--portada-angulo, 25deg), transparent 0 22px, #ffffff05 22px 24px),
++    radial-gradient(ellipse at 75% 100%, var(--portada-fondo, #30230e), transparent 75%),
++    linear-gradient(110deg, var(--portada-fondo, #30230e), #12100d);
++  border: 1px solid rgba(255, 174, 0, 0.22);
++  border-bottom: 0;
+   border-radius: 8px 8px 0 0;
+ }
+ 
++.comunidad-cover-marca {
++  position: absolute;
++  top: 20px;
++  left: 22px;
++  z-index: 1;
++  color: var(--portada-acento, #ffc366);
++  font-size: 10px;
++  font-weight: 800;
++  letter-spacing: 0.2em;
++}
++
++.comunidad-cover-ondas {
++  position: absolute;
++  inset: 12px 20px 12px 30%;
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  gap: 5px;
++  opacity: 0.5;
++  mask-image: linear-gradient(90deg, transparent, #000 25%);
++}
++
++.comunidad-cover-ondas i {
++  flex: 1;
++  max-width: 9px;
++  min-width: 2px;
++  border-radius: 8px;
++  background: linear-gradient(180deg, var(--portada-acento, #ffca55), #ff9100);
++}
++
+ .comunidad-identidad {
++  position: relative;
++  z-index: 1;
+   min-height: 66px;
+   display: grid;
+   grid-template-columns: 70px minmax(0, 1fr) auto;
+@@ -1721,7 +1758,6 @@
+ 
+ @media (max-width: 1180px) {
+   .comunidad-layout.reddit-layout {
+-    --comunidad-desplazamiento: 0px;
+     width: 100%;
+     grid-template-columns: minmax(0, 1fr);
+     column-gap: 14px;
+@@ -1942,3 +1978,21 @@
+   outline: 2px solid #ffae00;
+   outline-offset: 3px;
+ }
++
++/* Los instrumentos forman parte de la misma pista que las barras. */
++.comunidad-cover-nota {
++  display: grid;
++  place-items: center;
++  flex: 0 0 clamp(24px, 2.7vw, 36px);
++  aspect-ratio: 1;
++  color: var(--portada-acento, #ffb21a);
++  transform: rotate(var(--nota-giro, 0deg));
++  pointer-events: none;
++}
++.comunidad-cover-nota svg { display: block; width: 100%; height: 100%; }
++@media (max-width: 720px) {
++  .comunidad-cover-marca { top: 12px; left: 14px; font-size: 8px; }
++  .comunidad-cover-ondas { inset: 30px 12px 12px; gap: 3px; }
++  .comunidad-cover-ondas i { min-width: 0; }
++  .comunidad-cover-nota { flex-basis: 24px; }
++}
+diff --git a/Frontend/src/paginas/eventos.css b/Frontend/src/paginas/eventos.css
+index f6fa75e..86e0f64 100644
+--- a/Frontend/src/paginas/eventos.css
++++ b/Frontend/src/paginas/eventos.css
+@@ -494,14 +494,14 @@
+   left: 50%;
+   bottom: 8px;
+   z-index: 710;
+-  width: min(710px, calc(100% - 28px));
++  width: min(640px, calc(100% - 28px));
+   display: grid;
+   grid-template-columns: 1fr;
+   align-items: stretch;
+   gap: 10px;
+   max-height: 280px;
+   overflow: hidden;
+-  padding: 23px 14px 12px;
++  padding: 23px 12px 6px;
+   color: #ffffff;
+   background: rgba(5, 5, 5, 0.95);
+   border: 1px solid rgba(255, 255, 255, 0.1);
+@@ -544,7 +544,7 @@
+ .eventos-explorador-contenido {
+   min-width: 0;
+   display: grid;
+-  gap: 10px;
++  gap: 6px;
+   opacity: 1;
+   visibility: visible;
+   transition: opacity 0.16s ease, visibility 0.16s ease;
+@@ -694,6 +694,7 @@
+ }
+ 
+ .eventos-explorador-generos {
++  justify-content: safe center;
+   width: 100%;
+   min-width: 0;
+   max-width: 100%;
+@@ -702,7 +703,7 @@
+   gap: 6px;
+   overflow-x: auto;
+   overscroll-behavior-inline: contain;
+-  padding: 0 8px 5px;
++  padding: 0 4px 2px;
+   scroll-snap-type: x proximity;
+   scrollbar-color: rgba(255, 139, 24, 0.78) rgba(255, 255, 255, 0.08);
+   scrollbar-width: thin;
+@@ -724,6 +725,10 @@
+ }
+ 
+ .eventos-explorador-generos button {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  text-align: center;
+   min-height: 25px;
+   flex: 0 0 auto;
+   scroll-snap-align: start;
+@@ -1854,7 +1859,7 @@
+   left: 50%;
+   bottom: 8px;
+   z-index: 720;
+-  width: min(710px, calc(100% - 28px));
++  width: min(640px, calc(100% - 28px));
+   overflow: hidden;
+   color: #fff;
+   background: rgba(6, 6, 6, 0.96);
+@@ -1921,11 +1926,11 @@
+ }
+ 
+ .eventos-sheet-resumen {
+-  min-height: 76px;
++  min-height: 68px;
+   display: flex;
+   align-items: center;
+   gap: 12px;
+-  padding: 2px 16px 10px;
++  padding: 2px 12px 6px;
+ }
+ 
+ .eventos-sheet.expandido .eventos-sheet-resumen,
+@@ -1934,15 +1939,20 @@
+ }
+ 
+ .eventos-sheet-tags {
++  justify-content: safe center;
+   display: flex;
+   align-items: center;
+   gap: 6px;
+   overflow-x: auto;
+-  padding: 0 0 5px;
++  padding: 0 0 2px;
+   scrollbar-width: thin;
+ }
+ 
+ .eventos-sheet-tags button {
++  display: inline-flex;
++  align-items: center;
++  justify-content: center;
++  text-align: center;
+   min-height: 27px;
+   flex: 0 0 auto;
+   padding: 0 10px;
+@@ -1971,8 +1981,8 @@
+ 
+ .eventos-sheet-filtros {
+   display: grid;
+-  gap: 10px;
+-  padding: 0 16px 12px;
++  gap: 6px;
++  padding: 0 12px 6px;
+ }
+ 
+ .eventos-sheet-busqueda input {

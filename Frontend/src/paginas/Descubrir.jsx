@@ -1,3 +1,4 @@
+import { ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import DescubrirSkeleton from "../componentes/DescubrirSkeleton";
 import { useEffect, useRef, useState } from "react";
@@ -312,27 +313,7 @@ const comentariosPorLanzamientoIniciales = {
   ],
 };
 
-const GENEROS_REEL = [
-  "pop",
-  "rock",
-  "edm",
-  "jazz",
-  "blues",
-  "cumbia",
-  "trap",
-  "metal",
-  "folklore",
-  "alternativo",
-  "punk",
-  "reggae",
-  "latina",
-  "otros",
-];
-const GENEROS_REEL_SET = new Set(GENEROS_REEL);
-const ETIQUETAS_GENERO_REEL = {
-  edm: "Electronica",
-  trap: "Urbano",
-};
+const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
 const coloresPortadaCache = new Map();
 
 async function obtenerColorPortada(url, signal) {
@@ -357,10 +338,7 @@ function crearVariablesFondoReel(color) {
   };
 }
 
-function normalizarGeneroReel(genero) {
-  const valor = genero?.trim().toLowerCase() || "";
-  return GENEROS_REEL_SET.has(valor) ? valor : "";
-}
+const normalizarGeneroReel = normalizarGeneroMusical;
 
 function mostrarGeneroReel(genero) {
   const valor = normalizarGeneroReel(genero);

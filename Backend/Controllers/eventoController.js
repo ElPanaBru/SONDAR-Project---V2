@@ -1,3 +1,4 @@
+const { GENEROS_MUSICALES } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -10,10 +11,7 @@ const {
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
 const MAX_GENEROS_EVENTO = 3;
-const GENEROS_EVENTO_PERMITIDOS = new Set([
-  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
-  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
-]);
+const GENEROS_EVENTO_PERMITIDOS = new Set(GENEROS_MUSICALES);
 
 async function obtenerViewerId(req) {
   const authorization = req.headers.authorization || '';

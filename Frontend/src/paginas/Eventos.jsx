@@ -1,3 +1,4 @@
+import { GENEROS_MUSICALES, ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
 import { formatearPrecioEvento } from "../lib/formatearPrecioEvento";
 import { ordenarEventos } from "../lib/ordenarEventos";
 import ImagenAvatar from "../componentes/ImagenAvatar";
@@ -25,17 +26,10 @@ import "../componentes/eventoOrganizadorPopover.css";
 
 setWorkerUrl(maplibreWorkerUrl);
 
-const GENEROS_PERMITIDOS = [
-  "pop", "rock", "edm", "jazz", "blues",
-  "cumbia", "trap", "metal", "folklore", "alternativo",
-  "punk", "reggae", "latina", "otros"
-];
+const GENEROS_PERMITIDOS = GENEROS_MUSICALES;
 const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
 const MAX_GENEROS_EVENTO = 3;
-const ETIQUETAS_GENERO = {
-  edm: "Electronica",
-  trap: "Urbano",
-};
+const ETIQUETAS_GENERO = ETIQUETAS_GENEROS;
 
 const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
@@ -99,10 +93,7 @@ const crearEventoVacio = () => ({
 const tieneCoordenadasValidas = (evento) =>
   evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1]);
 
-const normalizarGenero = (genero) => {
-  const gen = genero?.trim().toLowerCase() || "otros";
-  return GENEROS_PERMITIDOS_SET.has(gen) ? gen : "otros";
-};
+const normalizarGenero = normalizarGeneroMusical;
 
 const normalizarBusqueda = (valor) => String(valor || "")
   .normalize("NFD")
@@ -118,8 +109,8 @@ const generosDeEvento = (evento) => {
   const recibidos = Array.isArray(evento?.generos) && evento.generos.length > 0
     ? evento.generos
     : [evento?.genero];
-  const generos = [...new Set(recibidos.map(normalizarGenero))].slice(0, MAX_GENEROS_EVENTO);
-  return generos.length > 0 ? generos : ["otros"];
+  const generos = [...new Set(recibidos.map(normalizarGenero).filter(Boolean))].slice(0, MAX_GENEROS_EVENTO);
+  return generos;
 };
 
 const mostrarGenerosEvento = (evento) => generosDeEvento(evento).map(mostrarGenero).join(" / ");
@@ -530,7 +521,7 @@ export default function Eventos({ usuario }) {
     const termino = normalizarBusqueda(busquedaEventos).trim();
     return eventos.filter((evento) => {
       const generosEvento = generosDeEvento(evento);
-      const generoVisible = generosEvento.some((genero) => generosVisibles.includes(genero));
+      const generoVisible = generosVisibles.length === GENEROS_PERMITIDOS.length || generosEvento.some((genero) => generosVisibles.includes(genero));
       if (!generoVisible) return false;
       if (!termino) return true;
 

@@ -1,3 +1,4 @@
+import { nombreGeneroMusical } from "../lib/generos";
 import BuscarSkeleton from "../componentes/BuscarSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -63,7 +64,7 @@ function formatearFecha(fecha) {
 
 function mostrarGenero(genero) {
   if (!genero) return "Sin genero";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  return nombreGeneroMusical(genero);
 }
 
 function mostrarGenerosEvento(evento) {

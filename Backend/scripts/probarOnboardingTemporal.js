@@ -80,7 +80,7 @@ async function main() {
     formData.append('nombre', 'Codex Onboarding');
     formData.append('bio', 'Prueba temporal de onboarding.');
     formData.append('birthDate', '2013-08-01');
-    formData.append('genres', JSON.stringify(['trap', 'cumbia', 'edm']));
+    formData.append('genres', JSON.stringify(['urbano', 'funk', 'jazz']));
     formData.append('avatar', new Blob([avatarBytes], { type: 'image/png' }), 'avatar.png');
 
     started = Date.now();

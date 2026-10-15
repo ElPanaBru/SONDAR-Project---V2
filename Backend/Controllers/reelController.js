@@ -1,3 +1,4 @@
+const { GENEROS_MUSICALES } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -22,10 +23,7 @@ const PATRON_COLOR_HEX_COMPLETO = /^#[0-9a-fA-F]{6}$/;
 const VIGENCIA_COLUMNAS_REELS_MS = 60 * 1000;
 const VIGENCIA_RELACION_REEL_GENEROS_MS = 60 * 1000;
 const MAX_GENEROS_REEL = 3;
-const GENEROS_REEL_PERMITIDOS = new Set([
-  'pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal',
-  'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros',
-]);
+const GENEROS_REEL_PERMITIDOS = new Set(GENEROS_MUSICALES);
 
 let esquemaComentariosListo = null;
 let esquemaCompartidosListo = null;

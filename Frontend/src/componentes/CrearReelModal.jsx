@@ -1,3 +1,4 @@
+import { GENEROS_MUSICALES, ETIQUETAS_GENEROS } from "../lib/generos";
 import { useEffect, useRef, useState } from "react";
 import { apiRequest } from "../lib/api";
 import {
@@ -19,27 +20,9 @@ import { supabase } from "../lib/supabaseClient";
 import PerfilToast from "./PerfilToast";
 import "../paginas/descubrir.css";
 
-const GENEROS_REEL = [
-  "pop",
-  "rock",
-  "edm",
-  "jazz",
-  "blues",
-  "cumbia",
-  "trap",
-  "metal",
-  "folklore",
-  "alternativo",
-  "punk",
-  "reggae",
-  "latina",
-  "otros",
-];
+const GENEROS_REEL = GENEROS_MUSICALES;
 const MAX_GENEROS_REEL = 3;
-const ETIQUETAS_GENERO_REEL = {
-  edm: "Electronica",
-  trap: "Urbano",
-};
+const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
 const MAX_PORTADA_REEL_BYTES = 5 * 1024 * 1024;
 const MAX_AUDIO_REEL_BYTES = 20 * 1024 * 1024;
 const MIME_PORTADA_POR_EXTENSION = {
