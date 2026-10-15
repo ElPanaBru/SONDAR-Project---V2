@@ -58,17 +58,53 @@
 
 .auth-brand {
   width: min(360px, 78vw);
-  height: auto;
-  max-height: 130px;
-  display: block;
-  object-fit: contain;
+  display: flex;
+  align-items: center;
+  gap: 3.2258%;
   margin-bottom: 18px;
+  background: transparent;
   filter:
-    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.96))
-    drop-shadow(1px 0 0 rgba(0, 0, 0, 0.96))
-    drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.96))
-    drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.96))
-    drop-shadow(0 12px 28px rgba(0, 0, 0, 0.58));
+    drop-shadow(1px 0 0 rgba(20, 8, 0, 0.95))
+    drop-shadow(-1px 0 0 rgba(20, 8, 0, 0.95))
+    drop-shadow(0 1px 0 rgba(20, 8, 0, 0.95))
+    drop-shadow(0 -1px 0 rgba(20, 8, 0, 0.95))
+    drop-shadow(0 4px 6px rgba(0, 0, 0, 0.75));
+}
+
+.auth-brand-icon,
+.auth-brand-wordmark {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.auth-brand-icon {
+  width: 32.2581%;
+  aspect-ratio: 40 / 29;
+}
+
+.auth-brand-wordmark {
+  width: 64.5161%;
+  aspect-ratio: 76 / 12;
+}
+
+.auth-brand img {
+  position: absolute;
+  max-width: none;
+  height: auto;
+}
+
+.auth-brand-icon img {
+  width: 125%;
+  left: -12.5%;
+  top: -27.5862%;
+}
+
+.auth-brand-wordmark img {
+  width: 131.5789%;
+  left: -15.7895%;
+  top: -625%;
 }
 
 .auth-hero span,

@@ -1,3 +1,4 @@
+const { GENEROS_MUSICALES } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const {
@@ -36,7 +37,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
-const GENEROS_ONBOARDING = new Set(['pop', 'rock', 'trap', 'cumbia', 'edm', 'jazz', 'blues', 'metal', 'folklore']);
+const GENEROS_ONBOARDING = new Set(GENEROS_MUSICALES);
 const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 
 function normalizarUsername(valor = '') {
@@ -135,7 +136,7 @@ function validarGenerosOnboarding(valor) {
   if (!Array.isArray(recibidos)) return { error: 'La selección de géneros no es válida.' };
   const generos = [...new Set(recibidos.map((item) => String(item || '').toLowerCase().trim()))];
   if (generos.length < 3) return { error: 'Elegí al menos 3 géneros para continuar.' };
-  if (generos.length > 9 || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
+  if (generos.length > GENEROS_MUSICALES.length || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
     return { error: 'La selección de géneros no es válida.' };
   }
   return { generos };

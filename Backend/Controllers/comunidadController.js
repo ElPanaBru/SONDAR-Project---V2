@@ -1,3 +1,4 @@
+const { CATALOGO_GENEROS } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -10,112 +11,9 @@ const {
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
 
-const COMUNIDADES_GENERO = [
-  {
-    id: 'pop',
-    nombre: '@pop',
-    titulo: 'Pop',
-    genero: 'pop',
-    descripcion: 'Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.',
-    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'rock',
-    nombre: '@rock',
-    titulo: 'Rock',
-    genero: 'rock',
-    descripcion: 'Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.',
-    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'edm',
-    nombre: '@edm',
-    titulo: 'EDM',
-    genero: 'edm',
-    descripcion: 'Sets, drops, produccion, festivales y novedades de la comunidad EDM.',
-    portada: 'https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'jazz',
-    nombre: '@jazz',
-    titulo: 'Jazz',
-    genero: 'jazz',
-    descripcion: 'Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.',
-    portada: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'blues',
-    nombre: '@blues',
-    titulo: 'Blues',
-    genero: 'blues',
-    descripcion: 'Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.',
-    portada: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'cumbia',
-    nombre: '@cumbia',
-    titulo: 'Cumbia',
-    genero: 'cumbia',
-    descripcion: 'Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.',
-    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'trap',
-    nombre: '@trap',
-    titulo: 'Trap',
-    genero: 'trap',
-    descripcion: 'Beats, barras, productores, lanzamientos y debates de la escena trap.',
-    portada: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'metal',
-    nombre: '@metal',
-    titulo: 'Metal',
-    genero: 'metal',
-    descripcion: 'Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.',
-    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'folklore',
-    nombre: '@folklore',
-    titulo: 'Folklore',
-    genero: 'folklore',
-    descripcion: 'Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.',
-    portada: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'alternativo',
-    nombre: '@alternativo',
-    titulo: 'Alternativo',
-    genero: 'alternativo',
-    descripcion: 'Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.',
-    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'punk',
-    nombre: '@punk',
-    titulo: 'Punk',
-    genero: 'punk',
-    descripcion: 'Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.',
-    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'reggae',
-    nombre: '@reggae',
-    titulo: 'Reggae',
-    genero: 'reggae',
-    descripcion: 'Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.',
-    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'latina',
-    nombre: '@latina',
-    titulo: 'Latina',
-    genero: 'latina',
-    descripcion: 'Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.',
-    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
-  },
-];
+const COMUNIDADES_GENERO = CATALOGO_GENEROS.map(({ slug, nombre, descripcion }) => ({
+  id: slug, nombre: '@' + slug, titulo: nombre, genero: slug, descripcion, portada: null,
+}));
 
 const DIAS_RELEVANCIA_COMUNIDAD = Math.max(
   1,

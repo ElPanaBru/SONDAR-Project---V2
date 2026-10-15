@@ -1,3 +1,4 @@
+import { CATALOGO_GENEROS } from "../lib/generos";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiRequest } from "../lib/api";
@@ -8,17 +9,7 @@ const fechaMaxima = new Date(Date.UTC(hoy.getUTCFullYear() - 13, hoy.getUTCMonth
   .toISOString()
   .slice(0, 10);
 
-const GENEROS = [
-  ["pop", "✨", "Pop"],
-  ["rock", "🎸", "Rock"],
-  ["trap", "🎤", "Trap"],
-  ["cumbia", "💃", "Cumbia"],
-  ["edm", "🎧", "EDM"],
-  ["jazz", "🎷", "Jazz"],
-  ["blues", "🎵", "Blues"],
-  ["metal", "🤘", "Metal"],
-  ["folklore", "🪕", "Folklore"],
-];
+const GENEROS = CATALOGO_GENEROS.map(({ slug, icono, nombre }) => [slug, icono, nombre]);
 
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);

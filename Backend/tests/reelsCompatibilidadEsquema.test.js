@@ -248,15 +248,15 @@ test('crear reel persiste hasta tres generos ordenados y conserva el primero com
   const escenario = cargarControlador([]);
   const respuesta = crearRespuesta();
   const solicitud = crearSolicitud();
-  solicitud.body.generos = JSON.stringify([' Alternativo ', 'punk', 'reggae', 'punk']);
+  solicitud.body.generos = JSON.stringify([' Urbano ', 'funk', 'jazz', 'funk']);
 
   await escenario.controlador.crearReel(solicitud, respuesta);
 
   assert.equal(respuesta.statusCode, 201);
-  assert.equal(escenario.obtenerInsercion().valores[1], 'alternativo');
-  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['alternativo', 'punk', 'reggae']]);
-  assert.equal(respuesta.body.genero, 'alternativo');
-  assert.deepEqual(respuesta.body.generos, ['alternativo', 'punk', 'reggae']);
+  assert.equal(escenario.obtenerInsercion().valores[1], 'urbano');
+  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['urbano', 'funk', 'jazz']]);
+  assert.equal(respuesta.body.genero, 'urbano');
+  assert.deepEqual(respuesta.body.generos, ['urbano', 'funk', 'jazz']);
 });
 
 test('listar reels conserva compatibilidad cuando reel_generos aun no existe', async () => {
@@ -276,7 +276,7 @@ test('crear reel en esquema anterior guarda el genero principal sin consultar re
   const escenario = cargarControlador([], { reelGenerosDisponible: false });
   const respuesta = crearRespuesta();
   const solicitud = crearSolicitud();
-  solicitud.body.generos = ['rock', 'punk'];
+  solicitud.body.generos = ['rock', 'funk'];
 
   await escenario.controlador.crearReel(solicitud, respuesta);
 
@@ -289,7 +289,7 @@ test('crear reel rechaza mas de tres generos o generos fuera del catalogo', asyn
   const demasiados = cargarControlador([]);
   const respuestaDemasiados = crearRespuesta();
   const solicitudDemasiados = crearSolicitud();
-  solicitudDemasiados.body.generos = ['rock', 'punk', 'reggae', 'latina'];
+  solicitudDemasiados.body.generos = ['rock', 'funk', 'jazz', 'metal'];
 
   await demasiados.controlador.crearReel(solicitudDemasiados, respuestaDemasiados);
 

@@ -1,3 +1,5 @@
+import PortadaComunidad from "../componentes/PortadaComunidad";
+import { CATALOGO_GENEROS, nombreGeneroMusical } from "../lib/generos";
 import FechaEvento from "../componentes/FechaEvento";
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
@@ -27,164 +29,10 @@ const reglasForo = [
   "Evita spam repetido y agrega contexto cuando compartas enlaces o lanzamientos.",
 ];
 
-const comunidadesPorGenero = [
-  {
-    id: "pop",
-    nombre: "@pop",
-    titulo: "Pop",
-    genero: "pop",
-    descripcion: "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
-    categoria: "pop",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "rock",
-    nombre: "@rock",
-    titulo: "Rock",
-    genero: "rock",
-    descripcion: "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
-    categoria: "rock",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "edm",
-    nombre: "@edm",
-    titulo: "EDM",
-    genero: "edm",
-    descripcion: "Sets, drops, produccion, festivales y novedades de la comunidad EDM.",
-    categoria: "edm",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "jazz",
-    nombre: "@jazz",
-    titulo: "Jazz",
-    genero: "jazz",
-    descripcion: "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
-    categoria: "jazz",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "blues",
-    nombre: "@blues",
-    titulo: "Blues",
-    genero: "blues",
-    descripcion: "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
-    categoria: "blues",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "cumbia",
-    nombre: "@cumbia",
-    titulo: "Cumbia",
-    genero: "cumbia",
-    descripcion: "Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.",
-    categoria: "cumbia",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "trap",
-    nombre: "@trap",
-    titulo: "Trap",
-    genero: "trap",
-    descripcion: "Beats, barras, productores, lanzamientos y debates de la escena trap.",
-    categoria: "trap",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "metal",
-    nombre: "@metal",
-    titulo: "Metal",
-    genero: "metal",
-    descripcion: "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
-    categoria: "metal",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "folklore",
-    nombre: "@folklore",
-    titulo: "Folklore",
-    genero: "folklore",
-    descripcion: "Penas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
-    categoria: "folklore",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "alternativo",
-    nombre: "@alternativo",
-    titulo: "Alternativo",
-    genero: "alternativo",
-    descripcion: "Propuestas independientes, cruces de estilos, nuevos sonidos y conversaciones de la escena alternativa.",
-    categoria: "alternativo",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "punk",
-    nombre: "@punk",
-    titulo: "Punk",
-    genero: "punk",
-    descripcion: "Bandas, fechas, discos, autogestion y debates de la comunidad punk de SONDAR.",
-    categoria: "punk",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "reggae",
-    nombre: "@reggae",
-    titulo: "Reggae",
-    genero: "reggae",
-    descripcion: "Riddims, bandas, dub, cultura soundsystem, lanzamientos y encuentros de la escena reggae.",
-    categoria: "reggae",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
-  },
-  {
-    id: "latina",
-    nombre: "@latina",
-    titulo: "Latina",
-    genero: "latina",
-    descripcion: "Salsa, bachata, merengue, sonidos urbanos y novedades de la musica latina.",
-    categoria: "latina",
-    miembros: 0,
-    publicaciones: 0,
-    actividad: "Sin publicaciones todavia",
-    portada: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
-  },
-];
+const comunidadesPorGenero = CATALOGO_GENEROS.map(({ slug, nombre, descripcion }) => ({
+  id: slug, nombre: '@' + slug, titulo: nombre, genero: slug, descripcion,
+  categoria: slug, miembros: 0, publicaciones: 0, actividad: 'Sin publicaciones todavia',
+}));
 
 const crearHeadersJson = (token) => ({
   "Content-Type": "application/json",
@@ -193,7 +41,7 @@ const crearHeadersJson = (token) => ({
 
 const mostrarGenero = (genero) => {
   if (!genero) return "";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  return nombreGeneroMusical(genero);
 };
 
 const generosDeEvento = (evento) => (
@@ -418,7 +266,10 @@ export default function Comunidad({ usuario }) {
 
         if (!response.ok) throw new Error("No se pudieron cargar las comunidades.");
 
-        const dataComunidades = await response.json();
+        const recibidas = await response.json();
+        const dataComunidades = comunidadesPorGenero.map((base) => ({
+          ...base, ...recibidas.find((comunidad) => comunidad.id === base.id),
+        }));
         if (!cancelado && dataComunidades.length > 0) {
           setComunidades(dataComunidades);
           setComunidadActivaId((actual) =>
@@ -679,11 +530,11 @@ export default function Comunidad({ usuario }) {
           : comunidad
       )));
       if (resultado.unido) {
-        mostrarAviso(`Ahora formas parte de s/${mostrarGenero(comunidadActiva.genero)}`);
+        mostrarAviso(`Ahora formas parte de ${mostrarGenero(comunidadActiva.genero)}`);
       } else {
         setMostrarModal(false);
         setMostrarNotificacionesComunidad(false);
-        mostrarAviso(`Saliste de s/${mostrarGenero(comunidadActiva.genero)}`);
+        mostrarAviso(`Saliste de ${mostrarGenero(comunidadActiva.genero)}`);
       }
     } catch (error) {
       mostrarAviso(error.message || "No se pudo actualizar tu membresia.");
@@ -1052,9 +903,9 @@ export default function Comunidad({ usuario }) {
       setMostrarNotificacionesComunidad(false);
 
       const mensajes = {
-        todas: `Vas a recibir todas las publicaciones de s/${mostrarGenero(comunidadActiva.genero)}`,
-        relevantes: `Solo vas a recibir publicaciones relevantes de s/${mostrarGenero(comunidadActiva.genero)}`,
-        silenciadas: `Silenciaste las notificaciones de s/${mostrarGenero(comunidadActiva.genero)}`,
+        todas: `Vas a recibir todas las publicaciones de ${mostrarGenero(comunidadActiva.genero)}`,
+        relevantes: `Solo vas a recibir publicaciones relevantes de ${mostrarGenero(comunidadActiva.genero)}`,
+        silenciadas: `Silenciaste las notificaciones de ${mostrarGenero(comunidadActiva.genero)}`,
       };
       mostrarAviso(mensajes[nivel]);
     } catch (error) {
@@ -1267,7 +1118,7 @@ export default function Comunidad({ usuario }) {
                 >
                   <div className="comunidad-mini-icon">{comunidad.titulo.charAt(0)}</div>
                   <div>
-                    <strong>s/{mostrarGenero(comunidad.genero)}</strong>
+                    <strong>{mostrarGenero(comunidad.genero)}</strong>
                     <span>{comunidad.publicaciones || 0} publicaciones</span>
                   </div>
                 </button>
@@ -1278,14 +1129,11 @@ export default function Comunidad({ usuario }) {
 
         <div className="comunidad-contenido">
         <header className="comunidad-portada">
-            <div
-              className="comunidad-cover"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0.18)), url(${comunidadActiva.portada})` }}
-            ></div>
+            <PortadaComunidad genero={comunidadActiva.genero} />
             <div className="comunidad-identidad">
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
-                <h1>s/{mostrarGenero(comunidadActiva.genero)}</h1>
+                <h1>{mostrarGenero(comunidadActiva.genero)}</h1>
               </div>
               <div className="comunidad-header-actions">
                 {comunidadActiva.unido ? (
@@ -1596,7 +1444,7 @@ export default function Comunidad({ usuario }) {
           <section className="comunidad-panel comunidad-panel-info">
             <header>
               <span>Información del foro</span>
-              <h2>s/{mostrarGenero(comunidadActiva.genero)}</h2>
+              <h2>{mostrarGenero(comunidadActiva.genero)}</h2>
             </header>
             <p>{comunidadActiva.descripcion}</p>
             <dl className="subreddit-stats">
@@ -1678,7 +1526,7 @@ export default function Comunidad({ usuario }) {
             <header className="comunidad-modal-header">
               <div>
                 <h2>Crear post</h2>
-                <p>s/{mostrarGenero(comunidadActiva.genero)}</p>
+                <p>{mostrarGenero(comunidadActiva.genero)}</p>
               </div>
               <button className="comunidad-modal-cerrar" type="button" onClick={() => setMostrarModal(false)} aria-label="Cerrar">
                 x
@@ -1828,11 +1676,11 @@ export default function Comunidad({ usuario }) {
       {comunidadCompartir ? (
         <CompartirContenidoModal
           titulo="Compartir comunidad"
-          nombre={`s/${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
+          nombre={`${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
           detalle={comunidadCompartir.comunidad.descripcion}
-          imagen={comunidadCompartir.comunidad.portada}
+          imagen="/sondar-icon.png?v=19"
           enlace={comunidadCompartir.enlace}
-          textoCompartir={`Unite a s/${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
+          textoCompartir={`Unite a ${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
           mensajeCopiado="Enlace de la comunidad copiado"
           onClose={() => setComunidadCompartir(null)}
           onAviso={mostrarAviso}

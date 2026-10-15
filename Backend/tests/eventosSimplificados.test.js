@@ -142,7 +142,7 @@ test('crear evento persiste hasta tres generos ordenados y conserva el primero c
       user_metadata: { username: 'festival-prueba' },
     },
     body: {
-      generos: [' Alternativo ', 'punk', 'reggae', 'punk'],
+      generos: [' Urbano ', 'funk', 'jazz', 'funk'],
       ubicacion: 'La Plata',
       fecha: '2026-09-23T20:00:00.000Z',
       latitud: -34.9214,
@@ -152,14 +152,14 @@ test('crear evento persiste hasta tres generos ordenados y conserva el primero c
   }, res);
 
   assert.equal(res.statusCode, 201);
-  assert.equal(res.body.genero, 'alternativo');
-  assert.deepEqual(res.body.generos, ['alternativo', 'punk', 'reggae']);
+  assert.equal(res.body.genero, 'urbano');
+  assert.deepEqual(res.body.generos, ['urbano', 'funk', 'jazz']);
 
   const nuevasConsultas = consultasCliente.slice(cantidadConsultasInicial);
   const altaEvento = nuevasConsultas.find(({ texto }) => /INSERT INTO eventos/.test(texto));
   const altaGeneros = nuevasConsultas.find(({ texto }) => /INSERT INTO evento_generos/.test(texto));
-  assert.equal(altaEvento.params[0], 'alternativo');
-  assert.deepEqual(altaGeneros.params, [81, ['alternativo', 'punk', 'reggae']]);
+  assert.equal(altaEvento.params[0], 'urbano');
+  assert.deepEqual(altaGeneros.params, [81, ['urbano', 'funk', 'jazz']]);
 });
 
 test('crear evento rechaza mas de tres generos o generos fuera del catalogo', async () => {
@@ -180,7 +180,7 @@ test('crear evento rechaza mas de tres generos o generos fuera del catalogo', as
   const demasiados = crearRespuesta();
   await eventoController.crearEvento({
     ...reqBase,
-    body: { ...reqBase.body, generos: ['rock', 'punk', 'reggae', 'latina'] },
+    body: { ...reqBase.body, generos: ['rock', 'funk', 'jazz', 'metal'] },
   }, demasiados);
   assert.equal(demasiados.statusCode, 400);
   assert.match(demasiados.body.error, /hasta 3 generos/);
