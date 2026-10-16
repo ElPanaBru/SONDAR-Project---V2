@@ -22,7 +22,7 @@ test('la comunidad de perfil convive con foros y elimina solo guardados de reels
   assert.match(sql, /validar_padre_respuesta_perfil/);
 });
 
-test('la API de comunidad limita adjuntos al contenido propio y respuestas a seguidores', () => {
+test('la API de comunidad limita adjuntos al contenido propio y respeta bloqueos al responder', () => {
   const controlador = leer('Backend', 'Controllers', 'perfilComunidadController.js');
   const rutas = leer('Backend', 'routes', 'perfilComunidad.js');
   const servidor = leer('Backend', 'index.js');
@@ -30,7 +30,8 @@ test('la API de comunidad limita adjuntos al contenido propio y respuestas a seg
 
   assert.match(controlador, /FROM reels WHERE id = \$1 AND creador_id = \$2/);
   assert.match(controlador, /FROM eventos WHERE id = \$1 AND creador_id = \$2/);
-  assert.match(controlador, /FROM follows/);
+  assert.match(controlador, /FROM user_blocks/);
+  assert.doesNotMatch(controlador, /FROM follows/);
   assert.match(controlador, /notificarSeguidores/);
   assert.match(controlador, /notificarMenciones/);
   assert.match(rutas, /crear-publicacion-perfil/);

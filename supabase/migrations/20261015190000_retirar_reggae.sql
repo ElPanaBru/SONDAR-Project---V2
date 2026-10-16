@@ -35,6 +35,7 @@ DELETE FROM public.generos WHERE slug = 'reggae';
 UPDATE public.generos SET orden = 8 WHERE slug = 'folklore';
 ALTER TABLE public.user_interests DROP CONSTRAINT IF EXISTS user_interests_genre_check;
 ALTER TABLE public.user_interests ADD CONSTRAINT user_interests_genre_check CHECK (genre IN ('pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore'));
-ALTER TABLE public.user_genre_preferences DROP CONSTRAINT IF EXISTS user_genre_preferences_genero_check;
+ALTER TABLE public.user_genre_preferences DROP CONSTRAINT IF EXISTS user_genre_preferences_genero_valido;
+   ALTER TABLE public.user_genre_preferences DROP CONSTRAINT IF EXISTS user_genre_preferences_genero_check;
 ALTER TABLE public.user_genre_preferences ADD CONSTRAINT user_genre_preferences_genero_check CHECK (genero IN ('pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore'));
 COMMIT;

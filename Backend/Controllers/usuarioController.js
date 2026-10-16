@@ -1183,6 +1183,12 @@ const usuariosController = {
       if (esErrorValidacionArchivo(error)) {
         return res.status(400).json({ error: error.message });
       }
+      if (error.code === '23514' && error.constraint === 'user_interests_genre_check') {
+        return res.status(503).json({
+          code: 'CATALOGO_GENEROS_DESACTUALIZADO',
+          error: 'La base de datos del servidor tiene los generos desactualizados. El administrador debe actualizarla para completar tu perfil.',
+        });
+      }
       console.error('Error al completar onboarding:', error);
       res.status(500).json({ error: 'No se pudo completar el perfil.' });
     } finally {

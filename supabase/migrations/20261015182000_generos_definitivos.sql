@@ -113,6 +113,7 @@ DO $$ BEGIN
    DELETE FROM public.user_genre_affinity WHERE genre IN (SELECT anterior FROM equivalencias_generos);
  END IF;
  IF to_regclass('public.user_genre_preferences') IS NOT NULL THEN
+   ALTER TABLE public.user_genre_preferences DROP CONSTRAINT IF EXISTS user_genre_preferences_genero_valido;
    ALTER TABLE public.user_genre_preferences DROP CONSTRAINT IF EXISTS user_genre_preferences_genero_check;
    INSERT INTO public.user_genre_preferences (user_id, genero, peso, created_at, updated_at)
    SELECT p.user_id, e.nuevo, SUM(p.peso), MIN(p.created_at), MAX(p.updated_at)

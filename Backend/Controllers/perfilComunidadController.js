@@ -159,9 +159,10 @@ async function puedeResponder(userId, propietarioId, client = pool) {
   if (!userId) return false;
   if (userId === propietarioId) return true;
   const result = await client.query(
-    `SELECT EXISTS(
-       SELECT 1 FROM follows
-       WHERE follower_id = $1 AND following_id = $2
+    `SELECT NOT EXISTS(
+       SELECT 1 FROM user_blocks
+       WHERE (blocker_id = $1 AND blocked_id = $2)
+          OR (blocker_id = $2 AND blocked_id = $1)
      ) AS permitido`,
     [userId, propietarioId]
   );
@@ -300,7 +301,7 @@ const perfilComunidadController = {
       const propietarioId = publicacionResult.rows[0].user_id;
       if (!(await puedeResponder(req.user.id, propietarioId, client))) {
         await client.query('ROLLBACK');
-        return res.status(403).json({ error: 'Solo los seguidores pueden responder en esta comunidad.' });
+        return res.status(403).json({ error: 'No podes responder en esta comunidad.' });
       }
 
       let autorRespuestaPadre = null;
