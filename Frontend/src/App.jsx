@@ -114,7 +114,8 @@ function App() {
         <OnboardingPerfilModal
           token={onboardingToken}
           username={usuario.user_metadata?.username || usuario.email?.split("@")[0]}
-          onComplete={() => {
+          onComplete={(data) => {
+            window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: data.perfil }));
             window.localStorage.removeItem("sondar:onboarding-pending");
             setOnboardingToken(null);
           }}

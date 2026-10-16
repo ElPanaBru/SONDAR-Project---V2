@@ -43,6 +43,7 @@ function Navbar({ usuario, onCrearReel }) {
   const cargandoPerfil = Boolean(usuario?.id && perfilCargadoPara !== usuario.id);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
   const [avatarArrastrado, setAvatarArrastrado] = useState(false);
+  const revisionPerfilRef = useRef(0);
   const crearRef = useRef(null);
   const notificacionesRef = useRef(null);
   const perfilRef = useRef(null);
@@ -58,7 +59,9 @@ function Navbar({ usuario, onCrearReel }) {
 
   useEffect(() => {
     const actualizarPerfil = (event) => {
+      revisionPerfilRef.current += 1;
       setPerfilEditado(event.detail || perfilGuardado(usuario));
+      setPerfilCargadoPara(usuario?.id || null);
     };
     window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
     return () => window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
@@ -117,6 +120,7 @@ function Navbar({ usuario, onCrearReel }) {
     let activo = true;
 
     const cargarPerfil = async () => {
+      const revision = revisionPerfilRef.current;
       if (!usuario) {
         setPerfilEditado(perfilGuardado(null));
         return;
@@ -126,7 +130,7 @@ function Navbar({ usuario, onCrearReel }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) {
-          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
           return;
         }
 
@@ -137,17 +141,17 @@ function Navbar({ usuario, onCrearReel }) {
         });
 
         if (!response.ok) {
-          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
           return;
         }
 
         const dataPerfil = await response.json();
-        if (activo) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
+        if (activo && revision === revisionPerfilRef.current) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
       } catch (error) {
         console.error("Error al cargar perfil en navbar:", error);
-        if (activo) setPerfilEditado(perfilGuardado(usuario));
+        if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
       } finally {
-        if (activo) setPerfilCargadoPara(usuario.id);
+        if (activo && revision === revisionPerfilRef.current) setPerfilCargadoPara(usuario.id);
       }
     };
 
