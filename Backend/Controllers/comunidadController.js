@@ -12,77 +12,69 @@ const { registrarDenuncia } = require('../services/moderationService');
 
 const COMUNIDADES_GENERO = [
   {
-    id: 'pop',
-    nombre: '@pop',
-    titulo: 'Pop',
-    genero: 'pop',
-    descripcion: 'Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.',
-    portada: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80',
+    "id": "pop",
+    "nombre": "@pop",
+    "titulo": "Pop",
+    "genero": "pop",
+    "descripcion": "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
+    "portada": "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'rock',
-    nombre: '@rock',
-    titulo: 'Rock',
-    genero: 'rock',
-    descripcion: 'Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.',
-    portada: 'https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80',
+    "id": "rock",
+    "nombre": "@rock",
+    "titulo": "Rock",
+    "genero": "rock",
+    "descripcion": "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
+    "portada": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'edm',
-    nombre: '@edm',
-    titulo: 'EDM',
-    genero: 'edm',
-    descripcion: 'Sets, drops, produccion, festivales y novedades de la comunidad EDM.',
-    portada: 'https://images.unsplash.com/photo-1571266028243-d220c9c3b8ef?auto=format&fit=crop&w=1400&q=80',
+    "id": "metal",
+    "nombre": "@metal",
+    "titulo": "Metal",
+    "genero": "metal",
+    "descripcion": "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
+    "portada": "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'jazz',
-    nombre: '@jazz',
-    titulo: 'Jazz',
-    genero: 'jazz',
-    descripcion: 'Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.',
-    portada: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80',
+    "id": "urbano",
+    "nombre": "@urbano",
+    "titulo": "Urbano",
+    "genero": "urbano",
+    "descripcion": "Beats, artistas, lanzamientos y encuentros de la escena urbana.",
+    "portada": "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'blues',
-    nombre: '@blues',
-    titulo: 'Blues',
-    genero: 'blues',
-    descripcion: 'Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.',
-    portada: 'https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80',
+    "id": "jazz",
+    "nombre": "@jazz",
+    "titulo": "Jazz",
+    "genero": "jazz",
+    "descripcion": "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
+    "portada": "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'cumbia',
-    nombre: '@cumbia',
-    titulo: 'Cumbia',
-    genero: 'cumbia',
-    descripcion: 'Bandas, bailes, estrenos, eventos y charla abierta para la comunidad cumbiera.',
-    portada: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80',
+    "id": "blues",
+    "nombre": "@blues",
+    "titulo": "Blues",
+    "genero": "blues",
+    "descripcion": "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
+    "portada": "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'trap',
-    nombre: '@trap',
-    titulo: 'Trap',
-    genero: 'trap',
-    descripcion: 'Beats, barras, productores, lanzamientos y debates de la escena trap.',
-    portada: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80',
+    "id": "funk",
+    "nombre": "@funk",
+    "titulo": "Funk",
+    "genero": "funk",
+    "descripcion": "Groove, bajos, bandas, lanzamientos y encuentros de la escena funk.",
+    "portada": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    id: 'metal',
-    nombre: '@metal',
-    titulo: 'Metal',
-    genero: 'metal',
-    descripcion: 'Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.',
-    portada: 'https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80',
-  },
-  {
-    id: 'folklore',
-    nombre: '@folklore',
-    titulo: 'Folklore',
-    genero: 'folklore',
-    descripcion: 'Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.',
-    portada: 'https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80',
-  },
+    "id": "folklore",
+    "nombre": "@folklore",
+    "titulo": "Folklore",
+    "genero": "folklore",
+    "descripcion": "Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
+    "portada": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80"
+  }
 ];
 
 let esquemaComunidadesListo = null;
@@ -445,7 +437,7 @@ const comunidadController = {
           EXISTS (SELECT 1 FROM comunidad_miembros cm WHERE cm.comunidad_id = c.id AND cm.user_id = $2) AS unido
         FROM comunidades c
         LEFT JOIN comunidad_publicaciones cp ON cp.comunidad_id = c.id
-        WHERE c.activa = true
+        WHERE c.activa = true AND c.id = ANY($1::text[])
         GROUP BY c.id
         ORDER BY array_position($1::text[], c.id)
       `, [COMUNIDADES_GENERO.map((comunidad) => comunidad.id), await obtenerViewerId(req)]);

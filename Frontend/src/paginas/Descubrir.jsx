@@ -1,3 +1,4 @@
+import { GENEROS_MUSICALES } from "../lib/generos";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiUrl } from "../lib/api";
@@ -312,18 +313,7 @@ const comentariosPorLanzamientoIniciales = {
   ],
 };
 
-const GENEROS_REEL = [
-  "pop",
-  "rock",
-  "edm",
-  "jazz",
-  "blues",
-  "cumbia",
-  "trap",
-  "metal",
-  "folklore",
-  "otros",
-];
+const GENEROS_REEL = GENEROS_MUSICALES;
 
 function mostrarGeneroReel(genero) {
   if (!genero) return "";

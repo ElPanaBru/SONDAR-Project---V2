@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.user_genre_preferences (
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT user_genre_preferences_pkey PRIMARY KEY (user_id, genero),
   CONSTRAINT user_genre_preferences_genero_valido
-    CHECK (genero IN ('pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros'))
+    CHECK (genero IN ('pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_genre_preferences_genero

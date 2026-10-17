@@ -27,8 +27,7 @@ const countComments = (items: Comment[]): number => items.reduce((total, item) =
 const removeComment = (items: Comment[], id: number): Comment[] => items
   .filter(item => item.id !== id)
   .map(item => ({ ...item, respuestas: removeComment(item.respuestas || [], id) }));
-const emptyReelForm = () => ({ tema: '', album: '', generos: [] as string[], descripcion: '', colorAmbiente: '#8F5136', fragmentStart: 0, fragmentDuration: 30 });
-const coverColors = ['#8F5136', '#9B3F28', '#51418F', '#28716A', '#98640F', '#5F3B74'];
+const emptyReelForm = () => ({ tema: '', generos: [] as string[] });
 
 export default function DiscoverScreen() {
   const { token, user } = useAuth();
@@ -247,16 +246,13 @@ export default function DiscoverScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: .85, allowsEditing: true, aspect: [1, 1] });
     if (!result.canceled) {
       const selected = result.assets[0];
-      const seed = [...(selected.fileName || selected.uri)].reduce((total, character) => total + character.charCodeAt(0), 0);
       setCover(selected);
-      setForm(current => ({ ...current, colorAmbiente: coverColors[seed % coverColors.length] }));
     }
   }
   async function pickAudio() {
     const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
     if (!result.canceled) {
       setAudio(result.assets[0]);
-      setForm(current => ({ ...current, fragmentStart: 0, fragmentDuration: 30 }));
     }
   }
 
@@ -274,16 +270,13 @@ export default function DiscoverScreen() {
 
   async function publish() {
     if (publishLock.current) return;
-    if (!form.tema.trim() || !form.album.trim() || !audio || form.generos.length === 0) return setError('Completá título, nombre, género y seleccioná un audio.');
+    if (!form.tema.trim() || !audio || form.generos.length === 0) return setError('Completá el nombre de la canción, elegí al menos un género y seleccioná un audio.');
     publishLock.current = true;
-    if (!/^#[0-9a-f]{6}$/i.test(form.colorAmbiente)) { publishLock.current = false; return setError('Ingresá un color hexadecimal válido, por ejemplo #51418F.'); }
     setBusy(true);
     try {
-      const fragmentEnd = form.fragmentStart + form.fragmentDuration;
       const body = new FormData();
-      body.append('tema', form.tema.trim()); body.append('album', form.album.trim()); body.append('genero', form.generos.join(' / '));
-      body.append('descripcion', form.descripcion.trim()); body.append('duracion', formatTime(form.fragmentDuration));
-      body.append('colorAmbiente', form.colorAmbiente); body.append('fragmentStart', String(form.fragmentStart)); body.append('fragmentEnd', String(fragmentEnd));
+      body.append('tema', form.tema.trim()); body.append('album', form.tema.trim()); body.append('genero', form.generos.join(' / '));
+      body.append('duracion', '0:30');
       body.append('audio', mediaPart({ ...audio, fileName: audio.name }, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
       const created = normalizeReel(await api<Reel>('/api/reels/crear', { method: 'POST', token, body }));
       setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setForm(emptyReelForm()); setError('');
@@ -334,16 +327,14 @@ export default function DiscoverScreen() {
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => setCreating(false)}>
         <Screen scroll><Header title="Crear nueva preview" subtitle="PREVIEWS" back onBack={() => setCreating(false)} actions={<IconButton name="close" onPress={() => setCreating(false)} />} /><ErrorNotice message={error} />
-          <View style={[styles.previewCreator, { backgroundColor: /^#[0-9a-f]{6}$/i.test(form.colorAmbiente) ? form.colorAmbiente : '#8F5136' }]}>
+          <View style={[styles.previewCreator, { backgroundColor: '#8F5136' }]}>
             {cover ? <Image source={{ uri: cover.uri }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <View style={styles.previewPlaceholder}><Ionicons name="person" size={74} color="#FFFFFF55" /></View>}
             <LinearGradient colors={['#00000005', '#00000015', '#000000D9']} style={StyleSheet.absoluteFill} />
-            <View style={styles.previewCopy}><Text style={styles.previewAlbum} numberOfLines={2}>{form.album || 'Nombre de la preview'}</Text><Text style={styles.previewHandle}>@{user?.user_metadata?.username || user?.email?.split('@')[0] || 'artista'}</Text></View>
+            <View style={styles.previewCopy}><Text style={styles.previewAlbum} numberOfLines={2}>{form.tema || 'Nombre de la canción'}</Text><Text style={styles.previewHandle}>@{user?.user_metadata?.username || user?.email?.split('@')[0] || 'artista'}</Text></View>
           </View>
 
           <View style={styles.creatorCard}>
-            <Field label="Título de la canción *" value={form.tema} onChangeText={tema => setForm(current => ({ ...current, tema }))} placeholder="Ej: Neón de madrugada" maxLength={50} />
-            <Field label="Nombre de la preview *" value={form.album} onChangeText={album => setForm(current => ({ ...current, album }))} placeholder="El texto principal de la portada" maxLength={60} />
-            <Field label="Descripción" value={form.descripcion} onChangeText={descripcion => setForm(current => ({ ...current, descripcion }))} placeholder="Contá algo y mencioná personas con @usuario…" multiline maxLength={180} />
+            <Field label="Nombre de la canción *" value={form.tema} onChangeText={tema => setForm(current => ({ ...current, tema }))} placeholder="Ej: Neón de madrugada" maxLength={50} />
           </View>
 
           <View style={styles.creatorCard}>
@@ -351,20 +342,11 @@ export default function DiscoverScreen() {
             <View style={styles.genreWrap}>{musicGenres.map(item => { const selected = form.generos.includes(item); return <Pressable key={item} style={[styles.genre, selected && styles.genreActive]} onPress={() => toggleReelGenre(item)}><Text style={[styles.genreText, selected && styles.genreTextActive]}>{formatGenre(item)}</Text></Pressable>; })}</View>
           </View>
 
-          <View style={styles.creatorCard}>
-            <Text style={styles.creatorCardTitle}>COLOR DEL AMBIENTE</Text>
-            <View style={styles.colorField}><View style={[styles.colorSample, { backgroundColor: form.colorAmbiente }]} /><Text style={styles.colorValue}>{form.colorAmbiente.toUpperCase()}</Text></View>
-            <Text style={styles.creatorHint}>Elegí un color de la paleta o ingresá tu propio código HEX.</Text>
-            <Field label="Color personalizado (HEX)" value={form.colorAmbiente} onChangeText={colorAmbiente => setForm(current => ({ ...current, colorAmbiente }))} autoCapitalize="characters" maxLength={7} placeholder="#51418F" />
-            <View style={styles.colorChoices}>{coverColors.map(color => <Pressable key={color} accessibilityLabel={`Elegir color ${color}`} onPress={() => setForm(current => ({ ...current, colorAmbiente: color }))} style={[styles.colorChoice, { backgroundColor: color }, form.colorAmbiente === color && styles.colorChoiceActive]} />)}</View>
-          </View>
-
           <View style={styles.fileRow}>
             <View style={styles.fileColumn}><Pressable onPress={pickCover} style={styles.filePicker}><Ionicons name="image-outline" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir portada</Text><Text style={styles.filePickerName} numberOfLines={1}>{cover?.fileName || 'JPG, PNG o WEBP'}</Text></View></Pressable>{cover ? <Button kind="secondary" onPress={() => setCover(null)}>Quitar portada</Button> : null}</View>
             <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => setAudio(null)}>Quitar audio</Button> : null}</View>
           </View>
 
-          {audio && creating && appActive ? <AudioFragmentEditor audio={audio} start={form.fragmentStart} duration={form.fragmentDuration} onStart={fragmentStart => setForm(current => ({ ...current, fragmentStart }))} onDuration={fragmentDuration => setForm(current => ({ ...current, fragmentDuration, fragmentStart: Math.min(current.fragmentStart, 90 - fragmentDuration) }))} /> : null}
 
           <Button onPress={publish} disabled={busy}>{busy ? 'Publicando…' : 'Publicar preview'}</Button>
         </Screen>
@@ -373,63 +355,6 @@ export default function DiscoverScreen() {
     </Screen>
   );
 }
-
-const fragmentBars = Array.from({ length: 48 }, (_, index) => 10 + ((index * 19 + index * index * 7) % 36));
-
-/* eslint-disable react-hooks/immutability -- expo-video exposes currentTime as an intentionally writable, imperative seek API. */
-function AudioFragmentEditor({ audio, start, duration, onStart, onDuration }: { audio: DocumentPicker.DocumentPickerAsset; start: number; duration: number; onStart: (value: number) => void; onDuration: (value: number) => void }) {
-  const player = useVideoPlayer(audio.uri, instance => { instance.loop = false; instance.timeUpdateEventInterval = .2; });
-  const { isPlaying: playing } = useEvent(player, 'playingChange', { isPlaying: player.playing });
-  const [trackWidth, setTrackWidth] = useState(1);
-  const total = 90;
-  const end = Math.min(total, start + duration);
-  const selectedStart = (start / total) * 100;
-  const selectedWidth = ((end - start) / total) * 100;
-
-  useEffect(() => {
-    if (!playing) return;
-    const interval = setInterval(() => {
-      if (player.currentTime >= end || player.currentTime < start) {
-        player.pause();
-        player.currentTime = start;
-      }
-    }, 150);
-    return () => clearInterval(interval);
-  }, [end, player, playing, start]);
-
-  function togglePreview() {
-    if (playing) {
-      player.pause();
-      return;
-    }
-    player.currentTime = start;
-    player.play();
-  }
-
-  function chooseStart(event: GestureResponderEvent) {
-    const ratio = Math.min(1, Math.max(0, event.nativeEvent.locationX / trackWidth));
-    onStart(Math.round(Math.min(total - duration, ratio * total)));
-  }
-
-  return (
-    <View style={styles.fragmentCard}>
-      <View style={styles.creatorCardHeader}><View><Text style={styles.creatorCardTitle}>ELEGÍ EL FRAGMENTO</Text><Text style={styles.creatorHint}>Tocá la onda para elegir el inicio · máximo 30 segundos</Text></View><View style={styles.durationBadge}><Text style={styles.durationBadgeText}>00:{String(duration).padStart(2, '0')}.00</Text></View></View>
-      <View style={styles.waveRow}>
-        <Pressable onPress={togglePreview} style={styles.fragmentPlay}><Ionicons name={playing ? 'pause' : 'play'} size={25} color="#111" /></Pressable>
-        <Text style={styles.waveTime}>{formatTime(start)}</Text>
-        <Pressable onLayout={event => setTrackWidth(Math.max(1, event.nativeEvent.layout.width))} onPress={chooseStart} style={styles.waveform}>
-          <View style={[styles.fragmentSelection, { left: `${selectedStart}%`, width: `${selectedWidth}%` }]} />
-          {fragmentBars.map((height, index) => { const position = (index / (fragmentBars.length - 1)) * 100; const selected = position >= selectedStart && position <= selectedStart + selectedWidth; return <View key={index} style={[styles.waveBar, { height }, selected && styles.waveBarSelected]} />; })}
-          <View style={[styles.fragmentHandle, { left: `${selectedStart}%` }]} /><View style={[styles.fragmentHandle, { left: `${selectedStart + selectedWidth}%` }]} />
-        </Pressable>
-        <Text style={styles.waveTime}>{formatTime(end)}</Text>
-      </View>
-      <View style={styles.fragmentDurations}>{[15, 20, 30].map(value => <Pressable key={value} onPress={() => onDuration(value)} style={[styles.durationChoice, duration === value && styles.durationChoiceActive]}><Text style={[styles.durationChoiceText, duration === value && styles.durationChoiceTextActive]}>{value} s</Text></Pressable>)}</View>
-      <View style={styles.fragmentFooter}><Text style={styles.audioName} numberOfLines={1}>{audio.name}</Text><Text style={styles.creatorHint}>Total estimado: 01:30</Text></View>
-    </View>
-  );
-}
-/* eslint-enable react-hooks/immutability */
 
 /* eslint-disable react-hooks/immutability -- expo-video exposes currentTime as an intentionally writable, imperative seek API. */
 function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, onComments, onShare, onFollow, onReport }: { height: number; reel: Reel; active: boolean; screenFocused: boolean; mine: boolean; onLike: () => void; onSave: () => void; onComments: () => void; onShare: () => void; onFollow: () => void; onReport: () => void }) {

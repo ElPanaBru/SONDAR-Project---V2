@@ -1,3 +1,4 @@
+const { normalizeMusicGenres } = require('../services/genreService');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -326,6 +327,9 @@ const eventoController = {
       return res.status(400).json({ error: 'Faltan datos obligatorios del evento.' });
     }
 
+    const normalizedGenre = normalizeMusicGenres(genero);
+    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Metal, Urbano, Jazz, Blues, Funk o Folklore.' });
+
     if (String(descripcion || '').length > 1000) {
       return res.status(400).json({ error: 'La descripcion no puede superar los 1000 caracteres.' });
     }
@@ -383,7 +387,7 @@ const eventoController = {
       const values = [
         titulo,
         String(descripcion || '').trim(),
-        genero,
+        normalizedGenre,
         ubicacion,
         fecha,
         imagenSubida?.publicUrl || null,

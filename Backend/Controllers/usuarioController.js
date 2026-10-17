@@ -1,3 +1,4 @@
+const { MUSIC_GENRES } = require('../services/genreService');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -48,7 +49,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
-const GENEROS_ONBOARDING_VALIDOS = new Set(['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros']);
+const GENEROS_ONBOARDING_VALIDOS = new Set(MUSIC_GENRES);
 const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
 let esquemaUsuariosListo = null;
 let esquemaOnboardingListo = null;
@@ -92,7 +93,7 @@ async function asegurarEsquemaOnboarding() {
           updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
           CONSTRAINT user_genre_preferences_pkey PRIMARY KEY (user_id, genero),
           CONSTRAINT user_genre_preferences_genero_valido
-            CHECK (genero IN ('pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'otros'))
+            CHECK (genero IN ('pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore'))
         )
       `);
       await pool.query('CREATE INDEX IF NOT EXISTS idx_user_genre_preferences_genero ON user_genre_preferences(genero)');

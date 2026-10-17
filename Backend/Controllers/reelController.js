@@ -1,3 +1,4 @@
+const { normalizeMusicGenres } = require('../services/genreService');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -619,6 +620,9 @@ const reelController = {
       return res.status(400).json({ error: 'Faltan datos obligatorios del reel.' });
     }
 
+    const normalizedGenre = normalizeMusicGenres(genero);
+    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Metal, Urbano, Jazz, Blues, Funk o Folklore.' });
+
     const inicioFragmento = Number(fragmentStart || 0);
     const finFragmento = Number(fragmentEnd || 30);
     if (!Number.isFinite(inicioFragmento) || !Number.isFinite(finFragmento) || inicioFragmento < 0 || finFragmento <= inicioFragmento || finFragmento - inicioFragmento > 30) {
@@ -643,7 +647,7 @@ const reelController = {
         [
           tema,
           album,
-          genero,
+          normalizedGenre,
           descripcion || 'Nuevo reel publicado en SONDAR.',
           duracion || '0:30',
           portadaSubida?.publicUrl || null,

@@ -1,6 +1,6 @@
 import { KeyboardArea, KeyboardScrollView } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
+import { GenreArtwork, GenreBadge } from '@/components/genre-artwork';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -295,19 +295,23 @@ export default function CommunityScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.communities}
           renderItem={({ item }) => (
-            <Pressable onPress={() => setActive(item)} style={[styles.community, active?.id === item.id && styles.communityActive]}>
-              {item.portada ? <Image source={{ uri: item.portada }} style={StyleSheet.absoluteFill} contentFit="cover" /> : null}
-              <View style={styles.communityTint} />
-              <Text style={styles.communityTitle}>{item.titulo || item.nombre}</Text>
-              <Text style={styles.communityMeta}>{formatCount(item.miembros)} miembros · {item.genero}</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={"Foro " + (item.titulo || item.genero)} accessibilityState={{ selected: active?.id === item.id }} onPress={() => setActive(item)} style={[styles.community, active?.id === item.id && styles.communityActive]}>
+              <GenreBadge genre={item.genero} />
+              <View style={styles.communityLabel}>
+                <Text numberOfLines={1} style={[styles.communityTitle, active?.id === item.id && styles.communityTitleActive]}>{item.titulo || item.nombre}</Text>
+                <Text style={styles.communityMeta}>{formatCount(item.publicaciones)} {item.publicaciones === 1 ? "post" : "posts"}</Text>
+              </View>
             </Pressable>
           )}
         />
         </View>
         {active ? (
           <View style={styles.activeIntro}>
+            <View style={styles.forumBanner}><GenreArtwork genre={active.genero} /></View>
+            <View style={styles.forumDetails}>
             <View style={styles.introTop}>
-              <Text style={[ui.h2, { flex: 1 }]}>{active.titulo || active.nombre}</Text>
+              <GenreBadge genre={active.genero} />
+              <Text style={[ui.h2, { flex: 1, minWidth: 100 }]}>{active.titulo || active.nombre}</Text>
               <View style={styles.membershipActions}>
                 <Pressable accessibilityRole="button" disabled={membershipBusy} onPress={membership} hitSlop={5} style={[styles.membershipButton, !active.unido && styles.membershipPrimary]}>
                   <Text style={[styles.membershipText, !active.unido && styles.membershipPrimaryText]}>{membershipBusy ? 'Guardando...' : active.unido ? 'Salir' : 'Unirse'}</Text>
@@ -316,6 +320,7 @@ export default function CommunityScreen() {
               </View>
             </View>
             <Text style={ui.muted} numberOfLines={2}>{active.descripcion}</Text>
+            </View>
           </View>
         ) : null}
         <View style={styles.filters}>
@@ -573,21 +578,24 @@ const styles = StyleSheet.create({
   postTypeText: { flex: 1, color: palette.text, fontSize: 12, fontWeight: '700' },
   formCounter: { color: palette.muted, textAlign: 'right', fontSize: 11 },
   publishActions: { flexDirection: 'row', gap: 10, paddingTop: 10, paddingBottom: 16 },
-  communityRail: { height: 116, flexShrink: 0 },
+  communityRail: { height: 88, flexShrink: 0 },
   communitiesList: { flexGrow: 0, height: 108 },
   communities: { paddingHorizontal: 14, paddingVertical: 8, gap: 10 },
-  community: { width: 154, height: 92, borderRadius: 8, overflow: 'hidden', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, padding: 12, justifyContent: 'flex-end' },
-  communityActive: { borderColor: palette.amber, borderWidth: 2 },
-  communityTint: { ...StyleSheet.absoluteFill, backgroundColor: '#0505059E' },
+  community: { width: 158, height: 64, borderRadius: 10, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  communityActive: { borderColor: palette.amber, backgroundColor: '#281C0C' },
+  communityLabel: { flex: 1, minWidth: 0 },
+  communityTitleActive: { color: palette.amber },
   communityTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   communityMeta: { color: '#D0D0D3', fontSize: 11, marginTop: 3 },
-  introTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  introTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   membershipActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   membershipButton: { minHeight: 32, borderRadius: 16, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface2 },
   membershipPrimary: { backgroundColor: palette.orange, borderColor: palette.orange },
   membershipText: { color: palette.text, fontSize: 12, fontWeight: '700' },
   membershipPrimaryText: { color: '#111' },
-  activeIntro: { marginHorizontal: 14, padding: 12, gap: 10, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border },
+  activeIntro: { marginHorizontal: 14, backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: '#70501566', overflow: 'hidden' },
+  forumBanner: { height: 82, overflow: 'hidden' },
+  forumDetails: { padding: 12, paddingTop: 8, gap: 8 },
   filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
   filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' },
   filterActive: { backgroundColor: palette.orange },

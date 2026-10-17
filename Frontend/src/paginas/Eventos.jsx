@@ -1,3 +1,4 @@
+import { GENEROS_MUSICALES } from "../lib/generos";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -13,11 +14,9 @@ import { usePreferencias } from "../contextos/PreferenciasContext";
 import "../componentes/eventoOrganizadorPopover.css";
 
 
-const GENEROS_PERMITIDOS = [
-  "pop", "rock", "edm", "jazz", "blues",
-  "cumbia", "trap", "metal", "folklore", "otros"
-];
+const GENEROS_PERMITIDOS = GENEROS_MUSICALES;
 const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
+const separarGeneros = value => String(value || "").toLowerCase().split(/\s*(?:\/|,|\|)\s*/).map(item => item.trim()).filter(item => GENEROS_PERMITIDOS_SET.has(item));
 
 const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
@@ -62,8 +61,7 @@ const normalizarGenero = (genero) => {
 };
 
 const mostrarGenero = (genero) => {
-  const valor = normalizarGenero(genero);
-  return valor === "edm" ? "EDM" : valor.charAt(0).toUpperCase() + valor.slice(1);
+  return separarGeneros(genero).map(valor => valor.charAt(0).toUpperCase() + valor.slice(1)).join(" / ");
 };
 
 const escaparHtml = (valor) =>
@@ -202,8 +200,8 @@ export default function Eventos({ usuario }) {
 
   const eventosFiltrados = useMemo(
     () => eventos.filter((evento) => {
-      const genero = normalizarGenero(evento.genero);
-      return filtroGenero === "todos" || genero === filtroGenero;
+      const generos = separarGeneros(evento.genero);
+      return filtroGenero === "todos" || generos.includes(filtroGenero);
     }),
     [eventos, filtroGenero]
   );
@@ -581,7 +579,7 @@ export default function Eventos({ usuario }) {
     setFiltroGenero(genero);
     setMenuEventoAbierto(false);
     if (!eventoSeleccionado) return;
-    const activoVisible = genero === "todos" || normalizarGenero(eventoSeleccionado.genero) === genero;
+    const activoVisible = genero === "todos" || separarGeneros(eventoSeleccionado.genero).includes(genero);
     if (!activoVisible) {
       setEventoActivo(null);
     }

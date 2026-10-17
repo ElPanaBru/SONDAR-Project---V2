@@ -14,7 +14,7 @@ export const palette = {
   white: '#FFFFFF',
 };
 
-export const musicGenres = ['pop', 'rock', 'edm', 'jazz', 'blues', 'cumbia', 'trap', 'metal', 'folklore', 'alternativo', 'punk', 'reggae', 'latina', 'otros'];
+export const musicGenres = ["pop","rock","metal","urbano","jazz","blues","funk","folklore"];
 export const genres = ['todos', ...musicGenres];
 
 const countFormatter = new Intl.NumberFormat('es-AR');
@@ -28,8 +28,6 @@ export function formatGenre(genre?: string | null) {
   const value = String(genre || '').trim().toLowerCase();
   if (!value) return '';
   return value.split(/\s*(?:\/|,|\|)\s*/).filter(Boolean).map(part => {
-    if (part === 'edm') return 'Electrónica';
-    if (part === 'trap') return 'Urbano';
     return part.charAt(0).toUpperCase() + part.slice(1);
   }).join(' / ');
 }

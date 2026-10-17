@@ -37,7 +37,7 @@ export default function OnboardingScreen() {
     const metadataName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.user_metadata?.username;
     return String(metadataName || user?.email?.split('@')[0] || '').replace(/^@/, '');
   }, [user]);
-  const selectableGenres = useMemo(() => musicGenres.filter((genre) => genre !== 'otros'), []);
+  const selectableGenres = musicGenres;
   const [nombre, setNombre] = useState<string | undefined>(undefined);
   const [bio, setBio] = useState('');
   const [birthDate, setBirthDate] = useState(defaultBirthDate);

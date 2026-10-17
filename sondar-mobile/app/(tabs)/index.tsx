@@ -35,7 +35,7 @@ type EventItem = {
 };
 
 const initialRegion = { latitude: -34.6037, longitude: -58.3816, latitudeDelta: .16, longitudeDelta: .16 };
-const emptyForm = () => ({ titulo: '', descripcion: '', generos: [] as string[], lugar: '', fecha: new Date(), precio: '', link: '', latitud: initialRegion.latitude, longitud: initialRegion.longitude });
+const emptyForm = () => ({ generos: [] as string[], lugar: '', fecha: new Date(), precio: '', link: '', latitud: initialRegion.latitude, longitud: initialRegion.longitude });
 
 function eventGenres(value?: string) {
   return String(value || '').toLowerCase().split(/\s*(?:\/|,|\|)\s*/).filter(Boolean);
@@ -148,11 +148,14 @@ export default function EventsScreen() {
 
 
   async function createEvent() {
-    if (!form.titulo.trim() || !form.lugar.trim() || form.generos.length === 0) return setError('Completá el nombre, el lugar y al menos un género.');
+    if (!form.lugar.trim() || form.generos.length === 0) return setError('Completá el lugar y al menos un género.');
     setBusy(true);
     try {
       const body = new FormData();
-      body.append('titulo', form.titulo.trim()); body.append('descripcion', form.descripcion.trim()); body.append('genero', form.generos.join(' / '));
+      const { perfil } = await api<{ perfil: { nombre: string } }>('/api/usuarios/me/perfil', { token });
+      const bandName = perfil.nombre?.trim();
+      if (!bandName) throw new Error('Completá el nombre de tu banda en tu perfil antes de crear el evento.');
+      body.append('titulo', bandName); body.append('genero', form.generos.join(' / '));
       body.append('ubicacion', form.lugar.trim()); body.append('fecha', form.fecha.toISOString()); body.append('precio', form.precio);
       body.append('link', form.link.trim()); body.append('latitud', String(form.latitud)); body.append('longitud', String(form.longitud));
       body.append('organizadores', JSON.stringify(organizers.map(item => item.id)));
@@ -284,7 +287,7 @@ export default function EventsScreen() {
           <View style={styles.detailLine}><Ionicons name="calendar" size={19} color={palette.orange} /><Text style={ui.text}>{new Date(selected.fecha).toLocaleString('es-AR')}</Text></View>
           <View style={styles.detailLine}><Ionicons name="location" size={19} color={palette.orange} /><Text style={ui.text}>{selected.lugar || selected.ubicacion}</Text></View>
           <View style={styles.detailLine}><Ionicons name="ticket" size={19} color={palette.orange} /><Text style={ui.text}>{formatEventPrice(selected.precio)}</Text></View>
-          <Text style={styles.description}>{selected.descripcion || 'Sin descripción.'}</Text>
+          {selected.descripcion ? <Text style={styles.description}>{selected.descripcion}</Text> : null}
           {externalEventUrl(selected.link) ? <Button icon="open-outline" onPress={() => openEventLink(selected)}>Comprar entradas</Button> : null}
 
           <View style={styles.participantsSection}>
@@ -312,9 +315,8 @@ export default function EventsScreen() {
           <ErrorNotice message={error} />
 
           <View style={styles.creatorSection}>
+            <Text style={ui.muted}>El evento se publica con el nombre de tu banda en el perfil.</Text>
             <View style={styles.creatorSectionTitle}><Ionicons name="sparkles" size={17} color={palette.amber} /><Text style={styles.creatorHeading}>Información del evento</Text></View>
-            <Field label="Nombre del evento *" value={form.titulo} onChangeText={titulo => setForm(f => ({ ...f, titulo }))} placeholder="Ej: Noche SONDAR" maxLength={120} />
-            <Field label="Descripción" value={form.descripcion} onChangeText={descripcion => setForm(f => ({ ...f, descripcion }))} placeholder="Contá de qué se trata…" multiline maxLength={1000} />
           </View>
 
           <EventLocationPicker
