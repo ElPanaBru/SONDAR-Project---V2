@@ -127,7 +127,7 @@ test('el like, los tags y la altura del panel usan la identidad visual solicitad
   const comunidadCss = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'comunidad.css'), 'utf8');
   const eventosCss = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'eventos.css'), 'utf8');
 
-  assert.match(reelsCss, /\.acciones-laterales \.accion-item:first-child \.accion-boton\.activo\s*\{[^}]*color:\s*#ff7900/s);
+  assert.match(reelsCss, /\.acciones-laterales \.accion-item:first-child \.accion-boton\.activo[^{}]*\{[^}]*color:\s*#ff7900/s);
   assert.match(comunidadCss, /\.etiquetas-row span\s*\{[^}]*linear-gradient\(90deg, #ffae00, #ff5e00\)/s);
   assert.match(eventosCss, /\.eventos-sheet\.expandido\s*\{[^}]*top:\s*auto;[^}]*height:\s*clamp\(220px, 32dvh, 360px\)/s);
 });

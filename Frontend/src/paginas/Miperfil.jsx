@@ -12,7 +12,7 @@ import PerfilSocialModal from "../componentes/PerfilSocialModal";
 import PerfilToast from "../componentes/PerfilToast";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./miperfil.css";
 
 const iconosPerfil = {

@@ -1,4 +1,5 @@
 import ImagenAvatar from "./ImagenAvatar";
+import EventoPerfilFila from "./EventoPerfilFila";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
@@ -426,7 +427,14 @@ export default function PerfilComunidad({
                 </header>
                 <p className="perfil-comunidad-texto"><TextoConMenciones texto={publicacion.texto} /></p>
 
-                {publicacion.reel || publicacion.evento ? (
+                {publicacion.evento ? (
+                  <EventoPerfilFila
+                    className="perfil-comunidad-evento"
+                    etiqueta="Evento"
+                    evento={publicacion.evento}
+                    onAbrir={() => abrirAdjunto(publicacion)}
+                  />
+                ) : publicacion.reel ? (
                   <button className="perfil-comunidad-adjunto" type="button" onClick={() => abrirAdjunto(publicacion)}>
                     <span className="perfil-comunidad-adjunto-imagen">
                       {publicacion.reel?.portada ? (
@@ -436,12 +444,10 @@ export default function PerfilComunidad({
                       )}
                     </span>
                     <span>
-                      <small>{publicacion.reel ? "PREVIEW" : "EVENTO"}</small>
-                      <strong>{publicacion.reel?.titulo || publicacion.evento?.lugar || "Evento SONDAR"}</strong>
+                      <small>PREVIEW</small>
+                      <strong>{publicacion.reel.titulo || "Preview musical"}</strong>
                       <em>
-                        {publicacion.reel
-                          ? (publicacion.reel.generos || []).join(" / ") || publicacion.reel.genero || "Preview musical"
-                          : `${(publicacion.evento.generos || []).join(" / ") || publicacion.evento.genero || "Evento"} - ${new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "short" }).format(new Date(publicacion.evento.fecha))}`}
+                        {(publicacion.reel.generos || []).join(" / ") || publicacion.reel.genero || "Preview musical"}
                       </em>
                     </span>
                     <IconoMaterial nombre="arrow_outward" />

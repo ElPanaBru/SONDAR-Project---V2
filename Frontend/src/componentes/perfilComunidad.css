@@ -269,6 +269,10 @@
   white-space: pre-wrap;
 }
 
+button.perfil-comunidad-evento {
+  margin-top: 13px;
+}
+
 .perfil-comunidad-adjunto {
   width: 100%;
   min-width: 0;

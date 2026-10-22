@@ -113,6 +113,26 @@
   transform: translateY(-1px);
 }
 
+.buscar-destacado-evento {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+
+.buscar-destacado-evento > .perfil-evento-calendario {
+  display: flex;
+  gap: 0;
+  width: 52px;
+}
+
+.buscar-destacado-evento .perfil-evento-calendario strong {
+  font-size: 23px;
+  line-height: 1.1;
+}
+
+.buscar-destacado-evento .perfil-evento-calendario small {
+  color: inherit;
+  font-size: 11px;
+}
+
 .buscar-destacado > span {
   min-width: 0;
   display: grid;
@@ -357,6 +377,10 @@
   .buscar-thumb.grande {
     width: 82px;
     height: 82px;
+  }
+
+  .buscar-destacado-evento {
+    grid-template-columns: 52px minmax(0, 1fr);
   }
 
   .buscar-row {

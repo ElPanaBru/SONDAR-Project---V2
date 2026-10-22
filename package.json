@@ -1,30 +1,34 @@
 {
   "name": "sondar-proyect",
   "version": "1.0.0",
-  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
-  "main": "eslint.config.js",
+  "description": "SONDAR: desarrollo web, API y herramientas manuales de base de datos.",
   "scripts": {
-    "start:all": "cd Backend && npm run start_server & cd ../Frontend && npm run start_front",
+    "start:all": "npm run dev",
     "start_server": "npm run start_server --prefix Backend",
-    "install_all": "npm install && cd Backend && npm install && cd ../Frontend && npm install",
-    "omega": "npm install && npm install --prefix Backend && npm install --prefix Frontend && npm audit fix --prefix Frontend && npm run dev",
+    "install_all": "npm install && npm install --prefix Backend && npm install --prefix Frontend",
+    "omega": "npm run install_all && npm run dev",
     "start_front": "npm run dev --prefix Frontend",
     "dev": "concurrently --kill-others-on-fail \"npm run dev:server --prefix Backend\" \"npm run dev --prefix Frontend -- --host localhost --port 3001 --strictPort\"",
     "dev:all:lan": "concurrently \"npm run dev:server --prefix Backend\" \"npm run dev --prefix Frontend -- --host 0.0.0.0\"",
-    "build": "vite build && npm run build --prefix Frontend"
+    "build": "npm run build --prefix Frontend",
+    "test": "npm run test --prefix Backend && npm run test --prefix Frontend",
+    "lint": "npm run lint --prefix Frontend",
+    "verify": "npm run db:validar && npm run test && npm run lint && npm run build",
+    "db:validar": "node Backend/scripts/verificarRepositorio.js",
+    "db:verificar": "npm run db:verificar --prefix Backend",
+    "db:actualizar": "npm run db:actualizar --prefix Backend --",
+    "db:aplicar": "npm run db:aplicar --prefix Backend --",
+    "db:respaldar": "npm run db:respaldar --prefix Backend"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "concurrently": "^9.2.1",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "pg": "^8.20.0"
+    "concurrently": "^9.2.1"
   },
   "devDependencies": {
     "supabase": "^2.119.0"
-  }
+  },
+  "private": true
 }

@@ -1,3 +1,4 @@
+const { esquemaAutomatico } = require('../services/schemaMode');
 const { GENEROS_MUSICALES } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
@@ -279,6 +280,7 @@ async function insertarReelCompatible({
 }
 
 async function asegurarEsquemaComentarios() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaComentariosListo) {
     esquemaComentariosListo = (async () => {
       await pool.query('ALTER TABLE reel_comments ADD COLUMN IF NOT EXISTS responde_a text');
@@ -303,6 +305,7 @@ async function asegurarEsquemaComentarios() {
 }
 
 async function asegurarEsquemaCompartidos() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaCompartidosListo) {
     esquemaCompartidosListo = (async () => {
       await pool.query(`
@@ -324,6 +327,7 @@ async function asegurarEsquemaCompartidos() {
 }
 
 async function asegurarEsquemaVisitas() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaVisitasListo) {
     esquemaVisitasListo = (async () => {
       await pool.query(`
@@ -345,6 +349,7 @@ async function asegurarEsquemaVisitas() {
 }
 
 async function asegurarEsquemaGuardados() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaGuardadosListo) {
     esquemaGuardadosListo = (async () => {
       await pool.query(`

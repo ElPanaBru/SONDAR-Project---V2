@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./auth.css";
 
 const mensajesSupabase = {
@@ -12,42 +12,6 @@ const mensajesSupabase = {
   "Password should be at least 6 characters": "La contraseña debe tener al menos 6 caracteres",
   "Password should be at least 8 characters": "La contraseña debe tener al menos 8 caracteres"
 };
-
-export default function Auth() {
-  const { t } = usePreferencias();
-
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [passwordRepetida, setPasswordRepetida] = useState("");
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [username, setUsername] = useState("");
-  const [mensaje, setMensaje] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  const modo =
-    new URLSearchParams(location.search).get("modo") === "registro"
-      ? "registro"
-      : "login";
-
-  const fuerzaPassword = useMemo(() => {
-    let puntos = 0;
-
-    if (password.length >= 8) puntos += 1;
-    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) puntos += 1;
-    if (/\d/.test(password)) puntos += 1;
-    if (/[^A-Za-z0-9]/.test(password)) puntos += 1;
-
-    return puntos;
-  }, [password]);
-
-  const traducirError = (error) => {
-    if (!error) return "Ocurrio un error inesperado.";
-
-    return mensajesSupabase[error.message] || error.message;
-  };
 
   const esperarConTimeout = (promesa, mensaje, timeoutMs = 15000) => (
     new Promise((resolve, reject) => {
@@ -108,6 +72,43 @@ export default function Auth() {
     return response.json();
   };
 
+
+export default function Auth() {
+  const { t } = usePreferencias();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordRepetida, setPasswordRepetida] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [username, setUsername] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const modo =
+    new URLSearchParams(location.search).get("modo") === "registro"
+      ? "registro"
+      : "login";
+
+  const fuerzaPassword = useMemo(() => {
+    let puntos = 0;
+
+    if (password.length >= 8) puntos += 1;
+    if (/[A-Z]/.test(password) && /[a-z]/.test(password)) puntos += 1;
+    if (/\d/.test(password)) puntos += 1;
+    if (/[^A-Za-z0-9]/.test(password)) puntos += 1;
+
+    return puntos;
+  }, [password]);
+
+  const traducirError = (error) => {
+    if (!error) return "Ocurrio un error inesperado.";
+
+    return mensajesSupabase[error.message] || error.message;
+  };
+
   /*
    * Procesa una sesión de Supabase.
    *
@@ -121,7 +122,7 @@ export default function Auth() {
    *    en user_metadata durante el registro.
    * 3. Redirige al usuario automáticamente.
    */
-  const procesarSesion = async (session) => {
+  const procesarSesion = useCallback(async (session) => {
     if (!session?.access_token || !session?.user) {
       return false;
     }
@@ -175,7 +176,7 @@ export default function Auth() {
 
       return false;
     }
-  };
+  }, [navigate]);
 
   useEffect(() => {
   let activo = true;
@@ -282,7 +283,7 @@ export default function Auth() {
     activo = false;
     subscription.unsubscribe();
   };
-}, []);
+}, [procesarSesion]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

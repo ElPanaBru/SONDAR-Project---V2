@@ -1,3 +1,4 @@
+const { esquemaAutomatico } = require('../services/schemaMode');
 const { CATALOGO_GENEROS } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
@@ -62,6 +63,7 @@ async function asegurarUsuarioPublico(user) {
 }
 
 async function asegurarEsquemaComunidades() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaComunidadesListo) {
     esquemaComunidadesListo = (async () => {
       await pool.query(`

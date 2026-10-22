@@ -1,3 +1,4 @@
+const { sql } = require('./helpers/sql');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const Module = require('node:module');
@@ -95,12 +96,12 @@ test('comunidad permite buscar referencias en todo el catalogo publico', () => {
   assert.match(pagina, /Buscar entre todas las previews de SONDAR/);
   assert.match(pagina, /eventosDisponibles\.map/);
   assert.match(pagina, /reelsDisponibles\.map/);
-  assert.match(pagina, /comunidad-asociacion-card evento/);
+  assert.match(pagina, /<EventoPerfilFila/);
   assert.match(pagina, /comunidad-asociacion-card reel/);
-  assert.match(pagina, /evento\.lugar \|\| evento\.ubicacion/);
+  assert.match(pagina, /evento=\{evento\}/);
   assert.match(pagina, /reel\.generos \|\| \[reel\.genero\]/);
   assert.match(pagina, /\.map\(mostrarGenero\)\.join\(" \/ "\) \|\| "Preview musical"/);
-  assert.match(pagina, /src="\/sondar-icon\.png(?:\?v=19)?"/);
+  assert.match(pagina, /reel.portada \|\| "\/sondar-icon\.png\?v=19"/);
   assert.doesNotMatch(pagina, /eventosDelGenero\.map|reelsDelGenero\.map/);
 });
 
@@ -108,7 +109,7 @@ test('storage usa el JWT del usuario cuando el backend tiene una clave sb_secret
   const cliente = fs.readFileSync(path.join(raiz, 'Backend', 'services', 'supabaseClient.js'), 'utf8');
   const middleware = fs.readFileSync(path.join(raiz, 'Backend', 'middlewares', 'authMiddleware.js'), 'utf8');
   const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'reelController.js'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Permitir_Storage_Por_Usuario.sql'), 'utf8');
+  const migracion = sql('Permitir_Storage_Por_Usuario.sql');
 
   assert.match(cliente, /crearStorageAutenticado/);
   assert.match(cliente, /accessToken: async \(\) => accessToken/);

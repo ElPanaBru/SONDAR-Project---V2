@@ -1,42 +1,28 @@
-const fs = require('fs');
-const path = require('path');
-const { Client } = require('pg');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-
-const archivo = process.argv[2];
-
-if (!archivo || archivo.includes('..') || path.isAbsolute(archivo)) {
-  console.error('Uso: node Backend/scripts/aplicarMigracionSql.js Nombre_De_Migracion.sql');
-  process.exit(1);
-}
-
-const migrationPath = path.join(__dirname, '..', 'BDD-Sql', archivo);
-
-if (!fs.existsSync(migrationPath)) {
-  console.error(`No existe la migracion: ${migrationPath}`);
-  process.exit(1);
-}
-
-const client = new Client({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: Number(process.env.DB_PORT || 5432),
-  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
-});
+const { crearCliente } = require('../database/conexion');
+const { resolverSql, leerSql, cuerpoTransaccional, listarMigraciones, listarMantenimiento, ALIASES } = require('../database/catalogoSql');
 
 async function main() {
-  await client.connect();
-  await client.query(fs.readFileSync(migrationPath, 'utf8'));
-  console.log(`Migracion aplicada: ${archivo}`);
+  const argumentos = process.argv.slice(2);
+  if (argumentos.length === 1 && argumentos[0] === '--list') {
+    console.log(JSON.stringify({ migraciones: listarMigraciones(), mantenimiento: listarMantenimiento(), aliases: ALIASES }, null, 2));
+    return;
+  }
+  if (argumentos.slice(1).some(arg => arg !== '--dry-run')) throw new Error('Uso: db:aplicar -- Nombre.sql [--dry-run]');
+  const nombre = process.argv[2];
+  const archivo = resolverSql(nombre); // Validar antes de abrir cualquier conexion.
+  const client = crearCliente();
+  try {
+    await client.connect();
+    await client.query('BEGIN');
+    await client.query("SET LOCAL lock_timeout = '5s'");
+    await client.query(cuerpoTransaccional(leerSql(nombre)));
+    await client.query(process.argv.includes('--dry-run') ? 'ROLLBACK' : 'COMMIT');
+    console.log(process.argv.includes('--dry-run') ? 'Ensayo revertido:' : 'SQL aplicado manualmente:', archivo);
+    console.log('Este comando no registra versiones en el historial de la CLI de Supabase.');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally { await client.end(); }
 }
-
-main()
-  .catch((error) => {
-    console.error(error.stack || error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await client.end().catch(() => null);
-  });
+if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+module.exports = { main };

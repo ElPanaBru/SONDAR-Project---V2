@@ -1,3 +1,4 @@
+const { sql } = require('./helpers/sql');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,20 +7,15 @@ const test = require('node:test');
 const raiz = path.join(__dirname, '..', '..');
 const leer = (...partes) => fs.readFileSync(path.join(raiz, ...partes), 'utf8');
 
-test('la comunidad de perfil convive con foros y elimina solo guardados de reels', () => {
-  const sql = leer('Backend', 'BDD-Sql', 'Reemplazar_Foros_Por_Comunidad_Perfil.sql');
-
-  assert.doesNotMatch(sql, /DROP TABLE IF EXISTS public\.comunidades CASCADE/);
-  assert.match(sql, /DROP TABLE IF EXISTS public\.reel_saves CASCADE/);
-  assert.match(sql, /ALTER TABLE public\.reels DROP COLUMN IF EXISTS guardados/);
-  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.perfil_comunidad_publicaciones/);
-  assert.match(sql, /CREATE TABLE IF NOT EXISTS public\.perfil_comunidad_respuestas/);
-  assert.match(sql, /AFTER INSERT ON public\.reels/);
-  assert.match(sql, /AFTER INSERT ON public\.eventos/);
-  assert.match(sql, /Publico una nueva preview/);
-  assert.match(sql, /Creo un nuevo evento/);
-  assert.match(sql, /FROM public\.follows f/);
-  assert.match(sql, /validar_padre_respuesta_perfil/);
+test('la comunidad de perfil convive con foros y mantiene guardados de previews', () => {
+  const esquema = sql();
+  for (const tabla of ['comunidades', 'reel_saves', 'perfil_comunidad_publicaciones', 'perfil_comunidad_respuestas']) {
+    assert.ok(esquema.includes('CREATE TABLE public.' + tabla + ' ('));
+  }
+  assert.match(esquema, /CREATE TRIGGER perfil_comunidad_reel_creado/);
+  assert.match(esquema, /CREATE TRIGGER perfil_comunidad_evento_creado/);
+  assert.doesNotMatch(sql('actual'), /DROP COLUMN|DROP TABLE[^;]*CASCADE/);
+  assert.match(sql('actual'), /IF ocupada THEN[\s\S]*RAISE EXCEPTION[\s\S]*DROP TABLE/);
 });
 
 test('la API de comunidad limita adjuntos al contenido propio y respeta bloqueos al responder', () => {
@@ -63,18 +59,15 @@ test('comunidad es la quinta pestana propia y admite publicaciones, adjuntos y r
   assert.match(app, /path="\/comunidad" element=\{<Comunidad usuario=\{usuario\} \/>\}/);
 });
 
-test('guardados queda reservado a eventos en API y reels', () => {
+test('guardados conserva eventos y previews en API y perfiles', () => {
   const usuarios = leer('Backend', 'Controllers', 'usuarioController.js');
-  const reelController = leer('Backend', 'Controllers', 'reelController.js');
-  const reelRoutes = leer('Backend', 'routes', 'reels.js');
-  const descubrir = leer('Frontend', 'src', 'paginas', 'Descubrir.jsx');
-
-  assert.match(usuarios, /guardados: esPropio \? eventosGuardados : \[\]/);
-  assert.match(usuarios, /eventos_guardados: \['SELECT \* FROM event_saves/);
-  assert.doesNotMatch(usuarios, /reels_guardados|reel_saves/);
-  assert.doesNotMatch(reelController, /reel_saves|alternarGuardado/);
-  assert.doesNotMatch(reelRoutes, /\/guardar/);
-  assert.doesNotMatch(descubrir, /Guardar reel|Quitar de guardados|reel-menu-guardar/);
+  const reels = leer('Backend', 'Controllers', 'reelController.js');
+  const rutas = leer('Backend', 'routes', 'reels.js');
+  assert.match(usuarios, /FROM reel_saves/);
+  assert.match(usuarios, /reelsGuardados/);
+  assert.match(usuarios, /eventosGuardados/);
+  assert.match(reels, /alternarGuardado:/);
+  assert.match(rutas, /router.post\('\/:id\/guardar'/);
 });
 
 test('crear contenido actualiza la comunidad personal y el modulo de foros sigue disponible', () => {

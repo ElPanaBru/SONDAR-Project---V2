@@ -180,7 +180,7 @@ test('crear evento rechaza mas de tres generos o generos fuera del catalogo', as
   const demasiados = crearRespuesta();
   await eventoController.crearEvento({
     ...reqBase,
-    body: { ...reqBase.body, generos: ['rock', 'funk', 'jazz', 'metal'] },
+    body: { ...reqBase.body, generos: ['rock', 'funk', 'jazz', 'blues'] },
   }, demasiados);
   assert.equal(demasiados.statusCode, 400);
   assert.match(demasiados.body.error, /hasta 3 generos/);

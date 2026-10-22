@@ -18,10 +18,11 @@ import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
 import PerfilToast from "../componentes/PerfilToast";
 import EventoPerfilFila from "../componentes/EventoPerfilFila";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "../componentes/eventoOrganizadorPopover.css";
 
 setWorkerUrl(maplibreWorkerUrl);
@@ -570,7 +571,8 @@ export default function Eventos({ usuario }) {
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
-    const map = L.map(mapRef.current, {
+    const contenedorMapa = mapRef.current;
+    const map = L.map(contenedorMapa, {
       zoomControl: false,
       attributionControl: true,
       minZoom: 4,
@@ -591,7 +593,7 @@ export default function Eventos({ usuario }) {
 
     return () => {
       map.remove();
-      mapRef.current?.classList.remove("mapa-dark-matter");
+      contenedorMapa.classList.remove("mapa-dark-matter");
       mapInstance.current = null;
       tilesLayerRef.current = null;
       markersLayer.current = null;

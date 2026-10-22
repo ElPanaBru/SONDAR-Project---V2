@@ -1,21 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 
-export const PREFERENCIAS_INICIALES = Object.freeze({
-  telefono: "",
-  codigoPais: "+54",
-  idioma: "es",
-  actividadCuenta: true,
-  notificarInteracciones: true,
-  notificarComentarios: true,
-  notificarSeguidores: true,
-  notificarPublicaciones: true,
-  notificarMenciones: true,
-  notificarMensajes: true,
-  reducirMovimiento: false,
-  mostrarEmail: false,
-});
+import { PREFERENCIAS_INICIALES } from "../lib/preferencias";
+import { PreferenciasContext } from "./preferencias";
 
 const TRADUCCIONES = {
   en: {
@@ -255,7 +243,6 @@ const TRADUCCIONES = {
   },
 };
 
-const PreferenciasContext = createContext(null);
 const STORAGE_KEY = "sondar:preferencias";
 
 function leerPreferenciasLocales() {
@@ -281,14 +268,15 @@ export function PreferenciasProvider({ usuario, children }) {
   }, []);
 
   useEffect(() => {
-    const guardadas = usuario?.user_metadata?.configuracion;
-    if (guardadas && typeof guardadas === "object") actualizarPreferencias(guardadas);
     if (!usuario) return undefined;
+    const guardadas = usuario.user_metadata?.configuracion;
 
     let activo = true;
     const cargar = async () => {
       try {
         const { data } = await supabase.auth.getSession();
+        if (!activo) return;
+        if (guardadas && typeof guardadas === "object") actualizarPreferencias(guardadas);
         const token = data.session?.access_token;
         if (!token) return;
         const response = await apiRequest("/api/usuarios/me/configuracion", {
@@ -298,7 +286,7 @@ export function PreferenciasProvider({ usuario, children }) {
         const datos = await response.json();
         if (activo) actualizarPreferencias(datos);
       } catch {
-        // La metadata y el almacenamiento local mantienen la interfaz utilizable.
+        if (activo && guardadas && typeof guardadas === "object") actualizarPreferencias(guardadas);
       }
     };
     cargar();
@@ -321,10 +309,4 @@ export function PreferenciasProvider({ usuario, children }) {
   }), [actualizarPreferencias, locale, preferencias, t]);
 
   return <PreferenciasContext.Provider value={valor}>{children}</PreferenciasContext.Provider>;
-}
-
-export function usePreferencias() {
-  const contexto = useContext(PreferenciasContext);
-  if (!contexto) throw new Error("usePreferencias debe usarse dentro de PreferenciasProvider");
-  return contexto;
 }

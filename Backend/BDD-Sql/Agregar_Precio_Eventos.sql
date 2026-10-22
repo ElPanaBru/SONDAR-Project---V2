@@ -1,3 +1,0 @@
-ALTER TABLE eventos
-ADD COLUMN IF NOT EXISTS precio NUMERIC(12, 2)
-CHECK (precio IS NULL OR precio >= 0);

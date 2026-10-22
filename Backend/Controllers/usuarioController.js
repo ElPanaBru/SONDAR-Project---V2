@@ -793,14 +793,10 @@ const usuariosController = {
   buscarUsuarios: async (req, res) => {
     const termino = String(req.query.query || '').trim();
 
-    if (!termino) {
-      return res.json([]);
-    }
-
     try {
       const patron = `%${termino}%`;
       const result = await pool.query(
-        `SELECT *
+        termino ? `SELECT *
          FROM users
          WHERE
           username ILIKE $1 OR
@@ -814,8 +810,10 @@ const usuariosController = {
             ELSE 2
           END,
           created_at DESC
-         LIMIT 20`,
-        [patron, termino]
+         LIMIT 20` : `SELECT *
+         FROM users
+         ORDER BY lower(COALESCE(NULLIF(display_name, ''), username)), lower(username), id`,
+        termino ? [patron, termino] : []
       );
 
       if (result.rows.length === 0) {
