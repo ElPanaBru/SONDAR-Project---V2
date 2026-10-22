@@ -22,7 +22,6 @@ export function GenreArtwork({ genre }: { genre: string }) {
   return <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
     <LinearGradient colors={[visual.tint, '#131313']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
     <View style={styles.pattern}>{Array.from({ length: 16 }, (_, i) => <View key={i} style={[styles.line, { left: i * 30 - 55, transform: [{ rotate: (visual.angle * Math.PI / 180) + 'rad' }] }]} />)}</View>
-    <Text style={styles.eyebrow}>SONDAR / COMUNIDAD</Text>
     <View style={styles.rhythm}>
       {Array.from({ length: count }, (_, i) => i === Math.floor(count / 2)
         ? <MaterialCommunityIcons key={i} name={visual.icon} color="#EAA51F" size={32} style={styles.icon} />
@@ -40,8 +39,7 @@ export function GenreBadge({ genre }: { genre: string }) {
 const styles = StyleSheet.create({
   pattern: { ...StyleSheet.absoluteFill, overflow: 'hidden', opacity: .35 },
   line: { position: 'absolute', top: -100, width: 1, height: 360, backgroundColor: '#C9953020' },
-  eyebrow: { position: 'absolute', top: 10, left: 12, color: '#FFB51B', fontSize: 9, fontWeight: '900', letterSpacing: 2 },
-  rhythm: { position: 'absolute', left: 12, right: 12, top: 29, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },
+  rhythm: { position: 'absolute', left: 12, right: 12, top: 8, bottom: 8, flexDirection: 'row', alignItems: 'center', gap: 5 },
   bar: { flex: 1, maxWidth: 8, borderRadius: 5, backgroundColor: '#D99815' },
   icon: { marginHorizontal: 5, opacity: .8 },
   initial: { color: '#111', fontSize: 22, fontWeight: '900' },

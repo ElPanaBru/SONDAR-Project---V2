@@ -1,10 +1,11 @@
-﻿import { useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
+import { useEffect, useMemo, useState, type PropsWithChildren } from 'react';
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { palette } from '@/constants/sondar';
 
 export function EventPanel({ children }: PropsWithChildren) {
+  const expandedHeight = 278;
   const [expanded, setExpanded] = useState(true);
-  const progress = useRef(new Animated.Value(1)).current;
+  const [progress] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
@@ -17,7 +18,7 @@ export function EventPanel({ children }: PropsWithChildren) {
     return () => animation.stop();
   }, [expanded, progress]);
 
-  // Only the handle captures vertical gestures; lists keep their horizontal scroll.
+  // Only the handle captures vertical gestures; lists keep their own scroll gestures.
   const gesture = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, { dx, dy }) => Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx),
     onPanResponderRelease: (_, { dy, vy }) => {
@@ -28,7 +29,7 @@ export function EventPanel({ children }: PropsWithChildren) {
 
   return (
     <Animated.View pointerEvents="box-none" style={[styles.panel, {
-      height: progress.interpolate({ inputRange: [0, 1], outputRange: [56, 272] }),
+      height: progress.interpolate({ inputRange: [0, 1], outputRange: [56, expandedHeight] }),
       backgroundColor: progress.interpolate({ inputRange: [0, 1], outputRange: ['transparent', palette.bg] }),
     }]}>
       <View {...gesture.panHandlers} style={styles.handleRow} pointerEvents="box-none">
@@ -48,7 +49,7 @@ export function EventPanel({ children }: PropsWithChildren) {
         pointerEvents={expanded ? 'auto' : 'none'}
         accessibilityElementsHidden={!expanded}
         importantForAccessibility={expanded ? 'auto' : 'no-hide-descendants'}
-        style={[styles.content, { opacity: progress }]}
+        style={[styles.content, { opacity: progress, height: expandedHeight - 32 }]}
       >
         {children}
       </Animated.View>
@@ -58,10 +59,10 @@ export function EventPanel({ children }: PropsWithChildren) {
 
 const styles = StyleSheet.create({
   panel: { position: 'absolute', bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
-  handleRow: { height: 44, alignItems: 'center', justifyContent: 'center' },
+  handleRow: { height: 32, alignItems: 'center', justifyContent: 'center' },
   handleButton: { width: 96, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   handleClosed: { backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   handleBar: { width: 72, height: 5, borderRadius: 3, backgroundColor: palette.muted },
   handleBarClosed: { backgroundColor: palette.orange },
-  content: { position: 'absolute', top: 44, left: 0, right: 0, height: 228, paddingBottom: 12 },
+  content: { position: 'absolute', top: 32, left: 0, right: 0, paddingBottom: 0 },
 });

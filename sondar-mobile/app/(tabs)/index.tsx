@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { EventMap } from '@/components/event-map';
 import { EventPanel } from '@/components/event-panel';
@@ -67,7 +67,9 @@ export default function EventsScreen() {
   const [sortBy, setSortBy] = useState<EventSort>('date');
   const [descending, setDescending] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<EventItem | null>(null);
+  const selectedEventId = selected?.id;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -107,9 +109,9 @@ export default function EventsScreen() {
   }, [eventId, events, loading]);
 
   useEffect(() => {
-    const task = setTimeout(() => setPlayingPreviewId(null), 0);
+    const task = setTimeout(() => { setPlayingPreviewId(null); if (selectedEventId != null) setHighlightedId(String(selectedEventId)); }, 0);
     return () => clearTimeout(task);
-  }, [selected?.id]);
+  }, [selectedEventId]);
 
   useEffect(() => {
     if (organizerQuery.trim().length < 2) return;
@@ -253,7 +255,7 @@ export default function EventsScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel={mapTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} accessibilityState={{ selected: mapTheme === 'dark' }} onPress={() => setMapTheme(value => value === 'light' ? 'dark' : 'light')} hitSlop={6} style={({ pressed }) => [styles.mapThemeButton, pressed && { opacity: 0.75 }]}><Ionicons name={mapTheme === 'light' ? 'moon' : 'sunny'} size={23} color={palette.orange} /></Pressable>
         <EventPanel>
           <View style={styles.sortBar}>
-            <Text style={styles.controlText}>Eventos · {filtered.length}</Text>
+            <View style={styles.listHeading}><Ionicons name="calendar-outline" size={24} color={palette.text} /><Text style={styles.listTitle}>Eventos</Text><Text style={styles.listCount}>{filtered.length}</Text></View>
             <View style={styles.sortActions}>
               <Pressable accessibilityRole="button" accessibilityLabel="Ordenar eventos" onPress={() => setSortOpen(true)} style={styles.sortButton}><Text style={styles.controlText}>{{ date: 'Fecha', price: 'Precio', distance: 'Distancia' }[sortBy]}</Text><Ionicons name="chevron-down" size={16} color={palette.text} /></Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={descending ? 'Orden descendente. Cambiar a ascendente' : 'Orden ascendente. Cambiar a descendente'} onPress={() => setDescending(value => !value)} style={styles.sortButton}><Ionicons name={descending ? 'arrow-down' : 'arrow-up'} size={22} color={palette.orange} /></Pressable>
@@ -263,7 +265,7 @@ export default function EventsScreen() {
             <FlatList horizontal bounces={false} directionalLockEnabled nestedScrollEnabled showsHorizontalScrollIndicator={false} data={genres} keyExtractor={item => item} style={styles.genreList} contentContainerStyle={styles.chips} renderItem={({ item }) => <Pressable onPress={() => setGenre(item)} style={[styles.chip, genre === item && styles.chipActive]}><Text style={[styles.chipText, genre === item && styles.chipTextActive]}>{item === 'todos' ? 'Todos' : formatGenre(item)}</Text></Pressable>} />
           </View>
           <ErrorNotice message={error || locationError} />
-          <FlatList horizontal showsHorizontalScrollIndicator={false} data={filtered} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} distance={eventDistance(item, userLocation)} onPress={() => setSelected(item)} onSave={() => toggleSave(item)} />} />
+          <FlatList horizontal style={styles.eventList} nestedScrollEnabled showsHorizontalScrollIndicator={false} data={filtered} extraData={highlightedId} keyExtractor={item => String(item.id)} refreshing={refreshing} onRefresh={() => load(true)} contentContainerStyle={styles.list} ListEmptyComponent={<Empty title="No hay eventos en este género" />} renderItem={({ item }) => <EventCard event={item} distance={eventDistance(item, userLocation)} active={highlightedId === String(item.id)} onPress={() => { setHighlightedId(String(item.id)); setSelected(item); }} />} />
         </EventPanel>
       </View>}
 
@@ -408,27 +410,66 @@ function EventPreviewRow({ preview, active, onActiveChange, onOpen }: { preview:
 }
 /* eslint-enable react-hooks/immutability */
 
-function EventCard({ event, distance, onPress, onSave }: { event: EventItem; distance: number | null; onPress: () => void; onSave: () => void }) {
-  return <View style={styles.card}><Pressable onPress={onPress} style={styles.cardOpen}><View style={styles.cardImage}><Image source={require('../../assets/sondar-brand-icon-2026.png')} style={styles.cardLogo} contentFit="contain" /></View><View style={styles.cardInfo}><Text style={styles.cardTitle} numberOfLines={1}>{event.titulo}</Text><Text style={styles.cardLocation} numberOfLines={1}>{event.lugar || event.ubicacion}</Text><Text style={styles.cardDate}>{new Date(event.fecha).toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'short' })}</Text><Text style={styles.cardMeta}>{formatEventPrice(event.precio)}</Text><Text style={styles.cardMeta}>{distance === null ? 'Distancia no disponible' : distance < 1 ? `${Math.round(distance * 1000)} m` : `${distance.toLocaleString('es-AR', { maximumFractionDigits: 1 })} km`}</Text></View></Pressable><IconButton name={event.guardado ? 'bookmark' : 'bookmark-outline'} active={event.guardado} onPress={onSave} /></View>;
+function EventCard({ event, distance, active, onPress }: { event: EventItem; distance: number | null; active: boolean; onPress: () => void }) {
+  const { width } = useWindowDimensions();
+  const date = new Date(event.fecha);
+  const validDate = Number.isFinite(date.getTime());
+  const place = [formatGenre(event.genero), event.lugar || event.ubicacion].filter(Boolean).join(' · ');
+  const distanceLabel = distance === null ? 'Distancia no disponible' : distance < 1 ? Math.round(distance * 1000) + ' m' : distance.toLocaleString('es-AR', { maximumFractionDigits: 1 }) + ' km';
+  return (
+    <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.card, { width: Math.min(310, width - 40) }, (active || pressed) && styles.cardActive]}>
+      <View style={[styles.dateBadge, active && styles.dateBadgeActive]}>
+        <Text style={[styles.dateDay, active && styles.activeText]}>{validDate ? date.getDate() : '—'}</Text>
+        <Text style={[styles.dateMonth, active && styles.activeText]}>{validDate ? date.toLocaleDateString('es-AR', { month: 'short' }).replace('.', '').toUpperCase() : 'S/F'}</Text>
+      </View>
+      <View style={styles.cardInfo}>
+        <Text numberOfLines={2} style={[styles.cardTitle, active && styles.activeText]}>{event.titulo}</Text>
+        <Text numberOfLines={1} style={styles.cardLocation}>{place}</Text>
+        <Text style={[styles.cardDate, active && styles.activeText]}>{validDate ? date.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Fecha a confirmar'}</Text>
+        <View style={styles.cardTags}>
+          <View style={styles.cardTag}><Text style={styles.cardMeta}>{formatEventPrice(event.precio)}</Text></View>
+          <View style={styles.cardTag}><Text style={styles.cardMeta}>{distanceLabel}</Text></View>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={active ? palette.amber : palette.muted} />
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
   locateButton: { position: 'absolute', top: 14, right: 14, flexDirection: 'row', alignItems: 'center', gap: 7, padding: 12, borderRadius: 12, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   mapThemeButton: { position: 'absolute', top: 14, left: 14, width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border, elevation: 3, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 6 },
+  sortBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 44, borderBottomWidth: 1, borderBottomColor: palette.border },
+  listHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  listTitle: { color: palette.text, fontSize: 19, fontWeight: '800' },
+  listCount: { color: palette.muted, fontSize: 15 },
   sortActions: { flexDirection: 'row', gap: 5 },
-  sortButton: { minHeight: 44, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, backgroundColor: palette.surface },
+  sortButton: { minHeight: 44, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center', gap: 8 },
   controlText: { color: palette.text, fontWeight: '700', fontSize: 14 },
   sortBackdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'center', padding: 28 },
   sortMenu: { padding: 20, gap: 12, borderRadius: 16, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border },
   sortOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardMeta: { color: palette.muted, fontSize: 11 },
+  cardMeta: { color: '#DEDEDE', fontSize: 11, lineHeight: 15 },
 
   body: { flex: 1 }, map: { flex: 1, minHeight: 150 },
-  genreRail: { height: 46, flexShrink: 0 },
-  genreList: { height: 44, flexGrow: 0, flexShrink: 0 },
+  genreRail: { height: 40, flexShrink: 0 },
+  genreList: { height: 40, flexGrow: 0, flexShrink: 0 },
   chips: { gap: 6, paddingHorizontal: 16, paddingVertical: 6 }, chip: { height: 32, paddingHorizontal: 12, borderRadius: 16, justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border }, chipActive: { backgroundColor: palette.orange, borderColor: palette.orange }, chipText: { color: palette.muted, fontSize: 13, textTransform: 'capitalize', fontWeight: '600' }, chipTextActive: { color: '#111' },
-  list: { paddingHorizontal: 14, paddingTop: 5, gap: 10 }, card: { width: 280, minHeight: 110, flexDirection: 'row', alignItems: 'center', padding: 8, gap: 8, backgroundColor: palette.surface, borderRadius: 8, borderWidth: 1, borderColor: palette.border }, cardOpen: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 }, cardImage: { width: 60, height: 60, borderRadius: 8, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', backgroundColor: '#050505', borderWidth: 1, borderColor: palette.amber }, cardLogo: { width: 54, height: 54 }, cardInfo: { flex: 1, minWidth: 0, gap: 2 }, cardTitle: { color: palette.text, fontSize: 14, fontWeight: '800' }, cardLocation: { color: palette.muted, fontSize: 12 }, cardDate: { color: palette.amber, fontSize: 12, fontWeight: '800', textTransform: 'capitalize' },
+  eventList: { flex: 1, minHeight: 0 },
+  list: { paddingHorizontal: 14, paddingTop: 4, paddingBottom: 10, gap: 10 },
+  card: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, gap: 8, backgroundColor: '#111111', borderRadius: 10, borderWidth: 1, borderColor: palette.border },
+  cardActive: { backgroundColor: '#301D05', borderColor: '#9A6B00' },
+  dateBadge: { width: 50, minHeight: 62, paddingVertical: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', gap: 2, backgroundColor: '#191919', borderWidth: 1, borderColor: palette.border },
+  dateBadgeActive: { backgroundColor: '#332105', borderColor: '#9A6B00' },
+  dateDay: { color: '#DEDEDE', fontSize: 26, lineHeight: 30, fontWeight: '800' },
+  dateMonth: { color: '#DEDEDE', fontSize: 11, fontWeight: '800' },
+  activeText: { color: palette.amber },
+  cardInfo: { flex: 1, minWidth: 0, gap: 2 },
+  cardTitle: { color: '#DEDEDE', fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  cardLocation: { color: palette.muted, fontSize: 12, lineHeight: 16 },
+  cardDate: { color: '#909090', fontSize: 11, lineHeight: 15 },
+  cardTags: { alignItems: 'flex-start', gap: 3, marginTop: 2 },
+  cardTag: { maxWidth: '100%', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, borderWidth: 1, borderColor: '#444039' },
   marker: { width: 48, height: 48, borderRadius: 24, padding: 3, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: palette.amber, borderWidth: 3, borderColor: '#080808' }, markerImage: { width: 38, height: 38, borderRadius: 19 }, markerTip: { width: 0, height: 0, alignSelf: 'center', borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 10, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#080808', marginTop: -2 },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#000A' }, modalScroll: { width: '100%', maxHeight: '94%' }, modalCard: { minHeight: '100%', backgroundColor: palette.bg, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 18, paddingBottom: 48, gap: 16 }, modalTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }, modalTitle: { flex: 1, minWidth: 0, gap: 3 }, modalActions: { flexDirection: 'row', gap: 6 }, eventEyebrow: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, detailGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, detailGenre: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: '#2B180B', borderWidth: 1, borderColor: '#63330E' }, detailGenreText: { color: palette.amber, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' }, detailLine: { flexDirection: 'row', alignItems: 'center', gap: 10 }, description: { color: palette.text, lineHeight: 22 }, actionRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 },
   participantsSection: { gap: 9 }, sectionLabel: { color: palette.orange, fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, participantsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, participantChip: { minWidth: 142, maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.surface }, participantName: { maxWidth: 130, color: palette.text, fontSize: 12, fontWeight: '800' }, participantRole: { color: palette.muted, fontSize: 10, marginTop: 1 },

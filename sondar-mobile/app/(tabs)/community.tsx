@@ -20,6 +20,8 @@ type Comment = { id: number; userId?: string; avatar?: string; parentId?: number
 type ReplyTarget = { parentId: number; usuario: string };
 type Post = { id: number; userId?: string; avatar?: string; comunidadId: string; op: string; usuario: string; tipo: string; titulo: string; texto: string; etiqueta?: string; likes: number; liked?: boolean; guardado?: boolean; adjuntos?: CommunityAttachment[]; comentarios: Comment[]; comentariosTotal: number; tiempo?: string };
 
+type FeedRow = { kind: 'intro' | 'filters' } | { kind: 'post'; post: Post };
+
 const countComments = (items: Comment[]): number => items.reduce((total, item) => total + 1 + countComments(item.respuestas || []), 0);
 const removeComment = (items: Comment[], id: number): Comment[] => items
   .filter(item => item.id !== id)
@@ -283,7 +285,17 @@ export default function CommunityScreen() {
         actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /></>}
       />
       {loading && !communities.length ? <Loading /> : <>
-        <View style={styles.communityRail}>
+        <FlatList<FeedRow>
+          style={styles.feed}
+          data={[{ kind: 'intro' }, { kind: 'filters' }, ...(loading ? [] : posts.map(post => ({ kind: 'post' as const, post })))]}
+          keyExtractor={item => item.kind === 'post' ? 'post-' + item.post.id : item.kind}
+          contentContainerStyle={styles.posts}
+          stickyHeaderIndices={active ? [1] : []}
+          removeClippedSubviews={false}
+          refreshing={loading}
+          onRefresh={loadPosts}
+          ListHeaderComponent={
+<View style={styles.communityRail}>
         <FlatList
           horizontal
           data={communities}
@@ -305,6 +317,10 @@ export default function CommunityScreen() {
           )}
         />
         </View>
+          }
+          ListFooterComponent={loading ? <Loading /> : !posts.length ? <Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." /> : null}
+          renderItem={({ item }) => {
+            if (item.kind === 'intro') return <View style={styles.stickyIntro}>
         {active ? (
           <View style={styles.activeIntro}>
             <View style={styles.forumBanner}><GenreArtwork genre={active.genero} /></View>
@@ -323,6 +339,8 @@ export default function CommunityScreen() {
             </View>
           </View>
         ) : null}
+            </View>;
+            if (item.kind === 'filters') return <>
         <View style={styles.filters}>
           {[
             ['destacado', 'Destacado'],
@@ -336,17 +354,12 @@ export default function CommunityScreen() {
           ))}
         </View>
         <ErrorNotice message={error} />
-        {loading ? <Loading /> : (
-          <FlatList
-            data={posts}
-            keyExtractor={item => String(item.id)}
-            contentContainerStyle={styles.posts}
-            refreshing={loading}
-            onRefresh={loadPosts}
-            ListEmptyComponent={<Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." />}
-            renderItem={({ item }) => <PostCard post={item} own={item.userId === user?.id} onOpen={() => openThread(item)} onProfile={() => openCommentProfile(item)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onReport={() => setReportTarget(item)} />}
-          />
-        )}
+            </>;
+            if (item.kind !== 'post') return null;
+            const post = item.post;
+            return <View style={styles.feedPost}><PostCard post={post} own={post.userId === user?.id} onOpen={() => openThread(post)} onProfile={() => openCommentProfile(post)} onLike={() => interact(post, 'like')} onSave={() => interact(post, 'guardar')} onReport={() => setReportTarget(post)} /></View>;
+          }}
+        />
       </>}
 
       <Modal visible={creating} animationType="slide" onRequestClose={() => { if (!publishing) setCreating(false); }}>
@@ -594,13 +607,16 @@ const styles = StyleSheet.create({
   membershipText: { color: palette.text, fontSize: 12, fontWeight: '700' },
   membershipPrimaryText: { color: '#111' },
   activeIntro: { marginHorizontal: 14, backgroundColor: palette.surface, borderRadius: 12, borderWidth: 1, borderColor: '#70501566', overflow: 'hidden' },
-  forumBanner: { height: 82, overflow: 'hidden' },
+  forumBanner: { height: 61, overflow: 'hidden' },
   forumDetails: { padding: 12, paddingTop: 8, gap: 8 },
   filters: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingVertical: 10 },
   filter: { flex: 1, minWidth: 0, height: 36, borderRadius: 8, backgroundColor: palette.surface, alignItems: 'center', justifyContent: 'center' },
   filterActive: { backgroundColor: palette.orange },
   filterText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
-  posts: { paddingHorizontal: 14, paddingTop: 3, paddingBottom: 110, gap: 10 },
+  feed: { flex: 1 },
+  feedPost: { marginHorizontal: 14, marginBottom: 10 },
+  stickyIntro: { backgroundColor: palette.bg, paddingVertical: 6 },
+  posts: { paddingBottom: 110 },
   post: { padding: 14, gap: 9, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border, borderRadius: 8 },
   postHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   postHeaderActions: { flexDirection: 'row', gap: 6 },

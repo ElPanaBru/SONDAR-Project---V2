@@ -225,7 +225,6 @@ export default function MessagesScreen() {
     <View style={[styles.sidebar, wide && styles.sidebarWide]}>
       <View style={styles.sidebarTop}>
         <View style={{ flex: 1 }}><Text style={styles.kicker}>MENSAJES</Text><Text style={ui.h2}>Conversaciones</Text></View>
-        <IconButton name="add" active onPress={() => setSearching(true)} />
       </View>
       <FlatList
         data={conversations}
