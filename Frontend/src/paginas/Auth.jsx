@@ -156,12 +156,7 @@ export default function Auth() {
       }
 
       window.localStorage.removeItem("sondar:pending-username");
-      if (perfilNuevo) {
-        window.localStorage.setItem("sondar:onboarding-pending", "true");
-        window.dispatchEvent(new CustomEvent("sondar:iniciar-onboarding", {
-          detail: { token: accessToken }
-        }));
-      }
+
 
       navigate("/", { replace: true });
 
