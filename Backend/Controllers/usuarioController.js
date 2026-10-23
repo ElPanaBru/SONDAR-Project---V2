@@ -944,7 +944,12 @@ const usuariosController = {
 
     try {
       const result = await pool.query(
-        'SELECT * FROM users WHERE id = $1',
+        `SELECT u.*,
+                (u.onboarding_completed OR (
+                  length(trim(u.display_name)) >= 2 AND u.birth_date IS NOT NULL
+                  AND (SELECT count(DISTINCT genre) FROM user_interests WHERE user_id = u.id) >= 3
+                )) IS TRUE AS onboarding_completed
+         FROM users u WHERE u.id = $1`,
         [userId]
       );
 
@@ -1135,6 +1140,7 @@ const usuariosController = {
          SET display_name = $1,
              bio = $2,
              birth_date = $3,
+             onboarding_completed = true,
              profile_img_url = COALESCE($4, profile_img_url),
              profile_img_path = COALESCE($5, profile_img_path),
              updated_at = timezone('utc'::text, now())

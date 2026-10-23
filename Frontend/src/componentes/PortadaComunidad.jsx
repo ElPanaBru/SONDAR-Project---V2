@@ -119,13 +119,6 @@ function SimboloSondar({ nombre }) {
 
 
 export default function PortadaComunidad({ genero }) {
-  if (genero === "rock") {
-    return (
-      <div className="comunidad-cover comunidad-cover-foto" aria-hidden="true">
-        <img src="/comunidad-rock-banner.png" alt="" width="3000" height="664" />
-      </div>
-    );
-  }
   const tema = temas[genero] || temas.pop;
   return (
     <div className="comunidad-cover" aria-hidden="true" style={{
