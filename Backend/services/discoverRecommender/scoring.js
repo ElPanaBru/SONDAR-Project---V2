@@ -2,8 +2,8 @@ const { createConfig } = require('./config');
 
 const unit = (value) => Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
-// Los slugs válidos se verifican en el adaptador futuro. No añadimos dependencias
-// del catálogo ni del transporte. Duplicados conservan el mayor peso, no suman.
+// El adaptador valida los slugs con el catálogo compartido. Este motor no añade
+// dependencias del transporte. Duplicados conservan el mayor peso, no suman.
 function normalizeGenres(genres) {
   const weights = new Map();
   for (const item of Array.isArray(genres) ? genres : []) {

@@ -18,6 +18,7 @@ const {
   notificarSeguidores,
 } = require('../services/notificationService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
+const { rankCandidates } = require('../services/discoverRecommender/recommend');
 
 const COLOR_PRINCIPAL_REEL_FALLBACK = '#ffae00';
 const PATRON_COLOR_HEX_COMPLETO = /^#[0-9a-fA-F]{6}$/;
@@ -528,6 +529,103 @@ async function consultarSetInteraccion(query, params, campo) {
 }
 
 const reelController = {
+  listarDescubrir: async (req, res) => {
+    try {
+      const viewerId = req.user?.id || null;
+      const creadorFiltro = String(req.query?.creador || '').trim() || null;
+      if (creadorFiltro && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creadorFiltro)) {
+        return res.status(400).json({ error: 'El creador solicitado no es valido.' });
+      }
+      const relation = await pool.query("SELECT to_regclass('public.reel_generos') IS NOT NULL AS disponible");
+      const joinGeneros = relation.rows[0]?.disponible
+        ? `LEFT JOIN LATERAL (
+             SELECT array_agg(rg.genero ORDER BY rg.posicion) AS generos
+             FROM reel_generos rg WHERE rg.reel_id = r.id
+           ) gen ON true`
+        : `LEFT JOIN LATERAL (SELECT ARRAY[lower(r.genero)]::text[] AS generos) gen ON true`;
+      const candidateResult = await pool.query(`
+        SELECT r.*, COALESCE(gen.generos, ARRAY[lower(r.genero)]::text[]) AS generos,
+          (SELECT COUNT(*)::int FROM reel_likes rl WHERE rl.reel_id = r.id) AS likes_calculados,
+          (SELECT COUNT(*)::int FROM reel_shares rs WHERE rs.reel_id = r.id) AS compartidos_calculados,
+          (SELECT COUNT(*)::int FROM reel_saves sv WHERE sv.reel_id = r.id) AS guardados_calculados,
+          (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas,
+          COALESCE(u.username, u.email) AS creador_nombre,
+          u.email AS creador_email, u.profile_img_url AS creador_avatar
+        FROM reels r
+        LEFT JOIN users u ON u.id = r.creador_id
+        ${joinGeneros}
+        WHERE ($1::uuid IS NULL OR NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $1 AND ub.blocked_id = r.creador_id)
+             OR (ub.blocker_id = r.creador_id AND ub.blocked_id = $1)
+        ))
+          AND ($2::uuid IS NULL OR r.creador_id = $2::uuid)
+          AND r.audio_url IS NOT NULL AND r.audio_url <> ''
+        ORDER BY r.created_at DESC NULLS LAST, r.id DESC
+        LIMIT 100
+      `, [viewerId, creadorFiltro]);
+      const candidates = candidateResult.rows;
+      let profileSignals = {};
+      if (viewerId) {
+        const optionalQuery = async (sql, params) => {
+          try { return (await pool.query(sql, params)).rows; }
+          catch (error) { if (error.code === '42P01') return []; throw error; }
+        };
+        const genreProjection = relation.rows[0]?.disponible
+          ? `COALESCE((SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id), ARRAY[lower(r.genero)]::text[])`
+          : `ARRAY[lower(r.genero)]::text[]`;
+        const [interests, liked, saved, followed] = await Promise.all([
+          optionalQuery('SELECT genre FROM user_interests WHERE user_id = $1', [viewerId]),
+          optionalQuery(`SELECT ${genreProjection} AS genres FROM reel_likes rl JOIN reels r ON r.id = rl.reel_id WHERE rl.user_id = $1 AND rl.created_at >= NOW() - INTERVAL '180 days' ORDER BY rl.created_at DESC LIMIT 500`, [viewerId]),
+          optionalQuery(`SELECT ${genreProjection} AS genres FROM reel_saves rs JOIN reels r ON r.id = rs.reel_id WHERE rs.user_id = $1 AND rs.created_at >= NOW() - INTERVAL '180 days' ORDER BY rs.created_at DESC LIMIT 500`, [viewerId]),
+          optionalQuery('SELECT following_id FROM follows WHERE follower_id = $1 ORDER BY created_at DESC LIMIT 500', [viewerId]),
+        ]);
+        profileSignals = {
+          interests: interests.map((row) => row.genre),
+          liked: liked.map((row) => ({ genres: row.genres })),
+          saved: saved.map((row) => ({ genres: row.genres })),
+          followedCreatorIds: followed.map((row) => row.following_id),
+        };
+      }
+
+      let ranked;
+      try {
+        ranked = rankCandidates(candidates, profileSignals);
+      } catch (error) {
+        console.error('No se pudo puntuar Descubrir; se usa orden por recencia:', error);
+        ranked = [...candidates].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      }
+      if (!viewerId || ranked.length === 0) return res.json(ranked.map((reel) => mapearReel({
+        ...reel, motivo_recomendacion: 'Para ampliar tus descubrimientos', es_exploracion: true,
+      })));
+
+      const reelIds = ranked.map((reel) => reel.id);
+      const creatorIds = [...new Set(ranked.map((reel) => reel.creador_id).filter(Boolean))];
+      const [likedSet, savedSet, followingSet] = await Promise.all([
+        consultarSetInteraccion('SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])', [viewerId, reelIds], 'reel_id'),
+        consultarSetInteraccion('SELECT reel_id FROM reel_saves WHERE user_id = $1 AND reel_id = ANY($2::bigint[])', [viewerId, reelIds], 'reel_id'),
+        creatorIds.length ? consultarSetInteraccion('SELECT following_id FROM follows WHERE follower_id = $1 AND following_id = ANY($2::uuid[])', [viewerId, creatorIds], 'following_id') : Promise.resolve(new Set()),
+      ]);
+      return res.json(ranked.map((reel) => ({
+        ...mapearReel({
+          ...reel,
+          afinidad_score: reel.score,
+          sigue_creador: followingSet.has(String(reel.creador_id)),
+          es_exploracion: true,
+          motivo_recomendacion: profileSignals.interests?.length || profileSignals.liked?.length || profileSignals.saved?.length
+            ? 'Elegida para vos y tus descubrimientos'
+            : 'Nueva para explorar',
+        }),
+        liked: likedSet.has(String(reel.id)),
+        guardado: savedSet.has(String(reel.id)),
+        siguiendo: followingSet.has(String(reel.creador_id)),
+      })));
+    } catch (error) {
+      console.error('Error al obtener recomendaciones de Descubrir:', error);
+      return res.status(500).json({ error: 'No se pudieron obtener las recomendaciones.' });
+    }
+  },
+
   listarReels: async (req, res) => {
     try {
       await asegurarEsquemaVisitas();

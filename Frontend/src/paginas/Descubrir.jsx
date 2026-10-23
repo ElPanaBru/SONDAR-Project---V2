@@ -574,13 +574,17 @@ export default function Descubrir({ usuario }) {
         }
         if (creadorFiltrado) parametros.set("creador", creadorFiltrado);
         const queryPosicion = parametros.toString();
-        const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, {
+        const opcionesReels = {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
               }
             : undefined,
-        });
+        };
+        let response = await apiRequest(`/api/reels/descubrir${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        if (!response.ok) {
+          response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        }
         if (!response.ok) throw new Error("No se pudieron cargar las previews.");
 
         const data = await response.json();
