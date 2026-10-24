@@ -5,7 +5,7 @@ import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 
 const iconosCrear = {
   evento:
@@ -194,13 +194,11 @@ function Navbar({ usuario, onCrearReel }) {
     e.preventDefault();
     const query = busqueda.trim();
 
-    if (!query) return;
-
     setMostrarCrear(false);
     setMostrarNotifs(false);
     setMostrarPerfil(false);
 
-    navigate(`/buscar?query=${encodeURIComponent(query)}`);
+    navigate(query ? `/buscar?query=${encodeURIComponent(query)}` : "/buscar");
   };
 
   const getPlaceholder = () => {

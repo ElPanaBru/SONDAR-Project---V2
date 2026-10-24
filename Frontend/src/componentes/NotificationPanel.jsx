@@ -2,7 +2,7 @@ import ImagenAvatar from "./ImagenAvatar";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiRequest } from "../lib/api";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 
 function tiempoRelativo(fecha, idioma, locale, t) {
   const segundos = Math.max(0, Math.floor((Date.now() - new Date(fecha).getTime()) / 1000));

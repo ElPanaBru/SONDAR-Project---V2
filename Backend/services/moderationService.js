@@ -1,3 +1,4 @@
+const { esquemaAutomatico } = require('./schemaMode');
 const pool = require('../Pool_DB');
 const TIPOS_CONTENIDO_DENUNCIABLE = [
   'reel',
@@ -12,6 +13,7 @@ const TIPOS_CONTENIDO_DENUNCIABLE = [
 let esquemaModeracionListo = null;
 
 async function asegurarEsquemaModeracion() {
+  if (!esquemaAutomatico()) return;
   if (!esquemaModeracionListo) {
     esquemaModeracionListo = (async () => {
       await pool.query(`

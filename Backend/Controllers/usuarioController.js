@@ -803,14 +803,10 @@ const usuariosController = {
   buscarUsuarios: async (req, res) => {
     const termino = String(req.query.query || '').trim();
 
-    if (!termino) {
-      return res.json([]);
-    }
-
     try {
       const patron = `%${termino}%`;
       const result = await pool.query(
-        `SELECT *
+        termino ? `SELECT *
          FROM users
          WHERE
           username ILIKE $1 OR
@@ -824,8 +820,10 @@ const usuariosController = {
             ELSE 2
           END,
           created_at DESC
-         LIMIT 20`,
-        [patron, termino]
+         LIMIT 20` : `SELECT *
+         FROM users
+         ORDER BY lower(COALESCE(NULLIF(display_name, ''), username)), lower(username), id`,
+        termino ? [patron, termino] : []
       );
 
       if (result.rows.length === 0) {
@@ -959,7 +957,12 @@ const usuariosController = {
 
     try {
       const result = await pool.query(
-        'SELECT id, email, username, user_type, display_name, bio, birth_date, profile_img_url, created_at, updated_at, deletion_scheduled_at FROM users WHERE id = $1',
+        `SELECT u.*,
+                (u.onboarding_completed OR (
+                  length(trim(u.display_name)) >= 2 AND u.birth_date IS NOT NULL
+                  AND (SELECT count(DISTINCT genre) FROM user_interests WHERE user_id = u.id) >= 3
+                )) IS TRUE AS onboarding_completed
+         FROM users u WHERE u.id = $1`,
         [userId]
       );
 
@@ -1150,6 +1153,7 @@ const usuariosController = {
          SET display_name = $1,
              bio = $2,
              birth_date = $3,
+             onboarding_completed = true,
              profile_img_url = COALESCE($4, profile_img_url),
              profile_img_path = COALESCE($5, profile_img_path),
              updated_at = timezone('utc'::text, now())
@@ -1195,6 +1199,12 @@ const usuariosController = {
       if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
       if (esErrorValidacionArchivo(error)) {
         return res.status(400).json({ error: error.message });
+      }
+      if (error.code === '23514' && error.constraint === 'user_interests_genre_check') {
+        return res.status(503).json({
+          code: 'CATALOGO_GENEROS_DESACTUALIZADO',
+          error: 'La base de datos del servidor tiene los generos desactualizados. El administrador debe actualizarla para completar tu perfil.',
+        });
       }
       console.error('Error al completar onboarding:', error);
       res.status(500).json({ error: 'No se pudo completar el perfil.' });

@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
+import { apiRequest } from "./lib/api";
 import "./App.css";
 import "./paginas/otroperfil.css";
 
@@ -26,6 +27,7 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const [usuario, setUsuario] = useState(null);
+  const [sessionToken, setSessionToken] = useState(null);
   const [onboardingToken, setOnboardingToken] = useState(null);
   const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
 
@@ -36,34 +38,50 @@ function App() {
   }, [navigate]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUsuario(data.session?.user || null);
-      if (data.session && window.localStorage.getItem("sondar:onboarding-pending") === "true") {
-        setOnboardingToken(data.session.access_token);
-      }
-    });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    let activo = true;
+    const actualizarSesion = (session) => {
+      if (!activo) return;
       setUsuario(session?.user || null);
+      setSessionToken(session?.access_token || null);
       if (!session) setOnboardingToken(null);
-      if (session && window.localStorage.getItem("sondar:onboarding-pending") === "true") {
-        setOnboardingToken(session.access_token);
-      }
+    };
+    supabase.auth.getSession().then(({ data }) => actualizarSesion(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      actualizarSesion(session);
     });
-
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      activo = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (location.pathname === "/auth") return;
-    if (window.localStorage.getItem("sondar:onboarding-pending") !== "true") return;
-
-    let activo = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (activo && data.session) setOnboardingToken(data.session.access_token);
-    });
-    return () => { activo = false; };
-  }, [location.pathname]);
+    if (!sessionToken || location.pathname === "/auth") return;
+    const controller = new AbortController();
+    const comprobarPerfil = async () => {
+      try {
+        const response = await apiRequest("/api/usuarios/me", {
+          headers: { Authorization: "Bearer " + sessionToken },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("No se pudo consultar la configuracion del perfil.");
+        const perfil = await response.json();
+        if (!controller.signal.aborted) {
+          setOnboardingToken(perfil.existe && !perfil.user.onboarding_completed ? sessionToken : null);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) console.error("Error consultando onboarding:", error);
+      }
+    };
+    comprobarPerfil();
+    window.addEventListener("focus", comprobarPerfil);
+    window.addEventListener("online", comprobarPerfil);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", comprobarPerfil);
+      window.removeEventListener("online", comprobarPerfil);
+    };
+  }, [sessionToken, location.pathname]);
 
   useEffect(() => {
     const cerrarCrearPreview = () => setMostrarCrearReel(false);
@@ -112,11 +130,11 @@ function App() {
 
       {usuario && onboardingToken && location.pathname !== "/auth" ? (
         <OnboardingPerfilModal
+          key={usuario.id}
           token={onboardingToken}
           username={usuario.user_metadata?.username || usuario.email?.split("@")[0]}
           onComplete={(data) => {
             window.dispatchEvent(new CustomEvent("sondar-perfil-actualizado", { detail: data.perfil }));
-            window.localStorage.removeItem("sondar:onboarding-pending");
             setOnboardingToken(null);
           }}
         />

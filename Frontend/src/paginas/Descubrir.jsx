@@ -14,109 +14,12 @@ import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
 import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./descubrir.css";
-
-const lanzamientosIniciales = [
-  {
-    id: 1,
-    artista: "Luna Norte",
-    usuario: "@lunanorte",
-    oyentes: "12.8K",
-    tema: "Ruido de ciudad",
-    album: "Neon de madrugada",
-    descripcion: "Sintetizadores brillantes, bajo suave y una voz bien cerca para arrancar la noche.",
-    duracion: "3:42",
-    progreso: 34,
-    likes: 27200,
-    comentarios: "107",
-    compartidos: 1177,
-    colorA: "#ffae00",
-    colorB: "#ff5e00",
-    colorC: "#1b1b1b",
-    liked: false,
-    siguiendo: false,
-  },
-  {
-    id: 2,
-    artista: "Santo Beat",
-    usuario: "@santobeat",
-    oyentes: "8.7K",
-    tema: "Pulso lento",
-    album: "Sala roja",
-    descripcion: "Trap, soul y percusiones latinas en una demo cruda con energia de vivo.",
-    duracion: "2:58",
-    progreso: 51,
-    likes: 18400,
-    comentarios: "89",
-    compartidos: 640,
-    colorA: "#3cff00",
-    colorB: "#023b22",
-    colorC: "#111111",
-    liked: true,
-    siguiendo: false,
-  },
-  {
-    id: 3,
-    artista: "Marea Gris",
-    usuario: "@mareagris",
-    oyentes: "21.4K",
-    tema: "Antes del final",
-    album: "Paredes de humo",
-    descripcion: "Rock alternativo con guitarras densas, bateria seca y un estribillo directo.",
-    duracion: "4:11",
-    progreso: 22,
-    likes: 31900,
-    comentarios: "214",
-    compartidos: 2031,
-    colorA: "#aa3bff",
-    colorB: "#3157ff",
-    colorC: "#070707",
-    liked: false,
-    siguiendo: true,
-  },
-  {
-    id: 4,
-    artista: "Nico Solar",
-    usuario: "@nicosolar",
-    oyentes: "5.4K",
-    tema: "Cables",
-    album: "Habitacion 404",
-    descripcion: "Bedroom pop con guitarras limpias, coros luminosos y ruido de cinta.",
-    duracion: "3:16",
-    progreso: 68,
-    likes: 9600,
-    comentarios: "42",
-    compartidos: 318,
-    colorA: "#00d4ff",
-    colorB: "#f3f6ff",
-    colorC: "#13223a",
-    liked: false,
-    siguiendo: false,
-  },
-  {
-    id: 5,
-    artista: "Valle Club",
-    usuario: "@valleclub",
-    oyentes: "16.3K",
-    tema: "Otra vuelta",
-    album: "Club del valle",
-    descripcion: "Funk alternativo con groove marcado, bajos vivos y textura de sala chica.",
-    duracion: "3:29",
-    progreso: 45,
-    likes: 22100,
-    comentarios: "133",
-    compartidos: 924,
-    colorA: "#ff5e00",
-    colorB: "#ffd86b",
-    colorC: "#15100b",
-    liked: false,
-    siguiendo: false,
-  },
-];
 
 const iconos = {
   play: "M320-200v-560l440 280-440 280Z",
@@ -135,182 +38,6 @@ const iconos = {
   bajar: "M480-360 280-560h400L480-360Z",
   enviar: "M120-160v-640l760 320-760 320Zm80-120 474-200-474-200v140l240 60-240 60v140Z",
   cerrar: "m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z",
-};
-
-const comentariosIniciales = [
-  {
-    id: 1,
-    usuario: "@abrilsonica",
-    tiempo: "hace 12 min",
-    texto: "Este sonido pide escenario chico y luces bajas.",
-    likes: 1200,
-    liked: false,
-    respuestas: [
-      {
-        id: 11,
-        usuario: "@lunanorte",
-        tiempo: "hace 8 min",
-        texto: "Totalmente, ese era el clima que buscabamos.",
-        likes: 84,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 2,
-    usuario: "@matibeat",
-    tiempo: "hace 34 min",
-    texto: "El bajo entra hermoso, guardadisimo.",
-    likes: 864,
-    liked: false,
-    respuestas: [],
-  },
-  {
-    id: 3,
-    usuario: "@valenruido",
-    tiempo: "hace 1 hora",
-    texto: "Necesito escuchar la version completa.",
-    likes: 512,
-    liked: false,
-    respuestas: [
-      {
-        id: 31,
-        usuario: "@clubdemo",
-        tiempo: "hace 42 min",
-        texto: "Sale el viernes, ya lo dijeron en historias.",
-        likes: 37,
-        liked: false,
-      },
-      {
-        id: 32,
-        usuario: "@abrilsonica",
-        tiempo: "hace 28 min",
-        texto: "Va directo a mi playlist nocturna.",
-        likes: 21,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 4,
-    usuario: "@clubdemo",
-    tiempo: "hace 2 horas",
-    texto: "Esto va perfecto para abrir una playlist nocturna.",
-    likes: 306,
-    liked: false,
-    respuestas: [],
-  },
-];
-
-const comentariosPorLanzamientoIniciales = {
-  1: comentariosIniciales,
-  2: [
-    {
-      id: 201,
-      usuario: "@beatcurioso",
-      tiempo: "hace 9 min",
-      texto: "La percusion de esta demo tiene un groove tremendo.",
-      likes: 430,
-      liked: false,
-      respuestas: [
-        {
-          id: 2011,
-          usuario: "@santobeat",
-          tiempo: "hace 4 min",
-          texto: "Gracias, la arme con samples grabados en sala.",
-          likes: 39,
-          liked: false,
-        },
-      ],
-    },
-    {
-      id: 202,
-      usuario: "@noche808",
-      tiempo: "hace 27 min",
-      texto: "El bajo pide volumen alto. Esto en vivo puede explotar.",
-      likes: 290,
-      liked: false,
-      respuestas: [],
-    },
-  ],
-  3: [
-    {
-      id: 301,
-      usuario: "@guitarraruido",
-      tiempo: "hace 18 min",
-      texto: "Las guitarras tienen una pared hermosa, muy bien mezcladas.",
-      likes: 980,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 302,
-      usuario: "@alternativo_sur",
-      tiempo: "hace 46 min",
-      texto: "El estribillo entra directo, tiene olor a cierre de show.",
-      likes: 604,
-      liked: false,
-      respuestas: [
-        {
-          id: 3021,
-          usuario: "@mareagris",
-          tiempo: "hace 30 min",
-          texto: "Esa era la idea: que el final levante todo.",
-          likes: 71,
-          liked: false,
-        },
-      ],
-    },
-  ],
-  4: [
-    {
-      id: 401,
-      usuario: "@habitacionpop",
-      tiempo: "hace 7 min",
-      texto: "El ruido de cinta queda perfecto con esas guitarras limpias.",
-      likes: 220,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 402,
-      usuario: "@solarclub",
-      tiempo: "hace 39 min",
-      texto: "Muy linda la melodia del puente. Se queda dando vueltas.",
-      likes: 188,
-      liked: false,
-      respuestas: [],
-    },
-  ],
-  5: [
-    {
-      id: 501,
-      usuario: "@bajofunk",
-      tiempo: "hace 15 min",
-      texto: "Ese bajo esta adelante como corresponde. Tremendo pulso.",
-      likes: 510,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 502,
-      usuario: "@vallefan",
-      tiempo: "hace 1 hora",
-      texto: "Me encanta que suene a sala chica, tiene mucha presencia.",
-      likes: 344,
-      liked: false,
-      respuestas: [
-        {
-          id: 5021,
-          usuario: "@valleclub",
-          tiempo: "hace 42 min",
-          texto: "Lo grabamos casi todo tocando juntos.",
-          likes: 55,
-          liked: false,
-        },
-      ],
-    },
-  ],
 };
 
 const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
@@ -847,13 +574,17 @@ export default function Descubrir({ usuario }) {
         }
         if (creadorFiltrado) parametros.set("creador", creadorFiltrado);
         const queryPosicion = parametros.toString();
-        const response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, {
+        const opcionesReels = {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
               }
             : undefined,
-        });
+        };
+        let response = await apiRequest(`/api/reels/descubrir${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        if (!response.ok) {
+          response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        }
         if (!response.ok) throw new Error("No se pudieron cargar las previews.");
 
         const data = await response.json();
@@ -1583,48 +1314,6 @@ export default function Descubrir({ usuario }) {
     navigate(`/perfil/${userId}`);
   };
 
-  const abrirVistaPerfil = async (perfilBase) => {
-    if (!perfilBase?.id) return;
-
-    setPerfilVista({
-      cargando: true,
-      perfil: perfilBase,
-      stats: perfilBase.stats || {},
-      siguiendo: Boolean(perfilBase.siguiendo),
-    });
-
-    if (!usuario) {
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-      return;
-    }
-
-    try {
-      const token = await obtenerTokenSesion();
-      if (!token) {
-        setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-        return;
-      }
-
-      const response = await apiRequest(`/api/usuarios/${perfilBase.id}/perfil`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("No se pudo cargar el perfil.");
-      const data = await response.json();
-      setPerfilVista({
-        cargando: false,
-        perfil: data.perfil || perfilBase,
-        stats: data.stats || perfilBase.stats || {},
-        siguiendo: Boolean(data.siguiendo),
-      });
-    } catch (error) {
-      console.error(error);
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-    }
-  };
-
   const abrirVistaPerfilLanzamiento = (lanzamiento) => {
     navegarAPerfil(lanzamiento.creadorId);
   };
@@ -1867,10 +1556,6 @@ export default function Descubrir({ usuario }) {
     comentariosAnimacionTimer.current = setTimeout(() => {
       setComentariosAnimando(false);
     }, 360);
-  };
-
-  const moverReel = (id, direccion) => {
-    desplazarReel(id, direccion);
   };
 
   const enviarComentario = async (event) => {

@@ -7,12 +7,21 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-Backend/.env
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
 node_modules/
 dist
 dist-ssr
 *.local
 Backend/backups/
+.expo/
+tmp/
+__pycache__/
+*.pyc
 
 # Editor directories and files
 .vscode/*

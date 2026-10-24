@@ -1,6 +1,6 @@
 import PortadaComunidad from "../componentes/PortadaComunidad";
 import { CATALOGO_GENEROS, nombreGeneroMusical } from "../lib/generos";
-import FechaEvento from "../componentes/FechaEvento";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
 import ImagenAvatar from "../componentes/ImagenAvatar";
 import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -11,7 +11,8 @@ import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
 import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
 import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
 import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
 import "./comunidad.css";
@@ -50,10 +51,6 @@ const generosDeEvento = (evento) => (
     : [evento?.genero].filter(Boolean)
 );
 
-const mostrarGenerosEvento = (evento) => (
-  [...new Set(generosDeEvento(evento))].map(mostrarGenero).join(" / ")
-);
-
 const normalizarBusqueda = (valor) => String(valor || "")
   .normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "")
@@ -67,13 +64,6 @@ const coincideBusqueda = (item, campos, busqueda) => {
 const idReelParaNavegacion = (reel) => {
   const id = String(reel?.id || "");
   return id.startsWith("db-") ? id : `db-${id}`;
-};
-
-const formatearFechaCorta = (fecha) => {
-  if (!fecha) return "Sin fecha";
-  const valor = new Date(fecha);
-  if (Number.isNaN(valor.getTime())) return fecha;
-  return valor.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
 };
 
 const normalizarComentario = (comentario) => ({
@@ -1331,18 +1321,12 @@ export default function Comunidad({ usuario }) {
                   <p><TextoConMenciones texto={hilo.texto} /></p>
 
                   {hilo.eventoAsociado ? (
-                    <button
-                      className="publicacion-asociada publicacion-asociada-evento"
-                      type="button"
-                      onClick={() => navigate(`/?evento=${encodeURIComponent(hilo.eventoAsociado.id)}`)}
-                    >
-                      <FechaEvento fecha={hilo.eventoAsociado.fecha} />
-                      <span>
-                        <small className="publicacion-asociada-etiqueta">Evento asociado</small>
-                        <strong>{hilo.eventoAsociado.creador || "Artista SONDAR"}</strong>
-                        <em>{mostrarGenerosEvento(hilo.eventoAsociado)} · {hilo.eventoAsociado.lugar || hilo.eventoAsociado.ubicacion || "Lugar a confirmar"} · {formatearFechaCorta(hilo.eventoAsociado.fecha)}</em>
-                      </span>
-                    </button>
+                    <EventoPerfilFila
+                      className="comunidad-evento-asociado"
+                      etiqueta="Evento asociado"
+                      evento={hilo.eventoAsociado}
+                      onAbrir={(evento) => navigate(`/?evento=${encodeURIComponent(evento.id)}`)}
+                    />
                   ) : null}
 
                   {hilo.reelAsociado ? (
@@ -1482,24 +1466,11 @@ export default function Comunidad({ usuario }) {
                     {eventosRecursoGenero.length === 0 ? (
                       <p className="comunidad-recurso-vacio">Todavía no hay eventos de este género.</p>
                     ) : eventosRecursoGenero.map((evento) => (
-                      <article className="comunidad-recurso-card recurso-evento" key={evento.id}>
-                        <img className="comunidad-recurso-imagen evento" src="/sondar-icon.png?v=19" alt="" />
-                        <div className="comunidad-recurso-datos">
-                          <strong>{evento.creador || "Artista SONDAR"}</strong>
-                          <span>{mostrarGenerosEvento(evento)}</span>
-                          <small>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</small>
-                          <time>{formatearFechaCorta(evento.fecha)}</time>
-                        </div>
-                        <button
-                          className="comunidad-recurso-abrir"
-                          type="button"
-                          aria-label={`Abrir evento de ${evento.creador || "Artista SONDAR"}`}
-                          title="Ver evento"
-                          onClick={() => navigate(`/?evento=${encodeURIComponent(evento.id)}`)}
-                        >
-                          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4h9v9M16 4 5 15" /></svg>
-                        </button>
-                      </article>
+                      <EventoPerfilFila
+                        key={evento.id}
+                        evento={evento}
+                        onAbrir={(item) => navigate(`/?evento=${encodeURIComponent(item.id)}`)}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -1570,31 +1541,16 @@ export default function Comunidad({ usuario }) {
                     ) : eventosDisponibles.map((evento) => {
                       const seleccionado = String(evento.id) === String(nuevoHilo.eventoAsociadoId);
                       return (
-                        <button
-                          className={`comunidad-asociacion-card evento ${seleccionado ? "seleccionada" : ""}`}
-                          type="button"
+                        <EventoPerfilFila
                           key={evento.id}
-                          aria-pressed={seleccionado}
-                          onClick={() => setNuevoHilo((actual) => ({
+                          evento={evento}
+                          seleccionado={seleccionado}
+                          seleccionable
+                          onAbrir={() => setNuevoHilo((actual) => ({
                             ...actual,
                             eventoAsociadoId: seleccionado ? "" : evento.id,
                           }))}
-                        >
-                          <span className="comunidad-asociacion-imagen">
-                            <img
-                              src="/sondar-icon.png?v=19"
-                              alt=""
-                            />
-                            <i>Evento</i>
-                          </span>
-                          <span className="comunidad-asociacion-datos">
-                            <strong>{evento.creador || "Artista SONDAR"}</strong>
-                            <small>{mostrarGenerosEvento(evento) || "Sin género"}</small>
-                            <em>{evento.lugar || evento.ubicacion || "Lugar a confirmar"}</em>
-                            <time>{formatearFechaCorta(evento.fecha)}</time>
-                          </span>
-                          <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>
-                        </button>
+                        />
                       );
                     })}
                   </div>

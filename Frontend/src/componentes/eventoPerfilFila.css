@@ -89,6 +89,7 @@ button.perfil-evento-fila:focus-visible { outline: 2px solid #f5a000; outline-of
 .perfil-evento-info strong { font-size: 15px; overflow-wrap: anywhere; }
 .perfil-evento-info > span { color: #aaa; font-size: 13px; overflow-wrap: anywhere; }
 .perfil-evento-info time { color: #888; font-size: 12px; }
+.perfil-evento-info > .perfil-evento-etiqueta { color: #f5a000; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .perfil-evento-flecha { color: #888; }
 @media (max-width: 560px) {
   button.perfil-evento-fila { grid-template-columns: 46px minmax(0, 1fr) 24px; gap: 12px; padding: 14px 4px; }

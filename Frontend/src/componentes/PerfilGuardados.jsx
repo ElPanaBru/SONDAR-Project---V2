@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CATEGORIAS_GUARDADOS, filtrarGuardados } from "../lib/guardados";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./perfilGuardados.css";
 
 export default function PerfilGuardados({ items, renderItem }) {

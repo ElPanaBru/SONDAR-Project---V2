@@ -1,3 +1,4 @@
+const { sql } = require('./helpers/sql');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const Module = require('node:module');
@@ -27,7 +28,7 @@ function cargarControlador(columnasCompatibilidad, { reelGenerosDisponible = tru
         return { rows: [{ disponible: reelGenerosDisponible }], rowCount: 1 };
       }
 
-      if (/CREATE TABLE IF NOT EXISTS reel_views|CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id/.test(texto)) {
+      if (/CREATE TABLE IF NOT EXISTS reel_views|CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id|CREATE TABLE IF NOT EXISTS reel_saves|CREATE INDEX IF NOT EXISTS idx_reel_saves_reel_id/.test(texto)) {
         return { rows: [], rowCount: 0 };
       }
 
@@ -289,7 +290,7 @@ test('crear reel rechaza mas de tres generos o generos fuera del catalogo', asyn
   const demasiados = cargarControlador([]);
   const respuestaDemasiados = crearRespuesta();
   const solicitudDemasiados = crearSolicitud();
-  solicitudDemasiados.body.generos = ['rock', 'funk', 'jazz', 'metal'];
+  solicitudDemasiados.body.generos = ['rock', 'funk', 'jazz', 'blues'];
 
   await demasiados.controlador.crearReel(solicitudDemasiados, respuestaDemasiados);
 
@@ -315,10 +316,7 @@ test('la migracion focalizada vuelve opcionales los campos antiguos y agrega el 
     path.join(raiz, 'Backend', 'Controllers', 'reelController.js'),
     'utf8'
   );
-  const migracion = fs.readFileSync(
-    path.join(raiz, 'Backend', 'BDD-Sql', 'Migrar_Reels_Simplificados.sql'),
-    'utf8'
-  );
+  const migracion = sql('actual');
 
   assert.match(controlador, /FROM information_schema\.columns/);
   assert.doesNotMatch(controlador, /ALTER TABLE (?:public\.)?reels[\s\S]{0,100}color_principal/i);
@@ -337,15 +335,12 @@ test('reels admite tres generos en el formulario, la API y la base de datos', ()
     path.join(raiz, 'Backend', 'Controllers', 'reelController.js'),
     'utf8'
   );
-  const migracion = fs.readFileSync(
-    path.join(raiz, 'Backend', 'BDD-Sql', 'Agregar_Multiples_Generos_Reels.sql'),
-    'utf8'
-  );
+  const migracion = sql();
 
   assert.match(formulario, /const MAX_GENEROS_REEL = 3/);
   assert.match(formulario, /formData\.append\("generos", JSON\.stringify\(nuevoReel\.generos\)\)/);
   assert.match(controlador, /INSERT INTO reel_generos \(reel_id, genero, posicion\)/);
-  assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.reel_generos/);
-  assert.match(migracion, /CHECK \(posicion BETWEEN 1 AND 3\)/);
-  assert.match(migracion, /INSERT INTO public\.reel_generos \(reel_id, genero, posicion\)/);
+  assert.match(migracion, /CREATE TABLE public\.reel_generos/);
+  assert.match(migracion, /CHECK[\s\S]{0,100}posicion[\s\S]{0,100}1[\s\S]{0,100}3/);
+  assert.match(migracion, /FOREIGN KEY \(reel_id\) REFERENCES public\.reels\(id\) ON DELETE CASCADE/);
 });

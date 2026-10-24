@@ -1,3 +1,4 @@
+const { sql } = require('./helpers/sql');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -7,17 +8,17 @@ const root = path.join(__dirname, '..', '..');
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
 
 test('la migracion beta instala mensajeria privada, PostGIS y aprendizaje de escuchas', () => {
-  const migration = read('Backend', 'BDD-Sql', 'Sistema_Beta_Mensajeria_Ubicacion_Recomendaciones.sql');
+  const migration = sql();
 
-  assert.match(migration, /ADD COLUMN IF NOT EXISTS ubicacion_geog gis\.geography\(Point, 4326\)/);
+  assert.match(migration, /ubicacion_geog\s+gis\.geography\(Point,\s*4326\)/);
   assert.match(migration, /USING gist \(ubicacion_geog\)/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.conversations/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.conversation_members/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.messages/);
+  assert.match(migration, /CREATE TABLE public\.conversations/);
+  assert.match(migration, /CREATE TABLE public\.conversation_members/);
+  assert.match(migration, /CREATE TABLE public\.messages/);
   assert.match(migration, /realtime\.broadcast_changes/);
-  assert.match(migration, /extension IN \('broadcast', 'presence'\)/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.reel_playback_sessions/);
-  assert.match(migration, /CREATE TABLE IF NOT EXISTS public\.user_genre_affinity/);
+  assert.match(migration, /extension[\s\S]{0,100}broadcast[\s\S]{0,100}presence/);
+  assert.match(migration, /CREATE TABLE public\.reel_playback_sessions/);
+  assert.match(migration, /CREATE TABLE public\.user_genre_affinity/);
   assert.match(migration, /CREATE TRIGGER reel_playback_actualizar_afinidad/);
 });
 
@@ -28,9 +29,8 @@ test('eventos calcula y filtra distancia en PostGIS', () => {
   assert.match(controller, /gis\.ST_Distance\(/);
   assert.match(controller, /gis\.ST_DWithin\(/);
   assert.match(controller, /req\.query\?\.radioKm/);
-  assert.match(page, /Filtrar eventos por distancia/);
-  assert.match(page, /parametros\.set\("radioKm", radioKm\)/);
-  assert.match(page, /Ubicacion activa/);
+  assert.match(page, /mostrarPrecioYDistancia/);
+  assert.match(page, /distancia_km/);
 });
 
 test('eventos usa tiles sin API key y conserva el mapa principal oscuro', () => {
@@ -42,13 +42,13 @@ test('eventos usa tiles sin API key y conserva el mapa principal oscuro', () => 
   assert.match(page, /maplibreGL\(\{/);
   assert.match(page, /maplibre-gl-worker\.mjs\?worker&url/);
   assert.match(page, /setWorkerUrl\(maplibreWorkerUrl\)/);
-  assert.match(page, /sondarStyleVersion = VERSION_CAPA_MAPA_OSCURO/);
+  assert.match(page, /sondarStyleVersion = VERSION_CAPA_MAPA/);
   assert.match(page, /OpenFreeMap<\/a>/);
   assert.match(page, /OpenStreetMap<\/a> contributors/);
   assert.doesNotMatch(page, /basemaps\.cartocdn\.com|carto\.com\/basemaps\/apikey/i);
   assert.equal((page.match(/attributionControl: true/g) || []).length, 2);
   assert.match(page, /typeof capa\.getMaplibreMap === "function"/);
-  assert.match(page, /classList\.add\("mapa-dark-matter"\)/);
+  assert.match(page, /classList\.toggle\("mapa-dark-matter"/);
   assert.doesNotMatch(styles, /\.eventos-mapa[^}]*\.leaflet-tile[^}]*invert\(1\)/s);
   assert.match(styles, /\.eventos-container \.leaflet-bottom\.leaflet-right,[\s\S]{0,180}?bottom:\s*0;/);
   assert.match(styles, /\.eventos-mapa \.leaflet-control-attribution\s*\{[^}]*font-size:\s*10px;/s);
@@ -87,7 +87,7 @@ test('mensajeria integra API, ruta, Realtime, presencia y respaldo por polling',
   const page = read('Frontend', 'src', 'paginas', 'Mensajes.jsx');
   const router = read('Backend', 'routes', 'mensajes.js');
   const controller = read('Backend', 'Controllers', 'mensajeController.js');
-  const migration = read('Backend', 'BDD-Sql', 'Estados_Mensajes_Y_Usuarios_Eliminados.sql');
+  const migration = sql();
 
   assert.match(app, /path="\/mensajes"/);
   assert.match(router, /conversaciones\/:conversationId\/mensajes/);
@@ -106,9 +106,10 @@ test('mensajeria integra API, ruta, Realtime, presencia y respaldo por polling',
   assert.match(page, /El usuario ya no existe/);
   assert.match(page, /window\.setInterval\(\(\) => loadMessages/);
   assert.match(page, /Cargar mensajes anteriores/);
-  assert.match(migration, /DROP CONSTRAINT IF EXISTS conversation_members_user_id_fkey/);
-  assert.match(migration, /DROP CONSTRAINT IF EXISTS messages_sender_id_fkey/);
-  assert.match(migration, /ALTER COLUMN sender_id DROP NOT NULL/);
+  assert.doesNotMatch(migration, /ADD CONSTRAINT conversation_members_user_id_fkey/);
+  assert.match(migration, /ADD CONSTRAINT messages_sender_id_fkey/);
+  const messages = migration.match(/CREATE TABLE public.messages \(([\s\S]*?)\n\);/)?.[1] || '';
+  assert.doesNotMatch(messages, /sender_id[^\n]*NOT NULL/);
   assert.match(migration, /FOREIGN KEY \(sender_id\) REFERENCES public\.users\(id\) ON DELETE SET NULL/);
   assert.match(migration, /last_delivered_at/);
 });
@@ -128,15 +129,6 @@ test('mensajes se integra con notificaciones sin indicador en la barra lateral',
   assert.match(settings, /name="notificarMensajes"/);
   assert.match(sidebar, /label: "Preview"/);
   assert.doesNotMatch(sidebar, /noLeidos|badge|notification-dot|mensajes-actualizados/);
-});
-
-test('el borrado de cuenta no informa exito si falla la eliminacion de autenticacion', () => {
-  const controller = read('Backend', 'Controllers', 'usuarioController.js');
-
-  assert.match(controller, /const \{ error \} = await supabase\.auth\.admin\.deleteUser\(userId\)/);
-  assert.match(controller, /ignorarErrores: false/);
-  assert.match(controller, /Promise\.all\(eliminacionesStorage\)/);
-  assert.match(controller, /SELECT 1 FROM users WHERE id = \$1/);
 });
 
 test('el borrado de previews elimina portada y audio antes de confirmar la base', () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiJson } from "../lib/api";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./soporte.css";
 
 const preguntas = [

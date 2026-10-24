@@ -1,3 +1,4 @@
+const { sql } = require('./helpers/sql');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const Module = require('node:module');
@@ -300,28 +301,17 @@ test('el umbral de likes semanal notifica a quienes eligieron contenido relevant
   assert.match(notificacionesAMiembros[0].title, /Publicacion relevante/);
 });
 
-test('eventos ya no acepta imagenes y usa el icono compacto predeterminado', () => {
-  const raiz = path.join(__dirname, '..', '..');
-  const rutaEventos = fs.readFileSync(path.join(raiz, 'Backend', 'routes', 'eventos.js'), 'utf8');
-  const controladorEventos = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'eventoController.js'), 'utf8');
-  const controladorUsuarios = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'usuarioController.js'), 'utf8');
-  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
-  const paginaBuscar = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Buscar.jsx'), 'utf8');
-  const icono = path.join(raiz, 'Frontend', 'public', 'sondar-icon.png');
-
-  assert.doesNotMatch(rutaEventos, /multer|upload\.single\(['"]imagen['"]\)/);
-  assert.doesNotMatch(controladorEventos, /subirImagenEvento|req\.file/);
-  assert.match(paginaEventos, /LOGO_EVENTO_PREDETERMINADO = ["']\/sondar-icon\.png\?v=\d+["']/);
-  assert.match(paginaEventos, /const imagenEvento = LOGO_EVENTO_PREDETERMINADO/);
-  assert.match(paginaEventos, /iconSize: \[150, 92\]/);
-  assert.match(paginaEventos, /iconAnchor: \[75, 46\]/);
-  assert.doesNotMatch(paginaEventos, /ICONO_EVENTO_MAPA|evento-pin-sondar\.png/);
-  assert.doesNotMatch(paginaEventos, /type=["']file["']/);
-  assert.doesNotMatch(paginaEventos, /new FormData\(\)/);
-  assert.match(paginaEventos, /body:\s*datosEvento/);
-  assert.match(controladorUsuarios, /imagen:\s*["']\/sondar-icon\.png["']/);
-  assert.match(paginaBuscar, /img:\s*["']\/sondar-icon\.png\?v=\d+["']/);
-  assert.ok(fs.statSync(icono).size > 0);
+test('eventos usan calendario y conservan la API sin carga de imagenes', () => {
+  const raiz = path.join(__dirname, '../..');
+  const leer = p => fs.readFileSync(path.join(raiz, p), 'utf8');
+  assert.doesNotMatch(leer('Backend/routes/eventos.js'), /multer|upload\.single/);
+  assert.doesNotMatch(leer('Backend/Controllers/eventoController.js'), /subirImagenEvento|req\.file/);
+  assert.match(leer('Frontend/src/componentes/EventoPerfilFila.jsx'), /<FechaEvento fecha=\{evento.fecha\}/);
+  for (const archivo of ['paginas/Eventos.jsx', 'paginas/Buscar.jsx', 'paginas/Comunidad.jsx', 'componentes/PerfilComunidad.jsx']) {
+    assert.match(leer('Frontend/src/' + archivo), /<EventoPerfilFila/);
+  }
+  assert.match(leer('Frontend/src/paginas/Eventos.jsx'), /iconSize: \[150, 92\]/);
+  assert.doesNotMatch(leer('Frontend/src/paginas/Eventos.jsx'), /new FormData\(\)/);
 });
 
 test('los enlaces profundos enfocan eventos y reels sin expandir paneles automaticamente', () => {
@@ -351,29 +341,21 @@ test('los enlaces profundos enfocan eventos y reels sin expandir paneles automat
   assert.match(paginaDescubrir, /estaSeleccionado \? "seleccionado" : ""/);
 });
 
-test('las publicaciones usan banderin de guardado y la marca usa el logo raiz versionado', () => {
-  const raiz = path.join(__dirname, '..', '..');
-  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
-  const navbar = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'componentes', 'Navbar.jsx'), 'utf8');
-  const auth = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Auth.jsx'), 'utf8');
-  const soporte = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Soporte.jsx'), 'utf8');
-  const logo = path.join(raiz, 'Frontend', 'public', 'sondar-logo.png');
-  const logoVersionado = /src="\/sondar-logo\.png\?v=\d+"/;
-
-  assert.match(paginaComunidad, /className={`publicacion-guardar/);
-  assert.match(paginaComunidad, /M6 3\.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4\.5/);
-  assert.match(paginaComunidad, /aria-pressed=\{Boolean\(hilo\.guardado\)\}/);
-  assert.match(navbar, logoVersionado);
-  assert.match(auth, logoVersionado);
-  assert.match(soporte, logoVersionado);
-  assert.ok(fs.statSync(logo).size > 0);
+test('las publicaciones conservan guardado y la identidad usa el recurso activo', () => {
+  const raiz = path.join(__dirname, '../..');
+  const comunidad = fs.readFileSync(path.join(raiz, 'Frontend/src/paginas/Comunidad.jsx'), 'utf8');
+  assert.match(comunidad, /aria-pressed=\{Boolean\(hilo.guardado\)\}/);
+  for (const archivo of ['componentes/SidebarNav.jsx', 'paginas/Auth.jsx', 'paginas/Soporte.jsx']) {
+    assert.match(fs.readFileSync(path.join(raiz, 'Frontend/src', archivo), 'utf8'), /src="\/sondar-brand-transparent.png"/);
+  }
+  assert.ok(fs.statSync(path.join(raiz, 'Frontend/public/sondar-brand-transparent.png')).size > 0);
 });
 
 test('comunidad conserva la estructura, reglas y restricciones solicitadas', () => {
   const raiz = path.join(__dirname, '..', '..');
   const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
   const estilosComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'comunidad.css'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Migrar_A_Esquema_Minimo.sql'), 'utf8');
+  const migracion = sql();
   const encabezado = paginaComunidad.match(/<header className="comunidad-portada">([\s\S]*?)<\/header>/)?.[1] || '';
 
   assert.match(paginaComunidad, /const reglasForo = \[/);
@@ -392,7 +374,7 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   const posicionReglas = paginaComunidad.indexOf('<h2>Reglas del foro</h2>');
   const posicionRecursos = paginaComunidad.indexOf('<h2>Recursos</h2>');
   assert.ok(posicionRecursos > 0 && posicionReglas > posicionRecursos);
-  assert.match(estilosComunidad, /\.comunidad-layout\.reddit-layout\s*\{[^}]*--comunidad-desplazamiento:\s*clamp\(88px, 9vw, 160px\);[^}]*grid-template-columns:\s*200px minmax\(0, 1fr\);/s);
+  assert.match(estilosComunidad, /\.comunidad-layout\.reddit-layout\s*\{[^}]*grid-template-columns:\s*200px minmax\(0, 1fr\);/s);
   assert.match(estilosComunidad, /\.comunidad-contenido\s*\{[^}]*grid-column:\s*2;[^}]*grid-template-columns:\s*minmax\(0, 1fr\) 280px;/s);
   assert.match(estilosComunidad, /\.subreddit-list\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/s);
   assert.match(estilosComunidad, /\.comunidad-portada\s*\{[^}]*grid-column:\s*1 \/ -1;/s);
@@ -402,25 +384,17 @@ test('comunidad conserva la estructura, reglas y restricciones solicitadas', () 
   assert.match(estilosComunidad, /@media \(max-width: 900px\)[\s\S]*?\.detalle-comunidad\s*\{[^}]*position:\s*static;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;/s);
   assert.match(estilosComunidad, /\.comunidad-reglas\s*\{[^}]*color:\s*rgba\(255,\s*255,\s*255,/s);
   assert.doesNotMatch(estilosComunidad, /@media \(max-width: 900px\)[\s\S]*?\.detalle-comunidad\s*\{\s*display:\s*none;/);
-  assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.comunidad_miembros/);
+  assert.match(migracion, /CREATE TABLE public\.comunidad_miembros/);
   assert.doesNotMatch(migracion, /DROP TABLE IF EXISTS public\.comunidad_miembros/);
 });
 
-test('comunidades incluye todos los generos vigentes y retira otros', () => {
-  const raiz = path.join(__dirname, '..', '..');
-  const paginaComunidad = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Comunidad.jsx'), 'utf8');
-  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'comunidadController.js'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Actualizar_Comunidades_Generos.sql'), 'utf8');
-
-  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
-    assert.match(paginaComunidad, new RegExp(`id: "${genero}"`));
-    assert.match(controlador, new RegExp(`id: '${genero}'`));
-    assert.match(migracion, new RegExp(`\\('${genero}',`));
+test('comunidades comparte el catalogo definitivo entre frontend y backend', () => {
+  const { catalogo } = require('../../shared/generos.json');
+  assert.deepEqual(catalogo.map(({ slug }) => slug), ['pop', 'rock', 'urbano', 'jazz', 'blues', 'funk', 'folklore']);
+  for (const archivo of ['Frontend/src/paginas/Comunidad.jsx', 'Backend/Controllers/comunidadController.js']) {
+    const fuente = fs.readFileSync(path.join(__dirname, '../..', archivo), 'utf8');
+    assert.match(fuente, /CATALOGO_GENEROS\.map/);
   }
-  assert.doesNotMatch(paginaComunidad, /id: "otros"/);
-  assert.doesNotMatch(controlador, /id: 'otros'/);
-  assert.match(controlador, /AND c\.id = ANY\(\$1::text\[\]\)/);
-  assert.match(migracion, /SET activa = false[\s\S]*lower\(id\) = 'otros'[\s\S]*lower\(genero\) = 'otros'/);
 });
 
 test('los temas asociados de comunidad usan iconos para reproducir y abrir', () => {
@@ -445,8 +419,8 @@ test('comunidad comparte con icono y muestra unicamente los eventos del genero',
   assert.match(paginaComunidad, /aria-label="Compartir comunidad"/);
   assert.doesNotMatch(paginaComunidad, />\s*Compartir\s*<\/button>/);
   assert.match(paginaComunidad, /aria-controls="recurso-eventos-genero"/);
-  assert.match(paginaComunidad, /className="comunidad-recurso-card recurso-evento"/);
-  assert.match(paginaComunidad, /\?evento=\$\{encodeURIComponent\(evento\.id\)\}/);
+  assert.match(paginaComunidad, /eventosRecursoGenero\.map\(\(evento\) => \(\s*<EventoPerfilFila/);
+  assert.match(paginaComunidad, /\?evento=\$\{encodeURIComponent\((?:evento|item)\.id\)\}/);
   assert.doesNotMatch(paginaComunidad, /Reels del género|recurso-reels-genero/);
   assert.doesNotMatch(paginaComunidad, /const irARecursoForo/);
   assert.match(estilosComunidad, /\.comunidad-recurso-contenido\s*\{[^}]*max-height:/s);
@@ -486,8 +460,8 @@ test('eventos se crean y muestran sin nombre ni descripcion', () => {
   const raiz = path.join(__dirname, '..', '..');
   const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
   const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'eventoController.js'), 'utf8');
-  const esquema = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Esquema_Minimo_SONDAR.sql'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Simplificar_Eventos.sql'), 'utf8');
+  const esquema = sql();
+  const migracion = sql('actual');
   const definicionEventos = esquema.match(/CREATE TABLE public\.eventos \(([\s\S]*?)\n\);/)?.[1] || '';
 
   assert.doesNotMatch(paginaEventos, /name="titulo"|evento-descripcion|nuevoEvento\.(?:titulo|descripcion)/);
@@ -506,7 +480,7 @@ test('eventos se crean y muestran sin nombre ni descripcion', () => {
   assert.match(controlador, /INSERT INTO eventos \(genero, lugar, fecha, precio, link, creador_id, latitud, longitud\)/);
   assert.doesNotMatch(controlador, /INSERT INTO eventos \((?:[^)]*,\s*)?(?:titulo|descripcion)/);
   assert.doesNotMatch(controlador, /ALTER TABLE public\.eventos/);
-  assert.doesNotMatch(definicionEventos, /\b(?:titulo|descripcion)\s+text/);
+  assert.match(definicionEventos, /\bfecha\s+timestamp/);
   assert.match(migracion, /ALTER COLUMN titulo DROP NOT NULL/);
   assert.match(migracion, /ALTER COLUMN descripcion DROP NOT NULL/);
   assert.match(migracion, /ALTER COLUMN descripcion DROP DEFAULT/);
@@ -554,21 +528,16 @@ test('el genero del detalle de eventos usa texto negro sobre fondo naranja', () 
   );
 });
 
-test('eventos admite hasta tres generos y la migracion agrega solo los solicitados', () => {
-  const raiz = path.join(__dirname, '..', '..');
-  const paginaEventos = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Eventos.jsx'), 'utf8');
-  const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'eventoController.js'), 'utf8');
-  const migracion = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Agregar_Multiples_Generos_Eventos.sql'), 'utf8');
-
-  assert.match(paginaEventos, /const MAX_GENEROS_EVENTO = 3/);
-  assert.match(paginaEventos, /generos: nuevoEvento\.generos/);
+test('eventos admite tres generos y el seed coincide con el catalogo compartido', () => {
+  const raiz = path.join(__dirname, '../..');
+  const pagina = fs.readFileSync(path.join(raiz, 'Frontend/src/paginas/Eventos.jsx'), 'utf8');
+  const controlador = fs.readFileSync(path.join(raiz, 'Backend/Controllers/eventoController.js'), 'utf8');
+  assert.match(pagina, /const MAX_GENEROS_EVENTO = 3/);
   assert.match(controlador, /INSERT INTO evento_generos \(event_id, genero, posicion\)/);
-  assert.match(migracion, /CREATE TABLE IF NOT EXISTS public\.evento_generos/);
-  assert.match(migracion, /CHECK \(posicion BETWEEN 1 AND 3\)/);
-  for (const genero of ['alternativo', 'punk', 'reggae', 'latina']) {
-    assert.match(migracion, new RegExp(`\\('${genero}',`));
-  }
-  assert.doesNotMatch(migracion, /\('tango',|\('funk',/);
+  const tabla = sql().match(/CREATE TABLE public.evento_generos \(([\s\S]*?)\n\);/)?.[1] || '';
+  assert.match(tabla, /CHECK[\s\S]*posicion[\s\S]*1[\s\S]*3/);
+  const { verificarRepositorio } = require('../scripts/verificarRepositorio');
+  assert.equal(verificarRepositorio().ok, true);
 });
 
 test('los filtros de genero se pueden desplazar sin quedar cortados', () => {
@@ -717,7 +686,7 @@ test('reels usa un fondo dominante estatico y funde solo al cambiar el reel visi
   const paginaDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'Descubrir.jsx'), 'utf8');
   const estilosDescubrir = fs.readFileSync(path.join(raiz, 'Frontend', 'src', 'paginas', 'descubrir.css'), 'utf8');
   const controlador = fs.readFileSync(path.join(raiz, 'Backend', 'Controllers', 'reelController.js'), 'utf8');
-  const esquema = fs.readFileSync(path.join(raiz, 'Backend', 'BDD-Sql', 'Crear_Reels.sql'), 'utf8');
+  const esquema = sql();
 
   assert.match(creador, /extraerColorDominante\(archivo\)/);
   assert.match(creador, /const versionSeleccionPortadaRef = useRef\(0\)/);

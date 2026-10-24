@@ -45,7 +45,7 @@ async function main() {
       result.counts[table.name] = (await client.query(`SELECT count(*)::text AS total FROM public.${quoted}`)).rows[0].total;
     }
     await client.query('ROLLBACK');
-    const output = path.resolve(process.argv[2] || path.join(__dirname, '../../docs/base-datos/catalogo-observado.json'));
+    const output = path.resolve(process.argv[2] || path.join(__dirname, '../backups/catalogo-' + Date.now() + '.json'));
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({ output, tables: result.tables.length, columns: result.columns.length }));

@@ -33,6 +33,7 @@ function procesarArchivosReel(req, res, next) {
 }
 
 router.get('/', reelController.listarReels);
+router.get('/descubrir', authMiddleware.opcional, reelController.listarDescubrir);
 router.get('/:id', reelController.obtenerReel);
 router.post('/:id/visita', authMiddleware, reelController.registrarVisita);
 router.post('/:id/interaccion', authMiddleware, reelController.registrarInteraccionEscucha);

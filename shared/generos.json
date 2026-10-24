@@ -13,12 +13,6 @@
       "descripcion": "Guitarras, punk, propuestas alternativas y novedades de rock."
     },
     {
-      "slug": "metal",
-      "nombre": "Metal",
-      "icono": "🤘",
-      "descripcion": "Riffs pesados, bandas, discos y encuentros de metal."
-    },
-    {
       "slug": "urbano",
       "nombre": "Urbano",
       "icono": "🎤",
