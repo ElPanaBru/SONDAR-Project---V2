@@ -1,4 +1,5 @@
-const { normalizeMusicGenres } = require('../services/genreService');
+const { normalizeMusicGenres, parseMusicGenres } = require('../services/genreService');
+const { loadRecommendedReels } = require('../services/discoverRecommender/mobileFeed');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
 const supabaseAuth = supabase.authClient || supabase;
@@ -230,14 +231,15 @@ function mapearReel(reel) {
     tema: reel.titulo,
     album: reel.album,
     genero: reel.genero,
+    generos: parseMusicGenres(reel.generos?.length ? reel.generos : reel.genero),
     descripcion: reel.descripcion,
     duracion: reel.duracion || '0:30',
     progreso: 0,
-    likes: Number(reel.likes || 0),
+    likes: Number(reel.likes_calculados ?? reel.likes ?? 0),
     comentarios: Number(reel.comentarios_total || reel.comentarios || 0),
-    compartidos: Number(reel.compartidos || 0),
-    guardados: Number(reel.guardados || 0),
-    visitas: Number(reel.visitas || 0),
+    compartidos: Number(reel.compartidos_calculados ?? reel.compartidos ?? 0),
+    guardados: Number(reel.guardados_calculados ?? reel.guardados ?? 0),
+    visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
     colorA: '#ffae00',
     colorB: reel.color_ambiente || '#ff5e00',
     colorC: '#111111',
@@ -344,6 +346,37 @@ async function obtenerGenerosPreferidos(viewerId) {
 }
 
 const reelController = {
+  listarDescubrir: async (req, res) => {
+    const viewerId = req.user?.id || null;
+    const creatorId = String(req.query?.creador || '').trim() || null;
+    if (creatorId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creatorId)) {
+      return res.status(400).json({ error: 'El creador solicitado no es valido.' });
+    }
+    try {
+      await asegurarEsquemaInteracciones();
+      await asegurarEsquemaVisitas();
+      await asegurarEsquemaComentarios();
+      await asegurarEsquemaModeracion();
+      const reels = await loadRecommendedReels(pool, viewerId, creatorId);
+      if (!viewerId || !reels.length) return res.json(reels.map(mapearReel));
+      const ids = reels.map(reel => reel.id);
+      const creators = [...new Set(reels.map(reel => reel.creador_id).filter(Boolean))];
+      const [liked, saved, followed] = await Promise.all([
+        consultarSetInteraccion('SELECT reel_id FROM reel_likes WHERE user_id = $1 AND reel_id = ANY($2::bigint[])', [viewerId, ids], 'reel_id'),
+        consultarSetInteraccion('SELECT reel_id FROM reel_saves WHERE user_id = $1 AND reel_id = ANY($2::bigint[])', [viewerId, ids], 'reel_id'),
+        creators.length ? consultarSetInteraccion('SELECT following_id FROM follows WHERE follower_id = $1 AND following_id = ANY($2::uuid[])', [viewerId, creators], 'following_id') : Promise.resolve(new Set()),
+      ]);
+      return res.json(reels.map(reel => ({
+        ...mapearReel(reel),
+        liked: liked.has(String(reel.id)), guardado: saved.has(String(reel.id)),
+        siguiendo: followed.has(String(reel.creador_id)),
+      })));
+    } catch (error) {
+      console.error('Error al recomendar previews:', error);
+      return res.status(500).json({ error: 'No se pudieron cargar las recomendaciones.' });
+    }
+  },
+
   listarReels: async (req, res) => {
     try {
       await asegurarEsquemaInteracciones();
@@ -621,7 +654,7 @@ const reelController = {
     }
 
     const normalizedGenre = normalizeMusicGenres(genero);
-    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Metal, Urbano, Jazz, Blues, Funk o Folklore.' });
+    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Urbano, Jazz, Blues, Funk o Folklore.' });
 
     const inicioFragmento = Number(fragmentStart || 0);
     const finFragmento = Number(fragmentEnd || 30);

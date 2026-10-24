@@ -78,7 +78,7 @@ async function main() {
     onboardingForm.append('nombre', 'Codex Mobile');
     onboardingForm.append('bio', 'Perfil temporal para probar onboarding mobile.');
     onboardingForm.append('birthDate', '2000-01-01');
-    onboardingForm.append('genres', JSON.stringify(['alternativo', 'punk', 'reggae']));
+    onboardingForm.append('genres', JSON.stringify(['rock', 'jazz', 'funk']));
     onboardingForm.append(
       'avatar',
       new Blob([

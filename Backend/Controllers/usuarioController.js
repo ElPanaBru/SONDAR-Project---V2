@@ -93,7 +93,7 @@ async function asegurarEsquemaOnboarding() {
           updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
           CONSTRAINT user_genre_preferences_pkey PRIMARY KEY (user_id, genero),
           CONSTRAINT user_genre_preferences_genero_valido
-            CHECK (genero IN ('pop', 'rock', 'metal', 'urbano', 'jazz', 'blues', 'funk', 'folklore'))
+            CHECK (genero IN (${MUSIC_GENRES.map(genero => `'${genero}'`).join(', ')}))
         )
       `);
       await pool.query('CREATE INDEX IF NOT EXISTS idx_user_genre_preferences_genero ON user_genre_preferences(genero)');

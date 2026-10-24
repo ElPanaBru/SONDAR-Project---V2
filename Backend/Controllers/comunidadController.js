@@ -28,14 +28,6 @@ const COMUNIDADES_GENERO = [
     "portada": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80"
   },
   {
-    "id": "metal",
-    "nombre": "@metal",
-    "titulo": "Metal",
-    "genero": "metal",
-    "descripcion": "Riffs pesados, fechas, discos, bandas emergentes y comunidad metalera.",
-    "portada": "https://images.unsplash.com/photo-1508252592163-5d3c3c5599ab?auto=format&fit=crop&w=1400&q=80"
-  },
-  {
     "id": "urbano",
     "nombre": "@urbano",
     "titulo": "Urbano",

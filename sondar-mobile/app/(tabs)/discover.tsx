@@ -67,7 +67,7 @@ export default function DiscoverScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const data = (await api<Reel[]>('/api/reels', { token })).map(normalizeReel);
+      const data = (await api<Reel[]>('/api/reels/descubrir', { token })).map(normalizeReel);
       setReels(data); setActive(current => data.some(item => item.id === current) ? current : data[0]?.id || null); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron cargar los reels.'); }
     finally { setLoading(false); }

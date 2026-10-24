@@ -328,7 +328,7 @@ const eventoController = {
     }
 
     const normalizedGenre = normalizeMusicGenres(genero);
-    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Metal, Urbano, Jazz, Blues, Funk o Folklore.' });
+    if (!normalizedGenre) return res.status(400).json({ error: 'Elegi entre 1 y 3 generos: Pop, Rock, Urbano, Jazz, Blues, Funk o Folklore.' });
 
     if (String(descripcion || '').length > 1000) {
       return res.status(400).json({ error: 'La descripcion no puede superar los 1000 caracteres.' });

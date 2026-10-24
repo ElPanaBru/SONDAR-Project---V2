@@ -1,0 +1,64 @@
+{
+  "catalogo": [
+    {
+      "slug": "pop",
+      "nombre": "Pop",
+      "icono": "✨",
+      "descripcion": "Charlas, lanzamientos y recomendaciones de pop y sonidos electronicos."
+    },
+    {
+      "slug": "rock",
+      "nombre": "Rock",
+      "icono": "🎸",
+      "descripcion": "Guitarras, punk, propuestas alternativas y novedades de rock."
+    },
+    {
+      "slug": "urbano",
+      "nombre": "Urbano",
+      "icono": "🎤",
+      "descripcion": "Rap, trap, reggaeton, cumbia y sonidos latinos en una misma comunidad."
+    },
+    {
+      "slug": "jazz",
+      "nombre": "Jazz",
+      "icono": "🎷",
+      "descripcion": "Improvisacion, jams, discos y encuentros de jazz."
+    },
+    {
+      "slug": "blues",
+      "nombre": "Blues",
+      "icono": "🎵",
+      "descripcion": "Riffs, armonicas, zapadas y recomendaciones de blues."
+    },
+    {
+      "slug": "funk",
+      "nombre": "Funk",
+      "icono": "🎶",
+      "descripcion": "Groove, bajo, soul, disco y novedades de funk."
+    },
+    {
+      "slug": "folklore",
+      "nombre": "Folklore",
+      "icono": "🪕",
+      "descripcion": "Penas, canciones, instrumentos y tradiciones del folklore."
+    }
+  ],
+  "equivalencias": {
+    "trap": "urbano",
+    "rap": "urbano",
+    "hip hop": "urbano",
+    "hip-hop": "urbano",
+    "reggaeton": "urbano",
+    "reggaetón": "urbano",
+    "cumbia": "urbano",
+    "latina": "urbano",
+    "punk": "rock",
+    "alternativo": "rock",
+    "edm": "pop",
+    "electronica": "pop",
+    "electrónica": "pop",
+    "soul": "funk",
+    "disco": "funk",
+    "otros": "pop"
+  }
+}

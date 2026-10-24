@@ -14,8 +14,8 @@ export const palette = {
   white: '#FFFFFF',
 };
 
-export const musicGenres = ["pop","rock","metal","urbano","jazz","blues","funk","folklore"];
-export const genres = ['todos', ...musicGenres];
+export { musicGenres } from '../lib/genres';
+export { genres } from '../lib/genres';
 
 const countFormatter = new Intl.NumberFormat('es-AR');
 

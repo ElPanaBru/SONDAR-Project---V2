@@ -7,7 +7,6 @@ type GenreVisual = { icon: ComponentProps<typeof MaterialCommunityIcons>['name']
 const visuals: Record<string, GenreVisual> = {
   pop: { icon: 'star-four-points-outline', tint: '#32200F', seed: 2, angle: -24 },
   rock: { icon: 'guitar-electric', tint: '#302214', seed: 5, angle: 32 },
-  metal: { icon: 'lightning-bolt-outline', tint: '#252323', seed: 9, angle: 42 },
   urbano: { icon: 'microphone-outline', tint: '#302114', seed: 12, angle: 0 },
   jazz: { icon: 'saxophone', tint: '#30251C', seed: 16, angle: -32 },
   blues: { icon: 'piano', tint: '#172C34', seed: 20, angle: 90 },

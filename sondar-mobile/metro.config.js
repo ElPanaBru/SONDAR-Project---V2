@@ -1,7 +1,9 @@
 const { getDefaultConfig } = require('expo/metro-config');
 const http = require('http');
+const path = require('node:path');
 
 const config = getDefaultConfig(__dirname);
+config.watchFolders = [...(config.watchFolders || []), path.resolve(__dirname, '../shared')];
 const backendUrl = new URL(process.env.SONDAR_LOCAL_API_URL || 'http://127.0.0.1:3000');
 const originalEnhanceMiddleware = config.server?.enhanceMiddleware;
 

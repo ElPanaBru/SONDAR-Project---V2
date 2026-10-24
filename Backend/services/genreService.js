@@ -1,4 +1,5 @@
-const MUSIC_GENRES = Object.freeze(["pop","rock","metal","urbano","jazz","blues","funk","folklore"]);
+const { GENEROS_MUSICALES, normalizarGeneroMusical } = require('./generos');
+const MUSIC_GENRES = Object.freeze([...GENEROS_MUSICALES]);
 const validGenres = new Set(MUSIC_GENRES);
 
 function normalizeMusicGenres(value) {
@@ -8,4 +9,10 @@ function normalizeMusicGenres(value) {
   return genres.join(' / ');
 }
 
-module.exports = { MUSIC_GENRES, normalizeMusicGenres };
+// Lectura de etiquetas historicas; las altas siguen validando el catalogo actual.
+function parseMusicGenres(value) {
+  const parts = (Array.isArray(value) ? value : [value])
+    .flatMap(item => String(item || '').split(/\s*(?:\/|,|\|)\s*/));
+  return [...new Set(parts.map(normalizarGeneroMusical).filter(Boolean))];
+}
+module.exports = { MUSIC_GENRES, normalizeMusicGenres, parseMusicGenres };

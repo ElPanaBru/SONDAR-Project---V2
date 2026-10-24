@@ -1,1 +1,3 @@
-export const GENEROS_MUSICALES = ["pop","rock","metal","urbano","jazz","blues","funk","folklore"];
+import catalogoGeneros from '../../../shared/generos.json';
+
+export const GENEROS_MUSICALES = catalogoGeneros.catalogo.map(({ slug }) => slug);

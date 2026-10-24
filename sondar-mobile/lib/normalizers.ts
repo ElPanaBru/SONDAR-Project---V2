@@ -1,3 +1,5 @@
+import { normalizeGenres } from './genres';
+
 type AnyRecord = Record<string, any>;
 
 function toNumber(value: unknown, fallback = 0) {
@@ -36,6 +38,7 @@ export function normalizeComment(item: AnyRecord = {}) {
 
 export function normalizeReel(item: AnyRecord = {}) {
   const backendId = item.backendId ?? item.backend_id ?? item.id;
+  const generos = normalizeGenres(item.generos?.length ? item.generos : item.genero);
   return {
     ...item,
     id: item.id,
@@ -44,7 +47,8 @@ export function normalizeReel(item: AnyRecord = {}) {
     usuario: item.usuario || normalizeHandle(item.creador_nombre || item.username || item.artista || 'artista'),
     tema: item.tema || item.titulo || 'Sin titulo',
     album: item.album || item.nombre || 'Nuevo reel',
-    genero: item.genero || 'otros',
+    generos,
+    genero: generos.join(' / '),
     descripcion: item.descripcion || '',
     portada: item.portada || item.portada_url || item.imagen || item.img || '',
     audio: item.audio || item.audio_url || '',

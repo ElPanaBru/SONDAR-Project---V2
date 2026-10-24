@@ -12,6 +12,7 @@ const upload = multer({
 });
 
 router.get('/', reelController.listarReels);
+router.get('/descubrir', authMiddleware.opcional, reelController.listarDescubrir);
 router.post('/:id/visita', authMiddleware, reelController.registrarVisita);
 router.get('/:id/comentarios', reelController.listarComentarios);
 router.post('/comentarios/:comentarioId/like', authMiddleware, reelController.alternarLikeComentario);
