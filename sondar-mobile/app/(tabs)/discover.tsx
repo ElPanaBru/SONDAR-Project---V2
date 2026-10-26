@@ -1,13 +1,13 @@
 import { KeyboardArea } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { useEvent } from 'expo';
-import { useBottomTabBarHeight } from 'expo-router/js-tabs';
+import { useBottomTabBarHeight, type BottomTabNavigationProp } from 'expo-router/js-tabs';
 import { useIsFocused } from 'expo-router/react-navigation';
 import * as DocumentPicker from 'expo-document-picker';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GestureResponderEvent, LayoutChangeEvent } from 'react-native';
@@ -31,6 +31,8 @@ const emptyReelForm = () => ({ tema: '', generos: [] as string[] });
 
 export default function DiscoverScreen() {
   const { token, user } = useAuth();
+  const navigation = useNavigation<BottomTabNavigationProp<{ discover: undefined }>>();
+  const refreshLock = useRef(false);
   const { reelId } = useLocalSearchParams<{ reelId?: string | string[] }>();
   const [reels, setReels] = useState<Reel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,15 +66,23 @@ export default function DiscoverScreen() {
   }, []);
   const [reelHeight, setReelHeight] = useState(1);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (resetToStart = false) => {
     setLoading(true);
     try {
       const data = (await api<Reel[]>('/api/reels/descubrir', { token })).map(normalizeReel);
-      setReels(data); setActive(current => data.some(item => item.id === current) ? current : data[0]?.id || null); setError('');
+      setReels(data); setActive(current => !resetToStart && data.some(item => item.id === current) ? current : data[0]?.id || null); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudieron cargar los reels.'); }
     finally { setLoading(false); }
   }, [token]);
   useEffect(() => { const task = setTimeout(() => void load(), 0); return () => clearTimeout(task); }, [load]);
+
+  useEffect(() => navigation.addListener('tabPress', event => {
+    if (!navigation.isFocused()) return;
+    event.preventDefault();
+    if (loading || refreshLock.current) return;
+    refreshLock.current = true;
+    void load(true).finally(() => { refreshLock.current = false; });
+  }), [navigation, load, loading]);
 
   useEffect(() => {
     const requestedId = Array.isArray(reelId) ? reelId[0] : reelId;

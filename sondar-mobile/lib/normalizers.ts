@@ -38,6 +38,7 @@ export function normalizeComment(item: AnyRecord = {}) {
 
 export function normalizeReel(item: AnyRecord = {}) {
   const backendId = item.backendId ?? item.backend_id ?? item.id;
+  const album = String(item.album || item.nombre || '').trim();
   const generos = normalizeGenres(item.generos?.length ? item.generos : item.genero);
   return {
     ...item,
@@ -46,7 +47,7 @@ export function normalizeReel(item: AnyRecord = {}) {
     artista: item.artista || item.creador || item.creador_nombre || item.username || 'Artista SONDAR',
     usuario: item.usuario || normalizeHandle(item.creador_nombre || item.username || item.artista || 'artista'),
     tema: item.tema || item.titulo || 'Sin titulo',
-    album: item.album || item.nombre || 'Nuevo reel',
+    album: !album || /^nuevo reel$/i.test(album) ? 'Nuevo tema' : album,
     generos,
     genero: generos.join(' / '),
     descripcion: item.descripcion || '',
