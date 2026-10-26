@@ -28,7 +28,7 @@ export default function TabLayout() {
       tabBarLabelPosition: 'below-icon',
       tabBarIconStyle: { width: 28, height: 28 },
       tabBarLabelStyle: styles.label,
-      tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? icons[route.name] : `${icons[route.name]}-outline` as any} color={color} size={size + 1} />,
+      tabBarIcon: ({ color, size, focused }) => <Ionicons name={focused ? icons[route.name] : `${icons[route.name]}-outline` as any} color={typeof color === 'number' ? palette.muted : color ?? palette.muted} size={size + 1} />,
     })}>
       <Tabs.Screen name="index" options={{ title: 'Eventos' }} />
       <Tabs.Screen name="discover" options={{ title: 'Descubrir' }} />

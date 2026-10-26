@@ -1,8 +1,8 @@
 import { createContext, forwardRef, useCallback, useContext, useEffect, useImperativeHandle, useRef } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, TextInput } from 'react-native';
-import type { KeyboardAvoidingViewProps, ScrollViewProps } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import type { KeyboardAvoidingViewProps, ScrollViewProps, ScrollViewInstance, TextInputInstance } from 'react-native';
 
-const FocusContext = createContext<(input: TextInput | null) => void>(() => {});
+const FocusContext = createContext<(input: TextInputInstance | null) => void>(() => {});
 export const useKeyboardField = () => useContext(FocusContext);
 
 // Use once around fixed composers or modal backdrops. Android resizes its window.
@@ -11,10 +11,10 @@ export function KeyboardArea(props: KeyboardAvoidingViewProps) {
 }
 
 // The enclosing KeyboardArea reserves space. Scroll only within that visible viewport.
-export const KeyboardScrollView = forwardRef<ScrollView, ScrollViewProps>(function KeyboardScrollView({ onScroll, onLayout, children, ...props }, forwardedRef) {
-  const scroll = useRef<ScrollView>(null);
+export const KeyboardScrollView = forwardRef<ScrollViewInstance, ScrollViewProps>(function KeyboardScrollView({ onScroll, onLayout, children, ...props }, forwardedRef) {
+  const scroll = useRef<ScrollViewInstance>(null);
   useImperativeHandle(forwardedRef, () => scroll.current!);
-  const focused = useRef<TextInput | null>(null);
+  const focused = useRef<TextInputInstance | null>(null);
   const offset = useRef(0);
   const frame = useRef<number | null>(null);
   const reveal = useCallback(() => {
@@ -33,7 +33,7 @@ export const KeyboardScrollView = forwardRef<ScrollView, ScrollViewProps>(functi
       });
     });
   }, []);
-  const focus = useCallback((input: TextInput | null) => {
+  const focus = useCallback((input: TextInputInstance | null) => {
     focused.current = input;
     if (input) reveal();
   }, [reveal]);

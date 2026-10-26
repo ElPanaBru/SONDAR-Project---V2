@@ -1,3 +1,4 @@
+import type { TextInputInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -81,7 +82,7 @@ export function Button({ children, onPress, kind = 'primary', disabled, icon }: 
 
 export function Field(props: React.ComponentProps<typeof TextInput> & { label?: string }) {
   const { label, multiline, style, onFocus, onBlur, ...rest } = props;
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
   const focus = useKeyboardField();
   return <View style={styles.fieldWrap}>{label ? <Text style={styles.label}>{label}</Text> : null}<TextInput ref={input} onFocus={event => { focus(input.current); onFocus?.(event); }} onBlur={event => { focus(null); onBlur?.(event); }} placeholderTextColor={palette.muted} multiline={multiline} style={[styles.field, multiline && styles.multiline, style]} {...rest} /></View>;
 }

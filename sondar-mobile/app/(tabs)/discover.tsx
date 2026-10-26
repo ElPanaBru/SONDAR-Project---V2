@@ -440,8 +440,17 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   }
   return (
     <View style={[styles.reel, { height }]}>
-      <LinearGradient colors={[reel.colorAmbiente || '#5A2904', '#17100A', '#090A0D']} style={StyleSheet.absoluteFill} />
-      {reel.portada ? <Image source={{ uri: reel.portada }} style={StyleSheet.absoluteFill} contentFit="contain" contentPosition="center" /> : null}
+      {reel.portada ? (
+        <>
+          <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Image source={{ uri: reel.portada }} style={styles.reelBackdrop} contentFit="cover" contentPosition="center" blurRadius={48} cachePolicy="memory-disk" />
+            <View style={styles.reelBackdropShade} />
+          </View>
+          <View pointerEvents="none" style={styles.reelArtwork}>
+            <Image source={{ uri: reel.portada }} style={[styles.reelCover, { maxWidth: Math.min(340, Math.max(1, height * 0.84 - 48)) }]} contentFit="cover" contentPosition="center" cachePolicy="memory-disk" />
+          </View>
+        </>
+      ) : <LinearGradient colors={[reel.colorAmbiente || '#5A2904', '#17100A', '#090A0D']} style={StyleSheet.absoluteFill} />}
       <LinearGradient colors={['#00000010', '#00000025', '#08090CF5']} locations={[0, .48, 1]} style={StyleSheet.absoluteFill} />
       <Pressable onPress={togglePlay} style={styles.playArea}>{!playing ? <View style={styles.play}><Ionicons name="play" size={33} color="#111" /></View> : null}</Pressable>
       <View style={styles.reelBottom}>
@@ -506,7 +515,11 @@ function appendReply(items: Comment[], id: number, reply: Comment): Comment[] { 
 const styles = StyleSheet.create({
   youLabel: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   reelsList: { flexGrow: 0, flexShrink: 0, backgroundColor: palette.bg },
-  reel: { backgroundColor: palette.surface, overflow: 'hidden' }, playArea: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' }, play: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#FFFFFFDC', alignItems: 'center', justifyContent: 'center' },
+  reelBackdrop: { ...StyleSheet.absoluteFill, transform: [{ scale: 1.15 }] },
+  reelBackdropShade: { ...StyleSheet.absoluteFill, backgroundColor: '#00000066' },
+  reelArtwork: { ...StyleSheet.absoluteFill, bottom: '16%', alignItems: 'center', justifyContent: 'center' },
+  reelCover: { width: '74%', aspectRatio: 1, borderRadius: 12, borderWidth: 1, borderColor: '#FFFFFF26' },
+  reel: { backgroundColor: palette.bg, overflow: 'hidden' }, playArea: { ...StyleSheet.absoluteFill, bottom: '16%', alignItems: 'center', justifyContent: 'center' }, play: { width: 66, height: 66, borderRadius: 33, backgroundColor: '#FFFFFFDC', alignItems: 'center', justifyContent: 'center' },
   reelBottom: { position: 'absolute', left: 16, right: 78, bottom: 22, gap: 4 }, artist: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 5 }, artistIdentity: { flexShrink: 1, minWidth: 0 }, artistText: { flex: 1, minWidth: 0 }, artistNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, artistName: { color: '#fff', fontSize: 15, fontWeight: '800' }, handle: { color: '#D0D1D5', fontSize: 12 }, follow: { flexShrink: 0, minHeight: 26, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, borderRadius: 999, borderWidth: 1, borderColor: palette.orange, backgroundColor: 'transparent', paddingHorizontal: 7 }, following: { borderColor: '#FFFFFF66' }, followText: { color: palette.text, fontSize: 11, fontWeight: '700' }, song: { color: '#fff', fontSize: 21, fontWeight: '900' }, album: { color: palette.amber, fontSize: 13, fontWeight: '800' }, reelDescription: { color: '#E4E4E6', fontSize: 13, lineHeight: 17, marginTop: 2 },
   progressBox: { gap: 5, paddingTop: 7 },
   progressTrack: { height: 36, justifyContent: 'center' },

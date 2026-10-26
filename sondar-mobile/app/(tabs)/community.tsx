@@ -318,7 +318,7 @@ export default function CommunityScreen() {
         />
         </View>
           }
-          ListFooterComponent={loading ? <Loading /> : !posts.length ? <Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." /> : null}
+          ListFooterComponent={loading ? <Loading /> : !posts.length ? <Empty icon="people-outline" title="No hay publicaciones todavia" text="Abri una conversacion en esta comunidad." /> : undefined}
           renderItem={({ item }) => {
             if (item.kind === 'intro') return <View style={styles.stickyIntro}>
         {active ? (

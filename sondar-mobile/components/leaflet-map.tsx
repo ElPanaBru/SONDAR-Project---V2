@@ -14,11 +14,11 @@ type Props = {
 };
 
 export function LeafletMap({ state, theme, picker = false, style, onSelect, onCoordinate }: Props) {
-  const web = useRef<WebView>(null);
+  const web = useRef<WebView<object>>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
   const [generation, setGeneration] = useState(0);
-  const source = useMemo(() => ({ html: createMapHTML(picker) }), [picker, createMapHTML]);
+  const source = useMemo(() => ({ html: createMapHTML(picker) }), [picker]);
   const serialized = serializeMapState({ ...state, theme: theme || state.theme });
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function LeafletMap({ state, theme, picker = false, style, onSelect, onCo
   function retry() { setReady(false); setError(false); setGeneration(value => value + 1); }
 
   return <View style={[styles.frame, style]}>
-    <WebView
+    <WebView<object>
       key={generation}
       ref={web}
       source={source}
