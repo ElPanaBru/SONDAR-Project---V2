@@ -50,11 +50,9 @@
   align-items: center;
   gap: 4px;
   background: transparent;
-  border-radius: 9px;
   transform: translateX(10px);
 
 }
-
 
 .sidebar-brand:focus-visible {
   outline: 2px solid var(--color-1, #F09800);

@@ -205,6 +205,10 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.auth-login {
+  background: #111111;
+}
+
 .auth-register {
   color: #080808;
   background: linear-gradient(135deg, #ffb21a, #ff5e00);
