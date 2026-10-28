@@ -3,6 +3,7 @@ import { validCoordinate, type Coordinate } from '@/lib/leaflet/document';
 
 type EventMapProps = {
   events: any[];
+  selectedEventId?: string | null;
   userLocation?: Coordinate | null;
   locationFocus?: number;
   mapTheme?: 'light' | 'dark';
@@ -12,13 +13,13 @@ type EventMapProps = {
   style?: any;
 };
 
-export function EventMap({ events, initialRegion, userLocation, locationFocus, mapTheme = 'light', onSelect, style }: EventMapProps) {
+export function EventMap({ events, selectedEventId, initialRegion, userLocation, locationFocus, mapTheme = 'light', onSelect, style }: EventMapProps) {
   const points = events.flatMap(event => {
     if (event.latitud == null || event.longitud == null || String(event.latitud).trim() === '' || String(event.longitud).trim() === '') return [];
     const coordinate = { latitude: Number(event.latitud), longitude: Number(event.longitud) };
     return validCoordinate(coordinate) ? [{ ...coordinate, id: String(event.id), title: String(event.titulo || 'Evento'), avatar: typeof event.avatar === 'string' ? event.avatar : undefined, avatarInitial: String(event.creador || '').trim().charAt(0).toUpperCase() || 'S' }] : [];
   });
-  return <LeafletMap style={style} theme={mapTheme} state={{ center: initialRegion, events: points, userLocation, locationFocus }} onSelect={id => {
+  return <LeafletMap style={style} theme={mapTheme} state={{ center: initialRegion, events: points, selectedEventId, userLocation, locationFocus }} onSelect={id => {
     const event = events.find(item => String(item.id) === id);
     if (event) onSelect(event);
   }} />;

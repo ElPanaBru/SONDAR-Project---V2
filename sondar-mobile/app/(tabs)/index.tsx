@@ -250,7 +250,7 @@ export default function EventsScreen() {
     <Screen>
       <Header title="Eventos" subtitle="Lo que está sonando cerca" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       {loading ? <Loading /> : <View style={[styles.body, { marginBottom: tabBarHeight }]}>
-        <EventMap events={filtered} initialRegion={initialRegion} userLocation={userLocation} locationFocus={locationFocus} mapTheme={mapTheme} onSelect={setSelected} style={styles.map} />
+        <EventMap events={filtered} selectedEventId={selectedEventId == null ? null : String(selectedEventId)} initialRegion={initialRegion} userLocation={userLocation} locationFocus={locationFocus} mapTheme={mapTheme} onSelect={setSelected} style={styles.map} />
         <Pressable accessibilityRole="button" accessibilityLabel="Mostrar mi ubicación en el mapa" disabled={locating} onPress={showMyLocation} style={styles.locateButton}><Ionicons name="locate" size={20} color={palette.orange} /><Text style={styles.controlText}>{locating ? 'Ubicando…' : 'Mi ubicación'}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={mapTheme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'} accessibilityState={{ selected: mapTheme === 'dark' }} onPress={() => setMapTheme(value => value === 'light' ? 'dark' : 'light')} hitSlop={6} style={({ pressed }) => [styles.mapThemeButton, pressed && { opacity: 0.75 }]}><Ionicons name={mapTheme === 'light' ? 'moon' : 'sunny'} size={23} color={palette.orange} /></Pressable>
         <EventPanel>

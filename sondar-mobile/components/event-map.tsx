@@ -5,6 +5,7 @@ import { palette } from '@/constants/sondar';
 
 type EventMapProps = {
   events: any[];
+  selectedEventId?: string | null;
   userLocation?: { latitude: number; longitude: number } | null;
   locationFocus?: number;
   mapTheme?: 'light' | 'dark';

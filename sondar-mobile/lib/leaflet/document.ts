@@ -6,6 +6,7 @@ export type MapEvent = Coordinate & { id: string; title: string; avatar?: string
 export type MapState = {
   center: Coordinate;
   events: MapEvent[];
+  selectedEventId?: string | null;
   theme?: 'light' | 'dark';
   userLocation?: Coordinate | null;
   locationFocus?: number;
@@ -50,7 +51,7 @@ html,body,#map{height:100%;width:100%;margin:0;background:#202020}
 <script>${leafletJS}</script><script>${maplibreJS.split('</script').join('<\\/script')}</script><script>${maplibreLeafletJS}</script><script>
 (function(){
 'use strict';
-var config=${config}, map, state, lastEventsKey=null, lastFocus=null, picked=null, user=null, tiles=null, activeTheme=null;
+var config=${config}, map, state, lastEventsKey=null, lastFocus=null, lastSelectedEventId=null, picked=null, user=null, tiles=null, activeTheme=null;
 function send(data){if(window.ReactNativeWebView)window.ReactNativeWebView.postMessage(JSON.stringify(data));}
 function notice(text){var el=document.getElementById('notice');el.textContent=text;el.style.display=text?'block':'none';}
 var tileErrors=0;
@@ -151,6 +152,11 @@ window.updateSondarMap=function(next){
    else user.setLatLng(coords(state.userLocation));
    if(state.locationFocus&&state.locationFocus!==lastFocus){map.setView(coords(state.userLocation),15);lastFocus=state.locationFocus;}
  }else if(user){map.removeLayer(user);user=null;}
+ if(!config.picker&&state.selectedEventId!==lastSelectedEventId){
+   var selectedEvent=state.events.find(function(event){return event.id===state.selectedEventId;});
+   if(selectedEvent){map.stop();map.flyTo(coords(selectedEvent),14,{duration:0.8});}
+   lastSelectedEventId=state.selectedEventId||null;
+ }
 };
 new ResizeObserver(function(){map.invalidateSize();}).observe(document.getElementById('map'));
 send({type:'ready'});

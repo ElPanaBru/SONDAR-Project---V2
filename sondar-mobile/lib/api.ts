@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { API_URL, IS_SUPABASE_CONFIGURED } from './config';
 import { supabase } from './supabase';
 
@@ -119,6 +120,8 @@ export function mediaPart(asset: { uri: string; fileName?: string | null; mimeTy
   };
   return {
     uri: asset.uri,
+    // Expo fetch reads bytes(); React Native fetch still uses uri.
+    bytes: () => new File(asset.uri).bytes(),
     name,
     type: asset.mimeType || inferredTypes[extension] || 'application/octet-stream',
   } as any;

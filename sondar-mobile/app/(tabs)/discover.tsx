@@ -1,3 +1,5 @@
+import { AudioFragmentPicker } from '@/components/audio-fragment-picker';
+import { audioFragment, fragmentTime, type AudioFragment } from '@/lib/audio-fragment';
 import { KeyboardArea } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
 import { useEvent } from 'expo';
@@ -52,6 +54,7 @@ export default function DiscoverScreen() {
   const [form, setForm] = useState(emptyReelForm);
   const [cover, setCover] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [audio, setAudio] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [fragment, setFragment] = useState<AudioFragment | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [reportTarget, setReportTarget] = useState<Reel | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
@@ -262,6 +265,7 @@ export default function DiscoverScreen() {
   async function pickAudio() {
     const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
     if (!result.canceled) {
+      setFragment(null);
       setAudio(result.assets[0]);
     }
   }
@@ -281,12 +285,14 @@ export default function DiscoverScreen() {
   async function publish() {
     if (publishLock.current) return;
     if (!form.tema.trim() || !audio || form.generos.length === 0) return setError('Completá el nombre de la canción, elegí al menos un género y seleccioná un audio.');
+    if (!fragment || fragment.end <= fragment.start) return setError('Esperá a que cargue el audio y elegí el fragmento.');
     publishLock.current = true;
     setBusy(true);
     try {
       const body = new FormData();
       body.append('tema', form.tema.trim()); body.append('album', form.tema.trim()); body.append('genero', form.generos.join(' / '));
-      body.append('duracion', '0:30');
+      body.append('duracion', fragmentTime(fragment.end - fragment.start));
+      body.append('fragmentStart', String(fragment.start)); body.append('fragmentEnd', String(fragment.end));
       body.append('audio', mediaPart({ ...audio, fileName: audio.name }, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
       const created = normalizeReel(await api<Reel>('/api/reels/crear', { method: 'POST', token, body }));
       setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setForm(emptyReelForm()); setError('');
@@ -354,11 +360,12 @@ export default function DiscoverScreen() {
 
           <View style={styles.fileRow}>
             <View style={styles.fileColumn}><Pressable onPress={pickCover} style={styles.filePicker}><Ionicons name="image-outline" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir portada</Text><Text style={styles.filePickerName} numberOfLines={1}>{cover?.fileName || 'JPG, PNG o WEBP'}</Text></View></Pressable>{cover ? <Button kind="secondary" onPress={() => setCover(null)}>Quitar portada</Button> : null}</View>
-            <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => setAudio(null)}>Quitar audio</Button> : null}</View>
+            <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => { setAudio(null); setFragment(null); }}>Quitar audio</Button> : null}</View>
           </View>
 
 
-          <Button onPress={publish} disabled={busy}>{busy ? 'Publicando…' : 'Publicar preview'}</Button>
+          {creating && audio ? <AudioFragmentPicker key={audio.uri} uri={audio.uri} name={audio.name} value={fragment} onChange={setFragment} disabled={busy} /> : null}
+          <Button onPress={publish} disabled={busy || !fragment}>{busy ? 'Publicando…' : 'Publicar preview'}</Button>
         </Screen>
       </Modal>
       <ReportModal visible={Boolean(reportTarget)} subject={reportTarget ? `${reportTarget.tema} · ${reportTarget.artista}` : ''} busy={reportBusy} onClose={() => setReportTarget(null)} onSubmit={submitReport} />
@@ -368,11 +375,15 @@ export default function DiscoverScreen() {
 
 /* eslint-disable react-hooks/immutability -- expo-video exposes currentTime as an intentionally writable, imperative seek API. */
 function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, onComments, onShare, onFollow, onReport }: { height: number; reel: Reel; active: boolean; screenFocused: boolean; mine: boolean; onLike: () => void; onSave: () => void; onComments: () => void; onShare: () => void; onFollow: () => void; onReport: () => void }) {
-  const fragmentStart = Math.max(0, Number(reel.fragmentStart) || 0);
-  const storedFragmentEnd = Number(reel.fragmentEnd);
-  const fragmentLength = storedFragmentEnd > fragmentStart ? storedFragmentEnd - fragmentStart : parseDuration(reel.duracion);
-  const fragmentEnd = storedFragmentEnd > fragmentStart ? storedFragmentEnd : fragmentStart + fragmentLength;
-  const player = useVideoPlayer(reel.audio || null, instance => { instance.loop = fragmentStart === 0 && !storedFragmentEnd; instance.timeUpdateEventInterval = .25; });
+  const player = useVideoPlayer(reel.audio || null, instance => { instance.loop = false; instance.timeUpdateEventInterval = .25; });
+  const loaded = useEvent(player, 'sourceLoad');
+  const sourceDuration = loaded?.duration || player.duration;
+  const storedStart = Math.max(0, Number(reel.fragmentStart) || 0);
+  const storedEnd = Number(reel.fragmentEnd) > storedStart ? Number(reel.fragmentEnd) : storedStart + parseDuration(reel.duracion);
+  const range = audioFragment(sourceDuration > 0 ? sourceDuration : storedEnd, storedStart, storedEnd);
+  const fragmentStart = range.start;
+  const fragmentEnd = range.end;
+  const fragmentLength = fragmentEnd - fragmentStart;
   const { isPlaying: playing } = useEvent(player, 'playingChange', { isPlaying: player.playing });
   const [progress, setProgress] = useState({ current: 0, duration: fragmentLength });
   const [barWidth, setBarWidth] = useState(1);
@@ -381,7 +392,7 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   const resumeAfterSeek = useRef(false);
   const manuallyPaused = useRef(false);
   const playable = Boolean(reel.audio);
-  const duration = progress.duration || fragmentLength;
+  const duration = fragmentLength;
   const percent = duration > 0 ? Math.min(100, Math.max(0, (progress.current / duration) * 100)) : 0;
 
   useEffect(() => {
@@ -402,16 +413,26 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
     if (!active || !screenFocused || !playable) return;
     const interval = setInterval(() => {
       if (scrubbingRef.current) return;
-      if (player.currentTime >= fragmentEnd) {
+      if (player.currentTime >= fragmentEnd && !manuallyPaused.current) {
         player.currentTime = fragmentStart;
         if (active && screenFocused) player.play();
       }
       const nextCurrent = Number.isFinite(player.currentTime) ? player.currentTime : 0;
-      setProgress({ current: Math.max(0, nextCurrent - fragmentStart), duration: fragmentLength });
+      setProgress({ current: Math.min(fragmentLength, Math.max(0, nextCurrent - fragmentStart)), duration: fragmentLength });
     }, 250);
 
     return () => clearInterval(interval);
   }, [active, fragmentEnd, fragmentLength, fragmentStart, player, playable, screenFocused]);
+
+  useEffect(() => {
+    const subscription = player.addListener('playToEnd', () => {
+      if (!active || !screenFocused || scrubbingRef.current || manuallyPaused.current) return;
+      player.currentTime = fragmentStart;
+      setProgress({ current: 0, duration: fragmentLength });
+      player.play();
+    });
+    return () => subscription.remove();
+  }, [active, screenFocused, player, fragmentStart, fragmentLength]);
 
   function togglePlay() {
     if (!playable) return;
