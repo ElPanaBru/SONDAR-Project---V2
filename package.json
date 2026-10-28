@@ -10,6 +10,8 @@
     "start_front": "npm run dev --prefix Frontend",
     "start_mobile": "npm start --prefix sondar-mobile",
     "dev:mobile": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1",
+    "son": "npm run dev:mobile:clear",
+    "sepalabola": "npm run dev:mobile:clear",
     "dev:mobile:clear": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1 -Clear",
     "dev:mobile:lan": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1",
     "dev:mobile:lan:clear": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-mobile.ps1 -Clear",
