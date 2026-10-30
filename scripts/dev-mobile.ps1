@@ -7,7 +7,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $mobile = Join-Path $root 'sondar-mobile'
-$frontendEnv = Join-Path $root 'Frontend\.env'
 $mobileEnv = Join-Path $mobile '.env.local'
 $npm = (Get-Command npm.cmd).Source
 $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
@@ -173,10 +172,21 @@ function Read-DotEnvValue([string]$Path, [string]$Name) {
 }
 
 function Sync-MobileEnv([string]$ApiUrl) {
-  $supabaseUrl = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_URL'
-  $supabaseAnonKey = Read-DotEnvValue $frontendEnv 'VITE_SUPABASE_ANON_KEY'
+  $previousMobileEnv = if (Test-Path $mobileEnv) { Get-Content -Raw -LiteralPath $mobileEnv } else { '' }
+  & $node (Join-Path $PSScriptRoot 'local-supabase.cjs') start | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'No se pudo iniciar Supabase local. Expo no se iniciara.' }
+  $backendEnv = Join-Path $root 'Backend\.env.local'
+  foreach ($line in Get-Content -LiteralPath $backendEnv) {
+    if ($line -match '^([A-Z][A-Z0-9_]*)=(.*)$') {
+      [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], 'Process')
+    }
+  }
+  $supabaseUrl = Read-DotEnvValue $mobileEnv 'EXPO_PUBLIC_SUPABASE_URL'
+  $supabaseAnonKey = Read-DotEnvValue $mobileEnv 'EXPO_PUBLIC_SUPABASE_ANON_KEY'
 
   $env:SONDAR_LOCAL_API_URL = "http://127.0.0.1:$apiPort"
+  $env:SONDAR_LOCAL_SUPABASE_URL = $supabaseUrl
+  $env:EXPO_PUBLIC_SUPABASE_LOCAL = 'true'
   if ($ApiUrl) {
     $env:EXPO_PUBLIC_API_URL = $ApiUrl
   } else {
@@ -189,27 +199,16 @@ function Sync-MobileEnv([string]$ApiUrl) {
   }
 
   if (-not $supabaseUrl -or -not $supabaseAnonKey) {
-    Write-Host 'No encontre las variables publicas de Supabase en Frontend\.env.' -ForegroundColor Yellow
-    return $false
+    throw 'Faltan las variables de Supabase local. Ejecuta npm run local:start.'
   }
 
-  $lines = @()
-  if ($ApiUrl) {
-    $lines += "EXPO_PUBLIC_API_URL=$ApiUrl"
-  }
-  $lines += @(
-    "EXPO_PUBLIC_SUPABASE_URL=$supabaseUrl",
-    "EXPO_PUBLIC_SUPABASE_ANON_KEY=$supabaseAnonKey"
-  )
-  $next = ($lines -join [Environment]::NewLine) + [Environment]::NewLine
-  $previous = if (Test-Path $mobileEnv) { Get-Content -Raw -LiteralPath $mobileEnv } else { '' }
-
-  if ($previous -ne $next) {
-    Set-Content -LiteralPath $mobileEnv -Value $next -NoNewline -Encoding UTF8
+  try {
+    $health = Invoke-RestMethod -Uri "http://127.0.0.1:$apiPort/api/health" -TimeoutSec 2
+    $currentMobileEnv = Get-Content -Raw -LiteralPath $mobileEnv
+    return ($health.supabaseUrl -ne $supabaseUrl -or $previousMobileEnv -ne $currentMobileEnv)
+  } catch {
     return $true
   }
-
-  return $false
 }
 
 function Show-ExpoQr([string]$Url) {

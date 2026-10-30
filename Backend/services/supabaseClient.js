@@ -1,10 +1,5 @@
-const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const dotenv = require('dotenv');
-
-dotenv.config({ path: path.join(__dirname, '..', '.env'), override: false, quiet: true });
-dotenv.config({ path: path.join(__dirname, '..', '..', 'Frontend', '.env'), override: false, quiet: true });
-dotenv.config({ path: path.join(__dirname, '..', '..', 'sondar-mobile', '.env.local'), override: false, quiet: true });
+require('../env');
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

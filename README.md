@@ -2,6 +2,8 @@
 
 ## App móvil
 
+Esta rama `Mobile-Local` usa Supabase y PostgreSQL locales con Docker Desktop. El arranque prepara la base y las variables automaticamente. Ver [configuracion y migraciones locales](docs/MOBILE_LOCAL.md).
+
 La app móvil necesita que Expo y la API estén activos al mismo tiempo. Desde la raíz del proyecto ejecutá:
 
 ```bash

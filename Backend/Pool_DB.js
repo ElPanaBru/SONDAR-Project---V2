@@ -1,6 +1,5 @@
- const path = require('path');
  const { Pool } = require('pg');
- require('dotenv').config({ path: path.join(__dirname, '.env') });
+ require('./env');
 
  const pool = new Pool({
      user: process.env.DB_USER,
@@ -10,7 +9,7 @@
      port: process.env.DB_PORT,
      connectionTimeoutMillis: 8000,
      idleTimeoutMillis: 30000,
-     ssl: {
+     ssl: process.env.DB_SSL === 'false' ? false : {
         rejectUnauthorized: false
     }
  });

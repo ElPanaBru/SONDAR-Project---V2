@@ -4,6 +4,11 @@
   "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
   "main": "eslint.config.js",
   "scripts": {
+    "local:start": "node scripts/local-supabase.cjs start",
+    "local:stop": "node scripts/local-supabase.cjs stop",
+    "local:status": "node scripts/local-supabase.cjs status",
+    "db:migrate": "supabase migration up --local",
+    "db:history": "supabase migration list --local",
     "start:all": "cd Backend && npm run start_server & cd ../Frontend && npm run start_front",
     "start_server": "npm run start_server --prefix Backend",
     "install_all": "npm install -i && cd Backend && npm install -i && cd ../Frontend && npm install -i",
@@ -36,6 +41,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "supabase": "2.119.0",
     "typescript": "~6.0.3"
   },
   "engines": {

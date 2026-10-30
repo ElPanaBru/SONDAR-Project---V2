@@ -57,7 +57,25 @@ export const API_URL = (
   process.env.EXPO_PUBLIC_API_URL || getDevApiUrl()
 ).replace(/\/$/, '');
 
-export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+export const IS_LOCAL_SUPABASE = process.env.EXPO_PUBLIC_SUPABASE_LOCAL === 'true';
+export const SUPABASE_URL = IS_LOCAL_SUPABASE
+  ? `${getDevServerUrl()}/supabase`
+  : process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 export const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 export const IS_SUPABASE_CONFIGURED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Storage guarda URLs de la PC. En el telefono se accede por el mismo Expo
+// que entrego el bundle, tanto en LAN como mediante tunnel.
+export function localMediaUrl(value: string) {
+  if (!IS_LOCAL_SUPABASE) return value;
+  try {
+    const url = new URL(value);
+    const local = ['127.0.0.1', 'localhost'].includes(url.hostname);
+    const configured = new URL(process.env.EXPO_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:55321');
+    if (local && url.port === configured.port && url.pathname.startsWith('/storage/v1/')) {
+      return `${SUPABASE_URL}${url.pathname}${url.search}`;
+    }
+  } catch { /* El valor puede ser texto o una ruta relativa. */ }
+  return value;
+}
 

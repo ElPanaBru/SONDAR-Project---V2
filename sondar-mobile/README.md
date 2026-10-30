@@ -1,6 +1,6 @@
 # SONDAR Mobile
 
-App movil de SONDAR para Android, iOS y Expo Go. Comparte autenticacion, Supabase, storage y API con la version web.
+App movil de SONDAR para Android, iOS y Expo Go. Esta rama usa Supabase, autenticacion, Storage y PostgreSQL locales, en un proyecto Docker propio llamado `sondar-mobile-local`.
 
 ## Expo Go y SDK 58
 
@@ -22,9 +22,13 @@ Referencias: [actualizacion oficial](https://docs.expo.dev/workflow/upgrading-ex
 
 ## Configuracion
 
-El comando de desarrollo copia automaticamente las variables publicas de Supabase desde `Frontend/.env` hacia `sondar-mobile/.env.local`.
+Con Docker Desktop iniciado, `npm run dev:mobile:clear` levanta Supabase local, aplica las migraciones pendientes sin borrar datos y genera `Backend/.env.local` y `sondar-mobile/.env.local` con las claves de la CLI. Ya no toma credenciales de `Frontend/.env`. Los archivos generados no se versionan y el backend prioriza su `.env.local` sobre el `.env` heredado.
 
-En desarrollo no hace falta configurar `EXPO_PUBLIC_API_URL`: tanto en LAN como en tunnel, la app usa el mismo servidor de Expo que entregó el bundle y Metro reenvía `/api` al backend local. El teléfono no necesita conectarse directamente al puerto `3000` de la PC.
+La instalacion nueva empieza con el catalogo de siete generos; las cuentas, publicaciones y archivos de la nube o de la rama web no se copian. Registrarse nuevamente en esta instalacion local.
+
+Para iniciar solamente la base: `npm run local:start`. Para consultar los servicios: `npm run local:status`. Para detenerlos conservando datos: `npm run local:stop`. Los puertos y el flujo de migraciones estan en [la guia local](../docs/MOBILE_LOCAL.md).
+
+En desarrollo no hace falta configurar `EXPO_PUBLIC_API_URL`: tanto en LAN como en tunnel, la app usa el mismo servidor de Expo que entregó el bundle. Metro reenvía `/api` al backend y `/supabase` a Supabase local, incluyendo Auth e imagenes/audio de Storage. El telefono solo necesita alcanzar Expo; no se configura `localhost` del telefono como direccion de la PC.
 
 ## Ejecutar En Expo Go
 

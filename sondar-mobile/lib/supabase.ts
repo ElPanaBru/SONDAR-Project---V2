@@ -3,7 +3,7 @@ import { createClient, processLock } from '@supabase/supabase-js';
 import { AppState, Platform } from 'react-native';
 import 'react-native-url-polyfill/auto';
 
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
+import { IS_LOCAL_SUPABASE, SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
 
 const fallbackUrl = 'https://placeholder.supabase.co';
 const fallbackKey = 'placeholder-anon-key';
@@ -42,6 +42,7 @@ export const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      ...(IS_LOCAL_SUPABASE ? { storageKey: 'sondar-mobile-local-auth' } : {}),
       ...(Platform.OS !== 'web' ? { lock: processLock } : {}),
     },
   },

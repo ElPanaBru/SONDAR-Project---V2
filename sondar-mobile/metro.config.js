@@ -5,16 +5,17 @@ const path = require('node:path');
 const config = getDefaultConfig(__dirname);
 config.watchFolders = [...(config.watchFolders || []), path.resolve(__dirname, '../shared')];
 const backendUrl = new URL(process.env.SONDAR_LOCAL_API_URL || 'http://127.0.0.1:3000');
+const supabaseUrl = new URL(process.env.SONDAR_LOCAL_SUPABASE_URL || 'http://127.0.0.1:55321');
 const originalEnhanceMiddleware = config.server?.enhanceMiddleware;
 
-function proxyToBackend(req, res) {
-  const headers = { ...req.headers, host: backendUrl.host };
+function proxyToBackend(req, res, target = backendUrl, requestPath = req.url) {
+  const headers = { ...req.headers, host: target.host };
   const options = {
-    protocol: backendUrl.protocol,
-    hostname: backendUrl.hostname,
-    port: backendUrl.port || 80,
+    protocol: target.protocol,
+    hostname: target.hostname,
+    port: target.port || 80,
     method: req.method,
-    path: req.url,
+    path: requestPath,
     headers,
   };
 
@@ -42,6 +43,10 @@ config.server = {
       : middleware;
 
     return (req, res, next) => {
+      if (req.url?.startsWith('/supabase/')) {
+        proxyToBackend(req, res, supabaseUrl, req.url.slice('/supabase'.length));
+        return;
+      }
       if (req.url?.startsWith('/api/')) {
         proxyToBackend(req, res);
         return;

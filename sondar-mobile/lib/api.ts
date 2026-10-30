@@ -1,5 +1,5 @@
 import { File } from 'expo-file-system';
-import { API_URL, IS_SUPABASE_CONFIGURED } from './config';
+import { API_URL, IS_SUPABASE_CONFIGURED, localMediaUrl } from './config';
 import { supabase } from './supabase';
 
 type ApiOptions = RequestInit & { token?: string | null };
@@ -34,7 +34,8 @@ async function refreshAuthToken() {
 async function parseResponse(response: Response) {
   const text = await response.text();
   try {
-    return text ? JSON.parse(text) : null;
+    return text ? JSON.parse(text, (_key, value) =>
+      typeof value === 'string' ? localMediaUrl(value) : value) : null;
   } catch {
     return text ? { message: text } : null;
   }
