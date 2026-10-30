@@ -1,241 +1,528 @@
 const pool = require('../Pool_DB');
-const { asegurarEsquemaMensajes } = require('../services/messagesSchema');
-const { asegurarEsquemaModeracion } = require('../services/moderationService');
-const { crearNotificacion } = require('../services/notificationService');
+const { crearNotificacion, nombreActor } = require('../services/notificationService');
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const CONVERSATION_ID_PATTERN = /^(?:[1-9]\d*|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_MESSAGE_LENGTH = 2000;
+const DEFAULT_PAGE_SIZE = 40;
+const MAX_PAGE_SIZE = 60;
+const RATE_WINDOW_SECONDS = 10;
+const RATE_MAX_MESSAGES = 8;
 
-const conversacionSql = `
-  SELECT
-    c.id::text,
-    c.updated_at,
-    otro.id::text AS person_id,
-    COALESCE(otro.artist_name, otro.full_name, otro.username, 'Usuario SONDAR') AS person_name,
-    CASE WHEN otro.username IS NULL THEN '@usuario' ELSE '@' || ltrim(otro.username, '@') END AS person_handle,
-    COALESCE(otro.profile_img_url, '') AS person_avatar,
-    COALESCE(ultimo.body, '') AS last_message,
-    ultimo.created_at AS last_message_at,
-    COALESCE(no_leidos.total, 0)::int AS unread
-  FROM conversations c
-  JOIN conversation_members propio ON propio.conversation_id = c.id AND propio.user_id = $1
-  JOIN conversation_members ajeno ON ajeno.conversation_id = c.id AND ajeno.user_id <> $1
-  JOIN users otro ON otro.id = ajeno.user_id
-  LEFT JOIN LATERAL (
-    SELECT body, created_at
-    FROM messages
-    WHERE conversation_id = c.id
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
-  ) ultimo ON true
-  LEFT JOIN LATERAL (
-    SELECT COUNT(*) AS total
-    FROM messages
-    WHERE conversation_id = c.id AND sender_id <> $1 AND created_at > COALESCE(propio.last_read_at, '-infinity'::timestamptz)
-  ) no_leidos ON true
-`;
+function clampLimit(value) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) return DEFAULT_PAGE_SIZE;
+  return Math.min(MAX_PAGE_SIZE, parsed);
+}
 
-function mapearConversacion(row) {
+function normalizeMessage(value) {
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim();
+}
+
+function mapConversation(row) {
+  const usuarioEliminado = Boolean(row.other_deleted);
   return {
-    id: String(row.id),
-    person: {
-      id: String(row.person_id),
-      nombre: row.person_name,
-      usuario: row.person_handle,
-      avatar: row.person_avatar || '',
+    id: row.id,
+    usuario: {
+      id: row.other_user_id,
+      username: usuarioEliminado ? '' : row.other_username,
+      nombre: usuarioEliminado ? 'Usuario eliminado' : row.other_display_name || row.other_username,
+      avatar: usuarioEliminado ? '' : row.other_avatar || '',
+      eliminado: usuarioEliminado,
     },
-    lastMessage: row.last_message || '',
-    updatedAt: row.last_message_at || row.updated_at,
-    unread: Number(row.unread || 0),
+    ultimoMensaje: row.last_message_id ? {
+      id: row.last_message_id,
+      texto: row.last_message_deleted_at ? 'Mensaje eliminado' : row.last_message_body,
+      propio: row.last_message_sender_id === row.viewer_id,
+      creadoEn: row.last_message_created_at,
+      eliminado: Boolean(row.last_message_deleted_at),
+    } : null,
+    noLeidos: Number(row.unread_count || 0),
+    ultimaActividad: row.last_message_at,
+    silenciada: Boolean(row.muted),
+    bloqueada: Boolean(row.blocked),
   };
 }
 
-async function buscarConversacion(userId, conversationId, client = pool) {
+function mapMessage(row, viewerId) {
+  const deleted = Boolean(row.deleted_at);
+  const own = row.sender_id === viewerId;
+  const read = own
+    ? Boolean(row.other_last_read_at && new Date(row.other_last_read_at) >= new Date(row.created_at))
+    : true;
+  const delivered = own
+    ? Boolean(row.other_last_delivered_at && new Date(row.other_last_delivered_at) >= new Date(row.created_at))
+    : true;
+  return {
+    id: row.id,
+    conversacionId: row.conversation_id,
+    texto: deleted ? 'Mensaje eliminado' : row.body,
+    remitente: {
+      id: row.sender_id,
+      username: row.sender_username || '',
+      nombre: row.sender_display_name || row.sender_username || 'Usuario eliminado',
+      avatar: row.sender_avatar || '',
+      eliminado: !row.sender_username,
+    },
+    propio: own,
+    respuestaA: row.reply_to_id ? {
+      id: row.reply_to_id,
+      texto: row.reply_deleted_at ? 'Mensaje eliminado' : row.reply_body,
+      remitenteId: row.reply_sender_id,
+      eliminado: Boolean(row.reply_deleted_at),
+    } : null,
+    creadoEn: row.created_at,
+    editadoEn: row.edited_at,
+    eliminado: deleted,
+    recibido: delivered,
+    leido: read,
+    estado: own ? read ? 'leido' : delivered ? 'recibido' : 'enviado' : 'recibido',
+  };
+}
+
+function schemaUnavailable(error) {
+  return error?.code === '42P01' || error?.code === '42703' || error?.code === '42883';
+}
+
+function handleError(res, error, fallback) {
+  if (schemaUnavailable(error)) {
+    return res.status(503).json({
+      error: 'La mensajeria aun no esta instalada. Ejecuta la migracion Sistema_Beta_Mensajeria_Ubicacion_Recomendaciones.sql.',
+      code: 'MESSAGING_SCHEMA_MISSING',
+    });
+  }
+  console.error(fallback, error);
+  return res.status(error.status || 500).json({ error: error.message || fallback });
+}
+
+async function getConversation(conversationId, viewerId, client = pool) {
   const result = await client.query(
-    `${conversacionSql}
-     WHERE c.id = $2
+    `SELECT
+       c.id,
+       c.last_message_at,
+       mine.user_id AS viewer_id,
+       mine.muted,
+       other.user_id AS other_user_id,
+       (u.id IS NULL) AS other_deleted,
+       u.username AS other_username,
+       u.display_name AS other_display_name,
+       u.profile_img_url AS other_avatar,
+       last_message.id AS last_message_id,
+       last_message.body AS last_message_body,
+       last_message.sender_id AS last_message_sender_id,
+       last_message.created_at AS last_message_created_at,
+       last_message.deleted_at AS last_message_deleted_at,
+       COALESCE(unread.total, 0)::int AS unread_count,
+       EXISTS (
+         SELECT 1 FROM public.user_blocks ub
+         WHERE (ub.blocker_id = mine.user_id AND ub.blocked_id = other.user_id)
+            OR (ub.blocker_id = other.user_id AND ub.blocked_id = mine.user_id)
+       ) AS blocked
+     FROM public.conversations c
+     JOIN public.conversation_members mine
+       ON mine.conversation_id = c.id AND mine.user_id = $2
+     JOIN public.conversation_members other
+       ON other.conversation_id = c.id AND other.user_id <> $2
+     LEFT JOIN public.users u ON u.id = other.user_id
+     LEFT JOIN LATERAL (
+       SELECT m.* FROM public.messages m
+       WHERE m.conversation_id = c.id
+       ORDER BY m.id DESC LIMIT 1
+     ) last_message ON true
+     LEFT JOIN LATERAL (
+       SELECT COUNT(*)::int AS total
+       FROM public.messages unread_message
+       WHERE unread_message.conversation_id = c.id
+         AND unread_message.sender_id IS DISTINCT FROM $2
+         AND unread_message.created_at > mine.last_read_at
+         AND unread_message.deleted_at IS NULL
+     ) unread ON true
+     WHERE c.id = $1
      LIMIT 1`,
-    [userId, conversationId]
+    [conversationId, viewerId]
   );
-  return result.rows[0] ? mapearConversacion(result.rows[0]) : null;
+  return result.rows[0] || null;
+}
+
+async function getMessage(messageId, conversationId, viewerId, client = pool) {
+  const result = await client.query(
+    `SELECT
+       m.*,
+       sender.username AS sender_username,
+       sender.display_name AS sender_display_name,
+       sender.profile_img_url AS sender_avatar,
+       reply.body AS reply_body,
+       reply.sender_id AS reply_sender_id,
+       reply.deleted_at AS reply_deleted_at,
+       other.last_read_at AS other_last_read_at,
+       other.last_delivered_at AS other_last_delivered_at
+     FROM public.messages m
+     LEFT JOIN public.users sender ON sender.id = m.sender_id
+     LEFT JOIN public.messages reply ON reply.id = m.reply_to_id
+     LEFT JOIN public.conversation_members other
+       ON other.conversation_id = m.conversation_id AND other.user_id <> $3
+     WHERE m.id = $1 AND m.conversation_id = $2`,
+    [messageId, conversationId, viewerId]
+  );
+  return result.rows[0] || null;
 }
 
 const mensajeController = {
-  listarConversaciones: async (req, res) => {
+  listConversations: async (req, res) => {
     try {
-      await asegurarEsquemaMensajes();
       const result = await pool.query(
-        `${conversacionSql}
-         ORDER BY COALESCE(ultimo.created_at, c.updated_at) DESC
+        `SELECT
+           c.id,
+           c.last_message_at,
+           mine.user_id AS viewer_id,
+           mine.muted,
+           other.user_id AS other_user_id,
+           (u.id IS NULL) AS other_deleted,
+           u.username AS other_username,
+           u.display_name AS other_display_name,
+           u.profile_img_url AS other_avatar,
+           last_message.id AS last_message_id,
+           last_message.body AS last_message_body,
+           last_message.sender_id AS last_message_sender_id,
+           last_message.created_at AS last_message_created_at,
+           last_message.deleted_at AS last_message_deleted_at,
+           COALESCE(unread.total, 0)::int AS unread_count,
+           EXISTS (
+             SELECT 1 FROM public.user_blocks ub
+             WHERE (ub.blocker_id = mine.user_id AND ub.blocked_id = other.user_id)
+                OR (ub.blocker_id = other.user_id AND ub.blocked_id = mine.user_id)
+           ) AS blocked
+         FROM public.conversations c
+         JOIN public.conversation_members mine
+           ON mine.conversation_id = c.id AND mine.user_id = $1
+         JOIN public.conversation_members other
+           ON other.conversation_id = c.id AND other.user_id <> $1
+         LEFT JOIN public.users u ON u.id = other.user_id
+         LEFT JOIN LATERAL (
+           SELECT m.* FROM public.messages m
+           WHERE m.conversation_id = c.id
+           ORDER BY m.id DESC LIMIT 1
+         ) last_message ON true
+         LEFT JOIN LATERAL (
+           SELECT COUNT(*)::int AS total
+           FROM public.messages unread_message
+           WHERE unread_message.conversation_id = c.id
+             AND unread_message.sender_id IS DISTINCT FROM $1
+             AND unread_message.created_at > mine.last_read_at
+             AND unread_message.deleted_at IS NULL
+         ) unread ON true
+         WHERE mine.archived_at IS NULL
+         ORDER BY c.last_message_at DESC, c.id
          LIMIT 100`,
         [req.user.id]
       );
-      res.json(result.rows.map(mapearConversacion));
+      return res.json(result.rows.map(mapConversation));
     } catch (error) {
-      console.error('Error al listar conversaciones:', error);
-      res.status(500).json({ error: 'No se pudieron cargar las conversaciones.' });
+      return handleError(res, error, 'No se pudieron cargar las conversaciones.');
     }
   },
 
-  crearConversacion: async (req, res) => {
-    const recipientId = String(req.body?.recipientId || '').trim();
-    if (!recipientId) return res.status(400).json({ error: 'Falta el destinatario.' });
-    if (!UUID_PATTERN.test(recipientId)) return res.status(400).json({ error: 'Destinatario inválido.' });
-    if (recipientId === req.user.id) return res.status(400).json({ error: 'No podes enviarte mensajes a vos mismo.' });
-
-    let client;
+  unreadCount: async (req, res) => {
     try {
-      await Promise.all([asegurarEsquemaMensajes(), asegurarEsquemaModeracion()]);
-      const [destinatario, bloqueo] = await Promise.all([
-        pool.query('SELECT id FROM users WHERE id = $1', [recipientId]),
-        pool.query(
-          `SELECT 1 FROM user_blocks
-           WHERE (blocker_id = $1 AND blocked_id = $2)
-              OR (blocker_id = $2 AND blocked_id = $1)`,
-          [req.user.id, recipientId]
-        ),
-      ]);
-      if (destinatario.rowCount === 0) return res.status(404).json({ error: 'Usuario no encontrado.' });
-      if (bloqueo.rowCount > 0) return res.status(403).json({ error: 'No se puede iniciar esta conversación.' });
-
-      const directKey = [req.user.id, recipientId].sort().join(':');
-      client = await pool.connect();
-      await client.query('BEGIN');
-      const creada = await client.query(
-        `INSERT INTO conversations (direct_key)
-         VALUES ($1)
-         ON CONFLICT (direct_key) DO UPDATE SET direct_key = EXCLUDED.direct_key
-         RETURNING id`,
-        [directKey]
-      );
-      const conversationId = creada.rows[0].id;
-      await client.query(
-        `INSERT INTO conversation_members (conversation_id, user_id)
-         VALUES ($1, $2), ($1, $3)
-         ON CONFLICT DO NOTHING`,
-        [conversationId, req.user.id, recipientId]
-      );
-      await client.query('COMMIT');
-
-      const conversation = await buscarConversacion(req.user.id, conversationId, client);
-      res.status(201).json(conversation);
-    } catch (error) {
-      if (client) await client.query('ROLLBACK').catch(() => null);
-      console.error('Error al crear conversación:', error);
-      res.status(500).json({ error: 'No se pudo iniciar la conversación.' });
-    } finally {
-      client?.release();
-    }
-  },
-
-  obtenerConversacion: async (req, res) => {
-    if (!CONVERSATION_ID_PATTERN.test(req.params.id)) {
-      return res.status(400).json({ error: 'Conversación inválida.' });
-    }
-    try {
-      await asegurarEsquemaMensajes();
-      const conversation = await buscarConversacion(req.user.id, req.params.id);
-      if (!conversation) return res.status(404).json({ error: 'Conversación no encontrada.' });
-
-      await pool.query(
-        `UPDATE conversation_members
-         SET last_read_at = now()
-         WHERE conversation_id = $1 AND user_id = $2`,
-        [req.params.id, req.user.id]
-      );
       const result = await pool.query(
-        `SELECT id::text, body AS text, created_at, sender_id = $2 AS mine
-         FROM messages
-         WHERE conversation_id = $1
-         ORDER BY created_at ASC, id ASC
-         LIMIT 500`,
-        [req.params.id, req.user.id]
+        `SELECT COUNT(*)::int AS total
+         FROM public.messages m
+         JOIN public.conversation_members cm ON cm.conversation_id = m.conversation_id
+         WHERE cm.user_id = $1
+           AND m.sender_id IS DISTINCT FROM $1
+           AND m.created_at > cm.last_read_at
+           AND m.deleted_at IS NULL`,
+        [req.user.id]
       );
-      res.json({
-        ...conversation,
-        unread: 0,
-        messages: result.rows.map((row) => ({
-          id: row.id,
-          text: row.text,
-          createdAt: row.created_at,
-          mine: row.mine,
-        })),
-      });
+      return res.json({ noLeidos: Number(result.rows[0]?.total || 0) });
     } catch (error) {
-      console.error('Error al obtener conversación:', error);
-      res.status(500).json({ error: 'No se pudo cargar la conversación.' });
+      return handleError(res, error, 'No se pudo cargar el contador de mensajes.');
     }
   },
 
-  enviarMensaje: async (req, res) => {
-    if (!CONVERSATION_ID_PATTERN.test(req.params.id)) {
-      return res.status(400).json({ error: 'Conversación inválida.' });
+  createConversation: async (req, res) => {
+    const targetUserId = String(req.body?.userId || '').trim();
+    if (!UUID_PATTERN.test(targetUserId)) {
+      return res.status(400).json({ error: 'El usuario destinatario no es valido.' });
     }
-    const text = String(req.body?.text || '').trim();
-    if (!text) return res.status(400).json({ error: 'Escribí un mensaje.' });
-    if (text.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo.' });
+    if (targetUserId === req.user.id) {
+      return res.status(400).json({ error: 'No podes iniciar una conversacion con vos mismo.' });
+    }
 
-    let client;
+    const client = await pool.connect();
     try {
-      await Promise.all([asegurarEsquemaMensajes(), asegurarEsquemaModeracion()]);
-      const miembro = await pool.query(
-        `SELECT otro.user_id AS recipient_id,
-                COALESCE(actor.artist_name, actor.full_name, actor.username, 'Alguien') AS actor_name
-         FROM conversation_members propio
-         JOIN conversation_members otro ON otro.conversation_id = propio.conversation_id AND otro.user_id <> $2
-         JOIN users actor ON actor.id = $2
-         WHERE propio.conversation_id = $1 AND propio.user_id = $2`,
-        [req.params.id, req.user.id]
-      );
-      if (miembro.rowCount === 0) return res.status(404).json({ error: 'Conversación no encontrada.' });
-
-      const recipientId = miembro.rows[0].recipient_id;
-      const bloqueo = await pool.query(
-        `SELECT 1 FROM user_blocks
+      await client.query('BEGIN');
+      const target = await client.query('SELECT id FROM public.users WHERE id = $1', [targetUserId]);
+      if (target.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'El usuario ya no esta disponible.' });
+      }
+      const block = await client.query(
+        `SELECT 1 FROM public.user_blocks
          WHERE (blocker_id = $1 AND blocked_id = $2)
             OR (blocker_id = $2 AND blocked_id = $1)`,
-        [req.user.id, recipientId]
+        [req.user.id, targetUserId]
       );
-      if (bloqueo.rowCount > 0) return res.status(403).json({ error: 'No se puede enviar este mensaje.' });
+      if (block.rowCount > 0) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'No se puede iniciar la conversacion debido a un bloqueo.' });
+      }
 
-      client = await pool.connect();
-      await client.query('BEGIN');
-      const insertado = await client.query(
-        `INSERT INTO messages (conversation_id, sender_id, body)
-         VALUES ($1, $2, $3)
-         RETURNING id::text, body AS text, created_at`,
-        [req.params.id, req.user.id, text]
+      const directKey = [req.user.id, targetUserId].sort().join(':');
+      const conversation = await client.query(
+        `INSERT INTO public.conversations (direct_key, created_by)
+         VALUES ($1, $2)
+         ON CONFLICT (direct_key) DO UPDATE SET direct_key = EXCLUDED.direct_key
+         RETURNING id`,
+        [directKey, req.user.id]
       );
+      const conversationId = conversation.rows[0].id;
       await client.query(
-        `UPDATE conversations
-         SET updated_at = timezone('utc'::text, now())
-         WHERE id = $1`,
-        [req.params.id]
+        `INSERT INTO public.conversation_members (conversation_id, user_id)
+         VALUES ($1, $2), ($1, $3)
+         ON CONFLICT (conversation_id, user_id) DO UPDATE
+         SET archived_at = NULL`,
+        [conversationId, req.user.id, targetUserId]
       );
       await client.query('COMMIT');
-
-      const message = { ...insertado.rows[0], createdAt: insertado.rows[0].created_at, mine: true };
-      delete message.created_at;
-      await crearNotificacion({
-        userId: recipientId,
-        actorId: req.user.id,
-        type: 'message',
-        title: `${miembro.rows[0].actor_name} te envió un mensaje`,
-        body: text.slice(0, 140),
-        targetUrl: `/mensajes?conversation=${req.params.id}`,
-        entityType: 'conversation',
-        entityId: req.params.id,
-        uniqueKey: `message:${insertado.rows[0].id}`,
-      });
-      res.status(201).json(message);
+      const row = await getConversation(conversationId, req.user.id);
+      return res.status(201).json(mapConversation(row));
     } catch (error) {
-      if (client) await client.query('ROLLBACK').catch(() => null);
-      console.error('Error al enviar mensaje:', error);
-      res.status(500).json({ error: 'No se pudo enviar el mensaje.' });
+      await client.query('ROLLBACK').catch(() => null);
+      return handleError(res, error, 'No se pudo iniciar la conversacion.');
     } finally {
-      client?.release();
+      client.release();
     }
   },
+
+  listMessages: async (req, res) => {
+    const { conversationId } = req.params;
+    const before = req.query.before ? String(req.query.before) : null;
+    const limit = clampLimit(req.query.limit);
+    if (!UUID_PATTERN.test(conversationId) || (before && !/^\d+$/.test(before))) {
+      return res.status(400).json({ error: 'El cursor o la conversacion no son validos.' });
+    }
+
+    try {
+      const access = await getConversation(conversationId, req.user.id);
+      if (!access) return res.status(404).json({ error: 'Conversacion no encontrada.' });
+      await pool.query(
+        `UPDATE public.conversation_members
+         SET last_delivered_at = timezone('utc'::text, now())
+         WHERE conversation_id = $1 AND user_id = $2`,
+        [conversationId, req.user.id]
+      );
+      const result = await pool.query(
+        `SELECT
+           m.*,
+           sender.username AS sender_username,
+           sender.display_name AS sender_display_name,
+           sender.profile_img_url AS sender_avatar,
+           reply.body AS reply_body,
+           reply.sender_id AS reply_sender_id,
+           reply.deleted_at AS reply_deleted_at,
+           other.last_read_at AS other_last_read_at,
+           other.last_delivered_at AS other_last_delivered_at
+         FROM public.messages m
+         LEFT JOIN public.users sender ON sender.id = m.sender_id
+         LEFT JOIN public.messages reply ON reply.id = m.reply_to_id
+         LEFT JOIN public.conversation_members other
+           ON other.conversation_id = m.conversation_id AND other.user_id <> $3
+         WHERE m.conversation_id = $1
+           AND ($2::bigint IS NULL OR m.id < $2::bigint)
+         ORDER BY m.id DESC
+         LIMIT $4`,
+        [conversationId, before, req.user.id, limit + 1]
+      );
+      const hasMore = result.rows.length > limit;
+      const selected = result.rows.slice(0, limit);
+      const nextCursor = hasMore ? String(selected[selected.length - 1]?.id || '') : null;
+      return res.json({
+        items: selected.reverse().map((row) => mapMessage(row, req.user.id)),
+        nextCursor,
+        bloqueada: Boolean(access.blocked),
+      });
+    } catch (error) {
+      return handleError(res, error, 'No se pudieron cargar los mensajes.');
+    }
+  },
+
+  sendMessage: async (req, res) => {
+    const { conversationId } = req.params;
+    const body = normalizeMessage(req.body?.texto);
+    const replyToId = req.body?.respuestaA == null ? null : String(req.body.respuestaA);
+    if (!UUID_PATTERN.test(conversationId)) {
+      return res.status(400).json({ error: 'La conversacion no es valida.' });
+    }
+    if (!body || body.length > MAX_MESSAGE_LENGTH) {
+      return res.status(400).json({ error: `El mensaje debe tener entre 1 y ${MAX_MESSAGE_LENGTH} caracteres.` });
+    }
+    if (replyToId && !/^\d+$/.test(replyToId)) {
+      return res.status(400).json({ error: 'El mensaje respondido no es valido.' });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const access = await getConversation(conversationId, req.user.id, client);
+      if (!access) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Conversacion no encontrada.' });
+      }
+      if (access.blocked) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({ error: 'No podes enviar mensajes en esta conversacion.' });
+      }
+      if (access.other_deleted) {
+        await client.query('ROLLBACK');
+        return res.status(410).json({ error: 'El usuario ya no existe.' });
+      }
+      const rate = await client.query(
+        `SELECT COUNT(*)::int AS total
+         FROM public.messages
+         WHERE sender_id = $1
+           AND created_at > NOW() - ($2::text || ' seconds')::interval`,
+        [req.user.id, RATE_WINDOW_SECONDS]
+      );
+      if (Number(rate.rows[0]?.total || 0) >= RATE_MAX_MESSAGES) {
+        await client.query('ROLLBACK');
+        return res.status(429).json({ error: 'Estas enviando mensajes demasiado rapido. Espera unos segundos.' });
+      }
+      if (replyToId) {
+        const reply = await client.query(
+          'SELECT 1 FROM public.messages WHERE id = $1 AND conversation_id = $2',
+          [replyToId, conversationId]
+        );
+        if (reply.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'El mensaje que queres responder ya no existe.' });
+        }
+      }
+      const inserted = await client.query(
+        `INSERT INTO public.messages (conversation_id, sender_id, body, reply_to_id)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id`,
+        [conversationId, req.user.id, body, replyToId]
+      );
+      await client.query(
+        `UPDATE public.conversation_members
+         SET last_read_at = timezone('utc'::text, now()), archived_at = NULL
+         WHERE conversation_id = $1 AND user_id = $2`,
+        [conversationId, req.user.id]
+      );
+      await crearNotificacion({
+        userId: access.other_user_id,
+        actorId: req.user.id,
+        type: 'direct_message',
+        title: `${nombreActor(req.user)} te envio un mensaje`,
+        body: body.slice(0, 180),
+        targetUrl: `/mensajes?conversacion=${encodeURIComponent(conversationId)}`,
+        uniqueKey: `direct-message:${inserted.rows[0].id}:${access.other_user_id}`,
+      }, client);
+      const message = await getMessage(
+        inserted.rows[0].id,
+        conversationId,
+        req.user.id,
+        client
+      );
+      const response = mapMessage(message, req.user.id);
+      await client.query('COMMIT');
+      return res.status(201).json(response);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      return handleError(res, error, 'No se pudo enviar el mensaje.');
+    } finally {
+      client.release();
+    }
+  },
+
+  markRead: async (req, res) => {
+    const { conversationId } = req.params;
+    if (!UUID_PATTERN.test(conversationId)) {
+      return res.status(400).json({ error: 'La conversacion no es valida.' });
+    }
+    try {
+      const targetUrl = `/mensajes?conversacion=${encodeURIComponent(conversationId)}`;
+      const [result] = await Promise.all([
+        pool.query(
+          `UPDATE public.conversation_members
+           SET last_read_at = timezone('utc'::text, now()),
+               last_delivered_at = timezone('utc'::text, now())
+           WHERE conversation_id = $1 AND user_id = $2
+           RETURNING last_read_at`,
+          [conversationId, req.user.id]
+        ),
+        pool.query(
+          `UPDATE public.notifications
+           SET read_at = COALESCE(read_at, timezone('utc'::text, now()))
+           WHERE user_id = $1 AND type = 'direct_message' AND target_url = $2 AND read_at IS NULL`,
+          [req.user.id, targetUrl]
+        ),
+      ]);
+      if (result.rowCount === 0) return res.status(404).json({ error: 'Conversacion no encontrada.' });
+      return res.json({ leidoEn: result.rows[0].last_read_at });
+    } catch (error) {
+      return handleError(res, error, 'No se pudo marcar la conversacion como leida.');
+    }
+  },
+
+  editMessage: async (req, res) => {
+    const messageId = String(req.params.messageId || '');
+    const body = normalizeMessage(req.body?.texto);
+    if (!/^\d+$/.test(messageId) || !body || body.length > MAX_MESSAGE_LENGTH) {
+      return res.status(400).json({ error: 'El mensaje editado no es valido.' });
+    }
+    try {
+      const result = await pool.query(
+        `UPDATE public.messages
+         SET body = $1, edited_at = timezone('utc'::text, now())
+         WHERE id = $2
+           AND sender_id = $3
+           AND deleted_at IS NULL
+           AND created_at >= NOW() - INTERVAL '15 minutes'
+         RETURNING conversation_id`,
+        [body, messageId, req.user.id]
+      );
+      if (result.rowCount === 0) {
+        return res.status(409).json({ error: 'Solo podes editar tus mensajes durante los primeros 15 minutos.' });
+      }
+      const message = await getMessage(messageId, result.rows[0].conversation_id, req.user.id);
+      return res.json(mapMessage(message, req.user.id));
+    } catch (error) {
+      return handleError(res, error, 'No se pudo editar el mensaje.');
+    }
+  },
+
+  deleteMessage: async (req, res) => {
+    const messageId = String(req.params.messageId || '');
+    if (!/^\d+$/.test(messageId)) {
+      return res.status(400).json({ error: 'El mensaje no es valido.' });
+    }
+    try {
+      const result = await pool.query(
+        `UPDATE public.messages
+         SET body = '', deleted_at = timezone('utc'::text, now()), edited_at = NULL
+         WHERE id = $1 AND sender_id = $2 AND deleted_at IS NULL
+         RETURNING id`,
+        [messageId, req.user.id]
+      );
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: 'Mensaje no encontrado o sin permiso para eliminarlo.' });
+      }
+      return res.json({ ok: true, id: result.rows[0].id });
+    } catch (error) {
+      return handleError(res, error, 'No se pudo eliminar el mensaje.');
+    }
+  },
+};
+
+mensajeController._internals = {
+  clampLimit,
+  normalizeMessage,
+  mapConversation,
+  mapMessage,
 };
 
 module.exports = mensajeController;

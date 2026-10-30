@@ -1,24 +1,20 @@
 import { useState } from "react";
-import emailjs from "@emailjs/browser";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { supabase } from "../lib/supabaseClient";
+import { usePreferencias } from "../contextos/preferencias";
 import "./soporte.css";
-
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_ckdohp4";
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_jl05slh";
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "zEobDbcTNOMCmcI0O";
 
 const preguntas = [
   {
     id: "mapa",
     titulo: "Como encuentro eventos cerca mio?",
     texto:
-      "En Eventos podes moverte por el mapa, filtrar por genero y abrir cada pin para ver lugar, fecha, organizador y link de compra.",
+      "En Eventos podes moverte por el mapa, filtrar por genero y abrir cada pin para ver lugar, fecha, invitados o bandas invitadas y link de compra.",
   },
   {
     id: "reels",
-    titulo: "Como publico un reel musical?",
+    titulo: "Como publico una preview musical?",
     texto:
-      "Desde Descubrir podes crear un reel con portada, audio, genero y descripcion. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
+      "Desde cualquier pagina podes crear una preview con titulo, genero, portada y audio. Si no iniciaste sesion, SONDAR te va a pedir entrar primero.",
   },
   {
     id: "cuenta",
@@ -36,13 +32,14 @@ const preguntas = [
 
 const atajos = [
   "Problemas para iniciar sesion",
-  "No puedo publicar un reel",
+  "No puedo publicar una preview",
   "Quiero reportar un evento",
   "Tengo una sugerencia",
 ];
 
 export default function Soporte({ usuario }) {
   const { t } = usePreferencias();
+
   const [preguntaActiva, setPreguntaActiva] = useState("mapa");
   const [estado, setEstado] = useState(null);
   const [formData, setFormData] = useState({
@@ -50,11 +47,9 @@ export default function Soporte({ usuario }) {
     message: "",
   });
   const [loading, setLoading] = useState(false);
+
   const emailUsuario = usuario?.email?.trim() || "";
-  const nombreUsuario =
-    usuario?.user_metadata?.username ||
-    usuario?.user_metadata?.name ||
-    emailUsuario;
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const handleChange = (e) => {
     setFormData((actual) => ({
@@ -93,36 +88,77 @@ export default function Soporte({ usuario }) {
       return;
     }
 
+    if (!API_URL) {
+      setEstado({
+        tipo: "error",
+        texto: "No se pudo conectar con el servidor de soporte.",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-      await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-        // Campos nuevos y aliases para seguir siendo compatibles con la plantilla anterior.
-        subject,
-        title: subject,
-        name: nombreUsuario,
-        message,
-        email: emailUsuario,
-        user_email: emailUsuario,
-        from_email: emailUsuario,
-        reply_to: emailUsuario,
-        from_name: nombreUsuario,
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+      if (!session?.access_token) {
+        throw new Error(
+          "Tu sesión no es válida. Inicia sesión nuevamente."
+        );
+      }
+
+      const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          tipo: "contacto",
+          subject,
+          message,
+        }),
       });
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        // La respuesta puede no contener JSON.
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error || "No se pudo enviar el mensaje al equipo de soporte."
+        );
+      }
 
       setEstado({
         tipo: "success",
-        texto: "Mensaje enviado al equipo de soporte. Te vamos a responder apenas podamos.",
+        texto:
+          "Mensaje enviado al equipo de soporte. Te vamos a responder apenas podamos.",
       });
-      setFormData({ subject: "", message: "" });
+
+      setFormData({
+        subject: "",
+        message: "",
+      });
     } catch (error) {
-      console.error("EmailJS soporte:", error);
-      const detalle = error?.text || error?.message;
+      console.error("Soporte:", error);
+
       setEstado({
         tipo: "error",
-        texto: detalle
-          ? `No pudimos enviar el mensaje: ${detalle}`
-          : "No pudimos enviar el mensaje. Proba de nuevo en unos minutos.",
+        texto:
+          error?.message ||
+          "No pudimos enviar el mensaje. Proba de nuevo en unos minutos.",
       });
     } finally {
       setLoading(false);
@@ -135,19 +171,36 @@ export default function Soporte({ usuario }) {
         <header className="soporte-hero">
           <div>
             <span>Soporte SONDAR</span>
+
             <h1>{t("Ayuda clara para seguir sonando.")}</h1>
+
             <p>
-              Resolvelo rapido con las preguntas frecuentes o escribinos con el detalle del problema.
+              Resolvelo rapido con las preguntas frecuentes o escribinos con
+              el detalle del problema.
             </p>
           </div>
-          <img className="soporte-brand" src="/sondar-brand-2026.png" alt="SONDAR" />
+
+          <div className="soporte-brand" role="img" aria-label="SONDAR">
+            <span className="soporte-brand-icon" aria-hidden="true">
+              <img src="/sondar-brand-transparent.png" alt="" />
+            </span>
+            <span className="soporte-brand-wordmark" aria-hidden="true">
+              <img src="/sondar-brand-transparent.png" alt="" />
+            </span>
+          </div>
         </header>
 
         <div className="soporte-grid">
-          <section className="soporte-faq" aria-labelledby="soporte-faq-titulo">
+          <section
+            className="soporte-faq"
+            aria-labelledby="soporte-faq-titulo"
+          >
             <div className="soporte-section-heading">
               <span>FAQ</span>
-              <h2 id="soporte-faq-titulo">{t("Preguntas frecuentes")}</h2>
+
+              <h2 id="soporte-faq-titulo">
+                {t("Preguntas frecuentes")}
+              </h2>
             </div>
 
             <div className="soporte-faq-lista">
@@ -155,15 +208,26 @@ export default function Soporte({ usuario }) {
                 const abierta = preguntaActiva === pregunta.id;
 
                 return (
-                  <article className={`soporte-faq-item ${abierta ? "abierta" : ""}`} key={pregunta.id}>
+                  <article
+                    className={`soporte-faq-item ${
+                      abierta ? "abierta" : ""
+                    }`}
+                    key={pregunta.id}
+                  >
                     <button
                       type="button"
                       aria-expanded={abierta}
-                      onClick={() => setPreguntaActiva(abierta ? "" : pregunta.id)}
+                      onClick={() =>
+                        setPreguntaActiva(
+                          abierta ? "" : pregunta.id
+                        )
+                      }
                     >
                       <span>{pregunta.titulo}</span>
+
                       <strong>{abierta ? "-" : "+"}</strong>
                     </button>
+
                     {abierta ? <p>{pregunta.texto}</p> : null}
                   </article>
                 );
@@ -171,23 +235,40 @@ export default function Soporte({ usuario }) {
             </div>
           </section>
 
-          <aside className="soporte-contacto" aria-labelledby="soporte-contacto-titulo">
+          <aside
+            className="soporte-contacto"
+            aria-labelledby="soporte-contacto-titulo"
+          >
             <div className="soporte-section-heading">
               <span>Contacto</span>
-              <h2 id="soporte-contacto-titulo">{t("Contanos qué pasó")}</h2>
+
+              <h2 id="soporte-contacto-titulo">
+                {t("Contanos qué pasó")}
+              </h2>
             </div>
 
-            <div className="soporte-atajos" aria-label="Motivos frecuentes">
+            <div
+              className="soporte-atajos"
+              aria-label="Motivos frecuentes"
+            >
               {atajos.map((atajo) => (
-                <button type="button" key={atajo} onClick={() => usarAtajo(atajo)}>
+                <button
+                  type="button"
+                  key={atajo}
+                  onClick={() => usarAtajo(atajo)}
+                >
                   {atajo}
                 </button>
               ))}
             </div>
 
-            <form onSubmit={sendEmail} className="formulario-soporte">
+            <form
+              onSubmit={sendEmail}
+              className="formulario-soporte"
+            >
               <label>
                 Asunto
+
                 <input
                   type="text"
                   name="subject"
@@ -199,13 +280,20 @@ export default function Soporte({ usuario }) {
               </label>
 
               <p className="soporte-email-usuario">
-                {emailUsuario
-                  ? <>Tu consulta se enviara al equipo de soporte. Cuenta asociada: <strong>{emailUsuario}</strong>.</>
-                  : "Inicia sesion para que podamos identificar tu correo."}
+                {emailUsuario ? (
+                  <>
+                    Tu consulta se enviara al equipo de soporte.
+                    Cuenta asociada:{" "}
+                    <strong>{emailUsuario}</strong>.
+                  </>
+                ) : (
+                  "Inicia sesion para que podamos identificar tu correo."
+                )}
               </p>
 
               <label>
                 Mensaje
+
                 <textarea
                   name="message"
                   value={formData.message}
@@ -215,13 +303,20 @@ export default function Soporte({ usuario }) {
                 />
               </label>
 
-              <button type="submit" className="btn-soporte" disabled={loading || !emailUsuario}>
+              <button
+                type="submit"
+                className="btn-soporte"
+                disabled={loading || !emailUsuario}
+              >
                 {loading ? "Enviando..." : "Enviar mensaje"}
               </button>
             </form>
 
             {estado ? (
-              <p className={`alert-soporte ${estado.tipo}`} role="status">
+              <p
+                className={`alert-soporte ${estado.tipo}`}
+                role="status"
+              >
                 {estado.texto}
               </p>
             ) : null}

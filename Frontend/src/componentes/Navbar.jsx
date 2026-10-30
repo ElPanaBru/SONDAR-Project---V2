@@ -1,18 +1,17 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
 import "./navbar.css";
 import NotificationPanel from "./NotificationPanel";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 
 const iconosCrear = {
   evento:
     "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
   demo:
     "m300-300 280-80 80-280-280 80-80 280Zm180-120q-25 0-42.5-17.5T420-480q0-25 17.5-42.5T480-540q25 0 42.5 17.5T540-480q0 25-17.5 42.5T480-420Zm0 340q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z",
-  comunidad:
-    "M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Z",
 };
 
 function IconoCrear({ nombre }) {
@@ -31,7 +30,7 @@ const perfilGuardado = (usuario) => {
   };
 };
 
-function Navbar({ usuario }) {
+function Navbar({ usuario, onCrearReel }) {
   const { preferencias, t } = usePreferencias();
   const [busqueda, setBusqueda] = useState("");
   const [mostrarNotifs, setMostrarNotifs] = useState(false);
@@ -40,7 +39,11 @@ function Navbar({ usuario }) {
   const [mostrarPerfil, setMostrarPerfil] = useState(false);
   const [mostrarEditor, setMostrarEditor] = useState(false);
   const [perfilEditado, setPerfilEditado] = useState(() => perfilGuardado(usuario));
+  const [perfilCargadoPara, setPerfilCargadoPara] = useState(null);
+  const cargandoPerfil = Boolean(usuario?.id && perfilCargadoPara !== usuario.id);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
+  const [avatarArrastrado, setAvatarArrastrado] = useState(false);
+  const revisionPerfilRef = useRef(0);
   const crearRef = useRef(null);
   const notificacionesRef = useRef(null);
   const perfilRef = useRef(null);
@@ -56,7 +59,9 @@ function Navbar({ usuario }) {
 
   useEffect(() => {
     const actualizarPerfil = (event) => {
+      revisionPerfilRef.current += 1;
       setPerfilEditado(event.detail || perfilGuardado(usuario));
+      setPerfilCargadoPara(usuario?.id || null);
     };
     window.addEventListener("sondar-perfil-actualizado", actualizarPerfil);
     return () => window.removeEventListener("sondar-perfil-actualizado", actualizarPerfil);
@@ -77,7 +82,7 @@ function Navbar({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const response = await fetch(apiUrl("/api/notificaciones/no-leidas"), {
+        const response = await apiRequest("/api/notificaciones/no-leidas", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) return;
@@ -115,6 +120,7 @@ function Navbar({ usuario }) {
     let activo = true;
 
     const cargarPerfil = async () => {
+      const revision = revisionPerfilRef.current;
       if (!usuario) {
         setPerfilEditado(perfilGuardado(null));
         return;
@@ -124,26 +130,28 @@ function Navbar({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) {
-          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
           return;
         }
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
 
         if (!response.ok) {
-          if (activo) setPerfilEditado(perfilGuardado(usuario));
+          if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
           return;
         }
 
         const dataPerfil = await response.json();
-        if (activo) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
+        if (activo && revision === revisionPerfilRef.current) setPerfilEditado(dataPerfil.perfil || perfilGuardado(usuario));
       } catch (error) {
         console.error("Error al cargar perfil en navbar:", error);
-        if (activo) setPerfilEditado(perfilGuardado(usuario));
+        if (activo && revision === revisionPerfilRef.current) setPerfilEditado(perfilGuardado(usuario));
+      } finally {
+        if (activo && revision === revisionPerfilRef.current) setPerfilCargadoPara(usuario.id);
       }
     };
 
@@ -186,17 +194,15 @@ function Navbar({ usuario }) {
     e.preventDefault();
     const query = busqueda.trim();
 
-    if (!query) return;
-
     setMostrarCrear(false);
     setMostrarNotifs(false);
     setMostrarPerfil(false);
 
-    navigate(`/buscar?query=${encodeURIComponent(query)}`);
+    navigate(query ? `/buscar?query=${encodeURIComponent(query)}` : "/buscar");
   };
 
   const getPlaceholder = () => {
-    return t("Buscar usuarios, reels o eventos...");
+    return t("Buscar usuarios, previews o eventos...");
   };
 
   const handleLogout = async () => {
@@ -216,15 +222,23 @@ function Navbar({ usuario }) {
     });
   };
 
-  const handleAvatar = (e) => {
-    const file = e.target.files?.[0];
+  const seleccionarAvatar = (file) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) return;
 
     setAvatarArchivo(file);
     setPerfilEditado((prev) => ({
       ...prev,
       avatar: URL.createObjectURL(file),
     }));
+  };
+
+  const handleAvatar = (event) => seleccionarAvatar(event.target.files?.[0]);
+
+  const soltarAvatar = (event) => {
+    event.preventDefault();
+    setAvatarArrastrado(false);
+    seleccionarAvatar(event.dataTransfer.files?.[0]);
   };
 
   const guardarPerfil = async (e) => {
@@ -240,7 +254,7 @@ function Navbar({ usuario }) {
       formData.append("bio", perfilEditado.bio || "");
       if (avatarArchivo) formData.append("avatar", avatarArchivo);
 
-      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+      const response = await apiRequest("/api/usuarios/me/perfil", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -272,26 +286,17 @@ function Navbar({ usuario }) {
     }
 
     if (tipo === "demo") {
-      navigate("/descubrir?crear=reel");
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("sondar:crear-reel"));
-      }, 0);
+      onCrearReel();
       return;
     }
-
-    navigate("/comunidad");
   };
 
-  const inicialPerfil = (perfilEditado.nombre || usuario?.email || "S").charAt(0).toUpperCase();
+  const inicialPerfil = (perfilEditado.nombre || perfilEditado.usuario || usuario?.email || "S").replace(/^@/, "").charAt(0).toUpperCase();
 
   return (
     <>
-      <nav className="custom-navbar">
-        <Link to="/" className="navbar-brand">
-          <img src="/sondar-brand-2026.png" alt="SONDAR" className="logo" />
-        </Link>
-
-        <div className="navbar-center">
+      <nav className={`custom-navbar ${location.pathname === "/descubrir" ? "navbar-preview" : ""}`}>
+<div className="navbar-center">
           <form className="search-form" onSubmit={handleSearch}>
             <input
               className="search-input"
@@ -338,8 +343,7 @@ function Navbar({ usuario }) {
                 {mostrarCrear ? (
                   <div className="navbar-create-menu" role="menu" aria-label="Opciones para crear">
                     <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("evento")}><IconoCrear nombre="evento" />{t("Evento")}</button>
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Reel</button>
-                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("comunidad")}><IconoCrear nombre="comunidad" />{t("Comunidad")}</button>
+                    <button type="button" role="menuitem" onClick={() => crearDesdeNavbar("demo")}><IconoCrear nombre="demo" />Preview</button>
                   </div>
                 ) : null}
               </div>
@@ -387,7 +391,11 @@ function Navbar({ usuario }) {
                     setMostrarPerfil((value) => !value);
                   }}
                 >
-                  {perfilEditado.avatar ? <img src={perfilEditado.avatar} alt="" /> : <span>{inicialPerfil}</span>}
+                  {cargandoPerfil ? (
+                    <span className="avatar-imagen avatar-imagen-cargando" role="status" aria-label="Cargando foto de perfil" aria-busy="true" />
+                  ) : (
+                    <ImagenAvatar src={perfilEditado.avatar} inicial={inicialPerfil} />
+                  )}
                 </button>
 
                 {mostrarPerfil ? (
@@ -443,14 +451,22 @@ function Navbar({ usuario }) {
             <div className="profile-edit-body">
               <div className="profile-edit-avatar">
                 {perfilEditado.avatar ? (
-                  <img src={perfilEditado.avatar} alt="" />
+                  <ImagenAvatar src={perfilEditado.avatar} inicial={perfilEditado.nombre} />
                 ) : (
                   <span>{perfilEditado.nombre?.charAt(0)?.toUpperCase() || "S"}</span>
                 )}
               </div>
 
-              <label className="profile-edit-file">
-                Cambiar foto
+              <label
+                className={`profile-edit-file ${avatarArrastrado ? "arrastrando" : ""}`}
+                onDragEnter={(event) => { event.preventDefault(); setAvatarArrastrado(true); }}
+                onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) setAvatarArrastrado(false);
+                }}
+                onDrop={soltarAvatar}
+              >
+                Elegir o arrastrar foto
                 <input type="file" accept="image/*" onChange={handleAvatar} />
               </label>
 

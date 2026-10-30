@@ -1,122 +1,25 @@
-import { GENEROS_MUSICALES } from "../lib/generos";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import DescubrirSkeleton from "../componentes/DescubrirSkeleton";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
+import {
+  COLOR_PORTADA_PREDETERMINADO,
+  extraerColorDominanteDesdeUrl,
+  mezclarColores,
+  normalizarColorPortada,
+} from "../lib/colorPortada";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
+import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./descubrir.css";
-
-const lanzamientosIniciales = [
-  {
-    id: 1,
-    artista: "Luna Norte",
-    usuario: "@lunanorte",
-    oyentes: "12.8K",
-    tema: "Ruido de ciudad",
-    album: "Neon de madrugada",
-    descripcion: "Sintetizadores brillantes, bajo suave y una voz bien cerca para arrancar la noche.",
-    duracion: "3:42",
-    progreso: 34,
-    likes: 27200,
-    comentarios: "107",
-    compartidos: 1177,
-    guardados: 2840,
-    colorA: "#ffae00",
-    colorB: "#ff5e00",
-    colorC: "#1b1b1b",
-    liked: false,
-    guardado: false,
-    siguiendo: false,
-  },
-  {
-    id: 2,
-    artista: "Santo Beat",
-    usuario: "@santobeat",
-    oyentes: "8.7K",
-    tema: "Pulso lento",
-    album: "Sala roja",
-    descripcion: "Trap, soul y percusiones latinas en una demo cruda con energia de vivo.",
-    duracion: "2:58",
-    progreso: 51,
-    likes: 18400,
-    comentarios: "89",
-    compartidos: 640,
-    guardados: 1960,
-    colorA: "#3cff00",
-    colorB: "#023b22",
-    colorC: "#111111",
-    liked: true,
-    guardado: false,
-    siguiendo: false,
-  },
-  {
-    id: 3,
-    artista: "Marea Gris",
-    usuario: "@mareagris",
-    oyentes: "21.4K",
-    tema: "Antes del final",
-    album: "Paredes de humo",
-    descripcion: "Rock alternativo con guitarras densas, bateria seca y un estribillo directo.",
-    duracion: "4:11",
-    progreso: 22,
-    likes: 31900,
-    comentarios: "214",
-    compartidos: 2031,
-    guardados: 4210,
-    colorA: "#aa3bff",
-    colorB: "#3157ff",
-    colorC: "#070707",
-    liked: false,
-    guardado: true,
-    siguiendo: true,
-  },
-  {
-    id: 4,
-    artista: "Nico Solar",
-    usuario: "@nicosolar",
-    oyentes: "5.4K",
-    tema: "Cables",
-    album: "Habitacion 404",
-    descripcion: "Bedroom pop con guitarras limpias, coros luminosos y ruido de cinta.",
-    duracion: "3:16",
-    progreso: 68,
-    likes: 9600,
-    comentarios: "42",
-    compartidos: 318,
-    guardados: 875,
-    colorA: "#00d4ff",
-    colorB: "#f3f6ff",
-    colorC: "#13223a",
-    liked: false,
-    guardado: false,
-    siguiendo: false,
-  },
-  {
-    id: 5,
-    artista: "Valle Club",
-    usuario: "@valleclub",
-    oyentes: "16.3K",
-    tema: "Otra vuelta",
-    album: "Club del valle",
-    descripcion: "Funk alternativo con groove marcado, bajos vivos y textura de sala chica.",
-    duracion: "3:29",
-    progreso: 45,
-    likes: 22100,
-    comentarios: "133",
-    compartidos: 924,
-    guardados: 2310,
-    colorA: "#ff5e00",
-    colorB: "#ffd86b",
-    colorC: "#15100b",
-    liked: false,
-    guardado: false,
-    siguiendo: false,
-  },
-];
 
 const iconos = {
   play: "M320-200v-560l440 280-440 280Z",
@@ -137,187 +40,45 @@ const iconos = {
   cerrar: "m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z",
 };
 
-const comentariosIniciales = [
-  {
-    id: 1,
-    usuario: "@abrilsonica",
-    tiempo: "hace 12 min",
-    texto: "Este sonido pide escenario chico y luces bajas.",
-    likes: 1200,
-    liked: false,
-    respuestas: [
-      {
-        id: 11,
-        usuario: "@lunanorte",
-        tiempo: "hace 8 min",
-        texto: "Totalmente, ese era el clima que buscabamos.",
-        likes: 84,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 2,
-    usuario: "@matibeat",
-    tiempo: "hace 34 min",
-    texto: "El bajo entra hermoso, guardadisimo.",
-    likes: 864,
-    liked: false,
-    respuestas: [],
-  },
-  {
-    id: 3,
-    usuario: "@valenruido",
-    tiempo: "hace 1 hora",
-    texto: "Necesito escuchar la version completa.",
-    likes: 512,
-    liked: false,
-    respuestas: [
-      {
-        id: 31,
-        usuario: "@clubdemo",
-        tiempo: "hace 42 min",
-        texto: "Sale el viernes, ya lo dijeron en historias.",
-        likes: 37,
-        liked: false,
-      },
-      {
-        id: 32,
-        usuario: "@abrilsonica",
-        tiempo: "hace 28 min",
-        texto: "Va directo a mi playlist nocturna.",
-        likes: 21,
-        liked: false,
-      },
-    ],
-  },
-  {
-    id: 4,
-    usuario: "@clubdemo",
-    tiempo: "hace 2 horas",
-    texto: "Esto va perfecto para abrir una playlist nocturna.",
-    likes: 306,
-    liked: false,
-    respuestas: [],
-  },
-];
+const ETIQUETAS_GENERO_REEL = ETIQUETAS_GENEROS;
+const coloresPortadaCache = new Map();
 
-const comentariosPorLanzamientoIniciales = {
-  1: comentariosIniciales,
-  2: [
-    {
-      id: 201,
-      usuario: "@beatcurioso",
-      tiempo: "hace 9 min",
-      texto: "La percusion de esta demo tiene un groove tremendo.",
-      likes: 430,
-      liked: false,
-      respuestas: [
-        {
-          id: 2011,
-          usuario: "@santobeat",
-          tiempo: "hace 4 min",
-          texto: "Gracias, la arme con samples grabados en sala.",
-          likes: 39,
-          liked: false,
-        },
-      ],
-    },
-    {
-      id: 202,
-      usuario: "@noche808",
-      tiempo: "hace 27 min",
-      texto: "El bajo pide volumen alto. Esto en vivo puede explotar.",
-      likes: 290,
-      liked: false,
-      respuestas: [],
-    },
-  ],
-  3: [
-    {
-      id: 301,
-      usuario: "@guitarraruido",
-      tiempo: "hace 18 min",
-      texto: "Las guitarras tienen una pared hermosa, muy bien mezcladas.",
-      likes: 980,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 302,
-      usuario: "@alternativo_sur",
-      tiempo: "hace 46 min",
-      texto: "El estribillo entra directo, tiene olor a cierre de show.",
-      likes: 604,
-      liked: false,
-      respuestas: [
-        {
-          id: 3021,
-          usuario: "@mareagris",
-          tiempo: "hace 30 min",
-          texto: "Esa era la idea: que el final levante todo.",
-          likes: 71,
-          liked: false,
-        },
-      ],
-    },
-  ],
-  4: [
-    {
-      id: 401,
-      usuario: "@habitacionpop",
-      tiempo: "hace 7 min",
-      texto: "El ruido de cinta queda perfecto con esas guitarras limpias.",
-      likes: 220,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 402,
-      usuario: "@solarclub",
-      tiempo: "hace 39 min",
-      texto: "Muy linda la melodia del puente. Se queda dando vueltas.",
-      likes: 188,
-      liked: false,
-      respuestas: [],
-    },
-  ],
-  5: [
-    {
-      id: 501,
-      usuario: "@bajofunk",
-      tiempo: "hace 15 min",
-      texto: "Ese bajo esta adelante como corresponde. Tremendo pulso.",
-      likes: 510,
-      liked: false,
-      respuestas: [],
-    },
-    {
-      id: 502,
-      usuario: "@vallefan",
-      tiempo: "hace 1 hora",
-      texto: "Me encanta que suene a sala chica, tiene mucha presencia.",
-      likes: 344,
-      liked: false,
-      respuestas: [
-        {
-          id: 5021,
-          usuario: "@valleclub",
-          tiempo: "hace 42 min",
-          texto: "Lo grabamos casi todo tocando juntos.",
-          likes: 55,
-          liked: false,
-        },
-      ],
-    },
-  ],
-};
+async function obtenerColorPortada(url, signal) {
+  const colorGuardado = coloresPortadaCache.get(url);
+  if (colorGuardado) return colorGuardado;
 
-const GENEROS_REEL = GENEROS_MUSICALES;
+  const color = await extraerColorDominanteDesdeUrl(url, {
+    signal,
+    usarRespaldoEnError: false,
+  });
+  coloresPortadaCache.set(url, color);
+  return color;
+}
+
+function crearVariablesFondoReel(color) {
+  const principal = normalizarColorPortada(color);
+
+  return {
+    "--fondo-reel-color": principal,
+    "--fondo-reel-medio": mezclarColores(principal, "#191922", 0.48),
+    "--fondo-reel-profundo": mezclarColores(principal, "#12131a", 0.55),
+  };
+}
+
+const normalizarGeneroReel = normalizarGeneroMusical;
 
 function mostrarGeneroReel(genero) {
-  if (!genero) return "";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  const valor = normalizarGeneroReel(genero);
+  if (!valor) return "";
+  return ETIQUETAS_GENERO_REEL[valor]
+    || valor.charAt(0).toUpperCase() + valor.slice(1);
+}
+
+function generosDeReel(reel) {
+  const recibidos = Array.isArray(reel?.generos) && reel.generos.length > 0
+    ? reel.generos
+    : [reel?.genero];
+  return [...new Set(recibidos.map(normalizarGeneroReel).filter(Boolean))].slice(0, 3);
 }
 
 function Icono({ nombre }) {
@@ -377,11 +138,6 @@ function IconoPersona() {
   );
 }
 
-function duracionASegundos(duracion) {
-  const [minutos, segundos] = duracion.split(":").map(Number);
-  return minutos * 60 + segundos;
-}
-
 function formatearConteo(numero) {
   return new Intl.NumberFormat("es-AR").format(numero);
 }
@@ -397,7 +153,7 @@ function obtenerClaveUsuario(usuario) {
 }
 
 function inicialComentario(comentario) {
-  return comentario?.usuario?.replace(/^@/, "").charAt(0).toUpperCase() || "S";
+  return (comentario?.nombre || comentario?.usuario)?.replace(/^@/, "").charAt(0).toUpperCase() || "S";
 }
 
 function inicialAvatar(valor) {
@@ -406,7 +162,7 @@ function inicialAvatar(valor) {
 
 function AvatarComentario({ comentario }) {
   if (comentario?.avatar) {
-    return <img src={comentario.avatar} alt="" />;
+    return <ImagenAvatar src={comentario.avatar} inicial={inicialComentario(comentario)} />;
   }
 
   return inicialComentario(comentario);
@@ -423,19 +179,39 @@ function buscarAvatarEnComentarios(comentarios, userId) {
   return "";
 }
 
-const reelVacio = {
-  tema: "",
-  album: "",
-  genero: "",
-  descripcion: "",
-  portada: "",
-  portadaFile: null,
-  audio: "",
-  audioFile: null,
-  nombrePortada: "",
-  nombreAudio: "",
-  duracion: "0:30",
-};
+function formatearTiempoAudio(segundos) {
+  const total = Number.isFinite(segundos) ? Math.max(0, Math.floor(segundos)) : 0;
+  const minutos = Math.floor(total / 60);
+  return `${minutos}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function pintarControlProgresoReel(control, tiempo, duracionTotal) {
+  if (!control) return;
+
+  const duracion = Number.isFinite(duracionTotal) && duracionTotal > 0
+    ? duracionTotal
+    : 0;
+  const tiempoActual = Number.isFinite(tiempo)
+    ? Math.max(0, tiempo)
+    : 0;
+  const progreso = duracion
+    ? Math.min(1, Math.max(0, tiempoActual / duracion))
+    : 0;
+
+  control.value = String(Math.round(progreso * 1000));
+  control.style.setProperty("--reel-progreso", `${(progreso * 100).toFixed(3)}%`);
+  control.setAttribute(
+    "aria-valuetext",
+    duracion
+      ? `${formatearTiempoAudio(tiempoActual)} de ${formatearTiempoAudio(duracion)}`
+      : "Cargando duracion"
+  );
+}
+
+function actualizarControlProgresoReel(control, audio) {
+  if (!audio) return;
+  pintarControlProgresoReel(control, audio.currentTime, audio.duration);
+}
 
 export default function Descubrir({ usuario }) {
   const { t } = usePreferencias();
@@ -443,12 +219,20 @@ export default function Descubrir({ usuario }) {
   const navigate = useNavigate();
   const lanzamientoCompartido = searchParams.get("lanzamiento");
   const comentarioCompartido = searchParams.get("comentario");
-  const crearReelParam = searchParams.get("crear");
+  const creadorFiltrado = searchParams.get("creador")?.trim() || "";
   const [lanzamientos, setLanzamientos] = useState([]);
+  const [cargandoReels, setCargandoReels] = useState(true);
+  const [errorCargaReels, setErrorCargaReels] = useState("");
   const [reproduciendo, setReproduciendo] = useState(lanzamientoCompartido || null);
+  const [reelAudioSeleccionado, setReelAudioSeleccionado] = useState(
+    lanzamientoCompartido || null
+  );
+  const [reelVisibleId, setReelVisibleId] = useState(lanzamientoCompartido || null);
   const [comentariosAbiertos, setComentariosAbiertos] = useState(null);
   const [comentariosAnimando, setComentariosAnimando] = useState(false);
   const [comentarioTexto, setComentarioTexto] = useState("");
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const [respuestasEnviando, setRespuestasEnviando] = useState(new Set());
   const [comentariosPorLanzamiento, setComentariosPorLanzamiento] = useState({});
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestaActiva, setRespuestaActiva] = useState(null);
@@ -456,18 +240,23 @@ export default function Descubrir({ usuario }) {
   const [respuestaTexto, setRespuestaTexto] = useState("");
   const [aviso, setAviso] = useState("");
   const [animacionesLike, setAnimacionesLike] = useState({});
-  const [mostrarCrearReel, setMostrarCrearReel] = useState(false);
-  const [subiendoReel, setSubiendoReel] = useState(false);
-  const [nuevoReel, setNuevoReel] = useState(reelVacio);
+  const [seguimientosPendientes, setSeguimientosPendientes] = useState(() => new Set());
   const [menuLanzamientoAbierto, setMenuLanzamientoAbierto] = useState(null);
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
   const [compartirActivo, setCompartirActivo] = useState(null);
   const [perfilVista, setPerfilVista] = useState(null);
-  const [progresos, setProgresos] = useState({});
+  const [posicionUsuario, setPosicionUsuario] = useState(null);
+  const [capasFondoReel, setCapasFondoReel] = useState(() => [
+    { id: null, color: COLOR_PORTADA_PREDETERMINADO },
+    { id: null, color: COLOR_PORTADA_PREDETERMINADO },
+  ]);
+  const [indiceFondoReelActivo, setIndiceFondoReelActivo] = useState(0);
   const reproduciendoRef = useRef(reproduciendo);
+  const reelVisibleIdRef = useRef(reelVisibleId);
   const comentariosAbiertosRef = useRef(comentariosAbiertos);
-  const lanzamientosFiltradosRef = useRef([]);
+  const lanzamientosVisiblesRef = useRef([]);
   const ruedaAcumuladaRef = useRef(0);
   const ultimoMovimientoRuedaRef = useRef(0);
   const toqueInicioRef = useRef(null);
@@ -475,32 +264,85 @@ export default function Descubrir({ usuario }) {
   const comentariosAnimacionTimer = useRef(null);
   const audioReelRef = useRef(null);
   const audioReelActivoIdRef = useRef(null);
+  const controlesProgresoReelRef = useRef(new Map());
   const tiemposReelRef = useRef({});
+  const duracionesReelRef = useRef({});
+  const seekManualPendienteRef = useRef(null);
   const reelPausadoPorUsuarioRef = useRef(null);
   const visitasRegistradasRef = useRef(new Set());
-  const portadaReelInputRef = useRef(null);
-  const audioReelInputRef = useRef(null);
-  const subiendoReelRef = useRef(false);
-  const query = searchParams.get("query")?.trim().toLowerCase() || "";
-  const usuarioComentario = obtenerUsuarioActual(usuario);
+  const seguimientosPendientesRef = useRef(new Set());
+  const enviandoComentarioRef = useRef(false);
+  const respuestasEnviandoRef = useRef(new Set());
+  const fondoReelEstadoRef = useRef({
+    inicializado: false,
+    indice: 0,
+    id: null,
+    color: COLOR_PORTADA_PREDETERMINADO,
+  });
+  const [perfilComentario, setPerfilComentario] = useState(null);
+  useEffect(() => {
+    let activo = true;
+    setPerfilComentario(null);
+    const actualizar = (event) => setPerfilComentario(event.detail);
+    window.addEventListener("sondar-perfil-actualizado", actualizar);
+    if (usuario?.id) {
+      (async () => {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (!data.session?.access_token) return;
+          const response = await apiRequest("/api/usuarios/me/perfil", {
+            headers: { Authorization: "Bearer " + data.session.access_token },
+          });
+          if (!response.ok) return;
+          const resultado = await response.json();
+          if (activo) setPerfilComentario(resultado.perfil);
+        } catch (error) {
+          console.error("Error al cargar el avatar de comentarios:", error);
+        }
+      })();
+    }
+    return () => {
+      activo = false;
+      window.removeEventListener("sondar-perfil-actualizado", actualizar);
+    };
+  }, [usuario?.id]);
+  const usuarioComentario = perfilComentario?.usuario || obtenerUsuarioActual(usuario);
   const claveUsuarioActual = obtenerClaveUsuario(usuario);
-  const inicialUsuario = usuario ? usuarioComentario.charAt(1).toUpperCase() : "";
+  const inicialUsuario = usuario ? inicialAvatar(perfilComentario?.nombre || perfilComentario?.usuario || usuarioComentario) : "";
   const audioReproduciendo = lanzamientos.find(
     (lanzamiento) => lanzamiento.id === reproduciendo
   )?.audio;
+  const reelBackendIdReproduciendo = lanzamientos.find(
+    (lanzamiento) => lanzamiento.id === reproduciendo
+  )?.backendId;
 
-  const lanzamientosFiltrados = useMemo(() => {
-    if (!query) return lanzamientos;
-
-    return lanzamientos.filter((lanzamiento) => {
-      const contenido =
-        `${lanzamiento.artista} ${lanzamiento.usuario} ${lanzamiento.tema} ${lanzamiento.album} ${lanzamiento.descripcion}`.toLowerCase();
-      return contenido.includes(query);
-    });
-  }, [lanzamientos, query]);
-  const idsLanzamientosFiltrados = lanzamientosFiltrados
+  const idsLanzamientosVisibles = lanzamientos
     .map((lanzamiento) => lanzamiento.id)
     .join(",");
+  const indiceColorActivo = Math.max(
+    0,
+    lanzamientos.findIndex(
+      (lanzamiento) => String(lanzamiento.id) === String(reelVisibleId)
+    )
+  );
+  const reelParaFondo = lanzamientos[indiceColorActivo] || null;
+  const reelFondoId = reelParaFondo?.id ?? null;
+  const colorFondoVisible = normalizarColorPortada(
+    reelParaFondo?.colorPrincipal ||
+      reelParaFondo?.colorA ||
+      COLOR_PORTADA_PREDETERMINADO
+  );
+  const reelsCercanosParaColor = lanzamientos
+    .slice(indiceColorActivo, indiceColorActivo + 2)
+    .filter((lanzamiento) => lanzamiento.portada)
+    .map((lanzamiento) => ({
+      id: lanzamiento.id,
+      portada: lanzamiento.portada,
+      colorPrincipal: lanzamiento.colorPrincipal,
+    }));
+  const claveVentanaColores = reelsCercanosParaColor
+    .map(({ id, portada }) => `${id}:${portada}`)
+    .join("|");
 
   const guardarTiempoAudioActual = () => {
     const audio = audioReelRef.current;
@@ -516,6 +358,10 @@ export default function Descubrir({ usuario }) {
   }, [reproduciendo]);
 
   useEffect(() => {
+    reelVisibleIdRef.current = reelVisibleId;
+  }, [reelVisibleId]);
+
+  useEffect(() => {
     const lanzamiento = lanzamientos.find((item) => item.id === reproduciendo);
     if (!lanzamiento?.backendId || !usuario) return;
 
@@ -529,7 +375,7 @@ export default function Descubrir({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) throw new Error("Sesion no disponible para registrar la visita.");
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/visita`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/visita`, {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -554,8 +400,104 @@ export default function Descubrir({ usuario }) {
   }, [comentariosAbiertos]);
 
   useEffect(() => {
-    lanzamientosFiltradosRef.current = lanzamientosFiltrados;
-  }, [lanzamientosFiltrados]);
+    lanzamientosVisiblesRef.current = lanzamientos;
+  }, [lanzamientos]);
+
+  useEffect(() => {
+    if (reelFondoId === null) return;
+
+    const estado = fondoReelEstadoRef.current;
+    const esElMismoReel = String(estado.id) === String(reelFondoId);
+
+    // El primer color se aplica sin animacion. Luego el tema queda congelado
+    // mientras el mismo reel sea visible, incluso si su color termina de
+    // analizarse en segundo plano. El fundido se reserva al cambio de reel.
+    if (esElMismoReel) return;
+
+    if (!estado.inicializado) {
+
+      setCapasFondoReel((capas) =>
+        capas.map((capa, indice) =>
+          indice === estado.indice
+            ? { id: reelFondoId, color: colorFondoVisible }
+            : capa
+        )
+      );
+      fondoReelEstadoRef.current = {
+        inicializado: true,
+        indice: estado.indice,
+        id: reelFondoId,
+        color: colorFondoVisible,
+      };
+      return;
+    }
+
+    const siguienteIndice = estado.indice === 0 ? 1 : 0;
+    setCapasFondoReel((capas) =>
+      capas.map((capa, indice) =>
+        indice === siguienteIndice
+          ? { id: reelFondoId, color: colorFondoVisible }
+          : capa
+      )
+    );
+    setIndiceFondoReelActivo(siguienteIndice);
+    fondoReelEstadoRef.current = {
+      inicializado: true,
+      indice: siguienteIndice,
+      id: reelFondoId,
+      color: colorFondoVisible,
+    };
+  }, [colorFondoVisible, reelFondoId]);
+
+  useEffect(() => {
+    const pendientes = reelsCercanosParaColor.filter((reel) => !reel.colorPrincipal);
+    if (!pendientes.length) return undefined;
+
+    let activo = true;
+    const controlador = new AbortController();
+    const solicitudesLocales = new Map();
+
+    const aplicarColor = (id, colorPrincipal) => {
+      if (!activo) return;
+      setLanzamientos((actuales) =>
+        actuales.map((lanzamiento) => {
+          if (lanzamiento.id !== id || lanzamiento.colorPrincipal) return lanzamiento;
+          return {
+            ...lanzamiento,
+            colorPrincipal,
+            colorA: colorPrincipal,
+            colorB: mezclarColores(colorPrincipal),
+            colorC: "#080808",
+          };
+        })
+      );
+    };
+
+    pendientes.forEach(({ id, portada }) => {
+      let solicitud = solicitudesLocales.get(portada);
+      if (!solicitud) {
+        solicitud = obtenerColorPortada(portada, controlador.signal);
+        solicitudesLocales.set(portada, solicitud);
+      }
+
+      solicitud
+        .then((colorPrincipal) => {
+          aplicarColor(id, colorPrincipal);
+        })
+        .catch((error) => {
+          if (error?.name !== "AbortError") {
+            aplicarColor(id, COLOR_PORTADA_PREDETERMINADO);
+          }
+        });
+    });
+
+    return () => {
+      activo = false;
+      controlador.abort();
+    };
+    // La clave cambia al mover la ventana visible, no al aplicar cada color.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveVentanaColores]);
 
   useEffect(() => {
     if (!lanzamientoCompartido) return;
@@ -564,11 +506,12 @@ export default function Descubrir({ usuario }) {
     if (!destino) return;
 
     destino.scrollIntoView({ block: "start" });
-  }, [lanzamientoCompartido, idsLanzamientosFiltrados]);
+  }, [lanzamientoCompartido, idsLanzamientosVisibles]);
 
   useEffect(() => {
     if (!lanzamientoCompartido || !comentarioCompartido) return;
     if (!comentariosPorLanzamiento[lanzamientoCompartido]) return;
+    setReelAudioSeleccionado(lanzamientoCompartido);
     setReproduciendo(lanzamientoCompartido);
     setComentariosAbiertos(lanzamientoCompartido);
     comentariosAbiertosRef.current = lanzamientoCompartido;
@@ -588,45 +531,93 @@ export default function Descubrir({ usuario }) {
   }, []);
 
   useEffect(() => {
-    const abrirCreador = () => ejecutarConSesion(() => setMostrarCrearReel(true));
-    window.addEventListener("sondar:crear-reel", abrirCreador);
-    return () => window.removeEventListener("sondar:crear-reel", abrirCreador);
-  });
+    if (!navigator.geolocation) return undefined;
+    let activo = true;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (activo) setPosicionUsuario({ lat: coords.latitude, lng: coords.longitude });
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 10 * 60 * 1000 }
+    );
+    return () => { activo = false; };
+  }, []);
 
   useEffect(() => {
-    if (crearReelParam !== "reel") return;
-    ejecutarConSesion(() => setMostrarCrearReel(true));
-  }, [crearReelParam, usuario]);
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setLanzamientos((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+      setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
+      setReelAudioSeleccionado(reel.id);
+      setReproduciendo(reel.id);
+      window.setTimeout(() => {
+        document.getElementById(`reel-${reel.id}`)?.scrollIntoView({ block: "start" });
+      }, 0);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
+  }, []);
 
   useEffect(() => {
     let activo = true;
 
     const cargarReels = async () => {
+      setErrorCargaReels("");
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
-        const response = await fetch(apiUrl("/api/reels"), {
+        const parametros = new URLSearchParams();
+        if (posicionUsuario) {
+          parametros.set("lat", String(posicionUsuario.lat));
+          parametros.set("lng", String(posicionUsuario.lng));
+        }
+        if (creadorFiltrado) parametros.set("creador", creadorFiltrado);
+        const queryPosicion = parametros.toString();
+        const opcionesReels = {
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
               }
             : undefined,
-        });
-        if (!response.ok) throw new Error("No se pudieron cargar los reels.");
+        };
+        let response = await apiRequest(`/api/reels/descubrir${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        if (!response.ok) {
+          response = await apiRequest(`/api/reels${queryPosicion ? `?${queryPosicion}` : ""}`, opcionesReels);
+        }
+        if (!response.ok) throw new Error("No se pudieron cargar las previews.");
 
         const data = await response.json();
-        const reelsBackend = data.map((reel) => ({
+        let reelsBackend = data.map((reel) => ({
           ...reel,
           id: `db-${reel.id}`,
           backendId: reel.backendId || reel.id,
         }));
 
+        const reelCompartidoBackendId = String(lanzamientoCompartido || "").replace(/^db-/, "");
+        const faltaReelCompartido = /^\d+$/.test(reelCompartidoBackendId)
+          && !reelsBackend.some((reel) => String(reel.backendId) === reelCompartidoBackendId);
+        if (faltaReelCompartido) {
+          const reelResponse = await apiRequest(`/api/reels/${reelCompartidoBackendId}`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (reelResponse.ok) {
+            const reel = await reelResponse.json();
+            reelsBackend = [{
+              ...reel,
+              id: `db-${reel.id}`,
+              backendId: reel.backendId || reel.id,
+            }, ...reelsBackend];
+          }
+        }
+
         if (activo) {
           setLanzamientos(reelsBackend);
+          setCargandoReels(false);
           const comentariosEntries = await Promise.all(
             reelsBackend.map(async (reel) => {
               try {
-                const comentariosResponse = await fetch(apiUrl(`/api/reels/${reel.backendId}/comentarios`), {
+                const comentariosResponse = await apiRequest(`/api/reels/${reel.backendId}/comentarios`, {
                   headers: token
                     ? {
                         Authorization: `Bearer ${token}`,
@@ -662,7 +653,7 @@ export default function Descubrir({ usuario }) {
             const avatarEntries = await Promise.all(
               creadoresSinAvatar.map(async (creadorId) => {
                 try {
-                  const perfilResponse = await fetch(apiUrl(`/api/usuarios/${creadorId}/perfil`), {
+                  const perfilResponse = await apiRequest(`/api/usuarios/${creadorId}/perfil`, {
                     headers: { Authorization: `Bearer ${token}` },
                   });
                   if (!perfilResponse.ok) return [creadorId, ""];
@@ -682,12 +673,28 @@ export default function Descubrir({ usuario }) {
           }
 
           if (activo) {
-            setLanzamientos(reelsConAvatar);
+            setLanzamientos((actuales) =>
+              reelsConAvatar.map((reel) => {
+                const reelActual = actuales.find((item) => item.id === reel.id);
+                if (!reelActual?.colorPrincipal || reel.colorPrincipal) return reel;
+                return {
+                  ...reel,
+                  colorPrincipal: reelActual.colorPrincipal,
+                  colorA: reelActual.colorA,
+                  colorB: reelActual.colorB,
+                  colorC: reelActual.colorC,
+                };
+              })
+            );
             setComentariosPorLanzamiento(comentariosPorReel);
           }
         }
       } catch (error) {
         console.error(error);
+        if (activo) {
+          setErrorCargaReels(error.message || "No se pudieron cargar las previews.");
+          setCargandoReels(false);
+        }
       }
     };
 
@@ -695,7 +702,7 @@ export default function Descubrir({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [usuario?.id]);
+  }, [creadorFiltrado, lanzamientoCompartido, usuario?.id, posicionUsuario]);
 
   function desplazarReel(id, direccion) {
     const actual = document.getElementById(`reel-${id}`);
@@ -713,44 +720,78 @@ export default function Descubrir({ usuario }) {
   useEffect(() => {
     const pista = document.querySelector(".feed-pista");
     if (!pista) return undefined;
+    const ratiosReels = new Map();
+
+    const activarReel = (id) => {
+      reelVisibleIdRef.current = id;
+      setReelVisibleId(id);
+      if (String(reproduciendoRef.current) === String(id)) return;
+      if (String(reelPausadoPorUsuarioRef.current) === String(id)) return;
+
+      reelPausadoPorUsuarioRef.current = null;
+      reproduciendoRef.current = id;
+      setReelAudioSeleccionado(id);
+      setReproduciendo(id);
+      if (comentariosAbiertosRef.current !== null) {
+        setComentariosAnimando(false);
+        clearTimeout(comentariosAnimacionTimer.current);
+        comentariosAbiertosRef.current = id;
+        setComentariosAbiertos(id);
+      }
+    };
 
     const observer = new IntersectionObserver(
       (entradas) => {
-        const visible = entradas
-          .filter((entrada) => entrada.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        entradas.forEach((entrada) => {
+          const idRaw = entrada.target.getAttribute("data-reel-id");
+          const id = idRaw?.startsWith("db-") ? idRaw : Number(idRaw);
+          if (!id) return;
+          ratiosReels.set(String(id), {
+            id,
+            ratio: entrada.isIntersecting ? entrada.intersectionRatio : 0,
+          });
+        });
 
-        if (!visible) return;
+        const candidato = [...ratiosReels.values()].sort(
+          (a, b) => b.ratio - a.ratio
+        )[0];
+        if (!candidato) return;
 
-        const idRaw = visible.target.getAttribute("data-reel-id");
-        const id = idRaw?.startsWith("db-") ? idRaw : Number(idRaw);
-        if (!id || reproduciendoRef.current === id) return;
-        if (reelPausadoPorUsuarioRef.current === id) return;
-
-        reelPausadoPorUsuarioRef.current = null;
-        reproduciendoRef.current = id;
-        setReproduciendo(id);
-        if (comentariosAbiertosRef.current !== null) {
-          setComentariosAnimando(false);
-          clearTimeout(comentariosAnimacionTimer.current);
-          comentariosAbiertosRef.current = id;
-          setComentariosAbiertos(id);
+        const idActual = reelVisibleIdRef.current;
+        if (idActual === null) {
+          if (candidato.ratio >= 0.46) activarReel(candidato.id);
+          return;
         }
-        setProgresos((prev) => (prev[id] === undefined ? { ...prev, [id]: 0 } : prev));
+        if (String(candidato.id) === String(idActual)) return;
+
+        const ratioActual = ratiosReels.get(String(idActual))?.ratio || 0;
+        const tieneVentajaClara = candidato.ratio - ratioActual >= 0.12;
+        const actualYaSalioDelCentro = ratioActual < 0.46;
+
+        // La histeresis evita alternancias cuando dos reels rondan el 50%.
+        if (
+          candidato.ratio >= 0.56 &&
+          (tieneVentajaClara || actualYaSalioDelCentro)
+        ) {
+          activarReel(candidato.id);
+        }
       },
       {
         root: pista,
-        threshold: [0.58, 0.72, 0.9],
+        threshold: [0, 0.3, 0.46, 0.5, 0.56, 0.62, 0.72, 0.82, 0.9],
       }
     );
 
-    idsLanzamientosFiltrados.split(",").forEach((id) => {
+    idsLanzamientosVisibles.split(",").forEach((id) => {
       const reel = document.getElementById(`reel-${id}`);
       if (reel) observer.observe(reel);
     });
 
-    return () => observer.disconnect();
-  }, [idsLanzamientosFiltrados]);
+    return () => {
+      observer.disconnect();
+      ratiosReels.clear();
+    };
+  }, [idsLanzamientosVisibles]);
 
   useEffect(() => {
     const pista = document.querySelector(".feed-pista");
@@ -758,6 +799,8 @@ export default function Descubrir({ usuario }) {
 
     const obtenerPanelComentarios = (elemento) =>
       elemento.closest?.(".comentarios-panel.abierto") || null;
+    const esControlProgresoReel = (elemento) =>
+      Boolean(elemento.closest?.(".reel-progress"));
 
     const puedeScrollearPanel = (elemento, deltaY) => {
       const panel = obtenerPanelComentarios(elemento);
@@ -788,7 +831,7 @@ export default function Descubrir({ usuario }) {
       if (intensidad < 54 || ahora - ultimoMovimientoRuedaRef.current < 420) return;
 
       const direccion = ruedaAcumuladaRef.current > 0 ? "abajo" : "arriba";
-      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const idActual = reproduciendoRef.current ?? lanzamientosVisiblesRef.current[0]?.id;
       const seMovio = desplazarReel(idActual, direccion);
 
       if (seMovio) {
@@ -800,7 +843,7 @@ export default function Descubrir({ usuario }) {
     };
 
     const manejarToqueInicio = (event) => {
-      if (obtenerPanelComentarios(event.target)) {
+      if (obtenerPanelComentarios(event.target) || esControlProgresoReel(event.target)) {
         toqueInicioRef.current = null;
         return;
       }
@@ -813,6 +856,10 @@ export default function Descubrir({ usuario }) {
     };
 
     const manejarToqueFin = (event) => {
+      if (esControlProgresoReel(event.target)) {
+        toqueInicioRef.current = null;
+        return;
+      }
       if (!toqueInicioRef.current || event.changedTouches.length === 0) return;
 
       const toque = event.changedTouches[0];
@@ -832,7 +879,7 @@ export default function Descubrir({ usuario }) {
       }
 
       const direccion = deltaY < 0 ? "abajo" : "arriba";
-      const idActual = reproduciendoRef.current ?? lanzamientosFiltradosRef.current[0]?.id;
+      const idActual = reproduciendoRef.current ?? lanzamientosVisiblesRef.current[0]?.id;
       const seMovio = desplazarReel(idActual, direccion);
 
       if (seMovio) {
@@ -852,30 +899,6 @@ export default function Descubrir({ usuario }) {
   }, []);
 
   useEffect(() => {
-    if (reproduciendo === null) return undefined;
-
-    const lanzamientoActual = lanzamientos.find((lanzamiento) => lanzamiento.id === reproduciendo);
-    if (!lanzamientoActual) return undefined;
-    if (lanzamientoActual.audio) return undefined;
-
-    const intervaloMs = 250;
-    const paso = 100 / (duracionASegundos(lanzamientoActual.duracion) * (1000 / intervaloMs));
-
-    const intervalo = window.setInterval(() => {
-      setProgresos((prev) => {
-        const actual = prev[reproduciendo] ?? 0;
-        const siguiente = actual + paso;
-        return {
-          ...prev,
-          [reproduciendo]: siguiente >= 100 ? 0 : siguiente,
-        };
-      });
-    }, intervaloMs);
-
-    return () => window.clearInterval(intervalo);
-  }, [lanzamientos, reproduciendo]);
-
-  useEffect(() => {
     if (!audioReproduciendo || reproduciendo === null) {
       guardarTiempoAudioActual();
       audioReelRef.current?.pause();
@@ -883,6 +906,7 @@ export default function Descubrir({ usuario }) {
     }
 
     const idReel = reproduciendo;
+    const reelBackendId = reelBackendIdReproduciendo;
     const audio = new Audio(audioReproduciendo);
     const tiemposReel = tiemposReelRef.current;
     audio.loop = true;
@@ -891,25 +915,116 @@ export default function Descubrir({ usuario }) {
     audioReelRef.current?.pause();
     audioReelRef.current = audio;
     audioReelActivoIdRef.current = idReel;
+    const controlProgreso = controlesProgresoReelRef.current.get(String(idReel));
+    let animacionProgresoId = null;
 
-    const restaurarTiempoGuardado = () => {
-      const tiempoGuardado = tiemposReel[idReel];
-      if (!Number.isFinite(tiempoGuardado) || tiempoGuardado <= 0) return;
-
+    const sincronizarProgresoReel = () => {
       if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        audio.currentTime = Math.min(tiempoGuardado, Math.max(0, audio.duration - 0.1));
-      } else {
-        audio.currentTime = tiempoGuardado;
+        duracionesReelRef.current[idReel] = audio.duration;
+      }
+      actualizarControlProgresoReel(controlProgreso, audio);
+    };
+
+    const animarProgresoReel = () => {
+      sincronizarProgresoReel();
+      if (!audio.paused && !audio.ended) {
+        animacionProgresoId = window.requestAnimationFrame(animarProgresoReel);
       }
     };
 
-    const actualizarProgreso = () => {
-      if (!Number.isFinite(audio.duration) || audio.duration <= 0) return;
-      tiemposReel[idReel] = audio.currentTime;
-      setProgresos((actuales) => ({
-        ...actuales,
-        [idReel]: (audio.currentTime / audio.duration) * 100,
-      }));
+    const iniciarAnimacionProgresoReel = () => {
+      if (animacionProgresoId !== null) {
+        window.cancelAnimationFrame(animacionProgresoId);
+      }
+
+      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        sincronizarProgresoReel();
+        animacionProgresoId = null;
+        return;
+      }
+
+      animacionProgresoId = window.requestAnimationFrame(animarProgresoReel);
+    };
+
+    audio.addEventListener("play", iniciarAnimacionProgresoReel);
+    audio.addEventListener("timeupdate", sincronizarProgresoReel);
+    audio.addEventListener("durationchange", sincronizarProgresoReel);
+    const sesionEscucha = usuario?.id && reelBackendId && globalThis.crypto?.randomUUID
+      ? {
+          id: globalThis.crypto.randomUUID(),
+          listenedMs: 0,
+          durationMs: null,
+          maxRatio: 0,
+          replayCount: 0,
+          previousTime: 0,
+          lastTick: performance.now(),
+          lastSentAt: 0,
+        }
+      : null;
+
+    const enviarSesionEscucha = ({ final = false } = {}) => {
+      if (!sesionEscucha || !reelBackendId) return;
+      const ahora = performance.now();
+      if (!final && ahora - sesionEscucha.lastSentAt < 4500) return;
+      sesionEscucha.lastSentAt = ahora;
+      const ratioPosicion = Math.max(0, Math.min(1, sesionEscucha.maxRatio));
+      const ratioTiempoEscuchado = sesionEscucha.durationMs > 0
+        ? sesionEscucha.listenedMs / sesionEscucha.durationMs
+        : ratioPosicion;
+      const ratio = Math.max(0, Math.min(1, ratioPosicion, ratioTiempoEscuchado));
+      const payload = {
+        sessionId: sesionEscucha.id,
+        listenedMs: Math.round(sesionEscucha.listenedMs),
+        durationMs: sesionEscucha.durationMs,
+        completionRatio: ratio,
+        completed: ratio >= 0.95,
+        skipped: final && ratio < 0.35 && sesionEscucha.listenedMs < 8000,
+        replayCount: sesionEscucha.replayCount,
+      };
+      apiRequest(`/api/reels/${reelBackendId}/interaccion`, {
+        method: "POST",
+        body: payload,
+      }).catch((error) => console.error("No se pudo registrar la escucha:", error));
+    };
+
+    const registrarProgresoEscucha = () => {
+      if (!sesionEscucha) return;
+      const ahora = performance.now();
+      if (!audio.paused) {
+        sesionEscucha.listenedMs += Math.min(2000, Math.max(0, ahora - sesionEscucha.lastTick));
+      }
+      sesionEscucha.lastTick = ahora;
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        sesionEscucha.durationMs = Math.round(audio.duration * 1000);
+        const ratioActual = audio.currentTime / audio.duration;
+        const esSeekManual = String(seekManualPendienteRef.current) === String(idReel);
+        if (esSeekManual) {
+          seekManualPendienteRef.current = null;
+        } else {
+          sesionEscucha.maxRatio = Math.max(sesionEscucha.maxRatio, ratioActual);
+          if (audio.currentTime + 0.5 < sesionEscucha.previousTime) {
+            sesionEscucha.replayCount += 1;
+            sesionEscucha.maxRatio = 1;
+          }
+        }
+        sesionEscucha.previousTime = audio.currentTime;
+      }
+      enviarSesionEscucha();
+    };
+
+    audio.addEventListener("timeupdate", registrarProgresoEscucha);
+
+    const restaurarTiempoGuardado = () => {
+      const tiempoGuardado = tiemposReel[idReel];
+      if (Number.isFinite(tiempoGuardado) && tiempoGuardado > 0) {
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          audio.currentTime = Math.min(tiempoGuardado, Math.max(0, audio.duration - 0.1));
+        } else {
+          audio.currentTime = tiempoGuardado;
+        }
+      }
+
+      sincronizarProgresoReel();
     };
 
     try {
@@ -918,25 +1033,42 @@ export default function Descubrir({ usuario }) {
       audio.addEventListener("loadedmetadata", restaurarTiempoGuardado, { once: true });
     }
 
-    audio.addEventListener("timeupdate", actualizarProgreso);
+    sincronizarProgresoReel();
     audio.play().catch(() => setReproduciendo(null));
 
     return () => {
       if (Number.isFinite(audio.currentTime)) {
         tiemposReel[idReel] = audio.currentTime;
       }
+      registrarProgresoEscucha();
+      enviarSesionEscucha({ final: true });
+      sincronizarProgresoReel();
       audio.pause();
-      audio.removeEventListener("timeupdate", actualizarProgreso);
+      if (animacionProgresoId !== null) {
+        window.cancelAnimationFrame(animacionProgresoId);
+      }
+      audio.removeEventListener("play", iniciarAnimacionProgresoReel);
+      audio.removeEventListener("timeupdate", registrarProgresoEscucha);
+      audio.removeEventListener("timeupdate", sincronizarProgresoReel);
+      audio.removeEventListener("durationchange", sincronizarProgresoReel);
       audio.removeEventListener("loadedmetadata", restaurarTiempoGuardado);
+      if (String(seekManualPendienteRef.current) === String(idReel)) {
+        seekManualPendienteRef.current = null;
+      }
       if (audioReelRef.current === audio) {
         audioReelRef.current = null;
         audioReelActivoIdRef.current = null;
       }
     };
-  }, [audioReproduciendo, reproduciendo]);
+  }, [audioReproduciendo, reelBackendIdReproduciendo, reproduciendo, usuario?.id]);
 
   useEffect(() => {
     const pausarReelActivo = () => {
+      const idActivo = audioReelActivoIdRef.current ?? reproduciendoRef.current;
+      if (idActivo !== null) {
+        setReelAudioSeleccionado(idActivo);
+        reelPausadoPorUsuarioRef.current = idActivo;
+      }
       audioReelRef.current?.pause();
       reproduciendoRef.current = null;
       setReproduciendo(null);
@@ -990,181 +1122,6 @@ export default function Descubrir({ usuario }) {
     return token;
   };
 
-  const cerrarCreadorReel = () => {
-    if (nuevoReel.audio?.startsWith("blob:")) {
-      URL.revokeObjectURL(nuevoReel.audio);
-    }
-    if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
-    if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-    setMostrarCrearReel(false);
-    setNuevoReel(reelVacio);
-  };
-
-  const leerArchivo = (archivo) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = reject;
-      reader.readAsDataURL(archivo);
-    });
-
-  const cambiarPortadaReel = async (event) => {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
-
-    const portada = await leerArchivo(archivo);
-    setNuevoReel((actual) => ({
-      ...actual,
-      portada,
-      portadaFile: archivo,
-      nombrePortada: archivo.name,
-    }));
-  };
-
-  const limpiarPortadaReel = () => {
-    if (portadaReelInputRef.current) portadaReelInputRef.current.value = "";
-    setNuevoReel((actual) => ({
-      ...actual,
-      portada: "",
-      portadaFile: null,
-      nombrePortada: "",
-    }));
-  };
-
-  const cambiarAudioReel = async (event) => {
-    const archivo = event.target.files?.[0];
-    if (!archivo) return;
-
-    const audio = URL.createObjectURL(archivo);
-    const elementoAudio = new Audio(audio);
-    elementoAudio.addEventListener(
-      "loadedmetadata",
-      () => {
-        const segundosTotales = Number.isFinite(elementoAudio.duration)
-          ? Math.max(1, Math.round(elementoAudio.duration))
-          : 30;
-        const minutos = Math.floor(segundosTotales / 60);
-        const segundos = String(segundosTotales % 60).padStart(2, "0");
-        setNuevoReel((actual) => {
-          if (actual.audio?.startsWith("blob:")) {
-            URL.revokeObjectURL(actual.audio);
-          }
-
-          return {
-            ...actual,
-            audio,
-            audioFile: archivo,
-            nombreAudio: archivo.name,
-            duracion: `${minutos}:${segundos}`,
-          };
-        });
-      },
-      { once: true }
-    );
-  };
-
-  const limpiarAudioReel = () => {
-    if (audioReelInputRef.current) audioReelInputRef.current.value = "";
-    setNuevoReel((actual) => {
-      if (actual.audio?.startsWith("blob:")) {
-        URL.revokeObjectURL(actual.audio);
-      }
-
-      return {
-        ...actual,
-        audio: "",
-        audioFile: null,
-        nombreAudio: "",
-        duracion: "0:30",
-      };
-    });
-  };
-
-  const publicarReel = async (event) => {
-    event.preventDefault();
-    if (subiendoReelRef.current) return;
-
-    if (
-      !nuevoReel.tema.trim() ||
-      !nuevoReel.album.trim() ||
-      !nuevoReel.genero ||
-      !nuevoReel.audioFile
-    ) {
-      mostrarAviso("Completa el titulo, el nombre, el genero y selecciona un audio");
-      return;
-    }
-
-    subiendoReelRef.current = true;
-    setSubiendoReel(true);
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      if (!token) {
-        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-
-      const formData = new FormData();
-      formData.append("tema", nuevoReel.tema.trim());
-      formData.append("album", nuevoReel.album.trim());
-      formData.append("genero", nuevoReel.genero);
-      formData.append("descripcion", nuevoReel.descripcion.trim());
-      formData.append("duracion", nuevoReel.duracion);
-      formData.append("audio", nuevoReel.audioFile);
-      if (nuevoReel.portadaFile) {
-        formData.append("portada", nuevoReel.portadaFile);
-      }
-
-      const response = await fetch(apiUrl("/api/reels/crear"), {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo guardar el reel.");
-      }
-
-      const reelGuardado = await response.json();
-      let reel = {
-        ...reelGuardado,
-        id: `db-${reelGuardado.id}`,
-        backendId: reelGuardado.backendId || reelGuardado.id,
-      };
-
-      if (!reel.avatar) {
-        const perfilResponse = await fetch(apiUrl("/api/usuarios/me/perfil"), {
-          headers: { Authorization: `Bearer ${token}` },
-        }).catch(() => null);
-        if (perfilResponse?.ok) {
-          const perfilData = await perfilResponse.json();
-          reel = { ...reel, avatar: perfilData.perfil?.avatar || "" };
-        }
-      }
-
-      setLanzamientos((actuales) => [reel, ...actuales]);
-      setComentariosPorLanzamiento((actuales) => ({ ...actuales, [reel.id]: [] }));
-      setProgresos((actuales) => ({ ...actuales, [reel.id]: 0 }));
-      setReproduciendo(reel.id);
-      cerrarCreadorReel();
-      mostrarAviso("Reel publicado");
-      window.setTimeout(() => {
-        document.getElementById(`reel-${reel.id}`)?.scrollIntoView({ block: "start" });
-      }, 0);
-    } catch (error) {
-      console.error(error);
-      mostrarAviso(error.message || "No se pudo guardar el reel.");
-    } finally {
-      subiendoReelRef.current = false;
-      setSubiendoReel(false);
-    }
-  };
-
   const copiarEnlace = async (enlace) => {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(enlace);
@@ -1196,7 +1153,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return { ok: false, nuevoCompartido: false };
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/compartir`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/compartir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1295,15 +1252,19 @@ export default function Descubrir({ usuario }) {
   const actualizarLanzamiento = async (lanzamiento, campo) => {
     if (campo === "siguiendo" && lanzamiento.creadorId) {
       if (lanzamiento.creadorId === usuario?.id) {
-        mostrarAviso("Ese reel es tuyo");
+        mostrarAviso("Esa preview es tuya");
         return;
       }
+
+      if (seguimientosPendientesRef.current.has(lanzamiento.creadorId)) return;
+      seguimientosPendientesRef.current.add(lanzamiento.creadorId);
+      setSeguimientosPendientes(new Set(seguimientosPendientesRef.current));
 
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${lanzamiento.creadorId}/seguir`), {
+        const response = await apiRequest(`/api/usuarios/${lanzamiento.creadorId}/seguir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1329,6 +1290,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo seguir el perfil.");
         return;
+      } finally {
+        seguimientosPendientesRef.current.delete(lanzamiento.creadorId);
+        setSeguimientosPendientes(new Set(seguimientosPendientesRef.current));
       }
     }
 
@@ -1350,48 +1314,6 @@ export default function Descubrir({ usuario }) {
     navigate(`/perfil/${userId}`);
   };
 
-  const abrirVistaPerfil = async (perfilBase) => {
-    if (!perfilBase?.id) return;
-
-    setPerfilVista({
-      cargando: true,
-      perfil: perfilBase,
-      stats: perfilBase.stats || {},
-      siguiendo: Boolean(perfilBase.siguiendo),
-    });
-
-    if (!usuario) {
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-      return;
-    }
-
-    try {
-      const token = await obtenerTokenSesion();
-      if (!token) {
-        setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-        return;
-      }
-
-      const response = await fetch(apiUrl(`/api/usuarios/${perfilBase.id}/perfil`), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("No se pudo cargar el perfil.");
-      const data = await response.json();
-      setPerfilVista({
-        cargando: false,
-        perfil: data.perfil || perfilBase,
-        stats: data.stats || perfilBase.stats || {},
-        siguiendo: Boolean(data.siguiendo),
-      });
-    } catch (error) {
-      console.error(error);
-      setPerfilVista((actual) => actual ? { ...actual, cargando: false } : actual);
-    }
-  };
-
   const abrirVistaPerfilLanzamiento = (lanzamiento) => {
     navegarAPerfil(lanzamiento.creadorId);
   };
@@ -1408,7 +1330,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${perfilVista.perfil.id}/seguir`), {
+        const response = await apiRequest(`/api/usuarios/${perfilVista.perfil.id}/seguir`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1462,7 +1384,7 @@ export default function Descubrir({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tenes que iniciar sesion para denunciar publicaciones.");
-      const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/denunciar`), {
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1471,11 +1393,11 @@ export default function Descubrir({ usuario }) {
         body: JSON.stringify({ reason: motivo, detail: detalle }),
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || "No se pudo denunciar el reel.");
+      if (!response.ok) throw new Error(body.error || "No se pudo denunciar la preview.");
       setMenuLanzamientoAbierto(null);
       setDenunciaPendiente(null);
       if (body.nuevaDenuncia === false) {
-        mostrarAviso("Ya habias denunciado este reel.");
+        mostrarAviso("Ya habias denunciado esta preview.");
         return;
       }
       try {
@@ -1487,62 +1409,59 @@ export default function Descubrir({ usuario }) {
           autor: lanzamiento.usuario || lanzamiento.artista,
           motivo: etiquetaMotivoDenuncia(motivo),
           detalle,
+          url: crearEnlaceLanzamiento(lanzamiento),
         });
-        mostrarAviso("Reel denunciado. Soporte fue notificado.");
+        mostrarAviso("Preview denunciada. Soporte fue notificado.");
       } catch (emailError) {
         console.error("Email de denuncia:", emailError);
         mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email a soporte.");
       }
     } catch (error) {
-      mostrarAviso(error.message || "No se pudo denunciar el reel.");
+      mostrarAviso(error.message || "No se pudo denunciar la preview.");
     } finally {
       setEnviandoDenuncia(false);
     }
   };
 
-  const eliminarLanzamiento = async (lanzamiento) => {
-    try {
-      if (lanzamiento.backendId) {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+  const eliminarLanzamiento = async (lanzamiento, password) => {
+    if (lanzamiento.backendId) {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
 
-        if (!token) {
-          mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-          return;
-        }
-
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}`), {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo eliminar el reel.");
-        }
+      if (!token) {
+        throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
       }
 
-      setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
-      setComentariosPorLanzamiento((prev) => {
-        const siguiente = { ...prev };
-        delete siguiente[lanzamiento.id];
-        return siguiente;
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: { password },
       });
-      setProgresos((prev) => {
-        const siguiente = { ...prev };
-        delete siguiente[lanzamiento.id];
-        return siguiente;
-      });
-      setMenuLanzamientoAbierto(null);
-      setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
-      setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
-      mostrarAviso("Reel eliminado");
-    } catch (error) {
-      console.error(error);
-      mostrarAviso(error.message || "No se pudo eliminar el reel.");
+
+      if (!response.ok) {
+        const dataError = await response.json().catch(() => ({}));
+        throw new Error(dataError.error || "No se pudo eliminar la preview.");
+      }
     }
+
+    setLanzamientos((prev) => prev.filter((item) => item.id !== lanzamiento.id));
+    setComentariosPorLanzamiento((prev) => {
+      const siguiente = { ...prev };
+      delete siguiente[lanzamiento.id];
+      return siguiente;
+    });
+    setMenuLanzamientoAbierto(null);
+    setEliminacionPendiente(null);
+    setComentariosAbiertos((actual) => (actual === lanzamiento.id ? null : actual));
+    setReproduciendo((actual) => (actual === lanzamiento.id ? null : actual));
+    setReelAudioSeleccionado((actual) =>
+      String(actual) === String(lanzamiento.id) ? null : actual
+    );
+    delete tiemposReelRef.current[lanzamiento.id];
+    delete duracionesReelRef.current[lanzamiento.id];
+    mostrarAviso("Preview eliminada");
   };
 
   const eliminarComentario = async (lanzamientoId, comentarioId, respuestaId = null) => {
@@ -1554,7 +1473,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}`), {
+        const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}`, {
           method: "DELETE",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1590,6 +1509,7 @@ export default function Descubrir({ usuario }) {
   };
 
   const alternarReproduccion = (id) => {
+    setReelAudioSeleccionado(id);
     setReproduciendo((actual) => {
       const siguiente = actual === id ? null : id;
       if (actual === id) {
@@ -1603,6 +1523,31 @@ export default function Descubrir({ usuario }) {
     });
   };
 
+  const cambiarProgresoReel = (id, event) => {
+    const audio = audioReelRef.current;
+    const audioActivo = audio && String(audioReelActivoIdRef.current) === String(id)
+      ? audio
+      : null;
+    const duracion = audioActivo && Number.isFinite(audioActivo.duration) && audioActivo.duration > 0
+      ? audioActivo.duration
+      : duracionesReelRef.current[id] || 0;
+    if (!duracion) return;
+
+    const progreso = Math.min(1, Math.max(0, Number(event.currentTarget.value) / 1000));
+    const tiempoNuevo = duracion * progreso;
+
+    if (audioActivo) {
+      seekManualPendienteRef.current = id;
+      audioActivo.currentTime = tiempoNuevo;
+      tiemposReelRef.current[id] = audioActivo.currentTime;
+      actualizarControlProgresoReel(event.currentTarget, audioActivo);
+      return;
+    }
+
+    tiemposReelRef.current[id] = tiempoNuevo;
+    pintarControlProgresoReel(event.currentTarget, tiempoNuevo, duracion);
+  };
+
   const cambiarComentariosConAnimacion = (siguiente) => {
     clearTimeout(comentariosAnimacionTimer.current);
     setComentariosAnimando(true);
@@ -1613,12 +1558,9 @@ export default function Descubrir({ usuario }) {
     }, 360);
   };
 
-  const moverReel = (id, direccion) => {
-    desplazarReel(id, direccion);
-  };
-
   const enviarComentario = async (event) => {
     event.preventDefault();
+    if (enviandoComentarioRef.current) return;
     if (!usuario) {
       pedirLogin();
       return;
@@ -1631,13 +1573,15 @@ export default function Descubrir({ usuario }) {
     const lanzamientoId = comentariosAbiertos ?? reproduciendo;
     if (!lanzamientoId) return;
     const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+    enviandoComentarioRef.current = true;
+    setEnviandoComentario(true);
 
     if (lanzamiento?.backendId) {
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1662,6 +1606,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo guardar el comentario.");
         return;
+      } finally {
+        enviandoComentarioRef.current = false;
+        setEnviandoComentario(false);
       }
     }
 
@@ -1682,6 +1629,8 @@ export default function Descubrir({ usuario }) {
       ],
     }));
     setComentarioTexto("");
+    enviandoComentarioRef.current = false;
+    setEnviandoComentario(false);
   };
 
   const incrementarMetrica = (id, campo) => {
@@ -1691,54 +1640,6 @@ export default function Descubrir({ usuario }) {
           ? { ...lanzamiento, [campo]: (lanzamiento[campo] || 0) + 1 }
           : lanzamiento
       )
-    );
-  };
-
-  const alternarGuardadoLanzamiento = async (lanzamientoSeleccionado) => {
-    if (lanzamientoSeleccionado.backendId) {
-      try {
-        const token = await obtenerTokenSesion();
-        if (!token) return;
-
-        const response = await fetch(apiUrl(`/api/reels/${lanzamientoSeleccionado.backendId}/guardar`), {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo guardar el reel.");
-        }
-
-        const data = await response.json();
-        setLanzamientos((prev) =>
-          prev.map((lanzamiento) =>
-            lanzamiento.id === lanzamientoSeleccionado.id
-              ? { ...lanzamiento, guardado: data.guardado, guardados: data.guardados }
-              : lanzamiento
-          )
-        );
-        return;
-      } catch (error) {
-        console.error(error);
-        mostrarAviso(error.message || "No se pudo actualizar el guardado.");
-        return;
-      }
-    }
-
-    setLanzamientos((prev) =>
-      prev.map((lanzamiento) => {
-        if (lanzamiento.id !== lanzamientoSeleccionado.id) return lanzamiento;
-
-        const guardado = !lanzamiento.guardado;
-        return {
-          ...lanzamiento,
-          guardado,
-          guardados: Math.max(0, (lanzamiento.guardados || 0) + (guardado ? 1 : -1)),
-        };
-      })
     );
   };
 
@@ -1752,7 +1653,7 @@ export default function Descubrir({ usuario }) {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/like`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/like`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1761,7 +1662,7 @@ export default function Descubrir({ usuario }) {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error || "No se pudo actualizar el favorito.");
+          throw new Error(data.error || "No se pudo actualizar el like.");
         }
 
         const data = await response.json();
@@ -1774,7 +1675,7 @@ export default function Descubrir({ usuario }) {
         );
       } catch (error) {
         console.error(error);
-        mostrarAviso(error.message || "No se pudo actualizar el favorito.");
+        mostrarAviso(error.message || "No se pudo actualizar el like.");
       } finally {
         window.setTimeout(() => {
           setAnimacionesLike((prev) => {
@@ -1807,6 +1708,38 @@ export default function Descubrir({ usuario }) {
         return siguiente;
       });
     }, 520);
+  };
+
+  const alternarGuardadoLanzamiento = async (lanzamiento) => {
+    if (!lanzamiento.backendId) {
+      mostrarAviso("El guardado esta disponible para previews publicadas.");
+      return;
+    }
+
+    const guardadoAnterior = Boolean(lanzamiento.guardado);
+    const guardadosAnteriores = Number(lanzamiento.guardados || 0);
+    setLanzamientos((prev) => prev.map((actual) => (
+      actual.id === lanzamiento.id ? { ...actual, guardado: !guardadoAnterior, guardados: Math.max(0, guardadosAnteriores + (guardadoAnterior ? -1 : 1)) } : actual
+    )));
+
+    try {
+      const token = await obtenerTokenSesion();
+      if (!token) return;
+      const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/guardar`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo guardar la preview.");
+      setLanzamientos((prev) => prev.map((actual) => (
+        actual.id === lanzamiento.id ? { ...actual, guardado: data.guardado, guardados: data.guardados } : actual
+      )));
+    } catch (error) {
+      setLanzamientos((prev) => prev.map((actual) => (
+        actual.id === lanzamiento.id ? { ...actual, guardado: guardadoAnterior, guardados: guardadosAnteriores } : actual
+      )));
+      mostrarAviso(error.message || "No se pudo guardar la preview.");
+    }
   };
 
   const actualizarLikeComentarioLocal = (lanzamientoId, comentarioId, respuestaId, dataLike = null) => {
@@ -1849,7 +1782,7 @@ export default function Descubrir({ usuario }) {
           const token = await obtenerTokenSesion();
           if (!token) return;
 
-          const response = await fetch(apiUrl(`/api/reels/comentarios/${comentarioObjetivoId}/like`), {
+          const response = await apiRequest(`/api/reels/comentarios/${comentarioObjetivoId}/like`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${token}`,
@@ -1922,6 +1855,8 @@ export default function Descubrir({ usuario }) {
 
   const enviarRespuesta = async (event, lanzamientoId, comentarioId) => {
     event.preventDefault();
+    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
+    if (respuestasEnviandoRef.current.has(respuestaKey)) return;
     if (!usuario) {
       pedirLogin();
       return;
@@ -1930,13 +1865,15 @@ export default function Descubrir({ usuario }) {
     const texto = respuestaTexto.trim();
     if (!texto) return;
     const lanzamiento = lanzamientos.find((item) => item.id === lanzamientoId);
+    respuestasEnviandoRef.current.add(respuestaKey);
+    setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
 
     if (lanzamiento?.backendId) {
       try {
         const token = await obtenerTokenSesion();
         if (!token) return;
 
-        const response = await fetch(apiUrl(`/api/reels/${lanzamiento.backendId}/comentarios`), {
+        const response = await apiRequest(`/api/reels/${lanzamiento.backendId}/comentarios`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -1973,6 +1910,9 @@ export default function Descubrir({ usuario }) {
         console.error(error);
         mostrarAviso(error.message || "No se pudo guardar la respuesta.");
         return;
+      } finally {
+        respuestasEnviandoRef.current.delete(respuestaKey);
+        setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
       }
     }
 
@@ -2002,10 +1942,11 @@ export default function Descubrir({ usuario }) {
     setRespuestaTexto("");
     setRespuestaActiva(null);
     setRespuestaPara(null);
-    const respuestaKey = `${lanzamientoId}-${comentarioId}`;
     setRespuestasAbiertas((abiertas) =>
       abiertas.includes(respuestaKey) ? abiertas : [...abiertas, respuestaKey]
     );
+    respuestasEnviandoRef.current.delete(respuestaKey);
+    setRespuestasEnviando(new Set(respuestasEnviandoRef.current));
   };
 
   return (
@@ -2014,33 +1955,53 @@ export default function Descubrir({ usuario }) {
         comentariosAnimando ? "comentarios-animando" : ""
       }`}
       aria-label="Descubrir musica"
+      aria-busy={cargandoReels}
     >
-      <div className={`feed-pista ${lanzamientosFiltrados.length === 0 ? "sin-resultados" : ""}`}>
-        {lanzamientosFiltrados.length === 0 ? (
+      <div className="reel-fondos-globales" aria-hidden="true">
+        {capasFondoReel.map((capa, indice) => (
+          <div
+            className={`reel-fondo-global ${
+              indice === indiceFondoReelActivo ? "activo" : ""
+            }`}
+            data-reel-fondo-id={capa.id ?? ""}
+            key={indice}
+            style={crearVariablesFondoReel(capa.color)}
+          />
+        ))}
+      </div>
+      <div className={`feed-pista ${!cargandoReels && lanzamientos.length === 0 ? "sin-resultados" : ""}`}>
+        {cargandoReels && lanzamientos.length === 0 ? <DescubrirSkeleton /> : null}
+        {!cargandoReels && lanzamientos.length === 0 ? (
           <div className="descubrir-vacio" role="status">
             <span aria-hidden="true">♫</span>
-            <strong>{query ? t("No encontramos música") : t("No hay nada que descubrir")}</strong>
-            <p>{query ? "Probá con otra búsqueda." : "Cuando haya nuevos reels van a aparecer acá."}</p>
+            <strong>{errorCargaReels || t("No hay nada que descubrir")}</strong>
+            <p>{errorCargaReels ? "Volvé a intentar cargar Descubrir." : "Cuando haya nuevas previews van a aparecer aca."}</p>
           </div>
         ) : null}
-        {lanzamientosFiltrados.map((lanzamiento) => {
+        {lanzamientos.map((lanzamiento) => {
           const estaReproduciendo = reproduciendo === lanzamiento.id;
+          const estaSeleccionadoAudio =
+            String(reelAudioSeleccionado) === String(lanzamiento.id);
+          const estaSeleccionado = String(lanzamientoCompartido || '') === String(lanzamiento.id);
           const comentariosDelLanzamiento = comentariosPorLanzamiento[lanzamiento.id] || [];
           const puedeEliminar = usuarioPuedeEliminarLanzamiento(lanzamiento);
-
+          const colorPrincipal = normalizarColorPortada(
+            lanzamiento.colorPrincipal || lanzamiento.colorA || COLOR_PORTADA_PREDETERMINADO
+          );
           return (
             <article
               id={`reel-${lanzamiento.id}`}
               data-reel-id={lanzamiento.id}
-              className={`feed-item ${estaReproduciendo ? "sonando" : ""} ${
+              className={`feed-item ${lanzamiento.portada ? "con-portada-reel" : ""} ${estaReproduciendo ? "sonando" : ""} ${estaSeleccionado ? "seleccionado" : ""} ${
                 comentariosAbiertos === lanzamiento.id ? "comentarios-activos" : ""
               }`}
+              aria-current={estaSeleccionado ? "true" : undefined}
               key={lanzamiento.id}
               style={{
-                "--tono-a": lanzamiento.colorA,
-                "--tono-b": lanzamiento.colorB,
-                "--tono-c": lanzamiento.colorC,
-                "--progreso": `${progresos[lanzamiento.id] ?? lanzamiento.progreso}%`,
+                "--tono-principal": colorPrincipal,
+                "--tono-a": colorPrincipal,
+                "--tono-b": mezclarColores(colorPrincipal, "#17171a", 0.46),
+                "--tono-c": mezclarColores(colorPrincipal, "#121216", 0.68),
               }}
             >
               <div className="album-centro">
@@ -2065,144 +2026,152 @@ export default function Descubrir({ usuario }) {
                       aria-hidden="true"
                     />
                   ) : null}
-                  {lanzamiento.genero ? (
-                    <span className="album-sello">{mostrarGeneroReel(lanzamiento.genero)}</span>
-                  ) : null}
                   <span className="album-brillo" />
                   <span className="album-disco" />
                   <span className="estado-reproduccion" aria-hidden="true">
                     <Icono nombre="play" />
                   </span>
-                  <span className="album-titulo">{lanzamiento.album}</span>
-                  <span className="album-artista">{lanzamiento.artista}</span>
-                  <div
-                    className="album-meta"
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                  >
+
+                </div>
+
+                <div
+                  className="reel-info-inferior"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  <strong className="reel-titulo" title={lanzamiento.tema}>
+                    {lanzamiento.tema}
+                  </strong>
+                  {generosDeReel(lanzamiento).length > 0 ? (
+                    <div className="reel-generos" aria-label="Generos de la preview">
+                      {generosDeReel(lanzamiento).map((genero) => (
+                        <span key={genero}>{mostrarGeneroReel(genero)}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="reel-identidad">
                     <button
-                      className="artista-avatar"
+                      className={`artista-avatar ${lanzamiento.avatar ? "" : "sin-avatar"}`}
                       type="button"
                       onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
                       aria-label={`Ver perfil de ${lanzamiento.artista}`}
                     >
+                      <span className="avatar-inicial" aria-hidden="true">
+                        {inicialAvatar(lanzamiento.artista || lanzamiento.usuario)}
+                      </span>
                       {lanzamiento.avatar ? (
-                        <img src={lanzamiento.avatar} alt="" />
-                      ) : (
-                        inicialAvatar(lanzamiento.artista || lanzamiento.usuario)
-                      )}
+                        <ImagenAvatar src={lanzamiento.avatar} inicial={lanzamiento.artista || lanzamiento.usuario} className="avatar-imagen-superpuesta" />
+                      ) : null}
                     </button>
-                    <div className="album-copy">
-                      <div className="album-linea">
-                        <button
-                          className="artista-nombre"
-                          type="button"
-                          onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
-                        >
-                          {lanzamiento.usuario}
-                        </button>
-                        {!puedeEliminar ? (
-                          <button
-                            className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
-                            type="button"
-                            onClick={() =>
-                              ejecutarConSesion(() => actualizarLanzamiento(lanzamiento, "siguiendo"))
-                            }
-                          >
-                            {lanzamiento.siguiendo ? "Siguiendo" : "Seguir"}
-                          </button>
-                        ) : null}
-                      </div>
-                      <p><TextoConMenciones texto={lanzamiento.descripcion} /></p>
-                    </div>
+                    <button
+                      className="artista-nombre"
+                      type="button"
+                      onClick={() => abrirVistaPerfilLanzamiento(lanzamiento)}
+                      title={lanzamiento.usuario}
+                    >
+                      {lanzamiento.usuario}
+                    </button>
+                    {!puedeEliminar ? (
+                      <button
+                        className={`seguir-btn ${lanzamiento.siguiendo ? "activo" : ""}`}
+                        type="button"
+                        aria-pressed={lanzamiento.siguiendo}
+                        aria-busy={seguimientosPendientes.has(lanzamiento.creadorId)}
+                        aria-label={`${lanzamiento.siguiendo ? "Dejar de seguir a" : "Seguir a"} ${lanzamiento.artista}`}
+                        disabled={seguimientosPendientes.has(lanzamiento.creadorId)}
+                        onClick={() =>
+                          ejecutarConSesion(() => actualizarLanzamiento(lanzamiento, "siguiendo"))
+                        }
+                      >
+                        {seguimientosPendientes.has(lanzamiento.creadorId)
+                          ? "Actualizando"
+                          : lanzamiento.siguiendo
+                            ? "Siguiendo"
+                            : "Seguir"}
+                      </button>
+                    ) : null}
                   </div>
+                  <input
+                    className="reel-progress"
+                    type="range"
+                    min="0"
+                    max="1000"
+                    step="1"
+                    defaultValue="0"
+                    disabled={!lanzamiento.audio || !estaSeleccionadoAudio}
+                    data-reel-progress-id={String(lanzamiento.id)}
+                    ref={(elemento) => {
+                      const clave = String(lanzamiento.id);
+                      if (elemento) controlesProgresoReelRef.current.set(clave, elemento);
+                      else controlesProgresoReelRef.current.delete(clave);
+                    }}
+                    aria-label={`Adelantar o atrasar ${lanzamiento.tema}`}
+                    aria-valuetext="0:00 de 0:00"
+                    onInput={(event) => cambiarProgresoReel(lanzamiento.id, event)}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  />
                 </div>
-                <input
-                  className="reel-progress"
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={progresos[lanzamiento.id] ?? lanzamiento.progreso}
-                  aria-label={`Avanzar o retroceder ${lanzamiento.tema}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    setProgresos((prev) => {
-                      const valor = Number(event.target.value);
-                      if (
-                        lanzamiento.audio &&
-                        reproduciendo === lanzamiento.id &&
-                        audioReelRef.current &&
-                        Number.isFinite(audioReelRef.current.duration)
-                      ) {
-                        audioReelRef.current.currentTime =
-                          (valor / 100) * audioReelRef.current.duration;
-                      }
-                      return { ...prev, [lanzamiento.id]: valor };
-                    })
-                  }
-                />
-              </div>
 
-              <div className="acciones-verticales" aria-label={`Acciones de ${lanzamiento.tema}`}>
-                <div className="accion-item">
-                  <button
-                  className={`accion-boton ${lanzamiento.liked ? "activo" : ""} ${animacionesLike[lanzamiento.id] || ""}`}
-                    type="button"
-                    aria-label={lanzamiento.liked ? "Quitar me gusta" : "Me gusta"}
-                    onClick={() =>
-                    ejecutarConSesion(() => alternarLikeLanzamiento(lanzamiento))
-                    }
-                  >
-                    <Icono nombre="corazon" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.likes)}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                    className={`accion-boton ${comentariosAbiertos === lanzamiento.id ? "activo" : ""}`}
-                    type="button"
-                    aria-label="Comentar"
-                    onClick={() =>
-                      cambiarComentariosConAnimacion(
-                        comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
-                      )
-                    }
-                  >
-                    <Icono nombre="comentario" />
-                  </button>
-                  <span>{comentariosDelLanzamiento.length}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                  className="accion-boton"
-                  type="button"
-                  aria-label="Compartir"
-                  onClick={() => abrirCompartirLanzamiento(lanzamiento)}
-                >
-                    <Icono nombre="compartir" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.compartidos)}</span>
-                </div>
-                <div className="accion-item">
-                  <button
-                    className={`accion-boton ${lanzamiento.guardado ? "activo" : ""}`}
-                    type="button"
-                    aria-label={lanzamiento.guardado ? "Quitar de guardados" : "Guardar"}
-                    onClick={() =>
-                      ejecutarConSesion(() => alternarGuardadoLanzamiento(lanzamiento))
-                    }
-                  >
-                    <Icono nombre="guardar" />
-                  </button>
-                  <span>{formatearConteo(lanzamiento.guardados)}</span>
-                </div>
-                <div className="accion-item accion-menu-item">
+                <div className="acciones-laterales" aria-label={`Acciones de ${lanzamiento.tema}`}>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton ${lanzamiento.liked ? "activo" : ""} ${animacionesLike[lanzamiento.id] || ""}`}
+                      type="button"
+                      aria-label={lanzamiento.liked ? "Quitar me gusta" : "Me gusta"}
+                      onClick={() =>
+                        ejecutarConSesion(() => alternarLikeLanzamiento(lanzamiento))
+                      }
+                    >
+                      <Icono nombre="corazon" />
+                    </button>
+                    <small>{formatearConteo(lanzamiento.likes)}</small>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton ${comentariosAbiertos === lanzamiento.id ? "activo" : ""}`}
+                      type="button"
+                      aria-label="Comentar"
+                      aria-pressed={comentariosAbiertos === lanzamiento.id}
+                      onClick={() =>
+                        cambiarComentariosConAnimacion(
+                          comentariosAbiertos === lanzamiento.id ? null : lanzamiento.id
+                        )
+                      }
+                    >
+                      <Icono nombre="comentario" />
+                    </button>
+                    <small>{comentariosDelLanzamiento.length}</small>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className="accion-boton"
+                      type="button"
+                      aria-label="Compartir"
+                      onClick={() => abrirCompartirLanzamiento(lanzamiento)}
+                    >
+                      <Icono nombre="compartir" />
+                    </button>
+                    <small>{formatearConteo(lanzamiento.compartidos)}</small>
+                  </div>
+                  <div className="accion-item">
+                    <button
+                      className={`accion-boton accion-boton-guardar ${lanzamiento.guardado ? "activo" : ""}`}
+                      type="button"
+                      aria-label={lanzamiento.guardado ? "Quitar preview guardada" : "Guardar preview"}
+                      aria-pressed={Boolean(lanzamiento.guardado)}
+                      onClick={() => ejecutarConSesion(() => alternarGuardadoLanzamiento(lanzamiento))}
+                    >
+                      <Icono nombre="guardar" />
+                    </button>
+                    <small>{formatearConteo(lanzamiento.guardados ?? 0)}</small>
+                  </div>
+                  <div className="accion-item accion-menu-item">
                     <button
                       className={`accion-boton accion-boton-menu ${menuLanzamientoAbierto === lanzamiento.id ? "activo" : ""}`}
                       type="button"
-                      aria-label="Opciones del reel"
+                      aria-label="Opciones de la preview"
                       aria-expanded={menuLanzamientoAbierto === lanzamiento.id}
                       onClick={() =>
                         setMenuLanzamientoAbierto((actual) =>
@@ -2215,7 +2184,10 @@ export default function Descubrir({ usuario }) {
                     {menuLanzamientoAbierto === lanzamiento.id ? (
                       <div className="reel-opciones-menu">
                         {puedeEliminar ? (
-                          <button type="button" onClick={() => eliminarLanzamiento(lanzamiento)}>
+                          <button type="button" onClick={() => {
+                            setMenuLanzamientoAbierto(null);
+                            setEliminacionPendiente(lanzamiento);
+                          }}>
                             Eliminar
                           </button>
                         ) : (
@@ -2234,6 +2206,7 @@ export default function Descubrir({ usuario }) {
                       </div>
                     ) : null}
                   </div>
+                </div>
               </div>
 
               <aside
@@ -2271,8 +2244,9 @@ export default function Descubrir({ usuario }) {
                             type="button"
                             onClick={() => abrirVistaPerfilComentario(comentario)}
                           >
-                            {comentario.usuario}
+                            {comentario.nombre || comentario.usuario?.replace(/^@/, "")}
                           </button>{" "}
+                          <span className="comentario-handle">{comentario.usuario}</span>{" "}
                           <span>{comentario.tiempo}</span>
                         </strong>
                         <p><TextoConMenciones texto={comentario.texto} /></p>
@@ -2324,8 +2298,9 @@ export default function Descubrir({ usuario }) {
                                       type="button"
                                       onClick={() => abrirVistaPerfilComentario(respuesta)}
                                     >
-                                      {respuesta.usuario}
+                                      {respuesta.nombre || respuesta.usuario?.replace(/^@/, "")}
                                     </button>
+                                    <span className="comentario-handle"> {respuesta.usuario}</span>
                                     {respuesta.respondeA ? (
                                       <span className="respuesta-para-linea"> para {respuesta.respondeA}</span>
                                     ) : null}{" "}
@@ -2379,7 +2354,7 @@ export default function Descubrir({ usuario }) {
                               onChange={setRespuestaTexto}
                               autoFocus
                             />
-                            <button type="submit" aria-label="Enviar respuesta">
+                            <button type="submit" aria-label="Enviar respuesta" disabled={respuestasEnviando.has(`${lanzamiento.id}-${comentario.id}`)}>
                               <Icono nombre="enviar" />
                             </button>
                           </form>
@@ -2401,7 +2376,7 @@ export default function Descubrir({ usuario }) {
                     {!usuario ? (
                       <IconoPersona />
                     ) : (
-                      inicialUsuario
+                      <ImagenAvatar src={perfilComentario?.avatar} inicial={inicialUsuario} />
                     )}
                   </div>
                   <CampoMenciones
@@ -2412,41 +2387,18 @@ export default function Descubrir({ usuario }) {
                     value={comentarioTexto}
                     onChange={setComentarioTexto}
                   />
-                  <button type="submit" aria-label="Enviar comentario">
+                  <button type="submit" aria-label="Enviar comentario" disabled={enviandoComentario}>
                     <Icono nombre="enviar" />
                   </button>
                 </form>
               </aside>
-
-              <nav className="reel-nav" aria-label="Navegar reels">
-                <button
-                  type="button"
-                  aria-label="Reel anterior"
-                  onClick={() => moverReel(lanzamiento.id, "arriba")}
-                  disabled={lanzamientosFiltrados[0]?.id === lanzamiento.id}
-                >
-                  <Icono nombre="subir" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Siguiente reel"
-                  onClick={() => moverReel(lanzamiento.id, "abajo")}
-                  disabled={lanzamientosFiltrados[lanzamientosFiltrados.length - 1]?.id === lanzamiento.id}
-                >
-                  <Icono nombre="bajar" />
-                </button>
-              </nav>
 
             </article>
           );
         })}
       </div>
 
-      {aviso ? (
-        <div className="descubrir-toast" role="status">
-          {aviso}
-        </div>
-      ) : null}
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
 
       {compartirActivo ? (
         <div className="compartir-overlay" role="presentation" onMouseDown={() => setCompartirActivo(null)}>
@@ -2471,14 +2423,14 @@ export default function Descubrir({ usuario }) {
             >
               <span className="comentario-avatar">
                 {compartirActivo.lanzamiento.avatar ? (
-                  <img src={compartirActivo.lanzamiento.avatar} alt="" />
+                  <ImagenAvatar src={compartirActivo.lanzamiento.avatar} inicial={compartirActivo.lanzamiento.artista} />
                 ) : (
                   inicialAvatar(compartirActivo.lanzamiento.artista || compartirActivo.lanzamiento.usuario)
                 )}
               </span>
               <span>
                 <strong>{compartirActivo.lanzamiento.artista}</strong>
-                <small>Creador del reel</small>
+                <small>Creador de la preview</small>
               </span>
             </button>
 
@@ -2523,7 +2475,7 @@ export default function Descubrir({ usuario }) {
             <header>
               <div className="perfil-vista-avatar">
                 {perfilVista.perfil.avatar ? (
-                  <img src={perfilVista.perfil.avatar} alt="" />
+                  <ImagenAvatar src={perfilVista.perfil.avatar} inicial={perfilVista.perfil.nombre} />
                 ) : (
                   <span>{perfilVista.perfil.nombre?.charAt(0).toUpperCase() || "S"}</span>
                 )}
@@ -2538,7 +2490,7 @@ export default function Descubrir({ usuario }) {
             <small>{perfilVista.perfil.usuario}</small>
             <div className="perfil-vista-stats">
               <span><b>{formatearConteo(perfilVista.stats.seguidores)}</b> Seguidores</span>
-              <span><b>{formatearConteo(perfilVista.stats.publicaciones)}</b> Publicaciones</span>
+              <span><b>{formatearConteo(perfilVista.stats.reels ?? perfilVista.stats.publicaciones)}</b> Previews</span>
             </div>
             <p>{perfilVista.perfil.bio}</p>
             <div className="perfil-vista-actions">
@@ -2553,6 +2505,14 @@ export default function Descubrir({ usuario }) {
         </div>
       ) : null}
 
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido={`la preview “${eliminacionPendiente.tema}”`}
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarLanzamiento(eliminacionPendiente, password)}
+        />
+      ) : null}
+
       <DenunciaModal
         abierto={Boolean(denunciaPendiente)}
         titulo={denunciaPendiente?.tema}
@@ -2560,136 +2520,6 @@ export default function Descubrir({ usuario }) {
         onClose={() => setDenunciaPendiente(null)}
         onConfirm={(datos) => denunciarLanzamiento(denunciaPendiente, datos)}
       />
-
-      {mostrarCrearReel ? (
-        <div className="crear-reel-overlay" role="presentation">
-          <form
-            className="crear-reel-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="crear-reel-titulo"
-            onSubmit={publicarReel}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className="crear-reel-header">
-              <div>
-                <span>DESCUBRIR</span>
-                <h2 id="crear-reel-titulo">{t("Crear nuevo reel")}</h2>
-              </div>
-              <button type="button" onClick={cerrarCreadorReel} aria-label="Cerrar" disabled={subiendoReel}>
-                <Icono nombre="cerrar" />
-              </button>
-            </header>
-
-            <div className="crear-reel-contenido">
-              <div
-                className={`crear-reel-preview ${nuevoReel.portada ? "con-portada" : ""}`}
-                style={nuevoReel.portada ? { backgroundImage: `url(${nuevoReel.portada})` } : undefined}
-              >
-                {nuevoReel.genero ? (
-                  <span className="crear-reel-sello">{mostrarGeneroReel(nuevoReel.genero)}</span>
-                ) : null}
-                <div className="crear-reel-preview-copy">
-                  <strong>{nuevoReel.album || "Nombre del reel"}</strong>
-                  <span>{nuevoReel.tema || "Titulo de la cancion"}</span>
-                  <small>{obtenerUsuarioActual(usuario)}</small>
-                </div>
-              </div>
-
-              <div className="crear-reel-campos">
-                <label>
-                  Titulo de la cancion
-                  <input
-                    value={nuevoReel.tema}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, tema: event.target.value }))
-                    }
-                    maxLength="50"
-                    placeholder="Ej: Neon de madrugada"
-                    required
-                  />
-                </label>
-                <label>
-                  Nombre del reel
-                  <input
-                    value={nuevoReel.album}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, album: event.target.value }))
-                    }
-                    maxLength="60"
-                    placeholder="El texto principal de la portada"
-                    required
-                  />
-                </label>
-                <label>
-                  Genero musical
-                  <select
-                    value={nuevoReel.genero}
-                    onChange={(event) =>
-                      setNuevoReel((actual) => ({ ...actual, genero: event.target.value }))
-                    }
-                    required
-                  >
-                    <option value="" disabled>Seleccionar genero</option>
-                    {GENEROS_REEL.map((genero) => (
-                      <option key={genero} value={genero}>
-                        {mostrarGeneroReel(genero)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Descripcion
-                  <CampoMenciones
-                    value={nuevoReel.descripcion}
-                    onChange={(descripcion) =>
-                      setNuevoReel((actual) => ({ ...actual, descripcion }))
-                    }
-                    maxLength="180"
-                    rows="3"
-                    placeholder="Contá algo y mencioná personas con @usuario..."
-                  />
-                </label>
-
-                <div className="crear-reel-archivos">
-                  <div className="crear-reel-archivo-grupo">
-                    <label className="crear-reel-archivo">
-                      <span>Seleccionar portada</span>
-                      <small>{nuevoReel.nombrePortada || "JPG, PNG o WEBP"}</small>
-                      <input ref={portadaReelInputRef} type="file" accept="image/*" onChange={cambiarPortadaReel} />
-                    </label>
-                    {nuevoReel.nombrePortada ? (
-                      <button className="crear-reel-limpiar" type="button" onClick={limpiarPortadaReel}>
-                        Quitar portada
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="crear-reel-archivo-grupo">
-                    <label className="crear-reel-archivo">
-                      <span>Seleccionar audio</span>
-                      <small>{nuevoReel.nombreAudio || "MP3, WAV u OGG"}</small>
-                      <input ref={audioReelInputRef} type="file" accept="audio/*" onChange={cambiarAudioReel} required />
-                    </label>
-                    {nuevoReel.nombreAudio ? (
-                      <button className="crear-reel-limpiar" type="button" onClick={limpiarAudioReel}>
-                        Quitar audio
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {nuevoReel.audio ? (
-                  <audio className="crear-reel-audio" src={nuevoReel.audio} controls />
-                ) : null}
-
-                <button className="crear-reel-publicar" type="submit" disabled={subiendoReel}>
-                  {subiendoReel ? "Creando..." : "Publicar reel"}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      ) : null}
     </section>
   );
 }

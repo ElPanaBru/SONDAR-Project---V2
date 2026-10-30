@@ -6,12 +6,13 @@ import { Image } from 'expo-image';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, FlatList, Linking, Modal, Platform, Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { EventMap } from '@/components/event-map';
 import { EventPanel } from '@/components/event-panel';
 import { EventLocationPicker } from '@/components/event-location-picker';
+import { PasswordConfirmModal } from '@/components/password-confirm-modal';
 import { ReportModal, type ReportPayload } from '@/components/report-modal';
 import { Avatar, Button, Empty, ErrorNotice, Field, Header, IconButton, NotificationButton, Loading, Screen, ui } from '@/components/sondar-ui';
 import { formatGenre, genres, musicGenres, palette } from '@/constants/sondar';
@@ -83,7 +84,11 @@ export default function EventsScreen() {
   const [organizerOpen, setOrganizerOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState<EventItem | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<EventItem | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [playingPreviewId, setPlayingPreviewId] = useState<string | null>(null);
+  const saveLocks = useRef(new Set<string>());
   const tabBarHeight = useBottomTabBarHeight();
 
   const load = useCallback(async (refresh = false) => {
@@ -153,14 +158,16 @@ export default function EventsScreen() {
     if (!form.lugar.trim() || form.generos.length === 0) return setError('Completá el lugar y al menos un género.');
     setBusy(true);
     try {
-      const body = new FormData();
-      const { perfil } = await api<{ perfil: { nombre: string } }>('/api/usuarios/me/perfil', { token });
-      const bandName = perfil.nombre?.trim();
-      if (!bandName) throw new Error('Completá el nombre de tu banda en tu perfil antes de crear el evento.');
-      body.append('titulo', bandName); body.append('genero', form.generos.join(' / '));
-      body.append('ubicacion', form.lugar.trim()); body.append('fecha', form.fecha.toISOString()); body.append('precio', form.precio);
-      body.append('link', form.link.trim()); body.append('latitud', String(form.latitud)); body.append('longitud', String(form.longitud));
-      body.append('organizadores', JSON.stringify(organizers.map(item => item.id)));
+      const body = {
+        generos: form.generos,
+        ubicacion: form.lugar.trim(),
+        fecha: form.fecha.toISOString(),
+        precio: form.precio,
+        link: form.link.trim(),
+        latitud: form.latitud,
+        longitud: form.longitud,
+        organizadores: organizers.map(item => item.id),
+      };
       const created = normalizeEvent(await api<EventItem>('/api/eventos/crear', { method: 'POST', token, body }));
       setEvents(current => [created, ...current]); setSelected(created); setCreating(false); setDatePicker(null); setForm(emptyForm()); setOrganizers([]); setOrganizerOpen(false); setOrganizerQuery(''); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo crear el evento.'); }
@@ -180,11 +187,15 @@ export default function EventsScreen() {
   }
 
   async function toggleSave(event: EventItem) {
+    const id = String(event.id);
+    if (saveLocks.current.has(id)) return;
+    saveLocks.current.add(id);
     try {
       const result = await api<{ guardado: boolean }>(`/api/eventos/${event.id}/guardar`, { method: 'POST', token });
       setEvents(items => items.map(item => item.id === event.id ? { ...item, guardado: result.guardado } : item));
       setSelected(value => value?.id === event.id ? { ...value, guardado: result.guardado } : value);
     } catch (e) { Alert.alert('SONDAR', e instanceof Error ? e.message : 'No se pudo guardar.'); }
+    finally { saveLocks.current.delete(id); }
   }
 
   async function openEventLink(event: EventItem) {
@@ -240,10 +251,24 @@ export default function EventsScreen() {
   }
 
   function remove(event: EventItem) {
-    Alert.alert('Eliminar evento', 'Esta acción no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => api(`/api/eventos/${event.id}`, { method: 'DELETE', token }).then(() => { setEvents(v => v.filter(x => x.id !== event.id)); setSelected(null); }).catch(e => Alert.alert('Error', e.message)) },
-    ]);
+    setDeletePassword('');
+    setDeleteTarget(event);
+  }
+
+  async function confirmDeleteEvent() {
+    if (!deleteTarget || !deletePassword || deleting) return;
+    setDeleting(true);
+    try {
+      await api(`/api/eventos/${deleteTarget.id}`, { method: 'DELETE', token, body: JSON.stringify({ password: deletePassword }) });
+      setEvents(items => items.filter(item => item.id !== deleteTarget.id));
+      setSelected(current => current?.id === deleteTarget.id ? null : current);
+      setDeleteTarget(null);
+      setDeletePassword('');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el evento.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -355,6 +380,7 @@ export default function EventsScreen() {
         </Screen>
       </Modal>
       <ReportModal visible={Boolean(reportTarget)} subject={reportTarget?.titulo} busy={reportBusy} onClose={() => setReportTarget(null)} onSubmit={submitReport} />
+      <PasswordConfirmModal visible={Boolean(deleteTarget)} title="Eliminar evento" description="Esta acción no se puede deshacer. Confirma tu contraseña para continuar." password={deletePassword} busy={deleting} onPasswordChange={setDeletePassword} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDeleteEvent()} />
     </Screen>
   );
 }

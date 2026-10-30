@@ -2,20 +2,21 @@ const express = require('express');
 const router = express.Router();
 const comunidadController = require('../Controllers/comunidadController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const confirmarPasswordEliminacion = require('../middlewares/confirmarPasswordEliminacion');
+const evitarCreacionDuplicada = require('../middlewares/evitarCreacionDuplicada');
 
-router.put('/:comunidadId/membresia', authMiddleware, comunidadController.actualizarMembresia);
-router.delete('/:comunidadId/membresia', authMiddleware, comunidadController.actualizarMembresia);
-
-router.get('/', comunidadController.listarComunidades);
-router.get('/:comunidadId/publicaciones', comunidadController.listarPublicaciones);
-router.post('/:comunidadId/publicaciones', authMiddleware, comunidadController.crearPublicacion);
-router.post('/publicaciones/:publicacionId/comentarios', authMiddleware, comunidadController.crearComentario);
+router.get('/', authMiddleware.opcional, comunidadController.listarComunidades);
+router.get('/:comunidadId/publicaciones', authMiddleware.opcional, comunidadController.listarPublicaciones);
+router.post('/:comunidadId/membresia', authMiddleware, comunidadController.alternarMembresia);
+router.put('/:comunidadId/notificaciones', authMiddleware, comunidadController.actualizarNotificaciones);
+router.post('/:comunidadId/publicaciones', authMiddleware, evitarCreacionDuplicada('crear-publicacion-comunidad'), comunidadController.crearPublicacion);
+router.post('/publicaciones/:publicacionId/comentarios', authMiddleware, evitarCreacionDuplicada('crear-comentario-comunidad'), comunidadController.crearComentario);
 router.post('/publicaciones/:publicacionId/like', authMiddleware, comunidadController.alternarLikePublicacion);
 router.post('/publicaciones/:publicacionId/guardar', authMiddleware, comunidadController.alternarGuardadoPublicacion);
 router.post('/publicaciones/:publicacionId/denunciar', authMiddleware, comunidadController.denunciarPublicacion);
+router.delete('/publicaciones/:publicacionId', authMiddleware, confirmarPasswordEliminacion, comunidadController.eliminarPublicacion);
 router.post('/comentarios/:comentarioId/like', authMiddleware, comunidadController.alternarLikeComentario);
-router.put('/comentarios/:comentarioId/guardar', authMiddleware, comunidadController.guardarComentario);
-router.delete('/comentarios/:comentarioId/guardar', authMiddleware, comunidadController.guardarComentario);
-router.delete('/comentarios/:comentarioId', authMiddleware, comunidadController.eliminarComentario);
+router.post('/comentarios/:comentarioId/guardar', authMiddleware, comunidadController.alternarGuardadoComentario);
+router.post('/comentarios/:comentarioId/denunciar', authMiddleware, comunidadController.denunciarComentario);
 
 module.exports = router;

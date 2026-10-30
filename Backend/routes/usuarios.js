@@ -17,12 +17,8 @@ router.get('/me/exportar', authMiddleware, usuariosController.exportarDatosActua
 router.get('/me/perfil', authMiddleware, usuariosController.obtenerPerfilActual);
 router.put('/me/perfil', authMiddleware, upload.single('avatar'), usuariosController.actualizarPerfilActual);
 router.put('/me/onboarding', authMiddleware, upload.single('avatar'), usuariosController.completarOnboarding);
-router.post('/me/comunidad', authMiddleware, usuariosController.crearPublicacionComunidadPerfil);
 router.get('/me/seguidos', authMiddleware, usuariosController.listarSeguidosActuales);
 router.get('/me/bloqueados', authMiddleware, usuariosController.listarBloqueadosActuales);
-router.post('/comunidad/:id/comentarios', authMiddleware, usuariosController.comentarPublicacionComunidadPerfil);
-router.post('/comunidad/:id/denunciar', authMiddleware, usuariosController.denunciarPublicacionComunidadPerfil);
-router.delete('/comunidad/:id', authMiddleware, usuariosController.eliminarPublicacionComunidadPerfil);
 router.get('/', usuariosController.buscarUsuarios);
 router.post('/registrar', authMiddleware, usuariosController.registrarUsuario);
 router.post('/convertir-a-musico', authMiddleware, usuariosController.convertirAMusico);
@@ -33,12 +29,5 @@ router.post('/:identificador/bloquear', authMiddleware, usuariosController.bloqu
 router.delete('/:identificador/bloquear', authMiddleware, usuariosController.desbloquearUsuario);
 router.post('/:identificador/denunciar', authMiddleware, usuariosController.denunciarPerfil);
 router.post('/:identificador/silenciar-notificaciones', authMiddleware, usuariosController.alternarSilencioNotificaciones);
-
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'La foto no puede superar los 5 MB. Elegi una imagen mas chica.' : 'No se pudo recibir la foto. Elegila nuevamente.' });
-  }
-  next(error);
-});
 
 module.exports = router;

@@ -1,8 +1,10 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { PREFERENCIAS_INICIALES, usePreferencias } from "../contextos/PreferenciasContext";
+import { PREFERENCIAS_INICIALES } from "../lib/preferencias";
+import { usePreferencias } from "../contextos/preferencias";
 import "./configuracion.css";
 
 const AJUSTES_INICIALES = PREFERENCIAS_INICIALES;
@@ -23,11 +25,13 @@ export default function Configuracion({ usuario }) {
   const [passwordActualizada, setPasswordActualizada] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
-  const [confirmacionEliminar, setConfirmacionEliminar] = useState("");
+  const [passwordEliminar, setPasswordEliminar] = useState("");
   const [eliminando, setEliminando] = useState(false);
   const [bloqueados, setBloqueados] = useState([]);
   const [cargandoBloqueados, setCargandoBloqueados] = useState(false);
   const [perfilCuenta, setPerfilCuenta] = useState(null);
+  const [perfilCargadoPara, setPerfilCargadoPara] = useState(null);
+  const cargandoPerfil = Boolean(usuario?.id && perfilCargadoPara !== usuario.id);
 
   useEffect(() => {
     const configuracionGuardada = usuario?.user_metadata?.configuracion;
@@ -54,7 +58,7 @@ export default function Configuracion({ usuario }) {
         const token = data.session?.access_token;
         if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-        const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+        const response = await apiRequest("/api/usuarios/me/configuracion", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => ({}));
@@ -96,7 +100,7 @@ export default function Configuracion({ usuario }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const response = await fetch(apiUrl("/api/usuarios/me/bloqueados"), {
+        const response = await apiRequest("/api/usuarios/me/bloqueados", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => []);
@@ -129,7 +133,7 @@ export default function Configuracion({ usuario }) {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const body = await response.json().catch(() => ({}));
@@ -137,6 +141,8 @@ export default function Configuracion({ usuario }) {
         if (vigente) setPerfilCuenta(body.perfil || null);
       } catch {
         if (vigente) setPerfilCuenta(null);
+      } finally {
+        if (vigente) setPerfilCargadoPara(usuario.id);
       }
     };
 
@@ -178,7 +184,7 @@ export default function Configuracion({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
-      const response = await fetch(apiUrl(`/api/usuarios/${cuenta.id}/bloquear`), {
+      const response = await apiRequest(`/api/usuarios/${cuenta.id}/bloquear`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -215,6 +221,7 @@ export default function Configuracion({ usuario }) {
       notificarSeguidores: true,
       notificarPublicaciones: true,
       notificarMenciones: true,
+      notificarMensajes: true,
       reducirMovimiento: false,
     };
     setAjustes(siguientes);
@@ -237,7 +244,7 @@ export default function Configuracion({ usuario }) {
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-      const response = await fetch(apiUrl("/api/usuarios/me/configuracion"), {
+      const response = await apiRequest("/api/usuarios/me/configuracion", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -304,7 +311,7 @@ export default function Configuracion({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
-      const response = await fetch(apiUrl("/api/usuarios/me/exportar"), {
+      const response = await apiRequest("/api/usuarios/me/exportar", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const datos = await response.json().catch(() => ({}));
@@ -331,7 +338,7 @@ export default function Configuracion({ usuario }) {
 
   const eliminarCuenta = async (e) => {
     e.preventDefault();
-    if (!usuario?.email || confirmacionEliminar.trim() !== usuario.email) return;
+    if (!usuario?.email || !passwordEliminar) return;
 
     setEliminando(true);
     setMensaje(null);
@@ -341,9 +348,13 @@ export default function Configuracion({ usuario }) {
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion vencio. Inicia sesion nuevamente.");
 
-      const response = await fetch(apiUrl("/api/usuarios/me"), {
+      const response = await apiRequest("/api/usuarios/me", {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ password: passwordEliminar }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "No se pudo eliminar la cuenta.");
@@ -352,6 +363,7 @@ export default function Configuracion({ usuario }) {
       navigate("/auth", { replace: true });
     } catch (error) {
       setEliminando(false);
+      setPasswordEliminar("");
       mostrarMensaje("error", error.message || "No se pudo eliminar la cuenta.");
     }
   };
@@ -367,7 +379,11 @@ export default function Configuracion({ usuario }) {
 
         <div className="config-account">
           <div className="config-avatar" aria-hidden="true">
-            {perfilCuenta?.avatar ? <img src={perfilCuenta.avatar} alt="" /> : inicial}
+            {cargandoPerfil ? (
+              <span className="avatar-imagen avatar-imagen-cargando" />
+            ) : (
+              <ImagenAvatar src={perfilCuenta?.avatar} inicial={inicial} />
+            )}
           </div>
           <div>
             <strong>{nombreCuenta}</strong>
@@ -497,7 +513,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Me gusta y reacciones")}</strong>
-                  <span>{t("Reels, comentarios y publicaciones de comunidad.")}</span>
+                  <span>{t("Previews, comentarios y publicaciones de comunidad.")}</span>
                 </div>
                 <input type="checkbox" name="notificarInteracciones" checked={ajustes.notificarInteracciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -505,7 +521,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Comentarios y respuestas")}</strong>
-                  <span>{t("Conversaciones nuevas en tus reels y publicaciones.")}</span>
+                  <span>{t("Conversaciones nuevas en tus previews y publicaciones.")}</span>
                 </div>
                 <input type="checkbox" name="notificarComentarios" checked={ajustes.notificarComentarios} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -521,7 +537,7 @@ export default function Configuracion({ usuario }) {
               <label className="config-switch-row config-switch-child">
                 <div>
                   <strong>{t("Publicaciones de gente que seguís")}</strong>
-                  <span>{t("Reels, eventos y publicaciones de comunidad nuevos.")}</span>
+                  <span>{t("Previews, eventos y publicaciones de comunidad nuevos.")}</span>
                 </div>
                 <input type="checkbox" name="notificarPublicaciones" checked={ajustes.notificarPublicaciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
@@ -532,6 +548,14 @@ export default function Configuracion({ usuario }) {
                   <span>{t("Etiquetas con @ e invitaciones para organizar eventos.")}</span>
                 </div>
                 <input type="checkbox" name="notificarMenciones" checked={ajustes.notificarMenciones} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
+              </label>
+
+              <label className="config-switch-row config-switch-child">
+                <div>
+                  <strong>{t("Mensajes directos")}</strong>
+                  <span>{t("Cuando recibís un mensaje nuevo de otra persona.")}</span>
+                </div>
+                <input type="checkbox" name="notificarMensajes" checked={ajustes.notificarMensajes} onChange={handleChange} disabled={!ajustes.actividadCuenta} />
               </label>
             </div>
           </section>
@@ -554,7 +578,7 @@ export default function Configuracion({ usuario }) {
               <div className="config-bloqueados">
                 <div className="config-bloqueados-heading">
                   <strong>Cuentas bloqueadas</strong>
-                  <span>Sus reels y eventos no aparecen en tu cuenta.</span>
+                  <span>Sus previews y eventos no aparecen en tu cuenta.</span>
                 </div>
                 {cargandoBloqueados ? <p>Cargando cuentas bloqueadas...</p> : null}
                 {!cargandoBloqueados && bloqueados.length === 0 ? (
@@ -563,7 +587,7 @@ export default function Configuracion({ usuario }) {
                 {bloqueados.map((cuenta) => (
                   <div className="config-bloqueado-item" key={cuenta.id}>
                     <span className="config-bloqueado-avatar">
-                      {cuenta.avatar ? <img src={cuenta.avatar} alt="" /> : cuenta.nombre?.charAt(0).toUpperCase()}
+                      {cuenta.avatar ? <ImagenAvatar src={cuenta.avatar} inicial={cuenta.nombre} /> : cuenta.nombre?.charAt(0).toUpperCase()}
                     </span>
                     <div>
                       <strong>{cuenta.nombre}</strong>
@@ -624,7 +648,7 @@ export default function Configuracion({ usuario }) {
                   <strong>{t("Eliminar cuenta")}</strong>
                   <span>{t("Elimina permanentemente tu perfil, publicaciones, eventos e interacciones.")}</span>
                 </div>
-                <button className="config-danger-button" type="button" onClick={() => setMostrarEliminar(true)}>
+                <button className="config-danger-button" type="button" onClick={() => { setPasswordEliminar(""); setMostrarEliminar(true); }}>
                   {t("Eliminar")}
                 </button>
               </div>
@@ -701,18 +725,18 @@ export default function Configuracion({ usuario }) {
       )}
 
       {mostrarEliminar && (
-        <div className="config-modal-backdrop" role="presentation" onMouseDown={() => !eliminando && setMostrarEliminar(false)}>
+        <div className="config-modal-backdrop" role="presentation" onMouseDown={() => { if (!eliminando) { setPasswordEliminar(""); setMostrarEliminar(false); } }}>
           <form className="config-modal config-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" onSubmit={eliminarCuenta} onMouseDown={(e) => e.stopPropagation()}>
             <h2 id="delete-title">Eliminar cuenta permanentemente</h2>
-            <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, reels, eventos, comentarios, guardados y archivos publicados.</p>
+            <p>Esta accion no se puede deshacer. Se eliminaran tu perfil, previews, eventos, comentarios, guardados y archivos publicados.</p>
             <label>
-              Escribi <strong>{usuario?.email}</strong> para confirmar
-              <input type="email" value={confirmacionEliminar} onChange={(e) => setConfirmacionEliminar(e.target.value)} placeholder={usuario?.email || "tu@email.com"} autoComplete="off" autoFocus />
+              Ingresa tu contrasena para confirmar
+              <input type="password" value={passwordEliminar} onChange={(e) => setPasswordEliminar(e.target.value)} placeholder="Contrasena actual" autoComplete="current-password" autoFocus required />
             </label>
             <div className="config-modal-actions">
-              <button type="button" onClick={() => setMostrarEliminar(false)} disabled={eliminando}>Cancelar</button>
-              <button className="config-confirm-delete" type="submit" disabled={eliminando || confirmacionEliminar.trim() !== usuario?.email}>
-                {eliminando ? "Eliminando..." : "Eliminar definitivamente"}
+              <button type="button" onClick={() => { setPasswordEliminar(""); setMostrarEliminar(false); }} disabled={eliminando}>Cancelar</button>
+              <button className="config-confirm-delete" type="submit" disabled={eliminando || !passwordEliminar}>
+                {eliminando ? "Verificando y eliminando..." : "Eliminar definitivamente"}
               </button>
             </div>
           </form>

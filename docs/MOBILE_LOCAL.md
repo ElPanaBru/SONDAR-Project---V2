@@ -1,68 +1,48 @@
-# SONDAR movil con base local
+# Desarrollo móvil en `Mobile-Local`
 
-La rama `Mobile-Local` reutiliza las migraciones de `Web_BDD_Local` y agrega `20261030120000_compatibilidad_mobile.sql`: el backend movil todavia necesita las tablas de preferencias y publicaciones de perfil que la web retiro. No se reemplazan sus controladores por los de la web.
+La rama existente `Mobile-Local` conserva el cliente Expo y usa la API web y el proyecto Supabase local de `Web_BDD_Local`. La carpeta `supabase/migrations` coincide con la versión web; la migración `20261030120000_compatibilidad_mobile.sql` no forma parte de este entorno.
 
-## Primer inicio
+## Inicio
 
-Requisitos: Docker Desktop funcionando con contenedores Linux y Node 24 LTS (24.3 o posterior). El SDK de Expo de este proyecto no admite Node 25.
+Requisitos: Docker Desktop con contenedores Linux, Docker Compose 2.24 o posterior y Node 24 LTS.
 
-Desde la raiz:
+Desde la raíz de `Mobile-Local`:
 
 ```powershell
 npm ci
-npm ci --prefix Backend
-npm ci --prefix sondar-mobile
-npm run dev:mobile:clear
+npm run son
 ```
 
-Escanear el QR de Expo Go. En LAN, PC y celular deben estar en la misma red. La primera ejecucion puede descargar imagenes Docker; los siguientes arranques usan los datos del volumen local. Para usar el tunel de Expo: `npm run dev:mobile:tunnel:clear`.
+`npm run son` inicia el proyecto Supabase web y los servicios `api`, `web` y `mobile` de Compose. `npm run dev` desde la raíz inicia el mismo stack compartido. Escanea el QR que aparece en los logs de Metro con Expo Go en un teléfono conectado a la misma red que la PC. La primera ejecución descarga las imágenes y paquetes; las posteriores conservan el volumen de PostgreSQL.
 
-El comando inicia Supabase, aplica solo migraciones pendientes y genera las variables locales antes de iniciar API y Expo. La clave administrativa permanece en `Backend/.env.local`; la app recibe solamente la clave publica. Los `.env` anteriores se conservan, pero no se usan en este arranque. No copiar claves de la nube a los ejemplos.
+Si la PC tiene varias interfaces de red, define primero la IPv4 Wi-Fi:
 
-## Servicios
+```powershell
+$env:SONDAR_LAN_IP = '192.168.1.25'
+npm run son
+```
 
-| Servicio | Direccion en la PC |
+## Servicios locales
+
+| Servicio | Dirección |
 | --- | --- |
-| Expo / proxy para el celular | http://localhost:8081 |
-| API SONDAR | http://127.0.0.1:3000 |
-| Supabase API / Auth / Storage | http://127.0.0.1:55321 |
-| PostgreSQL | 127.0.0.1:55322 |
-| Supabase Studio | http://127.0.0.1:55323 |
-| Correo de pruebas | http://127.0.0.1:55324 |
+| Web Vite | http://localhost:3001 |
+| API web | http://localhost:3000 |
+| Supabase Auth / REST / Storage | http://localhost:54321 |
+| PostgreSQL | 127.0.0.1:55432 |
+| Supabase Studio | http://localhost:54323 |
+| Expo Metro | http://<SONDAR_LAN_IP>:8081 |
 
-Proyecto Docker: `sondar-mobile-local`. Utiliza puertos y volumen propios; no comparte los datos de `SONDAR-Project---V2` usados por la web. La instalacion nueva contiene el catalogo y comunidades; crear una cuenta local para probar. Los usuarios y binarios de Storage remotos no forman parte de las migraciones.
+El proyecto Supabase usa `project_id = SONDAR-Project---V2`, igual que la versión web. Por eso web y móvil arrancados desde esta branch llegan al mismo PostgreSQL y al mismo historial de migraciones.
 
-Auth y los archivos del celular pasan por `/supabase` en Expo. La app adapta las URLs de Storage de la PC al servidor Expo alcanzable desde el dispositivo, y mantiene una sesion local separada de la nube.
-
-## Uso diario y migraciones
+## Comandos
 
 ```powershell
-npm run dev:mobile
-npm run local:status
-npm run local:stop
+npm run docker:status
+npm run docker:logs
+npm run docker:down
 ```
 
-Detener los servicios conserva los datos. `local:stop` detiene Supabase; cerrar Expo y el backend por separado cuando corresponda.
+`docker:down` detiene Compose y Supabase sin borrar los volúmenes. Los cambios nuevos de esquema se agregan a `supabase/migrations` siguiendo el flujo web. No ejecutar `supabase db reset --local` sobre datos que quieras conservar: reconstruye la base local.
 
-El historial esta en `supabase/migrations`; `supabase/seed.sql` contiene el catalogo inicial y `config.toml` configura los buckets. Para cambios nuevos:
-
-```powershell
-npx supabase migration new descripcion_del_cambio
-# Editar el nuevo SQL y revisarlo.
-npm run db:history
-npm run db:migrate
-```
-
-`db:migrate` utiliza `--local`. El arranque no ejecuta `db reset`, `db push` ni enlaza proyectos remotos. `supabase db reset --local` es exclusivamente para reconstruir una base local descartable: borra su contenido y reaplica migraciones y seed.
-
-Las tablas adicionales de publicaciones de perfil estan protegidas con RLS y se acceden por la API del backend. Las preferencias conservan politicas por usuario. Los buckets `perfiles`, `eventos` y `reels` usan las politicas del historial de la web.
-
-## Verificacion
-
-```powershell
-npm test --prefix Backend
-npm test --prefix sondar-mobile
-npm run typecheck --prefix sondar-mobile
-```
-
-Guia de referencia: [migraciones de Supabase](https://supabase.com/docs/guides/deployment/database-migrations).
+Guía completa: [web y móvil en Docker](DOCKER_LOCAL_UNIFICADO.md).

@@ -1,160 +1,39 @@
+import PortadaComunidad from "../componentes/PortadaComunidad";
+import { CATALOGO_GENEROS, nombreGeneroMusical } from "../lib/generos";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import ComunidadSkeleton, { PublicacionesSkeleton } from "../componentes/ComunidadSkeleton";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { apiRequest } from "../lib/api";
+import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
+import PerfilToast from "../componentes/PerfilToast";
 import TextoConMenciones from "../componentes/TextoConMenciones";
-import { usePreferencias } from "../contextos/PreferenciasContext";
 import "./comunidad.css";
 
 const filtros = [
-  { id: "destacado", label: "Destacado" },
-  { id: "reciente", label: "Mas reciente" },
-  { id: "popular", label: "Mas popular" },
-  { id: "preguntas", label: "Preguntas" },
+  { id: "destacado", label: "Mas relevantes" },
+  { id: "reciente", label: "Mas recientes" },
+  { id: "popular", label: "Mas populares" },
+  { id: "preguntas", label: "Solo preguntas" },
 ];
 
-const comunidadesPorGenero = [
-  {
-    "id": "pop",
-    "nombre": "@pop",
-    "titulo": "Pop",
-    "genero": "pop",
-    "descripcion": "Charlas, lanzamientos, preguntas y recomendaciones para la escena pop de SONDAR.",
-    "portada": "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "pop",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "rock",
-    "nombre": "@rock",
-    "titulo": "Rock",
-    "genero": "rock",
-    "descripcion": "Guitarras, fechas, bandas nuevas, demos y conversaciones de la comunidad rock.",
-    "portada": "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "rock",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "urbano",
-    "nombre": "@urbano",
-    "titulo": "Urbano",
-    "genero": "urbano",
-    "descripcion": "Beats, artistas, lanzamientos y encuentros de la escena urbana.",
-    "portada": "https://images.unsplash.com/photo-1506157786151-b8491531f063?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "urbano",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "jazz",
-    "nombre": "@jazz",
-    "titulo": "Jazz",
-    "genero": "jazz",
-    "descripcion": "Improvisacion, standards, jams, discos y encuentros para oyentes y musicos de jazz.",
-    "portada": "https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "jazz",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "blues",
-    "nombre": "@blues",
-    "titulo": "Blues",
-    "genero": "blues",
-    "descripcion": "Riffs, armonicas, zapadas, fechas y recomendaciones para quienes siguen el blues.",
-    "portada": "https://images.unsplash.com/photo-1516280440614-37939bbacd81?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "blues",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "funk",
-    "nombre": "@funk",
-    "titulo": "Funk",
-    "genero": "funk",
-    "descripcion": "Groove, bajos, bandas, lanzamientos y encuentros de la escena funk.",
-    "portada": "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "funk",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  },
-  {
-    "id": "folklore",
-    "nombre": "@folklore",
-    "titulo": "Folklore",
-    "genero": "folklore",
-    "descripcion": "Peñas, canciones, instrumentos, festivales y relatos de la escena folklorica.",
-    "portada": "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?auto=format&fit=crop&w=1400&q=80",
-    "categoria": "folklore",
-    "miembros": 0,
-    "publicaciones": 0,
-    "actividad": "Sin publicaciones todavia"
-  }
+const reglasForo = [
+  "Publica musica, eventos, preguntas o recomendaciones vinculadas al genero.",
+  "Respeta a artistas y oyentes. Critica ideas, no personas.",
+  "Evita spam repetido y agrega contexto cuando compartas enlaces o lanzamientos.",
 ];
 
-const miembrosActivos = ["S", "O", "N", "D", "R"];
-
-const hilosIniciales = [
-  {
-    id: 1,
-    comunidadId: "rock",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "destacado",
-    titulo: "Que bandas nuevas de rock estan siguiendo?",
-    texto: "Armen una lista con artistas para descubrir esta semana.",
-    etiqueta: "rock",
-    votos: 24,
-    likes: 24,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 2 h",
-    comentarios: [
-      { id: 11, autor: "Lula", usuario: "@lula_fan", texto: "Marea Gris viene sonando fuerte.", votos: 8, likes: 8, respuestas: [] },
-    ],
-  },
-  {
-    id: 2,
-    comunidadId: "urbano",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "preguntas",
-    titulo: "Productores de trap para colaborar",
-    texto: "Dejen beats, referencias o busquedas de feats para conectar con otros usuarios.",
-    etiqueta: "urbano",
-    votos: 18,
-    likes: 18,
-    liked: false,
-    guardado: false,
-    tiempo: "hace 4 h",
-    comentarios: [],
-  },
-  {
-    id: 3,
-    comunidadId: "funk",
-    op: "SONDAR",
-    usuario: "@sondar",
-    tipo: "popular",
-    titulo: "Sets favoritos para estudiar produccion",
-    texto: "Compartan sets o tracks que sirvan para analizar transiciones, drops y mezcla.",
-    etiqueta: "funk",
-    votos: 31,
-    likes: 31,
-    liked: false,
-    guardado: true,
-    tiempo: "hace 1 d",
-    comentarios: [],
-  },
-];
+const comunidadesPorGenero = CATALOGO_GENEROS.map(({ slug, nombre, descripcion }) => ({
+  id: slug, nombre: '@' + slug, titulo: nombre, genero: slug, descripcion,
+  categoria: slug, miembros: 0, publicaciones: 0, actividad: 'Sin publicaciones todavia',
+}));
 
 const crearHeadersJson = (token) => ({
   "Content-Type": "application/json",
@@ -163,44 +42,122 @@ const crearHeadersJson = (token) => ({
 
 const mostrarGenero = (genero) => {
   if (!genero) return "";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  return nombreGeneroMusical(genero);
 };
+
+const generosDeEvento = (evento) => (
+  Array.isArray(evento?.generos) && evento.generos.length > 0
+    ? evento.generos
+    : [evento?.genero].filter(Boolean)
+);
+
+const normalizarBusqueda = (valor) => String(valor || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
+
+const coincideBusqueda = (item, campos, busqueda) => {
+  const termino = normalizarBusqueda(busqueda).trim();
+  return !termino || campos.some((campo) => normalizarBusqueda(item?.[campo]).includes(termino));
+};
+
+const idReelParaNavegacion = (reel) => {
+  const id = String(reel?.id || "");
+  return id.startsWith("db-") ? id : `db-${id}`;
+};
+
+const normalizarComentario = (comentario) => ({
+  ...comentario,
+  votos: Number(comentario.votos ?? comentario.likes ?? 0),
+  likes: Number(comentario.likes ?? comentario.votos ?? 0),
+  liked: Boolean(comentario.liked),
+  guardado: Boolean(comentario.guardado),
+  respuestas: (comentario.respuestas || []).map(normalizarComentario),
+});
 
 const normalizarHilo = (hilo) => ({
   ...hilo,
   votos: Number(hilo.votos ?? hilo.likes ?? 0),
   likes: Number(hilo.likes ?? hilo.votos ?? 0),
-  comentarios: (hilo.comentarios || []).map((comentario) => ({
+  comentarios: (hilo.comentarios || []).map(normalizarComentario),
+});
+
+const contarComentarios = (comentarios = []) => comentarios.reduce(
+  (total, comentario) => total + 1 + contarComentarios(comentario.respuestas),
+  0
+);
+
+const agregarComentario = (comentarios, parentId, nuevoComentario) => {
+  if (!parentId) return [...comentarios, nuevoComentario];
+  return comentarios.map((comentario) => {
+    if (String(comentario.id) === String(parentId)) {
+      return { ...comentario, respuestas: [...comentario.respuestas, nuevoComentario] };
+    }
+    return {
+      ...comentario,
+      respuestas: agregarComentario(comentario.respuestas, parentId, nuevoComentario),
+    };
+  });
+};
+
+const actualizarComentario = (comentarios, comentarioId, actualizar) => comentarios.map((comentario) => {
+  if (String(comentario.id) === String(comentarioId)) return actualizar(comentario);
+  return {
     ...comentario,
-    votos: Number(comentario.votos ?? comentario.likes ?? 0),
-    likes: Number(comentario.likes ?? comentario.votos ?? 0),
-    respuestas: comentario.respuestas || [],
-  })),
+    respuestas: actualizarComentario(comentario.respuestas, comentarioId, actualizar),
+  };
 });
 
 export default function Comunidad({ usuario }) {
-  const { t } = usePreferencias();
   const [searchParams] = useSearchParams();
-  const siguienteComentarioId = useRef(1000);
+  const navigate = useNavigate();
   const avisoTimer = useRef(null);
-  const membershipLock = useRef(false);
-  const [membershipBusy, setMembershipBusy] = useState(false);
+  const publicandoRef = useRef(false);
+  const comentariosEnviandoRef = useRef(new Set());
+  const likesComentariosEnviandoRef = useRef(new Set());
+  const guardadosComentariosEnviandoRef = useRef(new Set());
+  const filtroRef = useRef(null);
+  const notificacionesComunidadRef = useRef(null);
+  const audioAsociadoRef = useRef(null);
   const busqueda = searchParams.get("comunidad")?.toLowerCase() || "";
   const publicacionCompartida = searchParams.get("publicacion");
+  const comentarioCompartido = searchParams.get("comentario");
   const [comunidades, setComunidades] = useState(comunidadesPorGenero);
+  const [cargandoComunidades, setCargandoComunidades] = useState(true);
   const [comunidadActivaId, setComunidadActivaId] = useState("pop");
+  const [comunidadCompartir, setComunidadCompartir] = useState(null);
   const [filtroActivo, setFiltroActivo] = useState("destacado");
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [hilos, setHilos] = useState(hilosIniciales.map(normalizarHilo));
-  const [cargandoHilos, setCargandoHilos] = useState(false);
+  const [hilos, setHilos] = useState([]);
+  const [cargandoHilos, setCargandoHilos] = useState(true);
   const [respuestasAbiertas, setRespuestasAbiertas] = useState([]);
   const [respuestas, setRespuestas] = useState({});
+  const [respuestaActiva, setRespuestaActiva] = useState(null);
   const [aviso, setAviso] = useState("");
+  const [publicando, setPublicando] = useState(false);
+  const [comentariosEnviando, setComentariosEnviando] = useState(new Set());
+  const [likesComentariosEnviando, setLikesComentariosEnviando] = useState(new Set());
+  const [guardadosComentariosEnviando, setGuardadosComentariosEnviando] = useState(new Set());
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
+  const [denunciaPendiente, setDenunciaPendiente] = useState(null);
+  const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [eventosAbiertos, setEventosAbiertos] = useState(false);
+  const [mostrarNotificacionesComunidad, setMostrarNotificacionesComunidad] = useState(false);
+  const [actualizandoMembresia, setActualizandoMembresia] = useState(false);
+  const [actualizandoNotificaciones, setActualizandoNotificaciones] = useState(false);
+  const [eventosAsociables, setEventosAsociables] = useState([]);
+  const [reelsAsociables, setReelsAsociables] = useState([]);
+  const [busquedaEventoAsociado, setBusquedaEventoAsociado] = useState("");
+  const [busquedaReelAsociado, setBusquedaReelAsociado] = useState("");
+  const [reelAsociadoActivo, setReelAsociadoActivo] = useState(null);
   const [nuevoHilo, setNuevoHilo] = useState({
     titulo: "",
     texto: "",
     tipo: "reciente",
     etiqueta: "",
+    eventoAsociadoId: "",
+    reelAsociadoId: "",
   });
 
   const comunidadActiva = useMemo(
@@ -208,9 +165,81 @@ export default function Comunidad({ usuario }) {
     [comunidadActivaId, comunidades]
   );
 
+  const filtroSeleccionado = useMemo(
+    () => filtros.find((filtro) => filtro.id === filtroActivo) || filtros[0],
+    [filtroActivo]
+  );
+
+  const eventosDisponibles = useMemo(
+    () => eventosAsociables.filter((evento) =>
+      String(evento.id) === String(nuevoHilo.eventoAsociadoId)
+      || coincideBusqueda(
+        evento,
+        ["titulo", "genero", "generos", "lugar", "ubicacion", "creador"],
+        busquedaEventoAsociado
+      )
+    ),
+    [busquedaEventoAsociado, eventosAsociables, nuevoHilo.eventoAsociadoId]
+  );
+
+  const reelsDisponibles = useMemo(
+    () => reelsAsociables.filter((reel) =>
+      String(reel.id) === String(nuevoHilo.reelAsociadoId)
+      || coincideBusqueda(
+        reel,
+        ["tema", "artista", "usuario", "genero"],
+        busquedaReelAsociado
+      )
+    ),
+    [busquedaReelAsociado, nuevoHilo.reelAsociadoId, reelsAsociables]
+  );
+
+  const eventosRecursoGenero = useMemo(() => {
+    const genero = normalizarBusqueda(comunidadActiva?.genero).trim();
+    return eventosAsociables.filter(
+      (evento) => generosDeEvento(evento).some(
+        (generoEvento) => normalizarBusqueda(generoEvento).trim() === genero
+      )
+    );
+  }, [comunidadActiva?.genero, eventosAsociables]);
+
+  const eventoAsociadoSeleccionado = useMemo(
+    () => eventosAsociables.find((evento) => String(evento.id) === String(nuevoHilo.eventoAsociadoId)) || null,
+    [eventosAsociables, nuevoHilo.eventoAsociadoId]
+  );
+
+  const reelAsociadoSeleccionado = useMemo(
+    () => reelsAsociables.find((reel) => String(reel.id) === String(nuevoHilo.reelAsociadoId)) || null,
+    [nuevoHilo.reelAsociadoId, reelsAsociables]
+  );
+
   useEffect(() => {
     return () => {
       clearTimeout(avisoTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const cerrarFiltros = (event) => {
+      if (!filtroRef.current?.contains(event.target)) setMostrarFiltros(false);
+      if (!notificacionesComunidadRef.current?.contains(event.target)) {
+        setMostrarNotificacionesComunidad(false);
+      }
+    };
+
+    const cerrarConEscape = (event) => {
+      if (event.key === "Escape") {
+        setMostrarFiltros(false);
+        setMostrarNotificacionesComunidad(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", cerrarFiltros);
+    document.addEventListener("keydown", cerrarConEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", cerrarFiltros);
+      document.removeEventListener("keydown", cerrarConEscape);
     };
   }, []);
 
@@ -221,13 +250,16 @@ export default function Comunidad({ usuario }) {
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        const response = await fetch(apiUrl("/api/comunidades"), {
+        const response = await apiRequest("/api/comunidades", {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
         if (!response.ok) throw new Error("No se pudieron cargar las comunidades.");
 
-        const dataComunidades = await response.json();
+        const recibidas = await response.json();
+        const dataComunidades = comunidadesPorGenero.map((base) => ({
+          ...base, ...recibidas.find((comunidad) => comunidad.id === base.id),
+        }));
         if (!cancelado && dataComunidades.length > 0) {
           setComunidades(dataComunidades);
           setComunidadActivaId((actual) =>
@@ -240,6 +272,8 @@ export default function Comunidad({ usuario }) {
         if (!cancelado) {
           mostrarAviso(error.message || "Usando comunidades locales por ahora.");
         }
+      } finally {
+        if (!cancelado) setCargandoComunidades(false);
       }
     }
 
@@ -248,6 +282,58 @@ export default function Comunidad({ usuario }) {
     return () => {
       cancelado = true;
     };
+  }, [usuario?.id]);
+
+  useEffect(() => {
+    let cancelado = false;
+
+    async function cargarAsociables() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        const [eventosResponse, reelsResponse] = await Promise.all([
+          apiRequest("/api/eventos", { headers }),
+          apiRequest("/api/reels", { headers }),
+        ]);
+
+        if (!cancelado && eventosResponse.ok) {
+          const dataEventos = await eventosResponse.json();
+          setEventosAsociables(Array.isArray(dataEventos) ? dataEventos : []);
+        }
+
+        if (!cancelado && reelsResponse.ok) {
+          const dataReels = await reelsResponse.json();
+          setReelsAsociables(
+            Array.isArray(dataReels)
+              ? dataReels.map((reel) => ({
+                  ...reel,
+                  id: String(reel.id).startsWith("db-") ? reel.id : `db-${reel.id}`,
+                  backendId: reel.backendId || reel.id,
+                }))
+              : []
+          );
+        }
+      } catch (error) {
+        console.error("No se pudieron cargar asociaciones para comunidad:", error);
+      }
+    }
+
+    cargarAsociables();
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setReelsAsociables((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
   }, []);
 
   useEffect(() => {
@@ -276,8 +362,7 @@ export default function Comunidad({ usuario }) {
         const params = new URLSearchParams({ filtro: filtroActivo });
         if (busqueda && !publicacionCompartida) params.set("q", busqueda);
 
-        const response = await fetch(
-          apiUrl(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`),
+        const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/publicaciones?${params.toString()}`,
           { headers: token ? { Authorization: `Bearer ${token}` } : {} }
         );
 
@@ -292,10 +377,7 @@ export default function Comunidad({ usuario }) {
         }
       } catch (error) {
         if (!cancelado) {
-          const locales = hilosIniciales
-            .map(normalizarHilo)
-            .filter((hilo) => hilo.comunidadId === comunidadActiva.id);
-          setHilos(locales);
+          setHilos([]);
           mostrarAviso(error.message || "No se pudieron cargar las publicaciones.");
         }
       } finally {
@@ -310,8 +392,27 @@ export default function Comunidad({ usuario }) {
     };
   }, [busqueda, comunidadActiva?.id, filtroActivo, publicacionCompartida]);
 
+  const hilosConAsociaciones = useMemo(
+    () =>
+      hilos.map((hilo) => ({
+        ...hilo,
+        eventoAsociado:
+          hilo.eventoAsociado ||
+          eventosAsociables.find((evento) => String(evento.id) === String(hilo.eventoAsociadoId)) ||
+          null,
+        reelAsociado:
+          hilo.reelAsociado ||
+          reelsAsociables.find((reel) => (
+            String(reel.id) === String(hilo.reelAsociadoId) ||
+            String(reel.backendId) === String(hilo.reelAsociadoId).replace(/^db-/, "")
+          )) ||
+          null,
+      })),
+    [eventosAsociables, hilos, reelsAsociables]
+  );
+
   const hilosFiltrados = useMemo(() => {
-    return hilos.filter((hilo) => {
+    return hilosConAsociaciones.filter((hilo) => {
       const textoBusqueda = [
         hilo.op,
         hilo.usuario,
@@ -323,17 +424,37 @@ export default function Comunidad({ usuario }) {
 
       return Boolean(publicacionCompartida) || !busqueda || textoBusqueda.includes(busqueda);
     });
-  }, [busqueda, hilos, publicacionCompartida]);
+  }, [busqueda, hilosConAsociaciones, publicacionCompartida]);
+
+  const totalComentarios = useMemo(
+    () => hilosFiltrados.reduce((total, hilo) => total + contarComentarios(hilo.comentarios), 0),
+    [hilosFiltrados]
+  );
 
   useEffect(() => {
-    if (!publicacionCompartida || cargandoHilos) return;
+    if (!publicacionCompartida || cargandoHilos || cargandoComunidades) return;
     window.setTimeout(() => {
       document.getElementById(`publicacion-${publicacionCompartida}`)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       });
     }, 120);
-  }, [cargandoHilos, hilos, publicacionCompartida]);
+  }, [cargandoComunidades, cargandoHilos, hilos, publicacionCompartida]);
+
+  useEffect(() => {
+    if (!publicacionCompartida || !comentarioCompartido || cargandoHilos || cargandoComunidades) return;
+    const publicacionId = Number(publicacionCompartida);
+    setRespuestasAbiertas((abiertas) => abiertas.includes(publicacionId)
+      ? abiertas
+      : [...abiertas, publicacionId]
+    );
+    window.setTimeout(() => {
+      document.getElementById(`comentario-${comentarioCompartido}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 180);
+  }, [cargandoComunidades, cargandoHilos, comentarioCompartido, hilos, publicacionCompartida]);
 
   const handleChange = (e) => {
     setNuevoHilo({
@@ -354,29 +475,76 @@ export default function Comunidad({ usuario }) {
     mostrarAviso("Tenes que iniciar sesion para publicar en la comunidad");
   };
 
-  const cambiarMembresia = async () => {
-    if (!usuario) return pedirLogin();
-    if (membershipLock.current) return;
-    membershipLock.current = true; setMembershipBusy(true);
-    const id = comunidadActiva.id;
-    try {
-      const { data } = await supabase.auth.getSession();
-      const response = await fetch(apiUrl(`/api/comunidades/${id}/membresia`), { method: comunidadActiva.unido ? 'DELETE' : 'PUT', headers: crearHeadersJson(data.session?.access_token) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'No se pudo actualizar la membresia.');
-      setComunidades(items => items.map(item => item.id === id ? { ...item, ...result } : item));
-    } catch (error) { mostrarAviso(error.message); }
-    finally { membershipLock.current = false; setMembershipBusy(false); }
-  };
-
   const abrirCrearHilo = () => {
-    if (!comunidadActiva.unido) return mostrarAviso('Unite a la comunidad para publicar.');
     if (!usuario) {
       pedirLogin();
       return;
     }
 
+    if (!comunidadActiva?.unido) {
+      mostrarAviso("Unite a este foro antes de crear una publicacion");
+      return;
+    }
+
     setMostrarModal(true);
+  };
+
+  const alternarMembresia = async () => {
+    if (!usuario) {
+      mostrarAviso("Tenes que iniciar sesion para unirte a un foro");
+      return;
+    }
+    if (actualizandoMembresia) return;
+
+    setActualizandoMembresia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+
+      const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/membresia`, {
+        method: "POST",
+        headers: crearHeadersJson(token),
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(resultado.error || "No se pudo actualizar tu membresia.");
+
+      setComunidades((actuales) => actuales.map((comunidad) => (
+        comunidad.id === comunidadActiva.id
+          ? {
+            ...comunidad,
+            unido: resultado.unido,
+            miembros: resultado.miembros,
+            nivelNotificaciones: resultado.nivelNotificaciones,
+          }
+          : comunidad
+      )));
+      if (resultado.unido) {
+        mostrarAviso(`Ahora formas parte de ${mostrarGenero(comunidadActiva.genero)}`);
+      } else {
+        setMostrarModal(false);
+        setMostrarNotificacionesComunidad(false);
+        mostrarAviso(`Saliste de ${mostrarGenero(comunidadActiva.genero)}`);
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo actualizar tu membresia.");
+    } finally {
+      setActualizandoMembresia(false);
+    }
+  };
+
+  const compartirForo = () => {
+    const url = new URL("/comunidad", window.location.origin);
+    url.searchParams.set("comunidad", comunidadActiva.id);
+    setComunidadCompartir({ comunidad: comunidadActiva, enlace: url.toString() });
+  };
+
+  const crearEnlaceContenido = (hiloId, comentarioId = null) => {
+    const url = new URL("/comunidad", window.location.origin);
+    url.searchParams.set("comunidad", comunidadActiva.id);
+    url.searchParams.set("publicacion", hiloId);
+    if (comentarioId) url.searchParams.set("comentario", comentarioId);
+    return url.toString();
   };
 
   const actualizarHilo = (id, actualizar) => {
@@ -387,9 +555,15 @@ export default function Comunidad({ usuario }) {
 
   const crearHilo = async (e) => {
     e.preventDefault();
+    if (publicandoRef.current) return;
 
     if (!usuario) {
       pedirLogin();
+      return;
+    }
+
+    if (!comunidadActiva?.unido) {
+      mostrarAviso("Unite a este foro antes de crear una publicacion");
       return;
     }
 
@@ -400,10 +574,12 @@ export default function Comunidad({ usuario }) {
       return;
     }
 
+    publicandoRef.current = true;
+    setPublicando(true);
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/${comunidadActivaId}/publicaciones`), {
+      const response = await apiRequest(`/api/comunidades/${comunidadActivaId}/publicaciones`, {
         method: "POST",
         headers: crearHeadersJson(token),
         body: JSON.stringify({
@@ -411,6 +587,8 @@ export default function Comunidad({ usuario }) {
           texto,
           tipo: nuevoHilo.tipo,
           etiqueta: nuevoHilo.etiqueta || comunidadActiva.genero,
+          eventoAsociadoId: nuevoHilo.eventoAsociadoId || null,
+          reelAsociadoId: nuevoHilo.reelAsociadoId || null,
         }),
       });
 
@@ -419,7 +597,11 @@ export default function Comunidad({ usuario }) {
         throw new Error(dataError.error || "No se pudo publicar en la comunidad.");
       }
 
-      const hiloGuardado = normalizarHilo(await response.json());
+      const hiloGuardado = normalizarHilo({
+        ...(await response.json()),
+        eventoAsociado: eventoAsociadoSeleccionado || undefined,
+        reelAsociado: reelAsociadoSeleccionado || undefined,
+      });
       setHilos((actuales) => [hiloGuardado, ...actuales]);
       setRespuestasAbiertas((abiertas) => [hiloGuardado.id, ...abiertas]);
       setMostrarModal(false);
@@ -428,9 +610,16 @@ export default function Comunidad({ usuario }) {
         texto: "",
         tipo: "reciente",
         etiqueta: "",
+        eventoAsociadoId: "",
+        reelAsociadoId: "",
       });
+      setBusquedaEventoAsociado("");
+      setBusquedaReelAsociado("");
     } catch (error) {
       mostrarAviso(error.message || "No se pudo publicar en la comunidad.");
+    } finally {
+      publicandoRef.current = false;
+      setPublicando(false);
     }
   };
 
@@ -450,7 +639,7 @@ export default function Comunidad({ usuario }) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/like`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${id}/like`, {
         method: "POST",
         headers: crearHeadersJson(token),
       });
@@ -487,7 +676,7 @@ export default function Comunidad({ usuario }) {
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${id}/guardar`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${id}/guardar`, {
         method: "POST",
         headers: crearHeadersJson(token),
       });
@@ -507,6 +696,35 @@ export default function Comunidad({ usuario }) {
     }
   };
 
+  const eliminarPublicacion = async (hilo, password) => {
+    if (!usuario || String(hilo.userId) !== String(usuario.id)) {
+      throw new Error("No tenes permiso para eliminar esta publicacion.");
+    }
+
+    const response = await apiRequest(`/api/comunidades/publicaciones/${hilo.id}`, {
+      method: "DELETE",
+      body: { password },
+    });
+
+    if (!response.ok) {
+      const dataError = await response.json().catch(() => ({}));
+      throw new Error(dataError.error || "No se pudo eliminar la publicacion.");
+    }
+
+    setHilos((actuales) => actuales.filter((item) => item.id !== hilo.id));
+    setComunidades((actuales) => actuales.map((comunidad) => (
+      comunidad.id === hilo.comunidadId
+        ? { ...comunidad, publicaciones: Math.max(0, Number(comunidad.publicaciones || 0) - 1) }
+        : comunidad
+    )));
+    setRespuestasAbiertas((abiertas) => abiertas.filter((id) => id !== hilo.id));
+    setRespuestas((actuales) => Object.fromEntries(
+      Object.entries(actuales).filter(([clave]) => !clave.startsWith(`${hilo.id}:`))
+    ));
+    setEliminacionPendiente(null);
+    mostrarAviso("Publicacion eliminada");
+  };
+
   const toggleRespuestas = (id) => {
     setRespuestasAbiertas((abiertas) =>
       abiertas.includes(id)
@@ -515,23 +733,26 @@ export default function Comunidad({ usuario }) {
     );
   };
 
-  const responder = async (hiloId) => {
-    if (!comunidadActiva.unido) return mostrarAviso('Unite a la comunidad para responder.');
+  const responder = async (hiloId, parentId = null) => {
+    const claveEnvio = `${hiloId}:${parentId || "principal"}`;
+    if (comentariosEnviandoRef.current.has(claveEnvio)) return;
     if (!usuario) {
       pedirLogin();
       return;
     }
 
-    const texto = respuestas[hiloId]?.trim();
+    const texto = respuestas[claveEnvio]?.trim();
     if (!texto) return;
 
+    comentariosEnviandoRef.current.add(claveEnvio);
+    setComentariosEnviando(new Set(comentariosEnviandoRef.current));
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const response = await fetch(apiUrl(`/api/comunidades/publicaciones/${hiloId}/comentarios`), {
+      const response = await apiRequest(`/api/comunidades/publicaciones/${hiloId}/comentarios`, {
         method: "POST",
         headers: crearHeadersJson(token),
-        body: JSON.stringify({ texto }),
+        body: JSON.stringify({ texto, parentId }),
       });
 
       if (!response.ok) {
@@ -540,62 +761,355 @@ export default function Comunidad({ usuario }) {
       }
 
       const comentarioGuardado = await response.json();
+      const comentarioNormalizado = normalizarComentario(comentarioGuardado);
       setHilos((actuales) =>
         actuales.map((hilo) =>
           hilo.id === hiloId
             ? {
                 ...hilo,
-                comentarios: [...hilo.comentarios, normalizarHilo({ comentarios: [comentarioGuardado] }).comentarios[0]],
+                comentarios: agregarComentario(hilo.comentarios, parentId, comentarioNormalizado),
               }
             : hilo
         )
       );
+      setRespuestas((actuales) => ({ ...actuales, [claveEnvio]: "" }));
+      if (parentId) setRespuestaActiva(null);
     } catch (error) {
-      const comentarioLocal = {
-        id: siguienteComentarioId.current,
-        autor: usuario?.user_metadata?.username || usuario?.email?.split("@")[0] || "Usuario SONDAR",
-        usuario: usuario?.email ? `@${usuario.email.split("@")[0]}` : "@usuario",
-        texto,
-        votos: 0,
-        likes: 0,
-        respuestas: [],
-      };
-      siguienteComentarioId.current += 1;
-      setHilos((actuales) =>
-        actuales.map((hilo) =>
-          hilo.id === hiloId
-            ? { ...hilo, comentarios: [...hilo.comentarios, comentarioLocal] }
-            : hilo
-        )
-      );
-      mostrarAviso(error.message || "Comentario local hasta reconectar.");
+      mostrarAviso(error.message || "No se pudo guardar el comentario.");
+    } finally {
+      comentariosEnviandoRef.current.delete(claveEnvio);
+      setComentariosEnviando(new Set(comentariosEnviandoRef.current));
     }
 
-    setRespuestas({ ...respuestas, [hiloId]: "" });
     setRespuestasAbiertas((abiertas) => abiertas.includes(hiloId) ? abiertas : [...abiertas, hiloId]);
   };
+
+  const votarComentario = async (hiloId, comentarioId) => {
+    const clave = String(comentarioId);
+    if (likesComentariosEnviandoRef.current.has(clave)) return;
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hiloAnterior = hilos.find((hilo) => hilo.id === hiloId);
+    likesComentariosEnviandoRef.current.add(clave);
+    setLikesComentariosEnviando(new Set(likesComentariosEnviandoRef.current));
+    actualizarHilo(hiloId, (hilo) => ({
+      ...hilo,
+      comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => {
+        const liked = !comentario.liked;
+        const likes = Math.max(0, comentario.likes + (liked ? 1 : -1));
+        return { ...comentario, liked, likes, votos: likes };
+      }),
+    }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(`/api/comunidades/comentarios/${comentarioId}/like`, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo actualizar el me gusta.");
+      actualizarHilo(hiloId, (hilo) => ({
+        ...hilo,
+        comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+          ...comentario,
+          liked: body.liked,
+          likes: body.likes,
+          votos: body.votos ?? body.likes,
+        })),
+      }));
+    } catch (error) {
+      if (hiloAnterior) actualizarHilo(hiloId, () => hiloAnterior);
+      mostrarAviso(error.message || "No se pudo actualizar el me gusta.");
+    } finally {
+      likesComentariosEnviandoRef.current.delete(clave);
+      setLikesComentariosEnviando(new Set(likesComentariosEnviandoRef.current));
+    }
+  };
+
+  const guardarComentario = async (hiloId, comentarioId) => {
+    const clave = String(comentarioId);
+    if (guardadosComentariosEnviandoRef.current.has(clave)) return;
+    if (!usuario) {
+      pedirLogin();
+      return;
+    }
+
+    const hiloAnterior = hilos.find((hilo) => hilo.id === hiloId);
+    guardadosComentariosEnviandoRef.current.add(clave);
+    setGuardadosComentariosEnviando(new Set(guardadosComentariosEnviandoRef.current));
+    actualizarHilo(hiloId, (hilo) => ({
+      ...hilo,
+      comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+        ...comentario,
+        guardado: !comentario.guardado,
+      })),
+    }));
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(`/api/comunidades/comentarios/${comentarioId}/guardar`, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo guardar el comentario.");
+      actualizarHilo(hiloId, (hilo) => ({
+        ...hilo,
+        comentarios: actualizarComentario(hilo.comentarios, comentarioId, (comentario) => ({
+          ...comentario,
+          guardado: body.guardado,
+        })),
+      }));
+    } catch (error) {
+      if (hiloAnterior) actualizarHilo(hiloId, () => hiloAnterior);
+      mostrarAviso(error.message || "No se pudo guardar el comentario.");
+    } finally {
+      guardadosComentariosEnviandoRef.current.delete(clave);
+      setGuardadosComentariosEnviando(new Set(guardadosComentariosEnviandoRef.current));
+    }
+  };
+
+  const actualizarNotificacionesComunidad = async (nivel) => {
+    if (!usuario || !comunidadActiva?.unido || actualizandoNotificaciones) return;
+
+    setActualizandoNotificaciones(true);
+    try {
+      const response = await apiRequest(`/api/comunidades/${comunidadActiva.id}/notificaciones`, {
+        method: "PUT",
+        body: { nivel },
+      });
+      const resultado = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(resultado.error || "No se pudieron actualizar las notificaciones.");
+
+      setComunidades((actuales) => actuales.map((comunidad) => (
+        comunidad.id === comunidadActiva.id
+          ? { ...comunidad, nivelNotificaciones: resultado.nivelNotificaciones }
+          : comunidad
+      )));
+      setMostrarNotificacionesComunidad(false);
+
+      const mensajes = {
+        todas: `Vas a recibir todas las publicaciones de ${mostrarGenero(comunidadActiva.genero)}`,
+        relevantes: `Solo vas a recibir publicaciones relevantes de ${mostrarGenero(comunidadActiva.genero)}`,
+        silenciadas: `Silenciaste las notificaciones de ${mostrarGenero(comunidadActiva.genero)}`,
+      };
+      mostrarAviso(mensajes[nivel]);
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudieron actualizar las notificaciones.");
+    } finally {
+      setActualizandoNotificaciones(false);
+    }
+  };
+
+  const denunciarContenido = async ({ motivo, detalle }) => {
+    if (!denunciaPendiente || !usuario) return;
+    const { tipo, hilo, comentario } = denunciaPendiente;
+    const esComentario = tipo === "comentario";
+    const contenidoId = esComentario ? comentario.id : hilo.id;
+    const endpoint = esComentario
+      ? `/api/comunidades/comentarios/${contenidoId}/denunciar`
+      : `/api/comunidades/publicaciones/${contenidoId}/denunciar`;
+
+    setEnviandoDenuncia(true);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const response = await apiRequest(endpoint, {
+        method: "POST",
+        headers: crearHeadersJson(data.session?.access_token),
+        body: JSON.stringify({ reason: motivo, detail: detalle }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "No se pudo registrar la denuncia.");
+      setDenunciaPendiente(null);
+      if (body.nuevaDenuncia === false) {
+        mostrarAviso("Ya habias denunciado este contenido.");
+        return;
+      }
+
+      try {
+        await avisarDenunciaASoporte({
+          tipo: esComentario ? "comentario de comunidad" : "publicacion de comunidad",
+          contenidoId,
+          titulo: esComentario ? `Comentario en ${hilo.titulo}` : hilo.titulo,
+          autor: esComentario ? comentario.usuario || comentario.autor : hilo.usuario || hilo.op,
+          motivo: etiquetaMotivoDenuncia(motivo),
+          detalle,
+          nombreUsuario: usuario.user_metadata?.username || usuario.email?.split("@")[0],
+          url: crearEnlaceContenido(hilo.id, esComentario ? comentario.id : null),
+        });
+        mostrarAviso("Denuncia registrada y enviada a soporte.");
+      } catch (emailError) {
+        console.error("Email de denuncia de comunidad:", emailError);
+        mostrarAviso("La denuncia fue registrada, pero no se pudo enviar el email.");
+      }
+    } catch (error) {
+      mostrarAviso(error.message || "No se pudo registrar la denuncia.");
+    } finally {
+      setEnviandoDenuncia(false);
+    }
+  };
+
+  const alternarReelAsociado = (reel) => {
+    const audio = audioAsociadoRef.current;
+    if (!audio || !reel?.audio) return;
+
+    if (reelAsociadoActivo === reel.id && !audio.paused) {
+      audio.pause();
+      setReelAsociadoActivo(null);
+      return;
+    }
+
+    if (audio.src !== reel.audio) {
+      audio.src = reel.audio;
+      audio.load();
+    }
+
+    audio.play()
+      .then(() => setReelAsociadoActivo(reel.id))
+      .catch(() => mostrarAviso("No se pudo reproducir esta preview."));
+  };
+
+  const renderizarAutor = (autor, soloAvatar = false) => {
+    const nombre = autor.op || autor.autor || autor.usuario || "Usuario SONDAR";
+    const destino = String(autor.userId) === String(usuario?.id)
+      ? "/perfil"
+      : `/perfil/${encodeURIComponent(autor.userId)}`;
+    const contenido = soloAvatar ? (
+      <>
+        <span>{nombre.replace(/^@/, "").charAt(0).toUpperCase()}</span>
+        {autor.avatar ? (
+          <ImagenAvatar src={autor.avatar} inicial={nombre} loading="lazy" className="avatar-imagen-superpuesta" />
+        ) : null}
+      </>
+    ) : <strong>{nombre}</strong>;
+    const clase = soloAvatar ? "publicacion-avatar post-avatar comunidad-autor-avatar" : "comunidad-autor-enlace";
+    return autor.userId ? (
+      <Link to={destino} className={clase} aria-label={`Ver perfil de ${nombre}`}>{contenido}</Link>
+    ) : <span className={clase}>{contenido}</span>;
+  };
+  const renderizarComentario = (hilo, comentario, nivel = 0) => {
+    const claveRespuesta = `${hilo.id}:${comentario.id}`;
+    const esPropio = usuario?.id && comentario.userId === usuario.id;
+    const esDestino = String(comentario.id) === String(comentarioCompartido);
+    return (
+      <article
+        className={`respuesta-card ${esDestino ? "notificacion-destino" : ""}`}
+        id={`comentario-${comentario.id}`}
+        key={comentario.id}
+        style={{ "--nivel-respuesta": Math.min(nivel, 3) }}
+      >
+        <div className="respuesta-linea" />
+        <div className="respuesta-contenido">
+          <div className="respuesta-meta">
+            {renderizarAutor(comentario, true)}
+            {renderizarAutor(comentario)}
+            <span>{comentario.usuario}</span>
+            <span>{comentario.tiempo || "ahora"}</span>
+          </div>
+          <p><TextoConMenciones texto={comentario.texto} /></p>
+          <div className="respuesta-acciones">
+            <button
+              className={`respuesta-like ${comentario.liked ? "activo" : ""}`}
+              type="button"
+              aria-pressed={Boolean(comentario.liked)}
+              onClick={() => votarComentario(hilo.id, comentario.id)}
+              disabled={likesComentariosEnviando.has(String(comentario.id))}
+            >
+              <span aria-hidden="true">{comentario.liked ? "♥" : "♡"}</span>
+              {comentario.likes}
+            </button>
+            <button
+              className={`respuesta-guardar ${comentario.guardado ? "activo" : ""}`}
+              type="button"
+              onClick={() => guardarComentario(hilo.id, comentario.id)}
+              disabled={guardadosComentariosEnviando.has(String(comentario.id))}
+              aria-label={comentario.guardado ? "Quitar comentario guardado" : "Guardar comentario"}
+              aria-pressed={Boolean(comentario.guardado)}
+              title={comentario.guardado ? "Quitar de guardados" : "Guardar comentario"}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!usuario) return pedirLogin();
+                setRespuestaActiva((actual) => actual === claveRespuesta ? null : claveRespuesta);
+              }}
+            >
+              Responder
+            </button>
+            {!esPropio ? (
+              <button
+                className="respuesta-denunciar"
+                aria-label="Denunciar comentario"
+                title="Denunciar comentario"
+                type="button"
+                onClick={() => {
+                  if (!usuario) return pedirLogin();
+                  setDenunciaPendiente({ tipo: "comentario", hilo, comentario });
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 21V4m0 0c5-4 9 4 14 0v11c-5 4-9-4-14 0" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+
+          {respuestaActiva === claveRespuesta ? (
+            <div className="respuesta-form respuesta-form-anidada">
+              <CampoMenciones
+                placeholder={`Responder a ${comentario.usuario}`}
+                value={respuestas[claveRespuesta] || ""}
+                onChange={(texto) => setRespuestas((actuales) => ({ ...actuales, [claveRespuesta]: texto }))}
+              />
+              <button
+                type="button"
+                onClick={() => responder(hilo.id, comentario.id)}
+                disabled={comentariosEnviando.has(claveRespuesta)}
+              >
+                {comentariosEnviando.has(claveRespuesta) ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          ) : null}
+
+          {comentario.respuestas.length > 0 ? (
+            <div className="respuestas-anidadas">
+              {comentario.respuestas.map((respuesta) => renderizarComentario(hilo, respuesta, nivel + 1))}
+            </div>
+          ) : null}
+        </div>
+      </article>
+    );
+  };
+
+  if (cargandoComunidades) return <ComunidadSkeleton />;
 
   return (
     <main className="comunidad-container">
       <section className="comunidad-layout reddit-layout">
-        <aside className="comunidad-sidebar subreddit-list">
-          <section className="comunidad-panel">
-            <h2>{t("Géneros")}</h2>
+        <aside className="comunidad-sidebar subreddit-list" aria-label="Foros SONDAR">
+          <section className="comunidad-panel comunidad-panel-lista">
+            <h2>Foros SONDAR</h2>
             <div className="comunidades-lista">
               {comunidades.map((comunidad) => (
                 <button
                   className={`comunidad-mini-card ${comunidadActivaId === comunidad.id ? "activa" : ""}`}
                   key={comunidad.id}
                   type="button"
+                  aria-pressed={comunidadActivaId === comunidad.id}
                   onClick={() => setComunidadActivaId(comunidad.id)}
                 >
-                  <div className="comunidad-mini-icon">
-                    {comunidad.titulo.charAt(0)}
-                  </div>
+                  <div className="comunidad-mini-icon">{comunidad.titulo.charAt(0)}</div>
                   <div>
-                    <strong>{comunidad.nombre}</strong>
+                    <strong>{mostrarGenero(comunidad.genero)}</strong>
                     <span>{comunidad.publicaciones || 0} publicaciones</span>
-                    <p>{comunidad.actividad}</p>
                   </div>
                 </button>
               ))}
@@ -603,69 +1117,163 @@ export default function Comunidad({ usuario }) {
           </section>
         </aside>
 
-        <div className="comunidad-main">
-          <header className="comunidad-portada">
-            <div
-              className="comunidad-cover"
-              style={{ backgroundImage: `linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(3, 3, 3, 0.72)), url(${comunidadActiva.portada})` }}
-            ></div>
+        <div className="comunidad-contenido">
+        <header className="comunidad-portada">
+            <PortadaComunidad genero={comunidadActiva.genero} />
             <div className="comunidad-identidad">
               <div className="comunidad-logo">{comunidadActiva.titulo.charAt(0)}</div>
               <div className="comunidad-titulos">
-                <span className="comunidad-eyebrow">{comunidadActiva.nombre}</span>
-                <h1>Comunidad {mostrarGenero(comunidadActiva.genero)}</h1>
-                <p>{comunidadActiva.descripcion}</p>
-                <div className="comunidad-miembros">
-                  <div className="miembros-stack" aria-hidden="true">
-                    {miembrosActivos.map((miembro) => (
-                      <span key={miembro}>{miembro}</span>
-                    ))}
-                  </div>
-                  <strong>{comunidadActiva.publicaciones || 0}</strong>
-                  <span>publicaciones - Comunidad por genero</span>
-                </div>
+                <h1>{mostrarGenero(comunidadActiva.genero)}</h1>
               </div>
-              <button className="comunidad-crear" type="button" disabled={membershipBusy} onClick={cambiarMembresia}>{membershipBusy ? 'Guardando...' : comunidadActiva.unido ? 'Salir del foro' : 'Unirse'}</button>
-              <button className="comunidad-crear" type="button" disabled={!comunidadActiva.unido} onClick={abrirCrearHilo}>
-                <span aria-hidden="true">+</span>
-                Crear publicacion
-              </button>
+              <div className="comunidad-header-actions">
+                {comunidadActiva.unido ? (
+                  <button
+                    className="comunidad-crear"
+                    type="button"
+                    onClick={abrirCrearHilo}
+                    disabled={!usuario}
+                    title="Crear una publicacion"
+                  >
+                    <span aria-hidden="true">+</span>
+                    Crear post
+                  </button>
+                ) : null}
+                <button
+                  className={`comunidad-unirse ${comunidadActiva.unido ? "activa" : ""}`}
+                  type="button"
+                  onClick={alternarMembresia}
+                  disabled={actualizandoMembresia}
+                  aria-pressed={Boolean(comunidadActiva.unido)}
+                >
+                  {actualizandoMembresia ? "Actualizando..." : comunidadActiva.unido ? "Salir del foro" : "Unirse"}
+                </button>
+                {comunidadActiva.unido ? (
+                  <div className="comunidad-notificaciones" ref={notificacionesComunidadRef}>
+                    <button
+                      className={`comunidad-campana nivel-${comunidadActiva.nivelNotificaciones || "todas"}`}
+                      type="button"
+                      aria-label="Configurar notificaciones de esta comunidad"
+                      aria-haspopup="menu"
+                      aria-expanded={mostrarNotificacionesComunidad}
+                      title="Notificaciones de la comunidad"
+                      onClick={() => setMostrarNotificacionesComunidad((valor) => !valor)}
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+                      </svg>
+                    </button>
+                    {mostrarNotificacionesComunidad ? (
+                      <div className="comunidad-notificaciones-menu" role="menu" aria-label="Nivel de notificaciones">
+                        <div className="comunidad-notificaciones-encabezado">
+                          <strong>Notificaciones</strong>
+                          <span>Elegí qué querés recibir de esta comunidad.</span>
+                        </div>
+                        {[
+                          {
+                            id: "todas",
+                            titulo: "Todas las publicaciones",
+                            detalle: "Te avisamos cada vez que alguien publique.",
+                          },
+                          {
+                            id: "relevantes",
+                            titulo: "Sólo relevantes",
+                            detalle: `Publicaciones que alcancen ${comunidadActiva.criterioRelevancia?.likes || 5} likes en ${comunidadActiva.criterioRelevancia?.dias || 7} días.`,
+                          },
+                          {
+                            id: "silenciadas",
+                            titulo: "Silenciar",
+                            detalle: "No recibirás avisos de esta comunidad.",
+                          },
+                        ].map((opcion) => {
+                          const seleccionada = (comunidadActiva.nivelNotificaciones || "todas") === opcion.id;
+                          return (
+                            <button
+                              className={`comunidad-notificaciones-opcion ${seleccionada ? "seleccionada" : ""}`}
+                              type="button"
+                              role="menuitemradio"
+                              aria-checked={seleccionada}
+                              disabled={actualizandoNotificaciones}
+                              key={opcion.id}
+                              onClick={() => actualizarNotificacionesComunidad(opcion.id)}
+                            >
+                              <span className="comunidad-notificaciones-radio" aria-hidden="true" />
+                              <span>
+                                <strong>{opcion.titulo}</strong>
+                                <small>{opcion.detalle}</small>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                <button
+                  className="comunidad-mas"
+                  type="button"
+                  aria-label="Compartir comunidad"
+                  title="Compartir comunidad"
+                  onClick={compartirForo}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 11.2 13.3 5v3.5C7.4 8.8 4 11.9 4 17.8c2.1-3.2 5.2-4.7 9.3-4.8v3.4L20 11.2Z" />
+                  </svg>
+                </button>
+              </div>
             </div>
-          </header>
+        </header>
 
-          <div className="comunidad-filtros" aria-label="Filtros de publicaciones">
-            {filtros.map((filtro) => (
+        <div className="comunidad-main">
+          <div className="comunidad-toolbar">
+            <div className="comunidad-filtro-dropdown" ref={filtroRef}>
               <button
-                key={filtro.id}
-                className={filtroActivo === filtro.id ? "activo" : ""}
+                className={`comunidad-filtro-trigger filtro-${filtroActivo}`}
                 type="button"
-                onClick={() => setFiltroActivo(filtro.id)}
+                aria-haspopup="menu"
+                aria-expanded={mostrarFiltros}
+                onClick={() => setMostrarFiltros((valor) => !valor)}
               >
-                {filtro.label}
+                <span className="comunidad-filtro-prefijo">Filtrar por:</span> {filtroSeleccionado.label}
+                <span aria-hidden="true">v</span>
               </button>
-            ))}
+              {mostrarFiltros ? (
+                <div className="comunidad-filtros-menu" role="menu" aria-label="Filtros de publicaciones">
+                  {filtros.map((filtro) => (
+                    <button
+                      key={filtro.id}
+                      className={filtroActivo === filtro.id ? "activo" : ""}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setFiltroActivo(filtro.id);
+                        setMostrarFiltros(false);
+                      }}
+                    >
+                      <strong>
+                        <span className="filtro-check" aria-hidden="true">
+                          {filtroActivo === filtro.id ? "✓" : ""}
+                        </span>
+                        {filtro.label}
+                      </strong>
+                      <span>
+                        {filtro.id === "destacado" && "Ordena por relevancia y actividad"}
+                        {filtro.id === "reciente" && "Ordena de nuevas a antiguas"}
+                        {filtro.id === "popular" && "Ordena por votos y respuestas"}
+                        {filtro.id === "preguntas" && "Muestra unicamente consultas"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="comunidad-toolbar-meta">
+              {cargandoHilos ? <div className="comunidad-skeleton-bloque" aria-label="Cargando cantidad de publicaciones" /> : <span>{hilosFiltrados.length} posts</span>}
+              <span>{mostrarGenero(comunidadActiva.genero)}</span>
+            </div>
           </div>
 
           <div className="comunidad-feed">
-            <section className="comunidad-composer" onClick={abrirCrearHilo}>
-              <div className="publicacion-avatar">
-                {(usuario?.user_metadata?.username || usuario?.email || "S").charAt(0).toUpperCase()}
-              </div>
-              <div className="composer-cuerpo">
-                <button type="button">Escribir en {comunidadActiva.nombre}</button>
-                <div className="composer-acciones">
-                  <span>Pregunta</span>
-                  <span>Comentario</span>
-                  <strong>Publicar</strong>
-                </div>
-              </div>
-            </section>
-
-            {cargandoHilos && (
-              <div className="comunidad-vacio">
-                Cargando publicaciones...
-              </div>
-            )}
+            {cargandoHilos && <PublicacionesSkeleton />}
 
             {!cargandoHilos && hilosFiltrados.map((hilo) => (
               <article
@@ -673,70 +1281,133 @@ export default function Comunidad({ usuario }) {
                 id={`publicacion-${hilo.id}`}
                 key={hilo.id}
               >
-                <div className="hilo-votos">
-                  <button
-                    className={hilo.liked ? "activo" : ""}
-                    type="button"
-                    onClick={() => votar(hilo.id)}
-                    aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
-                  >
-                    +
-                  </button>
-                  <strong>{hilo.votos}</strong>
-                </div>
-
                 <div className="publicacion-contenido">
-                  <div className="publicacion-meta">
-                    <strong>{hilo.usuario}</strong>
-                    <span>{hilo.op}</span>
-                    <span>{hilo.tiempo || "ahora"}</span>
+                  <div className="post-author-row">
+                    {renderizarAutor(hilo, true)}
+                    <div className="publicacion-meta post-meta">
+                      {renderizarAutor(hilo)}
+                      <span>{hilo.usuario}</span>
+                      <span>{hilo.tiempo || "ahora"}</span>
+                    </div>
+                    {usuario?.id && String(hilo.userId) === String(usuario.id) ? (
+                      <button
+                        className="post-menu post-eliminar"
+                        type="button"
+                        onClick={() => setEliminacionPendiente(hilo)}
+                      >
+                        Eliminar
+                      </button>
+                    ) : usuario?.id ? (
+                      <button
+                        className="post-menu post-denunciar"
+                        aria-label="Denunciar publicación"
+                        title="Denunciar publicación"
+                        type="button"
+                        onClick={() => setDenunciaPendiente({ tipo: "publicacion", hilo })}
+                      >
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M5 21V4m0 0c5-4 9 4 14 0v11c-5 4-9-4-14 0" />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="publicacion-meta etiquetas-row">
                     <span>{hilo.etiqueta || comunidadActiva.genero}</span>
+                    <span>{filtros.find((filtro) => filtro.id === hilo.tipo)?.label || hilo.tipo}</span>
                   </div>
 
                   <h2>{hilo.titulo}</h2>
                   <p><TextoConMenciones texto={hilo.texto} /></p>
 
+                  {hilo.eventoAsociado ? (
+                    <EventoPerfilFila
+                      className="comunidad-evento-asociado"
+                      etiqueta="Evento asociado"
+                      evento={hilo.eventoAsociado}
+                      onAbrir={(evento) => navigate(`/?evento=${encodeURIComponent(evento.id)}`)}
+                    />
+                  ) : null}
+
+                  {hilo.reelAsociado ? (
+                    <div className="publicacion-asociada publicacion-asociada-reel">
+                      <img src={hilo.reelAsociado.portada || "/sondar-icon.png?v=19"} alt="" />
+                      <span>
+                        <small className="publicacion-asociada-etiqueta">Reel asociado</small>
+                        <strong>{hilo.reelAsociado.tema}</strong>
+                        <em>{hilo.reelAsociado.artista || hilo.reelAsociado.usuario} · {mostrarGenero(hilo.reelAsociado.genero)}</em>
+                      </span>
+                      <button
+                        className="asociada-icono-accion asociada-reproducir"
+                        type="button"
+                        onClick={() => alternarReelAsociado(hilo.reelAsociado)}
+                        disabled={!hilo.reelAsociado.audio}
+                        aria-label={reelAsociadoActivo === hilo.reelAsociado.id ? "Pausar tema asociado" : "Reproducir tema asociado"}
+                        title={reelAsociadoActivo === hilo.reelAsociado.id ? "Pausar" : "Reproducir"}
+                      >
+                        <span className="material-symbols-rounded" aria-hidden="true">
+                          {reelAsociadoActivo === hilo.reelAsociado.id ? "pause" : "play_arrow"}
+                        </span>
+                      </button>
+                      <button
+                        className="asociada-abrir asociada-icono-accion"
+                        type="button"
+                        aria-label={`Abrir tema asociado: ${hilo.reelAsociado.tema}`}
+                        title="Abrir tema asociado"
+                        onClick={() => navigate(`/descubrir?lanzamiento=${encodeURIComponent(idReelParaNavegacion(hilo.reelAsociado))}`)}
+                      >
+                        <span className="material-symbols-rounded" aria-hidden="true">link</span>
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="publicacion-acciones">
+                    <button
+                      className={`publicacion-like ${hilo.liked ? "activo" : ""}`}
+                      type="button"
+                      onClick={() => votar(hilo.id)}
+                      aria-label={hilo.liked ? "Quitar me gusta" : "Me gusta"}
+                      aria-pressed={Boolean(hilo.liked)}
+                    >
+                      <span className="like-icon" aria-hidden="true">{hilo.liked ? "♥" : "♡"}</span>
+                      {hilo.votos}
+                    </button>
                     <button
                       className={respuestasAbiertas.includes(hilo.id) ? "activo" : ""}
                       type="button"
                       onClick={() => toggleRespuestas(hilo.id)}
                     >
-                      {hilo.comentarios.length} respuestas
+                      {contarComentarios(hilo.comentarios)} respuestas
                     </button>
                     <button
-                      className={hilo.guardado ? "activo" : ""}
+                      className={`publicacion-guardar ${hilo.guardado ? "activo" : ""}`}
                       type="button"
                       onClick={() => guardar(hilo.id)}
+                      aria-label={hilo.guardado ? "Quitar publicacion guardada" : "Guardar publicacion"}
+                      aria-pressed={Boolean(hilo.guardado)}
+                      title={hilo.guardado ? "Quitar de guardados" : "Guardar publicacion"}
                     >
-                      {hilo.guardado ? "Guardado" : "Guardar"}
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1Z" />
+                      </svg>
                     </button>
                   </div>
 
                   {respuestasAbiertas.includes(hilo.id) && (
                     <section className="hilo-respuestas">
-                      {hilo.comentarios.map((comentario) => (
-                        <article className="respuesta-card" key={comentario.id}>
-                          <div className="respuesta-linea"></div>
-                          <div>
-                            <div className="respuesta-meta">
-                              <strong>{comentario.usuario}</strong>
-                              <span>{comentario.autor}</span>
-                              <span>{comentario.votos} votos</span>
-                            </div>
-                            <p><TextoConMenciones texto={comentario.texto} /></p>
-                          </div>
-                        </article>
-                      ))}
+                      {hilo.comentarios.map((comentario) => renderizarComentario(hilo, comentario))}
 
                       <div className="respuesta-form">
                         <CampoMenciones
-                          placeholder="Respondé o mencioná con @usuario"
-                          value={respuestas[hilo.id] || ""}
-                          onChange={(texto) => setRespuestas({ ...respuestas, [hilo.id]: texto })}
+                          placeholder="Responde o menciona con @usuario"
+                          value={respuestas[`${hilo.id}:principal`] || ""}
+                          onChange={(texto) => setRespuestas((actuales) => ({
+                            ...actuales,
+                            [`${hilo.id}:principal`]: texto,
+                          }))}
                         />
-                        <button type="button" onClick={() => responder(hilo.id)}>
-                          Responder
+                        <button type="button" onClick={() => responder(hilo.id)} disabled={comentariosEnviando.has(`${hilo.id}:principal`)}>
+                          {comentariosEnviando.has(`${hilo.id}:principal`) ? "Enviando..." : "Responder"}
                         </button>
                       </div>
                     </section>
@@ -754,67 +1425,241 @@ export default function Comunidad({ usuario }) {
         </div>
 
         <aside className="comunidad-sidebar detalle-comunidad">
-          <section className="comunidad-panel comunidad-panel-acento">
-            <h2>Acerca de {comunidadActiva.nombre}</h2>
+          <section className="comunidad-panel comunidad-panel-info">
+            <header>
+              <span>Información del foro</span>
+              <h2>{mostrarGenero(comunidadActiva.genero)}</h2>
+            </header>
             <p>{comunidadActiva.descripcion}</p>
-            <div className="subreddit-stats">
-              <strong>{comunidadActiva.publicaciones || 0}</strong>
-              <span>publicaciones</span>
-              <strong>{mostrarGenero(comunidadActiva.genero)}</strong>
-              <span>genero</span>
+            <dl className="subreddit-stats">
+              <div>
+                <dt>miembros</dt>
+                <dd>{comunidadActiva.miembros || 0}</dd>
+              </div>
+              <div>
+                <dt>publicaciones</dt>
+                <dd>{comunidadActiva.publicaciones || 0}</dd>
+              </div>
+              <div>
+                <dt>respuestas</dt>
+                <dd>{cargandoHilos ? <div className="comunidad-skeleton-bloque" aria-label="Cargando cantidad de respuestas" /> : totalComentarios}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="comunidad-panel">
+            <h2>Recursos</h2>
+            <div className="comunidad-bookmarks">
+              <section className={`comunidad-recurso ${eventosAbiertos ? "abierto" : ""}`}>
+                <button
+                  className="comunidad-recurso-trigger"
+                  type="button"
+                  aria-expanded={eventosAbiertos}
+                  aria-controls="recurso-eventos-genero"
+                  onClick={() => setEventosAbiertos((actual) => !actual)}
+                >
+                  <span>Eventos del género</span>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" /></svg>
+                </button>
+                {eventosAbiertos ? (
+                  <div className="comunidad-recurso-contenido" id="recurso-eventos-genero">
+                    {eventosRecursoGenero.length === 0 ? (
+                      <p className="comunidad-recurso-vacio">Todavía no hay eventos de este género.</p>
+                    ) : eventosRecursoGenero.map((evento) => (
+                      <EventoPerfilFila
+                        key={evento.id}
+                        evento={evento}
+                        onAbrir={(item) => navigate(`/?evento=${encodeURIComponent(item.id)}`)}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </section>
+
             </div>
           </section>
+
+          <section className="comunidad-panel">
+            <h2>Reglas del foro</h2>
+            <ol className="comunidad-reglas">
+              {reglasForo.map((regla) => (
+                <li key={regla}>{regla}</li>
+              ))}
+            </ol>
+          </section>
         </aside>
+        </div>
       </section>
 
       {mostrarModal && (
         <div className="comunidad-modal-overlay">
           <div className="comunidad-modal">
-            <h2>{t("Crear publicación")}</h2>
-            <form onSubmit={crearHilo}>
-              <input
-                name="titulo"
-                placeholder="Titulo de la publicacion"
-                value={nuevoHilo.titulo}
-                onChange={handleChange}
-                required
-              />
+            <header className="comunidad-modal-header">
+              <div>
+                <h2>Crear post</h2>
+                <p>{mostrarGenero(comunidadActiva.genero)}</p>
+              </div>
+              <button className="comunidad-modal-cerrar" type="button" onClick={() => setMostrarModal(false)} aria-label="Cerrar">
+                x
+              </button>
+            </header>
 
-              <CampoMenciones
-                placeholder={`Escribí en ${comunidadActiva.nombre} o mencioná con @usuario`}
-                value={nuevoHilo.texto}
-                onChange={(texto) => setNuevoHilo((actual) => ({ ...actual, texto }))}
-                required
-              />
-
-              <div className="comunidad-form-row">
-                <select name="tipo" value={nuevoHilo.tipo} onChange={handleChange}>
-                  {filtros.map((filtro) => (
-                    <option key={filtro.id} value={filtro.id}>{filtro.label}</option>
-                  ))}
-                </select>
+            <form className="comunidad-post-form" onSubmit={crearHilo}>
+              <label className="comunidad-post-campo">
+                <span>Titulo</span>
                 <input
-                  name="etiqueta"
-                  placeholder={`Etiqueta (${comunidadActiva.genero})`}
-                  value={nuevoHilo.etiqueta}
+                  name="titulo"
+                  placeholder="Titulo de la publicacion"
+                  value={nuevoHilo.titulo}
                   onChange={handleChange}
+                  maxLength="300"
+                  required
                 />
+                <small>{nuevoHilo.titulo.length}/300</small>
+              </label>
+
+              <div className="comunidad-asociaciones-form">
+                <label>
+                  <span>Tipo de publicacion</span>
+                  <select name="tipo" value={nuevoHilo.tipo} onChange={handleChange}>
+                    <option value="reciente">Publicacion general</option>
+                    <option value="preguntas">Pregunta</option>
+                  </select>
+                </label>
+                <div className="comunidad-asociacion-selector">
+                  <span className="comunidad-asociacion-titulo">Evento asociado (opcional)</span>
+                  <input
+                    type="search"
+                    value={busquedaEventoAsociado}
+                    onChange={(event) => setBusquedaEventoAsociado(event.target.value)}
+                    placeholder="Buscar por evento, lugar, creador o genero"
+                    aria-label="Buscar entre todos los eventos de SONDAR"
+                  />
+                  <div className="comunidad-asociacion-resultados" aria-label="Eventos disponibles">
+                    {eventosDisponibles.length === 0 ? (
+                      <p className="comunidad-asociacion-vacio">No encontramos eventos con esa búsqueda.</p>
+                    ) : eventosDisponibles.map((evento) => {
+                      const seleccionado = String(evento.id) === String(nuevoHilo.eventoAsociadoId);
+                      return (
+                        <EventoPerfilFila
+                          key={evento.id}
+                          evento={evento}
+                          seleccionado={seleccionado}
+                          seleccionable
+                          onAbrir={() => setNuevoHilo((actual) => ({
+                            ...actual,
+                            eventoAsociadoId: seleccionado ? "" : evento.id,
+                          }))}
+                        />
+                      );
+                    })}
+                  </div>
+                  <small className="comunidad-asociacion-ayuda">
+                    {eventoAsociadoSeleccionado ? "Evento seleccionado. Tocá la card para quitarlo." : `${eventosAsociables.length} eventos disponibles`}
+                  </small>
+                </div>
+                <div className="comunidad-asociacion-selector">
+                  <span className="comunidad-asociacion-titulo">Preview asociada (opcional)</span>
+                  <input
+                    type="search"
+                    value={busquedaReelAsociado}
+                    onChange={(event) => setBusquedaReelAsociado(event.target.value)}
+                    placeholder="Buscar por tema, artista, preview o genero"
+                    aria-label="Buscar entre todas las previews de SONDAR"
+                  />
+                  <div className="comunidad-asociacion-resultados" aria-label="Temas disponibles">
+                    {reelsDisponibles.length === 0 ? (
+                      <p className="comunidad-asociacion-vacio">No encontramos temas con esa búsqueda.</p>
+                    ) : reelsDisponibles.map((reel) => {
+                      const seleccionado = String(reel.id) === String(nuevoHilo.reelAsociadoId);
+                      return (
+                        <button
+                          className={`comunidad-asociacion-card reel ${seleccionado ? "seleccionada" : ""}`}
+                          type="button"
+                          key={reel.id}
+                          aria-pressed={seleccionado}
+                          onClick={() => setNuevoHilo((actual) => ({
+                            ...actual,
+                            reelAsociadoId: seleccionado ? "" : reel.id,
+                          }))}
+                        >
+                          <span className="comunidad-asociacion-imagen">
+                            <img
+                              src={reel.portada || "/sondar-icon.png?v=19"}
+                              alt=""
+                              onError={(event) => { event.currentTarget.src = "/sondar-icon.png?v=19"; }}
+                            />
+                            <i>Preview</i>
+                          </span>
+                          <span className="comunidad-asociacion-datos">
+                            <strong>{reel.tema || "Tema de SONDAR"}</strong>
+                            <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Sin género"}</small>
+                            <em>{(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ") || "Preview musical"}</em>
+                            <time>{reel.duracion || "0:30"}</time>
+                          </span>
+                          <span className="comunidad-asociacion-check" aria-hidden="true">{seleccionado ? "✓" : "+"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <small className="comunidad-asociacion-ayuda">
+                    {reelAsociadoSeleccionado ? "Preview seleccionada. Tocá la card para quitarla." : `${reelsAsociables.length} previews disponibles`}
+                  </small>
+                </div>
               </div>
 
+              <label className="comunidad-post-campo">
+                <span>Descripcion</span>
+                <CampoMenciones
+                  placeholder={`Escribi en ${comunidadActiva.nombre} o menciona con @usuario`}
+                  value={nuevoHilo.texto}
+                  onChange={(texto) => setNuevoHilo((actual) => ({ ...actual, texto }))}
+                  required
+                />
+              </label>
+
               <div className="comunidad-modal-botones">
-                <button type="submit">Publicar</button>
                 <button type="button" onClick={() => setMostrarModal(false)}>Cancelar</button>
+                <button type="submit" disabled={publicando}>{publicando ? "Publicando..." : "Post"}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {aviso && (
-        <div className="comunidad-toast" role="status">
-          {aviso}
-        </div>
-      )}
+      <audio ref={audioAsociadoRef} onEnded={() => setReelAsociadoActivo(null)} />
+
+      {comunidadCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir comunidad"
+          nombre={`${mostrarGenero(comunidadCompartir.comunidad.genero)}`}
+          detalle={comunidadCompartir.comunidad.descripcion}
+          imagen="/sondar-icon.png?v=19"
+          enlace={comunidadCompartir.enlace}
+          textoCompartir={`Unite a ${mostrarGenero(comunidadCompartir.comunidad.genero)} en SONDAR ${comunidadCompartir.enlace}`}
+          mensajeCopiado="Enlace de la comunidad copiado"
+          onClose={() => setComunidadCompartir(null)}
+          onAviso={mostrarAviso}
+        />
+      ) : null}
+
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido={`la publicación “${eliminacionPendiente.titulo}”`}
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarPublicacion(eliminacionPendiente, password)}
+        />
+      ) : null}
+
+      <DenunciaModal
+        abierto={Boolean(denunciaPendiente)}
+        titulo={denunciaPendiente?.comentario?.texto || denunciaPendiente?.hilo?.titulo}
+        enviando={enviandoDenuncia}
+        onClose={() => setDenunciaPendiente(null)}
+        onConfirm={denunciarContenido}
+      />
+
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
     </main>
   );
 }

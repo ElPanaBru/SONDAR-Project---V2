@@ -20,6 +20,55 @@ type CommunityPost = { id: number; userId?: string; usuario: string; nombre?: st
 type ProfileData = { perfil: any; publicaciones: any[]; eventos: any[]; favoritos: any[]; guardados: any[]; guardadosComunidad: any[]; guardadosComentarios: any[]; comunidad: CommunityPost[]; seguidores: any[]; seguidos: any[]; stats: { publicaciones: number; seguidores: number; seguidos: number }; siguiendo?: boolean; silenciado?: boolean };
 const blank: ProfileData = { perfil: {}, publicaciones: [], eventos: [], favoritos: [], guardados: [], guardadosComunidad: [], guardadosComentarios: [], comunidad: [], seguidores: [], seguidos: [], stats: { publicaciones: 0, seguidores: 0, seguidos: 0 } };
 
+function mapProfileResponse(item: any): CommunityComment {
+  const author = item?.autor || {};
+  const username = author.usuario || item?.usuario || author.username || item?.username || '';
+  return {
+    id: Number(item?.id || 0),
+    userId: author.id || item?.userId || item?.user_id,
+    usuario: String(username).startsWith('@') ? username : `@${username || 'usuario'}`,
+    nombre: author.nombre || item?.nombre || username || 'Usuario SONDAR',
+    avatar: author.avatar || item?.avatar || '',
+    texto: item?.texto || '',
+    tiempo: item?.createdAt ? new Date(item.createdAt).toLocaleString('es-AR') : '',
+  };
+}
+
+function mapProfilePost(item: any): CommunityPost {
+  const author = item?.autor || {};
+  const reel = item?.reel;
+  const event = item?.evento;
+  const attachment = reel ? {
+    tipo: 'reel' as const,
+    id: Number(reel.id),
+    titulo: reel.titulo || 'Preview',
+    detalle: (reel.generos || [reel.genero]).filter(Boolean).join(' / '),
+    imagen: reel.portada || '',
+  } : event ? {
+    tipo: 'evento' as const,
+    id: Number(event.id),
+    titulo: event.lugar || 'Evento',
+    detalle: [event.fecha ? new Date(event.fecha).toLocaleDateString('es-AR') : '', (event.generos || [event.genero]).filter(Boolean).join(' / ')].filter(Boolean).join(' · '),
+  } : null;
+  const flatten = (items: any[] = []): CommunityComment[] => items.flatMap(reply => [
+    mapProfileResponse(reply),
+    ...flatten(reply.respuestas || []),
+  ]);
+
+  return {
+    id: Number(item?.id || 0),
+    userId: author.id || item?.userId || item?.user_id,
+    usuario: author.usuario || '@usuario',
+    nombre: author.nombre || 'Usuario SONDAR',
+    avatar: author.avatar || '',
+    texto: item?.texto || '',
+    tipo: item?.origen || 'manual',
+    tiempo: item?.createdAt ? new Date(item.createdAt).toLocaleString('es-AR') : '',
+    adjunto: attachment,
+    comentarios: flatten(item?.respuestas || []),
+  };
+}
+
 function openProfileContent(item: { id?: number | string; backendId?: number | string; backend_id?: number | string; tipo?: string; guardadoTipo?: string; comunidadId?: string; publicacionId?: number | string }) {
   const id = item.backendId ?? item.backend_id ?? item.id;
   if (id === undefined || id === null || id === '') return;
@@ -50,25 +99,48 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   const [saving, setSaving] = useState(false);
   const [preparingPhoto, setPreparingPhoto] = useState(false);
   const saveLock = useRef(false);
+  const followLock = useRef(false);
+  const muteLock = useRef(false);
   const [form, setForm] = useState({ nombre: '', bio: '' });
   const [avatar, setAvatar] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [social, setSocial] = useState<'seguidores' | 'seguidos' | null>(null);
   const [reporting, setReporting] = useState(false);
   const [reportBusy, setReportBusy] = useState(false);
   const [communityText, setCommunityText] = useState('');
+  const [communityCanReply, setCommunityCanReply] = useState(false);
   const [communityAttachment, setCommunityAttachment] = useState<CommunityAttachment | null>(null);
   const [attachmentPicker, setAttachmentPicker] = useState<'reel' | 'evento' | null>(null);
   const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>({});
   const [communityBusy, setCommunityBusy] = useState(false);
   const communityLock = useRef(false);
   const commentLocks = useRef(new Set<number>());
-  const [communityReport, setCommunityReport] = useState<CommunityPost | null>(null);
   const [accountMenu, setAccountMenu] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
-    try { const result = await api<ProfileData>(own ? '/api/usuarios/me/perfil' : `/api/usuarios/${identifier}/perfil`, { token }); setData({ ...blank, ...result }); setForm({ nombre: result.perfil?.nombre || '', bio: result.perfil?.bio || '' }); setError(''); }
+    try {
+      const result = await api<any>(own ? '/api/usuarios/me/perfil' : `/api/usuarios/${identifier}/perfil`, { token });
+      const profileId = result.perfil?.id || identifier;
+      const communityResult = profileId
+        ? await api<{ publicaciones?: any[]; puedeResponder?: boolean }>(`/api/comunidad-perfil/${encodeURIComponent(profileId)}`, { token })
+        : { publicaciones: [], puedeResponder: false };
+      const savedItems = (result.guardados || []).map((item: any) => item.tipo === 'publicacion-comunidad'
+        ? { ...item, guardadoTipo: 'comunidad' }
+        : item.tipo === 'comentario-comunidad'
+          ? { ...item, guardadoTipo: 'comentario' }
+          : item);
+      setData({
+        ...blank,
+        ...result,
+        favoritos: result.favoritos || result.likes || [],
+        guardados: savedItems,
+        comunidad: (communityResult.publicaciones || []).map(mapProfilePost),
+      });
+      setCommunityCanReply(Boolean(communityResult.puedeResponder));
+      setForm({ nombre: result.perfil?.nombre || '', bio: result.perfil?.bio || '' });
+      setError('');
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cargar el perfil.'); }
     finally { loadedOnce.current = true; setLoading(false); }
   }, [identifier, own, token]);
@@ -122,8 +194,26 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
     finally { saveLock.current = false; setSaving(false); }
   }
 
-  async function follow() { if (!identifier) return; try { const result = await api<any>(`/api/usuarios/${identifier}/seguir`, { method: 'POST', token }); const siguiendo = Boolean(result.siguiendo ?? result.following); const seguidores = Number(result.seguidores); setData(current => ({ ...current, siguiendo, stats: { ...current.stats, seguidores: Number.isFinite(seguidores) ? seguidores : Math.max(0, current.stats.seguidores + (siguiendo ? 1 : -1)) } })); } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo seguir.'); } }
-  async function mute() { if (!identifier) return; try { const result = await api<any>(`/api/usuarios/${identifier}/silenciar-notificaciones`, { method: 'POST', token }); setData(current => ({ ...current, silenciado: result.silenciado ?? result.muted })); } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar.'); } }
+  async function follow() {
+    if (!identifier || followLock.current) return;
+    followLock.current = true;
+    try {
+      const result = await api<any>(`/api/usuarios/${identifier}/seguir`, { method: 'POST', token });
+      const siguiendo = Boolean(result.siguiendo ?? result.following);
+      const seguidores = Number(result.seguidores);
+      setData(current => ({ ...current, siguiendo, stats: { ...current.stats, seguidores: Number.isFinite(seguidores) ? seguidores : Math.max(0, current.stats.seguidores + (siguiendo ? 1 : -1)) } }));
+    } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo seguir.'); }
+    finally { followLock.current = false; }
+  }
+  async function mute() {
+    if (!identifier || muteLock.current) return;
+    muteLock.current = true;
+    try {
+      const result = await api<any>(`/api/usuarios/${identifier}/silenciar-notificaciones`, { method: 'POST', token });
+      setData(current => ({ ...current, silenciado: result.silenciado ?? result.muted }));
+    } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar.'); }
+    finally { muteLock.current = false; }
+  }
   function block() { if (!identifier) return; Alert.alert('Bloquear cuenta', 'Dejarán de verse mutuamente en SONDAR.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Bloquear', style: 'destructive', onPress: () => api(`/api/usuarios/${identifier}/bloquear`, { method: 'POST', token }).then(() => router.replace('/')).catch(e => Alert.alert('Error', e.message)) }]); }
   function openMessages() {
     const recipient = profile.id || identifier;
@@ -146,13 +236,19 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
 
   async function publishCommunity() {
     if (communityLock.current || (!communityText.trim() && !communityAttachment)) return;
+    if (!communityText.trim()) { setError('Escribí un mensaje para acompañar la publicación.'); return; }
     communityLock.current = true;
     setCommunityBusy(true);
     try {
-      const created = await api<CommunityPost>('/api/usuarios/me/comunidad', {
+      const response = await api<any>('/api/comunidad-perfil/publicaciones', {
         method: 'POST', token,
-        body: JSON.stringify({ texto: communityText.trim(), attachmentType: communityAttachment?.tipo, attachmentId: communityAttachment?.id }),
+        body: JSON.stringify({
+          texto: communityText.trim(),
+          reelId: communityAttachment?.tipo === 'reel' ? communityAttachment.id : undefined,
+          eventoId: communityAttachment?.tipo === 'evento' ? communityAttachment.id : undefined,
+        }),
       });
+      const created = mapProfilePost(response);
       setData(current => ({ ...current, comunidad: [created, ...(current.comunidad || []).filter(item => item.id !== created.id)] }));
       setCommunityText(''); setCommunityAttachment(null); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar la actualización.'); }
@@ -164,7 +260,8 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
     if (!texto || commentLocks.current.has(post.id)) return;
     commentLocks.current.add(post.id);
     try {
-      const comment = await api<CommunityComment>(`/api/usuarios/comunidad/${post.id}/comentarios`, { method: 'POST', token, body: JSON.stringify({ texto }) });
+      const response = await api<any>(`/api/comunidad-perfil/publicaciones/${post.id}/respuestas`, { method: 'POST', token, body: JSON.stringify({ texto }) });
+      const comment = mapProfileResponse(response);
       setData(current => ({ ...current, comunidad: current.comunidad.map(item => item.id === post.id ? { ...item, comentarios: [...(item.comentarios || []), comment] } : item) }));
       setCommentDrafts(current => ({ ...current, [post.id]: '' }));
     } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la respuesta.'); }
@@ -174,19 +271,8 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
   function deleteCommunity(post: CommunityPost) {
     Alert.alert('Eliminar actualización', 'Esta acción no se puede deshacer.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => api(`/api/usuarios/comunidad/${post.id}`, { method: 'DELETE', token }).then(() => setData(current => ({ ...current, comunidad: current.comunidad.filter(item => item.id !== post.id) }))).catch(e => Alert.alert('Error', e.message)) },
+      { text: 'Eliminar', style: 'destructive', onPress: () => api(`/api/comunidad-perfil/publicaciones/${post.id}`, { method: 'DELETE', token }).then(() => setData(current => ({ ...current, comunidad: current.comunidad.filter(item => item.id !== post.id) }))).catch(e => Alert.alert('Error', e.message)) },
     ]);
-  }
-
-  async function reportCommunity(payload: ReportPayload) {
-    if (!communityReport) return;
-    setReportBusy(true);
-    try {
-      await api(`/api/usuarios/comunidad/${communityReport.id}/denunciar`, { method: 'POST', token, body: JSON.stringify(payload) });
-      setCommunityReport(null);
-      Alert.alert('Listo', 'Denuncia enviada.');
-    } catch (e) { Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la denuncia.'); }
-    finally { setReportBusy(false); }
   }
 
   function chooseAttachment(type: 'reel' | 'evento', item: any) {
@@ -249,12 +335,12 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
             ))}
           </ScrollView>
         ) : null}
-        {own && isCommunity ? <View style={styles.communityComposer}><Text style={ui.muted}>Esta actualización se publica en la Comunidad de tu perfil. Para publicar en un foro por género, entrá a la pestaña Comunidad.</Text>
+        {own && isCommunity ? <View style={styles.communityComposer}><Text style={ui.muted}>Esta actualización se publica en la Comunidad de tu perfil. Escribí un mensaje para acompañar el adjunto. Para publicar en un foro por género, entrá a la pestaña Comunidad.</Text>
           <View style={styles.composerTop}><Avatar uri={profile.avatar} name={profile.nombre} size={42} /><View style={{ flex: 1 }}><Field value={communityText} onChangeText={setCommunityText} placeholder="Compartir una actualización…" multiline maxLength={1000} /></View></View>
           {communityAttachment ? <View style={styles.selectedAttachment}><Ionicons name={communityAttachment.tipo === 'reel' ? 'musical-note' : 'calendar'} size={20} color={palette.amber} /><View style={{ flex: 1 }}><Text style={styles.attachmentTitle} numberOfLines={1}>{communityAttachment.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{communityAttachment.detalle}</Text></View><Pressable onPress={() => setCommunityAttachment(null)}><Ionicons name="close-circle" size={22} color={palette.muted} /></Pressable></View> : null}
-          <View style={styles.composerActions}><View style={styles.attachActions}><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('reel')}><Ionicons name="musical-note" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Preview</Text></Pressable><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('evento')}><Ionicons name="calendar" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Evento</Text></Pressable></View><Pressable disabled={communityBusy || (!communityText.trim() && !communityAttachment)} onPress={publishCommunity} style={[styles.publishCommunity, (communityBusy || (!communityText.trim() && !communityAttachment)) && styles.publishDisabled]}><Ionicons name="send" size={18} color="#111" /><Text style={styles.publishCommunityText}>{communityBusy ? 'Publicando…' : 'Publicar'}</Text></Pressable></View>
+          <View style={styles.composerActions}><View style={styles.attachActions}><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('reel')}><Ionicons name="musical-note" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Preview</Text></Pressable><Pressable style={styles.attachButton} onPress={() => setAttachmentPicker('evento')}><Ionicons name="calendar" size={18} color={palette.text} /><Text style={styles.attachButtonText}>Evento</Text></Pressable></View><Pressable disabled={communityBusy || !communityText.trim()} onPress={publishCommunity} style={[styles.publishCommunity, (communityBusy || !communityText.trim()) && styles.publishDisabled]}><Ionicons name="send" size={18} color="#111" /><Text style={styles.publishCommunityText}>{communityBusy ? 'Publicando…' : 'Publicar'}</Text></Pressable></View>
         </View> : null}
-      </>} ListEmptyComponent={<Empty icon={isSaved ? (savedFilter === 'reel' ? 'play-circle-outline' : savedFilter === 'evento' ? 'calendar-outline' : savedFilter === 'comentario' ? 'chatbox-outline' : 'chatbubbles-outline') : isCommunity ? 'people-outline' : undefined} title={isSaved ? savedEmptyTitle : isCommunity ? 'Todavía no hay actividad' : `No hay ${tab} todavía`} text={isSaved ? 'Tocá el marcador de un reel, un evento, una publicación o un comentario para encontrarlo acá.' : isCommunity ? 'Las previews, eventos y actualizaciones aparecerán acá.' : undefined} />} renderItem={({ item }) => isCommunity ? <CommunityCard item={item as CommunityPost} currentUserId={user?.id} draft={commentDrafts[item.id] || ''} onDraft={value => setCommentDrafts(current => ({ ...current, [item.id]: value }))} onComment={() => commentCommunity(item)} onDelete={() => deleteCommunity(item)} onReport={() => setCommunityReport(item)} /> : singleColumn ? <ProfileContentRow item={item} /> : <ContentCard item={item} />} />}
+      </>} ListEmptyComponent={<Empty icon={isSaved ? (savedFilter === 'reel' ? 'play-circle-outline' : savedFilter === 'evento' ? 'calendar-outline' : savedFilter === 'comentario' ? 'chatbox-outline' : 'chatbubbles-outline') : isCommunity ? 'people-outline' : undefined} title={isSaved ? savedEmptyTitle : isCommunity ? 'Todavía no hay actividad' : `No hay ${tab} todavía`} text={isSaved ? 'Tocá el marcador de un reel, un evento, una publicación o un comentario para encontrarlo acá.' : isCommunity ? 'Las previews, eventos y actualizaciones aparecerán acá.' : undefined} />} renderItem={({ item }) => isCommunity ? <CommunityCard item={item as CommunityPost} currentUserId={user?.id} canReply={communityCanReply} draft={commentDrafts[item.id] || ''} onDraft={value => setCommentDrafts(current => ({ ...current, [item.id]: value }))} onComment={() => commentCommunity(item)} onDelete={() => deleteCommunity(item)} /> : singleColumn ? <ProfileContentRow item={item} /> : <ContentCard item={item} />} />}
 
       <Modal visible={editing} animationType="slide" onRequestClose={() => setEditing(false)}><Screen scroll><Header title="Editar perfil" back onBack={() => setEditing(false)} actions={<IconButton name="close" onPress={() => setEditing(false)} />} /><ErrorNotice message={error} /><Pressable accessibilityRole="button" accessibilityLabel="Cambiar foto de perfil" disabled={preparingPhoto || saving} onPress={pickAvatar} style={styles.avatarEdit}><Avatar uri={avatar?.uri || profile.avatar} name={form.nombre} size={112} /><View style={styles.camera}><Ionicons name="camera" color="#111" size={20} /></View></Pressable><Text style={styles.avatarEditHint}>Tocá la foto para elegir una nueva</Text><Field label="Nombre visible" value={form.nombre} onChangeText={nombre => setForm(f => ({ ...f, nombre }))} maxLength={80} /><Field label="Biografía" value={form.bio} onChangeText={bio => setForm(f => ({ ...f, bio }))} multiline maxLength={300} /><Button onPress={save} disabled={saving || preparingPhoto}>{preparingPhoto ? 'Preparando foto...' : saving ? 'Guardando...' : 'Guardar cambios'}</Button></Screen></Modal>
 
@@ -275,7 +361,6 @@ export function ProfileView({ identifier, own = false }: { identifier?: string; 
 
       <Modal visible={Boolean(attachmentPicker)} animationType="slide" transparent onRequestClose={() => setAttachmentPicker(null)}><View style={styles.backdrop}><View style={styles.attachmentModal}><View style={styles.modalTop}><View><Text style={styles.modalKicker}>ADJUNTAR</Text><Text style={ui.h2}>{attachmentPicker === 'reel' ? 'Elegí una preview' : 'Elegí un evento'}</Text></View><IconButton name="close" onPress={() => setAttachmentPicker(null)} /></View><FlatList data={attachmentPicker === 'reel' ? data.publicaciones : data.eventos} keyExtractor={item => String(item.id)} contentContainerStyle={{ gap: 9 }} ListEmptyComponent={<Empty title={attachmentPicker === 'reel' ? 'Todavía no publicaste previews' : 'Todavía no creaste eventos'} />} renderItem={({ item }) => <Pressable style={styles.attachmentOption} onPress={() => chooseAttachment(attachmentPicker || 'reel', item)}>{item.portada || item.imagen || item.img || item.img_url ? <Image source={{ uri: item.portada || item.imagen || item.img || item.img_url }} style={styles.attachmentImage} contentFit="cover" /> : <View style={[styles.attachmentImage, styles.contentFallback]}><Ionicons name={attachmentPicker === 'reel' ? 'musical-note' : 'calendar'} size={24} color={palette.orange} /></View>}<View style={{ flex: 1 }}><Text style={styles.attachmentTitle}>{item.album || item.tema || item.titulo || item.nombre}</Text><Text style={ui.muted}>{item.genero || item.detalle}</Text></View><Ionicons name="add-circle" size={25} color={palette.orange} /></Pressable>} /></View></View></Modal>
       <ReportModal visible={reporting} subject={profile.usuario || profile.nombre} busy={reportBusy} onClose={() => setReporting(false)} onSubmit={report} />
-      <ReportModal visible={Boolean(communityReport)} subject={communityReport?.nombre || communityReport?.usuario} busy={reportBusy} onClose={() => setCommunityReport(null)} onSubmit={reportCommunity} />
     </Screen>
   );
 }
@@ -285,14 +370,14 @@ function AccountMenuItem({ icon, label, onPress, active = false, danger = false,
   return <Pressable accessibilityRole="menuitem" disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.accountMenuItem, active && styles.accountMenuItemActive, disabled && styles.accountMenuItemDisabled, pressed && styles.pressed]}><Ionicons name={icon} size={21} color={color} /><Text style={[styles.accountMenuLabel, { color }]}>{label}</Text>{active ? <Ionicons name="checkmark" size={18} color={palette.orange} /> : null}</Pressable>;
 }
 
-function CommunityCard({ item, currentUserId, draft, onDraft, onComment, onDelete, onReport }: { item: CommunityPost; currentUserId?: string; draft: string; onDraft: (value: string) => void; onComment: () => void; onDelete: () => void; onReport: () => void }) {
+function CommunityCard({ item, currentUserId, canReply, draft, onDraft, onComment, onDelete }: { item: CommunityPost; currentUserId?: string; canReply: boolean; draft: string; onDraft: (value: string) => void; onComment: () => void; onDelete: () => void }) {
   const ownPost = Boolean(currentUserId && item.userId === currentUserId);
   return <View style={styles.communityPost}>
-    <View style={styles.communityPostHeader}><Pressable disabled={!item.userId} accessibilityRole="button" accessibilityLabel="Ver perfil" onPress={() => item.userId && router.push({ pathname: '/profile/[id]', params: { id: item.userId } })}><Avatar uri={item.avatar} name={item.nombre || item.usuario} size={42} /></Pressable><View style={{ flex: 1 }}><View style={styles.communityIdentity}><Text onPress={() => item.userId && router.push({ pathname: '/profile/[id]', params: { id: item.userId } })} style={styles.communityName}>{item.nombre || String(item.usuario || '').replace(/^@/, '')}{ownPost ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text><Text style={styles.communityBadge}>ACTIVIDAD</Text></View><Text style={styles.communityMeta}>{item.usuario} · {item.tiempo || 'ahora'}</Text></View>{ownPost && !item.adjunto ? <IconButton name="trash-outline" danger onPress={onDelete} /> : !ownPost ? <IconButton name="flag-outline" onPress={onReport} /> : null}</View>
+    <View style={styles.communityPostHeader}><Pressable disabled={!item.userId} accessibilityRole="button" accessibilityLabel="Ver perfil" onPress={() => item.userId && router.push({ pathname: '/profile/[id]', params: { id: item.userId } })}><Avatar uri={item.avatar} name={item.nombre || item.usuario} size={42} /></Pressable><View style={{ flex: 1 }}><View style={styles.communityIdentity}><Text onPress={() => item.userId && router.push({ pathname: '/profile/[id]', params: { id: item.userId } })} style={styles.communityName}>{item.nombre || String(item.usuario || '').replace(/^@/, '')}{ownPost ? <Text style={styles.youLabel}>  Tú</Text> : null}</Text><Text style={styles.communityBadge}>ACTIVIDAD</Text></View><Text style={styles.communityMeta}>{item.usuario} · {item.tiempo || 'ahora'}</Text></View>{ownPost ? <IconButton name="trash-outline" danger onPress={onDelete} /> : null}</View>
     {item.texto ? <Text style={styles.communityText}>{item.texto}</Text> : null}
     {item.adjunto ? <Pressable style={styles.communityAttachment} onPress={() => item.adjunto && openProfileContent(item.adjunto)}>{item.adjunto.imagen ? <Image source={{ uri: item.adjunto.imagen }} style={styles.communityAttachmentImage} contentFit="cover" /> : <View style={[styles.communityAttachmentImage, styles.contentFallback]}><Ionicons name={item.adjunto.tipo === 'evento' ? 'calendar' : 'musical-note'} size={25} color={palette.orange} /></View>}<View style={{ flex: 1 }}><Text style={styles.communityAttachmentType}>{item.adjunto.tipo === 'evento' ? 'EVENTO' : 'PREVIEW'}</Text><Text style={styles.attachmentTitle} numberOfLines={1}>{item.adjunto.titulo}</Text><Text style={ui.muted} numberOfLines={1}>{item.adjunto.detalle}</Text></View><Ionicons name="arrow-forward" size={22} color={palette.text} /></Pressable> : null}
     {(item.comentarios || []).map(comment => <View key={comment.id} style={styles.communityComment}><Pressable disabled={!comment.userId} accessibilityRole="button" accessibilityLabel="Ver perfil" onPress={() => comment.userId && router.push({ pathname: '/profile/[id]', params: { id: comment.userId } })}><Avatar uri={comment.avatar} name={comment.nombre || comment.usuario} size={30} /></Pressable><View style={{ flex: 1 }}><Text onPress={() => comment.userId && router.push({ pathname: '/profile/[id]', params: { id: comment.userId } })} style={styles.commentAuthor}>{comment.nombre || comment.usuario}{currentUserId && comment.userId === currentUserId ? <Text style={styles.youLabel}>  Tú</Text> : null} <Text style={styles.commentTime}>{comment.tiempo}</Text></Text><Text style={styles.commentText}>{comment.texto}</Text></View></View>)}
-    <View style={styles.communityReply}><View style={{ flex: 1 }}><Field value={draft} onChangeText={onDraft} placeholder="Responder…" maxLength={500} /></View><IconButton name="send" active onPress={onComment} /></View>
+    {canReply ? <View style={styles.communityReply}><View style={{ flex: 1 }}><Field value={draft} onChangeText={onDraft} placeholder="Responder…" maxLength={500} /></View><IconButton name="send" active onPress={onComment} /></View> : null}
   </View>;
 }
 

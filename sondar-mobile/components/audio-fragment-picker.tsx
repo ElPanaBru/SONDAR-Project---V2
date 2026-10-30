@@ -8,9 +8,10 @@ import { palette } from '@/constants/sondar';
 import { audioFragment, fragmentTime, type AudioFragment } from '@/lib/audio-fragment';
 
 /* eslint-disable react-hooks/immutability -- expo-video provides an imperative currentTime setter. */
-export function AudioFragmentPicker({ uri, name, value, onChange, disabled = false }: {
+export function AudioFragmentPicker({ uri, name, value, onChange, onDurationChange, selectionEnabled = true, disabled = false }: {
   uri: string; name: string; value: AudioFragment | null;
   onChange: (value: AudioFragment | null) => void; disabled?: boolean;
+  onDurationChange?: (seconds: number) => void; selectionEnabled?: boolean;
 }) {
   const player = useVideoPlayer(uri, p => { p.timeUpdateEventInterval = 0.05; });
   const loaded = useEvent(player, 'sourceLoad');
@@ -21,11 +22,14 @@ export function AudioFragmentPicker({ uri, name, value, onChange, disabled = fal
   const time = useEvent(player, 'timeUpdate');
   const [width, setWidth] = useState(1);
   const drag = useRef<{ edge: 'start' | 'end'; x: number; range: AudioFragment } | null>(null);
-  const range = value || audioFragment(total);
+  const range = value || (selectionEnabled ? audioFragment(total) : audioFragment(total, 0, Math.min(30, total)));
 
   useEffect(() => {
-    if (total > 0 && Number.isFinite(total) && !value) onChange(audioFragment(total));
-  }, [total, value, onChange]);
+    if (total > 0 && Number.isFinite(total)) {
+      onDurationChange?.(total);
+      if (!value) onChange(selectionEnabled ? audioFragment(total) : audioFragment(total, 0, Math.min(30, total)));
+    }
+  }, [total, value, onChange, onDurationChange, selectionEnabled]);
   useEffect(() => {
     const subscription = player.addListener('timeUpdate', ({ currentTime }) => {
       if (currentTime >= range.end) { player.pause(); player.currentTime = range.start; }
@@ -62,8 +66,8 @@ export function AudioFragmentPicker({ uri, name, value, onChange, disabled = fal
   }
   return <View style={styles.card}>
     {peaks === undefined ? <AudioWaveformLoader key={uri} uri={uri} onResult={setPeaks} /> : null}
-    <View style={styles.heading}><Text style={styles.title}>ELEGÍ EL FRAGMENTO</Text><Text style={styles.badge}>{fragmentTime(range.end - range.start)}</Text></View>
-    <Text style={styles.muted}>Arrastrá los extremos · máximo 30 segundos</Text>
+    <View style={styles.heading}><Text style={styles.title}>{selectionEnabled ? 'ELEGÍ EL FRAGMENTO' : 'VISTA PREVIA DEL AUDIO'}</Text><Text style={styles.badge}>{fragmentTime(range.end - range.start)}</Text></View>
+    <Text style={styles.muted}>{selectionEnabled ? 'Arrastrá los extremos · máximo 30 segundos' : 'Se publicará el archivo completo. Para subir solo un fragmento, recortá el audio antes de seleccionarlo.'}</Text>
     {status === 'error' ? <Text style={styles.muted}>No se pudo leer el audio. Seleccioná otro archivo.</Text> : !value ? <Text style={styles.muted}>Cargando duración del audio…</Text> : <>
       <View style={styles.row}><Pressable disabled={disabled} accessibilityLabel={isPlaying ? 'Pausar fragmento' : 'Escuchar fragmento'} onPress={() => {
         if (isPlaying) player.pause(); else { player.currentTime = range.start; player.play(); }
@@ -77,12 +81,12 @@ export function AudioFragmentPicker({ uri, name, value, onChange, disabled = fal
           </View>
           <View pointerEvents='none' style={[styles.playhead, { left: Math.max(0, Math.min(1, (time?.currentTime || 0) / total)) * width }]} />
           <View pointerEvents='none' style={[styles.selection, { left: range.start / total * width, width: (range.end - range.start) / total * width }]} />
-          {(['start', 'end'] as const).map(edge => <View key={edge} accessibilityRole='adjustable' accessibilityLabel={edge === 'start' ? 'Inicio del fragmento' : 'Fin del fragmento'} accessibilityValue={{ min: 0, max: total, now: range[edge] }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={event => { if (!disabled) adjust(edge, event.nativeEvent.actionName === 'increment' ? 0.5 : -0.5); }}
+          {selectionEnabled ? (['start', 'end'] as const).map(edge => <View key={edge} accessibilityRole='adjustable' accessibilityLabel={edge === 'start' ? 'Inicio del fragmento' : 'Fin del fragmento'} accessibilityValue={{ min: 0, max: total, now: range[edge] }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]} onAccessibilityAction={event => { if (!disabled) adjust(edge, event.nativeEvent.actionName === 'increment' ? 0.5 : -0.5); }}
             onStartShouldSetResponder={() => !disabled} onMoveShouldSetResponder={() => !disabled} onResponderGrant={event => begin(edge, event)} onResponderMove={move} onResponderRelease={() => { drag.current = null; }} onResponderTerminate={() => { drag.current = null; }} onResponderTerminationRequest={() => false}
-            style={[styles.handle, { left: range[edge] / total * width - 14 }]}><View style={styles.grip} /></View>)}
+            style={[styles.handle, { left: range[edge] / total * width - 14 }]}><View style={styles.grip} /></View>) : null}
         </View>
       </View>
-      <View style={styles.heading}><Text style={styles.muted}>Inicio {fragmentTime(range.start)}</Text><Text style={styles.muted}>Fin {fragmentTime(range.end)}</Text></View>
+      {selectionEnabled ? <View style={styles.heading}><Text style={styles.muted}>Inicio {fragmentTime(range.start)}</Text><Text style={styles.muted}>Fin {fragmentTime(range.end)}</Text></View> : null}
     </>}
     <Text style={styles.muted} numberOfLines={1}>{name}</Text><Text style={styles.muted}>Total: {total > 0 ? fragmentTime(total) : '—'}</Text>
   </View>;

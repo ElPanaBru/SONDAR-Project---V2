@@ -1,0 +1,1884 @@
+{
+  "date": "2026-10-30",
+  "scope": "Comparacion previa; BDD y API web autoritativas; sin migraciones sobre volumenes originales ni sistemas remotos",
+  "refs": {
+    "web": "e9c8709",
+    "mobileLocal": "7426490",
+    "mobileRemote": "ac9091b"
+  },
+  "environment": {
+    "hostNode": "25.9.0",
+    "testedContainerNode": "24.22.2",
+    "dockerEngine": "29.8.1",
+    "compose": "5.5.1",
+    "hostRamGiB": 15.3,
+    "dockerMemoryGiB": 7.4,
+    "freeDiskGiBAtStart": 92.9,
+    "wifiProfile": "Public"
+  },
+  "routes": {
+    "webCount": 72,
+    "mobileCount": 65,
+    "sharedByMethodAndNormalizedPath": 51,
+    "webOnly": [
+      {
+        "method": "GET",
+        "path": "/api/reels/:id",
+        "file": "Backend/routes/reels.js",
+        "line": 37
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/interaccion",
+        "file": "Backend/routes/reels.js",
+        "line": 39
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 10
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/:comunidadId/notificaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 11
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/publicaciones/:publicacionId",
+        "file": "Backend/routes/comunidades.js",
+        "line": 17
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 19
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/denunciar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 20
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidad-perfil/:identificador",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 7
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidad-perfil/publicaciones",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 8
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidad-perfil/publicaciones/:publicacionId/respuestas",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 14
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidad-perfil/publicaciones/:publicacionId",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 20
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidad-perfil/respuestas/:respuestaId",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 21
+      },
+      {
+        "method": "POST",
+        "path": "/api/soporte/mensaje",
+        "file": "Backend/routes/soporte.js",
+        "line": 5
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/no-leidos",
+        "file": "Backend/routes/mensajes.js",
+        "line": 8
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/conversaciones",
+        "file": "Backend/routes/mensajes.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/conversaciones",
+        "file": "Backend/routes/mensajes.js",
+        "line": 10
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/conversaciones/:conversationId/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 11
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/conversaciones/:conversationId/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 12
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/mensajes/conversaciones/:conversationId/leer",
+        "file": "Backend/routes/mensajes.js",
+        "line": 13
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/mensajes/mensajes/:messageId",
+        "file": "Backend/routes/mensajes.js",
+        "line": 14
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/mensajes/mensajes/:messageId",
+        "file": "Backend/routes/mensajes.js",
+        "line": 15
+      }
+    ],
+    "mobileOnly": [
+      {
+        "method": "POST",
+        "path": "/api/usuarios/me/comunidad",
+        "file": "Backend/routes/usuarios.js",
+        "line": 20
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/comunidad/:id/comentarios",
+        "file": "Backend/routes/usuarios.js",
+        "line": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/comunidad/:id/denunciar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 24
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/comunidad/:id",
+        "file": "Backend/routes/usuarios.js",
+        "line": 25
+      },
+      {
+        "method": "GET",
+        "path": "/api/posts/muro",
+        "file": "Backend/routes/posts.js",
+        "line": 6
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 6
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 7
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 17
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 18
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/comentarios/:comentarioId",
+        "file": "Backend/routes/comunidades.js",
+        "line": 19
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 7
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 8
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/:id",
+        "file": "Backend/routes/mensajes.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/:id",
+        "file": "Backend/routes/mensajes.js",
+        "line": 10
+      }
+    ],
+    "web": [
+      {
+        "method": "POST",
+        "path": "/api/usuarios/crear-cuenta",
+        "file": "Backend/routes/usuarios.js",
+        "line": 12
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me",
+        "file": "Backend/routes/usuarios.js",
+        "line": 13
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/configuracion",
+        "file": "Backend/routes/usuarios.js",
+        "line": 14
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/configuracion",
+        "file": "Backend/routes/usuarios.js",
+        "line": 15
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/exportar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 16
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 17
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 18
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/onboarding",
+        "file": "Backend/routes/usuarios.js",
+        "line": 19
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/seguidos",
+        "file": "Backend/routes/usuarios.js",
+        "line": 20
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/bloqueados",
+        "file": "Backend/routes/usuarios.js",
+        "line": 21
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios",
+        "file": "Backend/routes/usuarios.js",
+        "line": 22
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/registrar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/convertir-a-musico",
+        "file": "Backend/routes/usuarios.js",
+        "line": 24
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/me",
+        "file": "Backend/routes/usuarios.js",
+        "line": 25
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/:identificador/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 26
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/seguir",
+        "file": "Backend/routes/usuarios.js",
+        "line": 27
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/bloquear",
+        "file": "Backend/routes/usuarios.js",
+        "line": 28
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/:identificador/bloquear",
+        "file": "Backend/routes/usuarios.js",
+        "line": 29
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/denunciar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 30
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/silenciar-notificaciones",
+        "file": "Backend/routes/usuarios.js",
+        "line": 31
+      },
+      {
+        "method": "GET",
+        "path": "/api/eventos",
+        "file": "Backend/routes/eventos.js",
+        "line": 8
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/crear",
+        "file": "Backend/routes/eventos.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/:id/guardar",
+        "file": "Backend/routes/eventos.js",
+        "line": 10
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/:id/denunciar",
+        "file": "Backend/routes/eventos.js",
+        "line": 11
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/eventos/:id",
+        "file": "Backend/routes/eventos.js",
+        "line": 12
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels",
+        "file": "Backend/routes/reels.js",
+        "line": 35
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels/descubrir",
+        "file": "Backend/routes/reels.js",
+        "line": 36
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels/:id",
+        "file": "Backend/routes/reels.js",
+        "line": 37
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/visita",
+        "file": "Backend/routes/reels.js",
+        "line": 38
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/interaccion",
+        "file": "Backend/routes/reels.js",
+        "line": 39
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels/:id/comentarios",
+        "file": "Backend/routes/reels.js",
+        "line": 40
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/comentarios/:comentarioId/like",
+        "file": "Backend/routes/reels.js",
+        "line": 41
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/reels/comentarios/:comentarioId",
+        "file": "Backend/routes/reels.js",
+        "line": 42
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/crear",
+        "file": "Backend/routes/reels.js",
+        "line": 43
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/comentarios",
+        "file": "Backend/routes/reels.js",
+        "line": 50
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/compartir",
+        "file": "Backend/routes/reels.js",
+        "line": 51
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/denunciar",
+        "file": "Backend/routes/reels.js",
+        "line": 52
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/like",
+        "file": "Backend/routes/reels.js",
+        "line": 53
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/guardar",
+        "file": "Backend/routes/reels.js",
+        "line": 54
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/reels/:id",
+        "file": "Backend/routes/reels.js",
+        "line": 55
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidades",
+        "file": "Backend/routes/comunidades.js",
+        "line": 8
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidades/:comunidadId/publicaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 10
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/:comunidadId/notificaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 11
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/:comunidadId/publicaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 12
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/comentarios",
+        "file": "Backend/routes/comunidades.js",
+        "line": 13
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/like",
+        "file": "Backend/routes/comunidades.js",
+        "line": 14
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/denunciar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 16
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/publicaciones/:publicacionId",
+        "file": "Backend/routes/comunidades.js",
+        "line": 17
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/like",
+        "file": "Backend/routes/comunidades.js",
+        "line": 18
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 19
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/denunciar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 20
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidad-perfil/:identificador",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 7
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidad-perfil/publicaciones",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 8
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidad-perfil/publicaciones/:publicacionId/respuestas",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 14
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidad-perfil/publicaciones/:publicacionId",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 20
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidad-perfil/respuestas/:respuestaId",
+        "file": "Backend/routes/perfilComunidad.js",
+        "line": 21
+      },
+      {
+        "method": "GET",
+        "path": "/api/notificaciones",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 7
+      },
+      {
+        "method": "GET",
+        "path": "/api/notificaciones/no-leidas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 8
+      },
+      {
+        "method": "POST",
+        "path": "/api/notificaciones/leer-todas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/notificaciones/:id/leer",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 10
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/notificaciones/leidas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 11
+      },
+      {
+        "method": "POST",
+        "path": "/api/soporte/mensaje",
+        "file": "Backend/routes/soporte.js",
+        "line": 5
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/no-leidos",
+        "file": "Backend/routes/mensajes.js",
+        "line": 8
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/conversaciones",
+        "file": "Backend/routes/mensajes.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/conversaciones",
+        "file": "Backend/routes/mensajes.js",
+        "line": 10
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/conversaciones/:conversationId/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 11
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/conversaciones/:conversationId/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 12
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/mensajes/conversaciones/:conversationId/leer",
+        "file": "Backend/routes/mensajes.js",
+        "line": 13
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/mensajes/mensajes/:messageId",
+        "file": "Backend/routes/mensajes.js",
+        "line": 14
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/mensajes/mensajes/:messageId",
+        "file": "Backend/routes/mensajes.js",
+        "line": 15
+      }
+    ],
+    "mobile": [
+      {
+        "method": "POST",
+        "path": "/api/usuarios/crear-cuenta",
+        "file": "Backend/routes/usuarios.js",
+        "line": 12
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me",
+        "file": "Backend/routes/usuarios.js",
+        "line": 13
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/configuracion",
+        "file": "Backend/routes/usuarios.js",
+        "line": 14
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/configuracion",
+        "file": "Backend/routes/usuarios.js",
+        "line": 15
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/exportar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 16
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 17
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 18
+      },
+      {
+        "method": "PUT",
+        "path": "/api/usuarios/me/onboarding",
+        "file": "Backend/routes/usuarios.js",
+        "line": 19
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/me/comunidad",
+        "file": "Backend/routes/usuarios.js",
+        "line": 20
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/seguidos",
+        "file": "Backend/routes/usuarios.js",
+        "line": 21
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/me/bloqueados",
+        "file": "Backend/routes/usuarios.js",
+        "line": 22
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/comunidad/:id/comentarios",
+        "file": "Backend/routes/usuarios.js",
+        "line": 23
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/comunidad/:id/denunciar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 24
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/comunidad/:id",
+        "file": "Backend/routes/usuarios.js",
+        "line": 25
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios",
+        "file": "Backend/routes/usuarios.js",
+        "line": 26
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/registrar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 27
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/convertir-a-musico",
+        "file": "Backend/routes/usuarios.js",
+        "line": 28
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/me",
+        "file": "Backend/routes/usuarios.js",
+        "line": 29
+      },
+      {
+        "method": "GET",
+        "path": "/api/usuarios/:identificador/perfil",
+        "file": "Backend/routes/usuarios.js",
+        "line": 30
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/seguir",
+        "file": "Backend/routes/usuarios.js",
+        "line": 31
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/bloquear",
+        "file": "Backend/routes/usuarios.js",
+        "line": 32
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/usuarios/:identificador/bloquear",
+        "file": "Backend/routes/usuarios.js",
+        "line": 33
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/denunciar",
+        "file": "Backend/routes/usuarios.js",
+        "line": 34
+      },
+      {
+        "method": "POST",
+        "path": "/api/usuarios/:identificador/silenciar-notificaciones",
+        "file": "Backend/routes/usuarios.js",
+        "line": 35
+      },
+      {
+        "method": "GET",
+        "path": "/api/eventos",
+        "file": "Backend/routes/eventos.js",
+        "line": 14
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/crear",
+        "file": "Backend/routes/eventos.js",
+        "line": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/:id/guardar",
+        "file": "Backend/routes/eventos.js",
+        "line": 16
+      },
+      {
+        "method": "POST",
+        "path": "/api/eventos/:id/denunciar",
+        "file": "Backend/routes/eventos.js",
+        "line": 17
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/eventos/:id",
+        "file": "Backend/routes/eventos.js",
+        "line": 18
+      },
+      {
+        "method": "GET",
+        "path": "/api/posts/muro",
+        "file": "Backend/routes/posts.js",
+        "line": 6
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels",
+        "file": "Backend/routes/reels.js",
+        "line": 14
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels/descubrir",
+        "file": "Backend/routes/reels.js",
+        "line": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/visita",
+        "file": "Backend/routes/reels.js",
+        "line": 16
+      },
+      {
+        "method": "GET",
+        "path": "/api/reels/:id/comentarios",
+        "file": "Backend/routes/reels.js",
+        "line": 17
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/comentarios/:comentarioId/like",
+        "file": "Backend/routes/reels.js",
+        "line": 18
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/reels/comentarios/:comentarioId",
+        "file": "Backend/routes/reels.js",
+        "line": 19
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/crear",
+        "file": "Backend/routes/reels.js",
+        "line": 20
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/comentarios",
+        "file": "Backend/routes/reels.js",
+        "line": 29
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/compartir",
+        "file": "Backend/routes/reels.js",
+        "line": 30
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/denunciar",
+        "file": "Backend/routes/reels.js",
+        "line": 31
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/like",
+        "file": "Backend/routes/reels.js",
+        "line": 32
+      },
+      {
+        "method": "POST",
+        "path": "/api/reels/:id/guardar",
+        "file": "Backend/routes/reels.js",
+        "line": 33
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/reels/:id",
+        "file": "Backend/routes/reels.js",
+        "line": 34
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 6
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/:comunidadId/membresia",
+        "file": "Backend/routes/comunidades.js",
+        "line": 7
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidades",
+        "file": "Backend/routes/comunidades.js",
+        "line": 9
+      },
+      {
+        "method": "GET",
+        "path": "/api/comunidades/:comunidadId/publicaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 10
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/:comunidadId/publicaciones",
+        "file": "Backend/routes/comunidades.js",
+        "line": 11
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/comentarios",
+        "file": "Backend/routes/comunidades.js",
+        "line": 12
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/like",
+        "file": "Backend/routes/comunidades.js",
+        "line": 13
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 14
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/publicaciones/:publicacionId/denunciar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 15
+      },
+      {
+        "method": "POST",
+        "path": "/api/comunidades/comentarios/:comentarioId/like",
+        "file": "Backend/routes/comunidades.js",
+        "line": 16
+      },
+      {
+        "method": "PUT",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 17
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/comentarios/:comentarioId/guardar",
+        "file": "Backend/routes/comunidades.js",
+        "line": 18
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/comunidades/comentarios/:comentarioId",
+        "file": "Backend/routes/comunidades.js",
+        "line": 19
+      },
+      {
+        "method": "GET",
+        "path": "/api/notificaciones",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 7
+      },
+      {
+        "method": "GET",
+        "path": "/api/notificaciones/no-leidas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 8
+      },
+      {
+        "method": "POST",
+        "path": "/api/notificaciones/leer-todas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/notificaciones/:id/leer",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 10
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/notificaciones/leidas",
+        "file": "Backend/routes/notificaciones.js",
+        "line": 11
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 7
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes",
+        "file": "Backend/routes/mensajes.js",
+        "line": 8
+      },
+      {
+        "method": "GET",
+        "path": "/api/mensajes/:id",
+        "file": "Backend/routes/mensajes.js",
+        "line": 9
+      },
+      {
+        "method": "POST",
+        "path": "/api/mensajes/:id",
+        "file": "Backend/routes/mensajes.js",
+        "line": 10
+      }
+    ]
+  },
+  "mobileReferences": [
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 59,
+      "path": "/api/comunidades"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 71,
+      "path": "/api/comunidades/${active.id}/publicaciones?filtro=${filter}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 93,
+      "path": "/api/comunidades/"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 119,
+      "path": "/api/comunidades/${id}/membresia"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 150,
+      "path": "/api/comunidades/publicaciones/${post.id}/${kind}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 168,
+      "path": "/api/comunidades/${active.id}/publicaciones"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 187,
+      "path": "/api/comunidades/publicaciones/${openPost.id}/comentarios"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 211,
+      "path": "/api/comunidades/comentarios/"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 227,
+      "path": "/api/comunidades/comentarios/${target.id}/like"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 254,
+      "path": "/api/comunidades/comentarios/${target.id}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/community.tsx",
+      "line": 273,
+      "path": "/api/comunidades/publicaciones/${reportTarget.id}/denunciar"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 75,
+      "path": "/api/reels/descubrir"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 110,
+      "path": "/api/reels/${reel.backendId || reel.id}/${kind}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 118,
+      "path": "/api/reels/${reel.backendId || reel.id}/comentarios"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 131,
+      "path": "/api/reels/${commentReel.backendId || commentReel.id}/comentarios"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 141,
+      "path": "/api/usuarios/${reel.creadorId}/seguir"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 147,
+      "path": "/api/reels/${reel.backendId || reel.id}/compartir"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 179,
+      "path": "/api/reels/comentarios/${target.id}/like"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 200,
+      "path": "/api/reels/comentarios/${target.id}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 219,
+      "path": "/api/reels/${reportTarget.backendId || reportTarget.id}/denunciar"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 237,
+      "path": "/api/reels/${reel.backendId || reel.id}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 297,
+      "path": "/api/reels/crear"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/discover.tsx",
+      "line": 305,
+      "path": "/api/reels/${item.backendId || item.id}/visita"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 91,
+      "path": "/api/eventos"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 118,
+      "path": "/api/usuarios?query=${encodeURIComponent(organizerQuery)}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 157,
+      "path": "/api/usuarios/me/perfil"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 164,
+      "path": "/api/eventos/crear"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 184,
+      "path": "/api/eventos/${event.id}/guardar"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 232,
+      "path": "/api/eventos/${reportTarget.id}/denunciar"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/index.tsx",
+      "line": 245,
+      "path": "/api/eventos/${event.id}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/search.tsx",
+      "line": 36,
+      "path": "/api/usuarios?query=${encodeURIComponent(term)}"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/search.tsx",
+      "line": 37,
+      "path": "/api/reels"
+    },
+    {
+      "file": "sondar-mobile/app/(tabs)/search.tsx",
+      "line": 38,
+      "path": "/api/eventos"
+    },
+    {
+      "file": "sondar-mobile/app/messages.tsx",
+      "line": 67,
+      "path": "/api/mensajes"
+    },
+    {
+      "file": "sondar-mobile/app/messages.tsx",
+      "line": 94,
+      "path": "/api/mensajes/${conversationId}"
+    },
+    {
+      "file": "sondar-mobile/app/messages.tsx",
+      "line": 112,
+      "path": "/api/mensajes"
+    },
+    {
+      "file": "sondar-mobile/app/messages.tsx",
+      "line": 164,
+      "path": "/api/usuarios?query=${encodeURIComponent(term)}"
+    },
+    {
+      "file": "sondar-mobile/app/messages.tsx",
+      "line": 196,
+      "path": "/api/mensajes/${selected.id}"
+    },
+    {
+      "file": "sondar-mobile/app/notifications.tsx",
+      "line": 18,
+      "path": "/api/notificaciones?limit=80"
+    },
+    {
+      "file": "sondar-mobile/app/notifications.tsx",
+      "line": 22,
+      "path": "/api/notificaciones/${item.id}/leer"
+    },
+    {
+      "file": "sondar-mobile/app/notifications.tsx",
+      "line": 33,
+      "path": "/api/notificaciones/leer-todas"
+    },
+    {
+      "file": "sondar-mobile/app/notifications.tsx",
+      "line": 34,
+      "path": "/api/notificaciones/leidas"
+    },
+    {
+      "file": "sondar-mobile/app/onboarding.tsx",
+      "line": 94,
+      "path": "/api/usuarios/me/onboarding"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 33,
+      "path": "/api/usuarios/me/configuracion"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 34,
+      "path": "/api/usuarios/me/bloqueados"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 35,
+      "path": "/api/usuarios/me/perfil"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 51,
+      "path": "/api/usuarios/me/configuracion"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 53,
+      "path": "/api/usuarios/me/exportar"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 67,
+      "path": "/api/usuarios/me"
+    },
+    {
+      "file": "sondar-mobile/app/settings.tsx",
+      "line": 80,
+      "path": "/api/usuarios/${item.id}/bloquear"
+    },
+    {
+      "file": "sondar-mobile/components/community-attachments.tsx",
+      "line": 22,
+      "path": "/api/eventos"
+    },
+    {
+      "file": "sondar-mobile/components/community-attachments.tsx",
+      "line": 22,
+      "path": "/api/reels"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 71,
+      "path": "/api/usuarios/me/perfil"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 71,
+      "path": "/api/usuarios/${identifier}/perfil"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 120,
+      "path": "/api/usuarios/me/perfil"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 125,
+      "path": "/api/usuarios/${identifier}/seguir"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 126,
+      "path": "/api/usuarios/${identifier}/silenciar-notificaciones"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 127,
+      "path": "/api/usuarios/${identifier}/bloquear"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 137,
+      "path": "/api/usuarios/${identifier}/denunciar"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 152,
+      "path": "/api/usuarios/me/comunidad"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 167,
+      "path": "/api/usuarios/comunidad/${post.id}/comentarios"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 177,
+      "path": "/api/usuarios/comunidad/${post.id}"
+    },
+    {
+      "file": "sondar-mobile/components/profile-view.tsx",
+      "line": 185,
+      "path": "/api/usuarios/comunidad/${communityReport.id}/denunciar"
+    },
+    {
+      "file": "sondar-mobile/components/sondar-ui.tsx",
+      "line": 53,
+      "path": "/api/notificaciones/no-leidas"
+    },
+    {
+      "file": "sondar-mobile/contexts/auth.tsx",
+      "line": 79,
+      "path": "/api/usuarios/me"
+    },
+    {
+      "file": "sondar-mobile/contexts/auth.tsx",
+      "line": 101,
+      "path": "/api/usuarios/me"
+    },
+    {
+      "file": "sondar-mobile/contexts/auth.tsx",
+      "line": 109,
+      "path": "/api/usuarios/crear-cuenta"
+    }
+  ],
+  "database": {
+    "webCounts": {
+      "tables": 36,
+      "columns": 246,
+      "constraints": 148,
+      "policies": 88,
+      "triggers": 15,
+      "indexes": 94,
+      "functions": 11,
+      "migrations": 5,
+      "buckets": 3,
+      "publications": 6
+    },
+    "mobileCounts": {
+      "tables": 39,
+      "columns": 261,
+      "constraints": 161,
+      "policies": 92,
+      "triggers": 15,
+      "indexes": 102,
+      "functions": 11,
+      "migrations": 6,
+      "buckets": 3,
+      "publications": 0
+    },
+    "webMigrations": [
+      {
+        "version": "20260930151057",
+        "name": "remote_schema"
+      },
+      {
+        "version": "20261015182000",
+        "name": "generos_definitivos"
+      },
+      {
+        "version": "20261015190000",
+        "name": "retirar_reggae"
+      },
+      {
+        "version": "20261016090000",
+        "name": "respuestas_sin_seguir"
+      },
+      {
+        "version": "20261022120000",
+        "name": "alinear_catalogo_y_contrato"
+      }
+    ],
+    "mobileMigrations": [
+      {
+        "version": "20260930151057",
+        "name": "remote_schema"
+      },
+      {
+        "version": "20261015182000",
+        "name": "generos_definitivos"
+      },
+      {
+        "version": "20261015190000",
+        "name": "retirar_reggae"
+      },
+      {
+        "version": "20261016090000",
+        "name": "respuestas_sin_seguir"
+      },
+      {
+        "version": "20261022120000",
+        "name": "alinear_catalogo_y_contrato"
+      },
+      {
+        "version": "20261030120000",
+        "name": "compatibilidad_mobile"
+      }
+    ],
+    "extraMobileTables": [
+      "profile_community_comments",
+      "profile_community_posts",
+      "user_genre_preferences"
+    ],
+    "extraWebColumns": [
+      "users.deletion_requested_at",
+      "users.deletion_scheduled_at"
+    ],
+    "actualWebColumnsAbsentFromFresh": [
+      "users.deletion_requested_at",
+      "users.deletion_scheduled_at"
+    ],
+    "commonColumnTypesAndNullabilityMatch": true,
+    "commonConstraintDefinitionsMatch": true,
+    "commonPolicyDefinitionsMatch": true,
+    "commonIndexDefinitionsMatch": true,
+    "commonTriggerDefinitionsMatch": true,
+    "webBuckets": [
+      {
+        "id": "eventos",
+        "name": "eventos",
+        "public": true,
+        "file_size_limit": 5242880,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif"
+        ]
+      },
+      {
+        "id": "perfiles",
+        "name": "perfiles",
+        "public": true,
+        "file_size_limit": 5242880,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif"
+        ]
+      },
+      {
+        "id": "reels",
+        "name": "reels",
+        "public": true,
+        "file_size_limit": 20971520,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "audio/mpeg",
+          "audio/mp3",
+          "audio/wav",
+          "audio/x-wav",
+          "audio/wave",
+          "audio/ogg",
+          "audio/webm",
+          "audio/mp4",
+          "audio/x-m4a"
+        ]
+      }
+    ],
+    "mobileBuckets": [
+      {
+        "id": "eventos",
+        "name": "eventos",
+        "public": true,
+        "file_size_limit": 5242880,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif"
+        ]
+      },
+      {
+        "id": "perfiles",
+        "name": "perfiles",
+        "public": true,
+        "file_size_limit": 5242880,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif"
+        ]
+      },
+      {
+        "id": "reels",
+        "name": "reels",
+        "public": true,
+        "file_size_limit": 20971520,
+        "allowed_mime_types": [
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "image/gif",
+          "audio/mpeg",
+          "audio/mp3",
+          "audio/wav",
+          "audio/ogg",
+          "audio/webm",
+          "audio/mp4"
+        ]
+      }
+    ]
+  },
+  "migrationChecks": {
+    "ok": true,
+    "checks": [
+      "migration 20260930151057_remote_schema.sql",
+      "migration 20261015182000_generos_definitivos.sql",
+      "migration 20261015190000_retirar_reggae.sql",
+      "migration 20261016090000_respuestas_sin_seguir.sql",
+      "migration 20261022120000_alinear_catalogo_y_contrato.sql",
+      "catalogo de siete generos",
+      "reaplicacion conserva contenido y guardados",
+      "normaliza genero antiguo conservando guardados",
+      "conserva tabla personal y elimina tablas legacy vacias",
+      "RLS permite responder sin seguir",
+      "RLS rechaza respuesta ante bloqueo",
+      "tablas legacy con datos abortan y conservan filas"
+    ]
+  },
+  "integrationChecks": {
+    "ok": true,
+    "checks": [
+      {
+        "name": "salud API web",
+        "method": "GET",
+        "route": "/api/health",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "registro web 3",
+        "method": "POST",
+        "route": "/api/usuarios/crear-cuenta",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "Auth local 3",
+        "pass": true
+      },
+      {
+        "name": "registro web 4",
+        "method": "POST",
+        "route": "/api/usuarios/crear-cuenta",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "Auth local 4",
+        "pass": true
+      },
+      {
+        "name": "onboarding multipart movil con API web",
+        "method": "PUT",
+        "route": "/api/usuarios/me/onboarding",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "lectura perfil web",
+        "method": "GET",
+        "route": "/api/usuarios/me/perfil",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "claves respuesta perfil web",
+        "keys": [
+          "perfil",
+          "publicaciones",
+          "eventos",
+          "likes",
+          "guardados",
+          "seguidores",
+          "seguidos",
+          "siguiendo",
+          "silenciado",
+          "stats"
+        ],
+        "pass": true
+      },
+      {
+        "name": "CORS web 3001",
+        "method": "GET",
+        "route": "/api/usuarios/me",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "CORS Expo web 8081 rechazado actualmente",
+        "method": "GET",
+        "route": "/api/usuarios/me",
+        "status": 500,
+        "expected": 500,
+        "pass": true
+      },
+      {
+        "name": "membresia PUT movil incompatible",
+        "method": "PUT",
+        "route": "/api/comunidades/rock/membresia",
+        "status": 404,
+        "expected": 404,
+        "pass": true
+      },
+      {
+        "name": "membresia POST web",
+        "method": "POST",
+        "route": "/api/comunidades/rock/membresia",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "evento multipart movil incompatible",
+        "method": "POST",
+        "route": "/api/eventos/crear",
+        "status": 400,
+        "expected": 400,
+        "pass": true
+      },
+      {
+        "name": "evento JSON web",
+        "method": "POST",
+        "route": "/api/eventos/crear",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "respuesta evento sin titulo ni descripcion",
+        "pass": true
+      },
+      {
+        "name": "borrado evento sin password movil",
+        "method": "DELETE",
+        "route": "/api/eventos/4",
+        "status": 400,
+        "expected": 400,
+        "pass": true
+      },
+      {
+        "name": "borrado cuenta sin password en body movil",
+        "method": "DELETE",
+        "route": "/api/usuarios/me",
+        "status": 400,
+        "expected": 400,
+        "pass": true
+      },
+      {
+        "name": "comunidad perfil ruta movil inexistente",
+        "method": "POST",
+        "route": "/api/usuarios/me/comunidad",
+        "status": 404,
+        "expected": 404,
+        "pass": true
+      },
+      {
+        "name": "comunidad perfil ruta web",
+        "method": "POST",
+        "route": "/api/comunidad-perfil/publicaciones",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "mensajes listado ruta movil inexistente",
+        "method": "GET",
+        "route": "/api/mensajes",
+        "status": 404,
+        "expected": 404,
+        "pass": true
+      },
+      {
+        "name": "crear conversacion web",
+        "method": "POST",
+        "route": "/api/mensajes/conversaciones",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "leer mensajes web",
+        "method": "GET",
+        "route": "/api/mensajes/conversaciones/53b3add6-ce05-46cd-86cc-0fd742be45fc/mensajes",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "descubrir web",
+        "method": "GET",
+        "route": "/api/reels/descubrir",
+        "status": 200,
+        "expected": 200,
+        "pass": true
+      },
+      {
+        "name": "upload multigenero movil concatenado incompatible",
+        "method": "POST",
+        "route": "/api/reels/crear",
+        "status": 400,
+        "expected": 400,
+        "pass": true
+      },
+      {
+        "name": "upload multipart audio con generos web",
+        "method": "POST",
+        "route": "/api/reels/crear",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "URL media usa host interno al configurar SUPABASE_URL interno",
+        "pass": true,
+        "hostname": "host.docker.internal"
+      },
+      {
+        "name": "Storage devuelve audio con Range",
+        "status": 206,
+        "pass": true
+      },
+      {
+        "name": "interaccion escucha contrato web",
+        "method": "POST",
+        "route": "/api/reels/2/interaccion",
+        "status": 202,
+        "expected": 202,
+        "pass": true
+      },
+      {
+        "name": "envio mensaje contrato web",
+        "method": "POST",
+        "route": "/api/mensajes/conversaciones/53b3add6-ce05-46cd-86cc-0fd742be45fc/mensajes",
+        "status": 201,
+        "expected": 201,
+        "pass": true
+      },
+      {
+        "name": "Realtime broadcast privado directo Supabase",
+        "pass": true
+      }
+    ]
+  },
+  "checks": {
+    "webHost": {
+      "backendTests": 114,
+      "frontendTests": 3,
+      "lint": "pass",
+      "build": "fail: missing MapLibre packages in current installation"
+    },
+    "webCleanWindows": {
+      "npmCi": "pass",
+      "build": "pass"
+    },
+    "webCleanLinuxNode24": {
+      "npmCi": "pass",
+      "backendTests": 114,
+      "build": "pass"
+    },
+    "mobileCleanWindows": {
+      "npmCi": "pass with Node 25 engine warnings",
+      "tests": 20,
+      "typecheck": "pass",
+      "lint": "pass"
+    },
+    "mobileCleanLinuxNode24": {
+      "npmCi": "pass",
+      "tests": 20,
+      "androidJavaScriptHermesExport": "pass; 1770 modules; not an APK build"
+    }
+  },
+  "limits": [
+    "No prueba en telefono fisico ni emulador: no se encontro adb en ubicacion estandar",
+    "Arranque Metro en Docker rechazado por revision automatica: blocked by policy; proxy WebSocket en vivo pendiente",
+    "No se inicio ni migro la instancia web original; se contrasto una copia offline de su volumen",
+    "No se comprobo produccion ni recursos Supabase alojados",
+    "Bundle exportado no verifica permisos nativos, reproduccion real ni conectividad LAN"
+  ],
+  "artifactsContain": "Solo metadata de esquema, referencias de codigo y resultados de fixtures; sin filas de usuarios ni credenciales",
+  "cleanup": {
+    "containersStopped": true,
+    "clonedPostgresContainersRemoved": true,
+    "originalVolumesPreserved": true,
+    "temporaryVolumeAndDirectoryRemoval": "blocked by automatic review; generic reason: blocked by policy",
+    "temporaryDirectory": "C:/Users/tebyb/AppData/Local/Temp/sondar-preflight-ix8mCo",
+    "temporaryVolumes": [
+      "sondar_preflight_backend_modules_20261030",
+      "sondar_preflight_frontend_modules_20261030",
+      "sondar_preflight_mobile_20261030",
+      "sondar_preflight_mobile_modules_20261030",
+      "sondar_preflight_web_20261030",
+      "supabase_db_sondar-preflight-integration-20261030",
+      "supabase_storage_sondar-preflight-integration-20261030"
+    ]
+  }
+}

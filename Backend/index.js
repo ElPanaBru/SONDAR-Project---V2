@@ -1,15 +1,18 @@
-require('./env');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
+const pool = require('./Pool_DB');
+const { esquemaAutomatico } = require('./services/schemaMode');
 const usuariosRoutes = require('./routes/usuarios');
 const eventosRoutes = require('./routes/eventos');
-const postsRoutes = require('./routes/posts');
 const reelsRoutes = require('./routes/reels');
 const comunidadesRoutes = require('./routes/comunidades');
+const perfilComunidadRoutes = require('./routes/perfilComunidad');
 const notificacionesRoutes = require('./routes/notificaciones');
+const soporteRoutes = require('./routes/soporte');
 const mensajesRoutes = require('./routes/mensajes');
 const { asegurarEsquemaConfiguracion } = require('./services/settingsSchema');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const allowedOrigins = new Set([
@@ -19,12 +22,8 @@ const allowedOrigins = new Set([
   'http://localhost:3001',
   'http://127.0.0.1:3001',
   'http://localhost:8081',
-  'http://127.0.0.1:8081',
-  'http://localhost:19006',
-  'http://127.0.0.1:19006'
+  'http://127.0.0.1:8081'
 ].filter(Boolean));
-
-const devPorts = new Set(['3001', '5173', '8081', '19006']);
 
 function esOrigenDesarrolloLocal(origin) {
   try {
@@ -34,7 +33,7 @@ function esOrigenDesarrolloLocal(origin) {
       || /^10\./.test(url.hostname)
       || /^192\.168\./.test(url.hostname)
       || /^172\.(1[6-9]|2\d|3[01])\./.test(url.hostname);
-    return url.protocol === 'http:' && hostLocal && devPorts.has(url.port);
+    return url.protocol === 'http:' && hostLocal && ['3001', '5173', '8081'].includes(url.port);
   } catch {
     return false;
   }
@@ -50,23 +49,14 @@ app.use(cors({
 
     callback(new Error(`Origen no permitido por CORS: ${origin}`));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true // Recomendado para mantener sesiones y tokens seguros
 }));
 
 app.use(express.json({ limit: '8mb' }));
 
-app.get('/api/health', async (req, res) => {
-  if (req.query.database === '1') {
-    try {
-      await require('./Pool_DB').query('SELECT 1');
-      return res.json({ ok: true, database: 'ready' });
-    } catch (error) {
-      console.error('La base de datos no esta disponible:', error.code || error.message);
-      return res.status(503).json({ ok: false, database: 'unavailable', error: 'El backend no puede conectar con la base de datos.' });
-    }
-  }
+app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
     port: PORT,
@@ -75,25 +65,27 @@ app.get('/api/health', async (req, res) => {
     dbHost: process.env.DB_HOST || null,
     dbName: process.env.DB_NAME || null,
     dbUser: process.env.DB_USER || null,
-    settingsSchema: 3
+    settingsSchema: 4
   });
 });
 
 // Rutas Globales de la API
 app.use('/api/usuarios', usuariosRoutes);
 app.use('/api/eventos', eventosRoutes);
-app.use('/api/posts', postsRoutes);
 app.use('/api/reels', reelsRoutes);
 app.use('/api/comunidades', comunidadesRoutes);
+app.use('/api/comunidad-perfil', perfilComunidadRoutes);
 app.use('/api/notificaciones', notificacionesRoutes);
+app.use('/api/soporte', soporteRoutes);
 app.use('/api/mensajes', mensajesRoutes);
 
 async function iniciarServidor() {
   try {
-    if (process.env.AUTO_MIGRATE_SETTINGS === 'true') {
+    if (esquemaAutomatico()) {
       await asegurarEsquemaConfiguracion();
     } else {
-      console.log('Migraciones automaticas de configuracion omitidas. Usa AUTO_MIGRATE_SETTINGS=true para ejecutarlas.');
+      await pool.query('SELECT 1');
+      console.log('Esquema manual: las migraciones del operador son la unica fuente de cambios SQL.');
     }
     app.listen(PORT, () => console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`));
   } catch (error) {

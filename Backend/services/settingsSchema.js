@@ -1,9 +1,8 @@
+const { esquemaAutomatico } = require('./schemaMode');
 const pool = require('../Pool_DB');
-const { asegurarEsquemaNotificaciones } = require('./notificationService');
 
 async function asegurarEsquemaConfiguracion() {
-  await asegurarEsquemaNotificaciones();
-
+  if (!esquemaAutomatico()) return;
   await pool.query(`
     WITH preparados AS (
       SELECT id, created_at,
@@ -25,6 +24,9 @@ async function asegurarEsquemaConfiguracion() {
     SET username = left(
       regexp_replace(regexp_replace(lower(username), '^@+', ''), '[^a-z0-9._-]', '', 'g'),
       30
+    )
+    WHERE username IS DISTINCT FROM left(
+      regexp_replace(regexp_replace(lower(username), '^@+', ''), '[^a-z0-9._-]', '', 'g'), 30
     )
   `);
 
@@ -55,17 +57,10 @@ async function asegurarEsquemaConfiguracion() {
       ADD COLUMN IF NOT EXISTS notificar_seguidores boolean NOT NULL DEFAULT true,
       ADD COLUMN IF NOT EXISTS notificar_publicaciones boolean NOT NULL DEFAULT true,
       ADD COLUMN IF NOT EXISTS notificar_menciones boolean NOT NULL DEFAULT true,
+      ADD COLUMN IF NOT EXISTS notificar_mensajes boolean NOT NULL DEFAULT true,
       ADD COLUMN IF NOT EXISTS reducir_movimiento boolean NOT NULL DEFAULT false
   `);
 
-  await pool.query(`
-    ALTER TABLE public.user_settings
-      DROP COLUMN IF EXISTS permitir_mensajes,
-      DROP COLUMN IF EXISTS login_alertas,
-      DROP COLUMN IF EXISTS newsletter,
-      DROP COLUMN IF EXISTS zona_horaria,
-      DROP COLUMN IF EXISTS perfil_privado
-  `);
 }
 
 module.exports = { asegurarEsquemaConfiguracion };

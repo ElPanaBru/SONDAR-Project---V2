@@ -1,14 +1,7 @@
-const { MUSIC_GENRES } = require('../services/genreService');
+const { GENEROS_MUSICALES } = require('../services/generos');
 const pool = require('../Pool_DB');
 const supabase = require('../services/supabaseClient');
-const supabaseAuth = supabase.authClient || supabase;
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey =
-  process.env.SUPABASE_ANON_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const {
-  asegurarEsquemaNotificaciones,
   crearNotificacion,
   eliminarNotificacion,
   nombreActor,
@@ -24,13 +17,7 @@ const {
   PERFILES_BUCKET,
 } = require('../services/storageService');
 const { asegurarEsquemaModeracion, registrarDenuncia } = require('../services/moderationService');
-const {
-  listProfileCommunity,
-  createProfileCommunityPost,
-  createProfileCommunityComment,
-  deleteProfileCommunityPost,
-  getProfileCommunityPost,
-} = require('../services/profileCommunityService');
+const supabaseAuth = supabase.authClient || supabase;
 
 const CONFIGURACION_INICIAL = Object.freeze({
   telefono: '',
@@ -42,6 +29,7 @@ const CONFIGURACION_INICIAL = Object.freeze({
   notificarSeguidores: true,
   notificarPublicaciones: true,
   notificarMenciones: true,
+  notificarMensajes: true,
   reducirMovimiento: false,
   mostrarEmail: false,
 });
@@ -49,62 +37,8 @@ const CONFIGURACION_INICIAL = Object.freeze({
 const IDIOMAS_VALIDOS = new Set(['es', 'en', 'pt']);
 const CODIGOS_PAIS_VALIDOS = new Set(['+54', '+55', '+56', '+598']);
 const PATRON_USERNAME = /^[a-z0-9._-]{3,30}$/;
-const GENEROS_ONBOARDING_VALIDOS = new Set(MUSIC_GENRES);
+const GENEROS_ONBOARDING = new Set(GENEROS_MUSICALES);
 const CREAR_AUTH_POR_SQL = String(process.env.AUTH_CREATE_VIA_SQL || 'true').toLowerCase() !== 'false';
-let esquemaUsuariosListo = null;
-let esquemaOnboardingListo = null;
-let adminAuthDisponible = Boolean(supabase.hasServiceRole);
-
-async function asegurarEsquemaUsuarios() {
-  if (!esquemaUsuariosListo) {
-    esquemaUsuariosListo = (async () => {
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS artist_name text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS bio text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS artist_bio text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_img_url text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_img_path text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS banner_url text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_url text');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS verified boolean DEFAULT false');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date date');
-      await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed boolean NOT NULL DEFAULT false');
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT timezone('utc'::text, now())");
-      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT timezone('utc'::text, now())");
-    })().catch((error) => {
-      esquemaUsuariosListo = null;
-      throw error;
-    });
-  }
-
-  return esquemaUsuariosListo;
-}
-
-async function asegurarEsquemaOnboarding() {
-  await asegurarEsquemaUsuarios();
-  if (!esquemaOnboardingListo) {
-    esquemaOnboardingListo = (async () => {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS user_genre_preferences (
-          user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          genero text NOT NULL,
-          peso integer NOT NULL DEFAULT 1,
-          created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
-          updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
-          CONSTRAINT user_genre_preferences_pkey PRIMARY KEY (user_id, genero),
-          CONSTRAINT user_genre_preferences_genero_valido
-            CHECK (genero IN (${MUSIC_GENRES.map(genero => `'${genero}'`).join(', ')}))
-        )
-      `);
-      await pool.query('CREATE INDEX IF NOT EXISTS idx_user_genre_preferences_genero ON user_genre_preferences(genero)');
-    })().catch((error) => {
-      esquemaOnboardingListo = null;
-      throw error;
-    });
-  }
-
-  return esquemaOnboardingListo;
-}
 
 function normalizarUsername(valor = '') {
   return String(valor).trim().replace(/^@+/, '').toLowerCase();
@@ -118,160 +52,168 @@ function validarUsername(valor) {
   return { username };
 }
 
-function normalizarGenerosOnboarding(valor) {
-  let recibidos = valor;
-  if (typeof valor === 'string') {
-    try {
-      recibidos = JSON.parse(valor);
-    } catch {
-      recibidos = valor.split(',');
-    }
+function mapearConfiguracion(row = {}) {
+  return {
+    telefono: row.telefono || '',
+    codigoPais: row.codigo_pais || CONFIGURACION_INICIAL.codigoPais,
+    idioma: row.idioma || CONFIGURACION_INICIAL.idioma,
+    actividadCuenta: row.actividad_cuenta ?? CONFIGURACION_INICIAL.actividadCuenta,
+    notificarInteracciones: row.notificar_interacciones ?? CONFIGURACION_INICIAL.notificarInteracciones,
+    notificarComentarios: row.notificar_comentarios ?? CONFIGURACION_INICIAL.notificarComentarios,
+    notificarSeguidores: row.notificar_seguidores ?? CONFIGURACION_INICIAL.notificarSeguidores,
+    notificarPublicaciones: row.notificar_publicaciones ?? CONFIGURACION_INICIAL.notificarPublicaciones,
+    notificarMenciones: row.notificar_menciones ?? CONFIGURACION_INICIAL.notificarMenciones,
+    notificarMensajes: row.notificar_mensajes ?? CONFIGURACION_INICIAL.notificarMensajes,
+    reducirMovimiento: row.reducir_movimiento ?? CONFIGURACION_INICIAL.reducirMovimiento,
+    mostrarEmail: row.mostrar_email ?? CONFIGURACION_INICIAL.mostrarEmail,
+  };
+}
+
+function validarConfiguracion(body = {}) {
+  const configuracion = {
+    telefono: String(body.telefono || '').trim().slice(0, 30),
+    codigoPais: String(body.codigoPais || ''),
+    idioma: String(body.idioma || ''),
+    actividadCuenta: body.actividadCuenta,
+    notificarInteracciones: body.notificarInteracciones,
+    notificarComentarios: body.notificarComentarios,
+    notificarSeguidores: body.notificarSeguidores,
+    notificarPublicaciones: body.notificarPublicaciones,
+    notificarMenciones: body.notificarMenciones,
+    notificarMensajes: body.notificarMensajes,
+    reducirMovimiento: body.reducirMovimiento,
+    mostrarEmail: body.mostrarEmail,
+  };
+
+  if (!IDIOMAS_VALIDOS.has(configuracion.idioma)) {
+    return { error: 'El idioma seleccionado no es valido.' };
+  }
+  if (!CODIGOS_PAIS_VALIDOS.has(configuracion.codigoPais)) {
+    return { error: 'El codigo de pais seleccionado no es valido.' };
+  }
+  const booleanos = [
+    'actividadCuenta', 'notificarInteracciones', 'notificarComentarios',
+    'notificarSeguidores', 'notificarPublicaciones', 'notificarMenciones',
+    'notificarMensajes',
+    'reducirMovimiento', 'mostrarEmail',
+  ];
+  if (booleanos.some((campo) => typeof configuracion[campo] !== 'boolean')) {
+    return { error: 'La configuracion contiene valores invalidos.' };
   }
 
-  if (!Array.isArray(recibidos)) return [];
-
-  return [...new Set(recibidos
-    .map((genero) => String(genero || '').trim().toLowerCase())
-    .filter((genero) => GENEROS_ONBOARDING_VALIDOS.has(genero)))];
+  return { configuracion };
 }
 
 function validarFechaNacimiento(valor) {
-  const raw = String(valor || '').trim();
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return { error: 'La fecha de nacimiento no es valida.' };
+  const texto = String(valor || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return { error: 'La fecha de nacimiento no es valida.' };
+  }
 
-  const fecha = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`);
-  if (Number.isNaN(fecha.getTime())) {
+  const fecha = new Date(`${texto}T00:00:00.000Z`);
+  if (Number.isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== texto) {
     return { error: 'La fecha de nacimiento no es valida.' };
   }
 
   const hoy = new Date();
-  const minimo = new Date(Date.UTC(hoy.getUTCFullYear() - 13, hoy.getUTCMonth(), hoy.getUTCDate()));
-  if (fecha > minimo) {
-    return { error: 'Debes tener al menos 13 anos para crear tu perfil.' };
-  }
+  let edad = hoy.getUTCFullYear() - fecha.getUTCFullYear();
+  const todaviaNoCumplio = hoy.getUTCMonth() < fecha.getUTCMonth()
+    || (hoy.getUTCMonth() === fecha.getUTCMonth() && hoy.getUTCDate() < fecha.getUTCDate());
+  if (todaviaNoCumplio) edad -= 1;
 
-  return { fecha: `${match[1]}-${match[2]}-${match[3]}` };
+  if (edad < 13) return { error: 'Debes tener al menos 13 años para crear una cuenta.' };
+  if (edad > 120) return { error: 'La fecha de nacimiento no es valida.' };
+  return { birthDate: texto };
 }
 
-function esErrorApiKeySupabase(error) {
-  const message = String(error?.message || '').toLowerCase();
-  return error?.status === 401 && (
-    message.includes('api key') ||
-    message.includes('jwt') ||
-    message.includes('invalid')
-  );
-}
-
-function mensajeErrorLegible(error) {
-  const message = String(
-    error?.message ||
-    error?.error_description ||
-    error?.error ||
-    error?.msg ||
-    error?.detail ||
-    error?.details ||
-    ''
-  ).trim();
-  if (!message || ['{}', '[]', 'null', 'undefined', '[object Object]'].includes(message)) return '';
-  return message;
-}
-
-function esErrorSupabaseOpaco(error) {
-  return !mensajeErrorLegible(error) || String(error?.message || '').trim() === '{}';
-}
-
-function esCorreoRegistrado(error) {
-  const lower = mensajeErrorLegible(error).toLowerCase();
-  return lower.includes('already been registered')
-    || lower.includes('already registered')
-    || lower.includes('user already registered')
-    || lower.includes('email already');
-}
-
-function traducirErrorAuth(error) {
-  const message = mensajeErrorLegible(error);
-  const lower = message.toLowerCase();
-
-  if (esCorreoRegistrado(error)) {
-    return 'El correo ya esta registrado.';
-  }
-  if (lower.includes('password')) {
-    return 'La contrasena no cumple los requisitos de seguridad.';
-  }
-  if (lower.includes('email')) {
-    return 'El email no tiene un formato valido.';
-  }
-
-  return message || 'No se pudo crear la cuenta. Revisa si el correo ya existe o intenta iniciar sesion.';
-}
-
-function crearErrorAuth(mensaje, status = 400) {
-  const error = new Error(mensaje);
-  error.status = status;
-  error.__isAuthError = true;
-  return error;
-}
-
-async function crearUsuarioAuthPublicoRest({ cleanEmail, cleanPassword, cleanUsername }) {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw crearErrorAuth('Falta configurar la anon key de Supabase en el backend.', 503);
-  }
-
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/auth/v1/signup`, {
-    method: 'POST',
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: cleanEmail,
-      password: cleanPassword,
-      data: { username: cleanUsername },
-    }),
-  });
-
-  const text = await response.text();
-  let payload = null;
+function validarGenerosOnboarding(valor) {
+  let recibidos;
   try {
-    payload = text ? JSON.parse(text) : null;
+    recibidos = typeof valor === 'string' ? JSON.parse(valor) : valor;
   } catch {
-    payload = { message: text };
+    return { error: 'La selección de géneros no es válida.' };
   }
-
-  if (!response.ok) {
-    const mensaje = mensajeErrorLegible(payload);
-    throw crearErrorAuth(
-      mensaje || 'Supabase rechazo el registro sin devolver detalle.',
-      response.status
-    );
+  if (!Array.isArray(recibidos)) return { error: 'La selección de géneros no es válida.' };
+  const generos = [...new Set(recibidos.map((item) => String(item || '').toLowerCase().trim()))];
+  if (generos.length < 3) return { error: 'Elegí al menos 3 géneros para continuar.' };
+  if (generos.length > GENEROS_MUSICALES.length || generos.some((genre) => !GENEROS_ONBOARDING.has(genre))) {
+    return { error: 'La selección de géneros no es válida.' };
   }
-
-  const userId = payload?.user?.id || payload?.id;
-  if (!userId) {
-    throw crearErrorAuth('Supabase no devolvio el usuario creado.', 502);
-  }
-
-  return { userId, creadoConAdmin: false };
+  return { generos };
 }
 
-async function recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword }) {
-  const { data, error } = await supabaseAuth.auth.signInWithPassword({
-    email: cleanEmail,
-    password: cleanPassword,
-  });
-
-  if (error || !data.user?.id) {
-    const loginError = new Error('El correo ya esta registrado. Inicia sesion o revisa la contrasena.');
-    loginError.status = 400;
-    throw loginError;
-  }
-
-  return { userId: data.user.id, creadoConAdmin: false, recuperadoConLogin: true };
+function esTimeoutSupabase(error) {
+  const mensaje = String(error?.message || error?.error_description || '').toLowerCase();
+  return error?.code === 'SUPABASE_TIMEOUT'
+    || error?.name === 'AbortError'
+    || mensaje.includes('upstream request timeout')
+    || mensaje.includes('tardo demasiado')
+    || mensaje.includes('timeout');
 }
 
-async function crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername }) {
+function esUsuarioAuthExistente(error) {
+  const mensaje = String(error?.message || error?.error_description || '').toLowerCase();
+  return error?.code === 'USER_ALREADY_REGISTERED'
+    || mensaje.includes('already been registered')
+    || mensaje.includes('user already registered')
+    || mensaje.includes('already registered')
+    || mensaje.includes('correo ya esta registrado');
+}
+
+function esKeySupabaseInvalida(error) {
+  const mensaje = String(error?.message || error?.error_description || error?.msg || '').toLowerCase();
+  return error?.status === 401
+    || error?.code === 401
+    || mensaje.includes('unregistered api key')
+    || mensaje.includes('invalid api key')
+    || mensaje.includes('api key');
+}
+
+function esErrorValidacionArchivo(error) {
+  const mensaje = String(error?.message || '').toLowerCase();
+  return mensaje.includes('formato de imagen')
+    || mensaje.includes('imagen no puede superar')
+    || mensaje.includes('file too large');
+}
+
+function esErrorStorageNoBloqueante(error) {
+  const mensaje = String(error?.message || error?.error_description || error?.msg || '').toLowerCase();
+  return esTimeoutSupabase(error)
+    || esKeySupabaseInvalida(error)
+    || mensaje.includes('invalid compact jws')
+    || mensaje.includes('jwt')
+    || mensaje.includes('storage')
+    || mensaje.includes('no se pudo subir');
+}
+
+async function subirAvatarOpcional(file, userId, contexto, accessToken) {
+  if (!file) return { avatar: null, advertencia: null };
+
+  try {
+    return {
+      avatar: await subirAvatarUsuario(file, userId, accessToken),
+      advertencia: null,
+    };
+  } catch (error) {
+    if (esErrorValidacionArchivo(error) || !esErrorStorageNoBloqueante(error)) {
+      throw error;
+    }
+
+    console.warn(`No se pudo subir avatar en ${contexto}; se continua sin foto:`, error.message);
+    return {
+      avatar: null,
+      advertencia: 'No se pudo guardar la foto ahora, pero el perfil se completo.',
+    };
+  }
+}
+
+async function recuperarUsuarioAuthConPassword(email, password) {
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+  if (error || !data?.user?.id) return null;
+  return data.user;
+}
+
+async function crearUsuarioAuthPorSql({ email, password, username, userType }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -292,7 +234,7 @@ async function crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername
          crypt($2, gen_salt('bf')),
          timezone('utc'::text, now()),
          '{"provider":"email","providers":["email"]}'::jsonb,
-         jsonb_build_object('username', $3::text),
+         jsonb_build_object('username', $3::text, 'user_type', $4::text),
          '',
          '',
          '',
@@ -304,11 +246,11 @@ async function crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername
          timezone('utc'::text, now()),
          timezone('utc'::text, now())
        )
-       RETURNING id`,
-      [cleanEmail, cleanPassword, cleanUsername]
+       RETURNING id, email, raw_user_meta_data`,
+      [email, password, username, userType]
     );
 
-    const userId = userResult.rows[0].id;
+    const user = userResult.rows[0];
     await client.query(
       `INSERT INTO auth.identities (
          provider_id, user_id, identity_data, provider,
@@ -328,149 +270,168 @@ async function crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername
          timezone('utc'::text, now()),
          timezone('utc'::text, now())
        )`,
-      [userId, cleanEmail]
+      [user.id, email]
     );
 
     await client.query('COMMIT');
-    return { userId, creadoConAdmin: false, creadoPorSql: true };
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        user_metadata: user.raw_user_meta_data || { username, user_type: userType },
+      },
+      creadoEnEsteRequest: true,
+    };
   } catch (error) {
     await client.query('ROLLBACK').catch(() => null);
-    if (error.code === '23505') {
-      return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
-    }
     throw error;
   } finally {
     client.release();
   }
 }
 
-async function eliminarUsuarioAuthCreado(userId) {
-  if (!userId) return;
-  if (adminAuthDisponible) {
-    await supabase.auth.admin.deleteUser(userId).catch(() => null);
-  }
-  await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]).catch(() => null);
-}
-
-async function crearUsuarioAuthPublico(params) {
-  const { cleanEmail, cleanPassword, cleanUsername } = params;
+async function crearUsuarioAuthConSignup({ email, password, username, userType }) {
   const { data, error } = await supabaseAuth.auth.signUp({
-    email: cleanEmail,
-    password: cleanPassword,
-    options: { data: { username: cleanUsername } },
+    email,
+    password,
+    options: {
+      data: {
+        username,
+        user_type: userType,
+      },
+    },
   });
 
-  if (!error && data.user?.id) {
-    return { userId: data.user.id, creadoConAdmin: false };
-  }
-
-  if (error && esCorreoRegistrado(error)) {
-    return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
-  }
-
-  if (error && esErrorSupabaseOpaco(error)) {
-    try {
-      return await crearUsuarioAuthPublicoRest(params);
-    } catch (restError) {
-      if (esCorreoRegistrado(restError)) {
-        return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
-      }
-      throw restError;
-    }
-  }
-
   if (error) throw error;
-  throw crearErrorAuth('Supabase no devolvio el usuario creado.', 502);
+  if (!data?.user?.id) throw new Error('Supabase no devolvio el usuario registrado.');
+  if (Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    const errorExistente = new Error('El correo ya esta registrado.');
+    errorExistente.code = 'USER_ALREADY_REGISTERED';
+    throw errorExistente;
+  }
+
+  return { user: data.user, creadoEnEsteRequest: true };
 }
 
-async function crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername }) {
-  const userMetadata = { username: cleanUsername };
+async function eliminarUsuarioAuthCreado(userId, { ignorarErrores = true } = {}) {
+  if (!userId) return false;
 
+  let errorAdmin = null;
+  try {
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (!error) return true;
+    errorAdmin = error;
+  } catch (error) {
+    errorAdmin = error;
+  }
+
+  try {
+    await pool.query('DELETE FROM auth.users WHERE id = $1', [userId]);
+    return true;
+  } catch (errorSql) {
+    if (ignorarErrores) {
+      console.error('No se pudo limpiar el usuario de autenticacion:', errorAdmin || errorSql);
+      return false;
+    }
+    const error = new Error('No se pudo eliminar el usuario de autenticacion.');
+    error.cause = errorAdmin || errorSql;
+    throw error;
+  }
+}
+
+async function crearUsuarioAuth({ email, password, username, userType }) {
   if (CREAR_AUTH_POR_SQL) {
-    return crearUsuarioAuthPorSql({ cleanEmail, cleanPassword, cleanUsername });
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
   }
 
-  if (adminAuthDisponible) {
-    const { data, error } = await supabase.auth.admin.createUser({
-      email: cleanEmail,
-      password: cleanPassword,
+  let crear;
+  try {
+    crear = await supabase.auth.admin.createUser({
+      email,
+      password,
       email_confirm: true,
-      user_metadata: userMetadata,
+      user_metadata: {
+        username,
+        user_type: userType,
+      },
     });
-
-    if (!error) {
-      return { userId: data.user.id, creadoConAdmin: true };
+  } catch (error) {
+    if (esKeySupabaseInvalida(error)) {
+      return crearUsuarioAuthPorSql({ email, password, username, userType });
     }
 
-    if (esCorreoRegistrado(error)) {
-      return recuperarUsuarioAuthConPassword({ cleanEmail, cleanPassword });
+    if (esTimeoutSupabase(error)) {
+      const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+      if (usuarioRecuperado) {
+        return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+      }
+      return crearUsuarioAuthPorSql({ email, password, username, userType });
     }
 
-    if (esErrorApiKeySupabase(error)) {
-      adminAuthDisponible = false;
+    if (esUsuarioAuthExistente(error)) {
+      const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+      if (usuarioRecuperado) {
+        return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+      }
     }
-
-    if (!esErrorApiKeySupabase(error) && !esErrorSupabaseOpaco(error)) {
-      throw error;
-    }
-
-    console.warn('No se pudo crear cuenta con admin de Supabase; usando signUp publico como fallback.');
+    throw error;
   }
 
-  return crearUsuarioAuthPublico({ cleanEmail, cleanPassword, cleanUsername });
+  if (crear.error && esKeySupabaseInvalida(crear.error)) {
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
+  }
+
+  if (!crear.error && crear.data?.user?.id) {
+    return { user: crear.data.user, creadoEnEsteRequest: true };
+  }
+
+  if (crear.error && esTimeoutSupabase(crear.error)) {
+    const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+    if (usuarioRecuperado) {
+      return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+    }
+    return crearUsuarioAuthPorSql({ email, password, username, userType });
+  }
+
+  if (crear.error && esUsuarioAuthExistente(crear.error)) {
+    const usuarioRecuperado = await recuperarUsuarioAuthConPassword(email, password).catch(() => null);
+    if (usuarioRecuperado) {
+      return { user: usuarioRecuperado, creadoEnEsteRequest: false };
+    }
+  }
+
+  if (crear.error) throw crear.error;
+  throw new Error('Supabase no devolvio el usuario creado.');
 }
 
-function mapearConfiguracion(row = {}) {
-  return {
-    telefono: row.telefono || '',
-    codigoPais: row.codigo_pais || CONFIGURACION_INICIAL.codigoPais,
-    idioma: row.idioma || CONFIGURACION_INICIAL.idioma,
-    actividadCuenta: row.actividad_cuenta ?? CONFIGURACION_INICIAL.actividadCuenta,
-    notificarInteracciones: row.notificar_interacciones ?? CONFIGURACION_INICIAL.notificarInteracciones,
-    notificarComentarios: row.notificar_comentarios ?? CONFIGURACION_INICIAL.notificarComentarios,
-    notificarSeguidores: row.notificar_seguidores ?? CONFIGURACION_INICIAL.notificarSeguidores,
-    notificarPublicaciones: row.notificar_publicaciones ?? CONFIGURACION_INICIAL.notificarPublicaciones,
-    notificarMenciones: row.notificar_menciones ?? CONFIGURACION_INICIAL.notificarMenciones,
-    reducirMovimiento: row.reducir_movimiento ?? CONFIGURACION_INICIAL.reducirMovimiento,
-    mostrarEmail: row.mostrar_email ?? CONFIGURACION_INICIAL.mostrarEmail,
-  };
+async function buscarCuentaLocalExistente(email, username) {
+  const result = await pool.query(
+    `SELECT id, email, username
+     FROM users
+     WHERE lower(email) = lower($1) OR lower(username) = lower($2)
+     LIMIT 1`,
+    [email, username]
+  );
+  return result.rows[0] || null;
 }
 
-function validarConfiguracion(body = {}) {
-  const configuracion = {
-    telefono: String(body.telefono || '').trim().slice(0, 30),
-    codigoPais: String(body.codigoPais || ''),
-    idioma: String(body.idioma || ''),
-    actividadCuenta: body.actividadCuenta,
-    notificarInteracciones: body.notificarInteracciones,
-    notificarComentarios: body.notificarComentarios,
-    notificarSeguidores: body.notificarSeguidores,
-    notificarPublicaciones: body.notificarPublicaciones,
-    notificarMenciones: body.notificarMenciones,
-    reducirMovimiento: body.reducirMovimiento,
-    mostrarEmail: body.mostrarEmail,
-  };
-
-  if (!IDIOMAS_VALIDOS.has(configuracion.idioma)) {
-    return { error: 'El idioma seleccionado no es valido.' };
-  }
-  if (!CODIGOS_PAIS_VALIDOS.has(configuracion.codigoPais)) {
-    return { error: 'El codigo de pais seleccionado no es valido.' };
-  }
-  const booleanos = [
-    'actividadCuenta', 'notificarInteracciones', 'notificarComentarios',
-    'notificarSeguidores', 'notificarPublicaciones', 'notificarMenciones',
-    'reducirMovimiento', 'mostrarEmail',
-  ];
-  if (booleanos.some((campo) => typeof configuracion[campo] !== 'boolean')) {
-    return { error: 'La configuracion contiene valores invalidos.' };
-  }
-
-  return { configuracion };
+function programarNotificacionBienvenida(userId) {
+  setImmediate(() => {
+    crearNotificacion({
+      userId,
+      actorId: null,
+      type: 'welcome',
+      title: 'Bienvenido a SONDAR',
+      body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
+      targetUrl: '/descubrir',
+      uniqueKey: `welcome:${userId}`,
+    }).catch((error) => {
+      console.error('No se pudo programar la notificacion de bienvenida:', error);
+    });
+  });
 }
 
 async function obtenerConfiguracion(userId, client = pool) {
-  await asegurarEsquemaNotificaciones(client);
   const result = await client.query(
     'SELECT * FROM user_settings WHERE user_id = $1',
     [userId]
@@ -480,8 +441,7 @@ async function obtenerConfiguracion(userId, client = pool) {
 
 function nombreVisible(usuario) {
   return (
-    usuario?.artist_name ||
-    usuario?.full_name ||
+    usuario?.display_name ||
     usuario?.username ||
     usuario?.email?.split('@')[0] ||
     'Usuario SONDAR'
@@ -502,13 +462,8 @@ function mapearUsuarioPerfil(usuario, configuracion = CONFIGURACION_INICIAL, esP
     user_type: usuario.user_type,
     nombre: nombreVisible(usuario),
     usuario: usuarioVisible(usuario),
-    bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
-    birth_date: esPropio ? usuario.birth_date || null : null,
-    onboarding_completed: Boolean(usuario.onboarding_completed),
+    bio: usuario.bio || 'Artista en SONDAR.',
     avatar: usuario.profile_img_url || '',
-    banner: usuario.banner_url || '',
-    instagram: usuario.instagram_url || '',
-    verificado: Boolean(usuario.verified),
   };
 }
 
@@ -519,27 +474,30 @@ function mapearUsuarioBusqueda(usuario, stats = {}) {
     user_type: usuario.user_type,
     nombre: nombreVisible(usuario),
     usuario: usuarioVisible(usuario),
-    bio: usuario.bio || usuario.artist_bio || 'Artista en SONDAR.',
+    bio: usuario.bio || 'Artista en SONDAR.',
     avatar: usuario.profile_img_url || '',
-    banner: usuario.banner_url || '',
-    verificado: Boolean(usuario.verified),
     seguidores: Number(stats.seguidores || 0),
     publicaciones: Number(stats.publicaciones || 0),
   };
 }
 
 function mapearReelPerfil(reel) {
+  const generos = [...new Set(
+    (Array.isArray(reel.generos) ? reel.generos : [reel.genero])
+      .map((genero) => String(genero || '').trim().toLowerCase())
+      .filter(Boolean)
+  )].slice(0, 3);
   return {
     id: reel.id,
     tipo: 'reel',
     nombre: reel.titulo,
-    detalle: `${reel.album || 'Reel'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
+    detalle: `${generos.join(' / ') || 'Preview'}${reel.duracion ? ` - ${reel.duracion}` : ''}`,
     imagen: reel.portada_url || '',
     audio: reel.audio_url || '',
-    genero: reel.genero || '',
-    descripcion: reel.descripcion || '',
+    genero: generos[0] || reel.genero || '',
+    generos,
     creadorId: reel.creador_id,
-    visitas: Number(reel.visitas || 0),
+    visitas: Number(reel.visitas_calculadas ?? reel.visitas ?? 0),
   };
 }
 
@@ -547,22 +505,50 @@ function mapearEventoPerfil(evento) {
   return {
     id: evento.id,
     tipo: 'evento',
-    nombre: evento.titulo,
-    detalle: evento.lugar || 'Evento',
-    imagen: evento.img_url || '',
+    nombre: evento.creador_nombre || evento.creador || 'Artista SONDAR',
+    detalle: `${evento.genero || 'Evento'}${evento.lugar ? ` - ${evento.lugar}` : ''}`,
+    imagen: '/sondar-icon.png',
     fecha: evento.fecha,
     genero: evento.genero || '',
     creadorId: evento.creador_id,
   };
 }
 
+function mapearGuardadoComunidad(item) {
+  const esComentario = item.tipo_guardado === 'comentario';
+  return {
+    id: `${esComentario ? 'comentario' : 'publicacion'}-${item.id}`,
+    tipo: esComentario ? 'comentario-comunidad' : 'publicacion-comunidad',
+    nombre: esComentario
+      ? `Comentario en s/${item.comunidad_genero || 'comunidad'}`
+      : item.titulo || `Publicacion en s/${item.comunidad_genero || 'comunidad'}`,
+    detalle: item.texto || '',
+    imagen: item.portada_url || '',
+    comunidadId: item.comunidad_id,
+    publicacionId: Number(item.publicacion_id || item.id),
+    comentarioId: esComentario ? Number(item.id) : null,
+    guardadoEn: item.guardado_en,
+  };
+}
+
 async function asegurarUsuarioPublico(user) {
-  const existing = await pool.query('SELECT id FROM users WHERE id = $1', [user.id]);
-  if (!existing.rowCount) {
-    const error = new Error('Esta cuenta ya no tiene un perfil SONDAR activo.');
-    error.status = 403;
-    throw error;
-  }
+  const email = user.email || `${user.id}@sin-email.local`;
+  const baseUsername =
+    user.user_metadata?.username ||
+    user.user_metadata?.name ||
+    email.split('@')[0] ||
+    'usuario';
+  const username = normalizarUsername(baseUsername).replace(/[^a-z0-9._-]/g, '').slice(0, 21) || 'usuario';
+  const usernameSeguro = `${username}_${user.id.slice(0, 8)}`;
+
+  await pool.query(
+    `INSERT INTO users (id, email, username, user_type)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (id) DO UPDATE
+     SET email = EXCLUDED.email
+     RETURNING id`,
+    [user.id, email, usernameSeguro, process.env.DEFAULT_USER_TYPE || 'musico']
+  );
 }
 
 async function buscarUsuarioPerfil(identificador) {
@@ -590,8 +576,6 @@ async function consultarOpcional(query, params = [], fallbackRows = []) {
 }
 
 async function obtenerDatosPerfil(targetUserId, viewerUserId) {
-  await require('./comunidadController').asegurarEsquemaComunidades();
-  await require('../services/profileCommunityService').ensureProfileCommunitySchema();
   await asegurarEsquemaModeracion();
   const bloqueoResult = viewerUserId && targetUserId !== viewerUserId
     ? await pool.query(
@@ -605,15 +589,23 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const [usuarioResult, reelsResult, eventosResult, publicacionesStatsResult] = await Promise.all([
     pool.query('SELECT * FROM users WHERE id = $1', [targetUserId]),
     pool.query(
-      `SELECT * FROM reels
+      `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
+       FROM reels r
        WHERE creador_id = $1
        ORDER BY created_at DESC, id DESC`,
       [targetUserId]
     ),
     pool.query(
-      `SELECT * FROM eventos
-       WHERE creador_id = $1
-       ORDER BY fecha DESC, id DESC`,
+      `SELECT e.*, COALESCE(u.display_name, u.username, 'Artista SONDAR') AS creador_nombre
+       FROM eventos e
+       LEFT JOIN users u ON u.id = e.creador_id
+       WHERE e.creador_id = $1
+       ORDER BY e.fecha DESC, e.id DESC`,
       [targetUserId]
     ),
     pool.query(
@@ -625,20 +617,25 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   ]);
 
   const [
-    favoritosResult,
-    reelsGuardadosResult,
+    likesResult,
     eventosGuardadosResult,
+    reelsGuardadosResult,
+    publicacionesComunidadGuardadasResult,
+    comentariosComunidadGuardadosResult,
     seguidoresStatsResult,
     seguidosStatsResult,
     siguiendoResult,
     seguidoresResult,
     silenciadoResult,
     seguidosResult,
-    comunidadGuardadaResult,
-    comentariosGuardadosResult,
   ] = await Promise.all([
     consultarOpcional(
-      `SELECT r.*
+      `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reel_likes rl
        JOIN reels r ON r.id = rl.reel_id
        WHERE rl.user_id = $1
@@ -646,7 +643,21 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
       [targetUserId]
     ),
     consultarOpcional(
-      `SELECT r.*
+      `SELECT e.*, COALESCE(u.display_name, u.username, 'Artista SONDAR') AS creador_nombre
+       FROM event_saves es
+       JOIN eventos e ON e.id = es.event_id
+       LEFT JOIN users u ON u.id = e.creador_id
+       WHERE es.user_id = $1
+       ORDER BY es.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT r.*,
+              COALESCE(
+                (SELECT array_agg(rg.genero ORDER BY rg.posicion) FROM reel_generos rg WHERE rg.reel_id = r.id),
+                ARRAY[lower(r.genero)]::text[]
+              ) AS generos,
+              (SELECT COUNT(*)::int FROM reel_views rv WHERE rv.reel_id = r.id) AS visitas_calculadas
        FROM reel_saves rs
        JOIN reels r ON r.id = rs.reel_id
        WHERE rs.user_id = $1
@@ -654,11 +665,40 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
       [targetUserId]
     ),
     consultarOpcional(
-      `SELECT e.*
-       FROM event_saves es
-       JOIN eventos e ON e.id = es.event_id
-       WHERE es.user_id = $1
-       ORDER BY es.created_at DESC`,
+      `SELECT
+         'publicacion' AS tipo_guardado,
+         cpg.created_at AS guardado_en,
+         cp.id,
+         cp.id AS publicacion_id,
+         cp.comunidad_id,
+         cp.titulo,
+         cp.texto,
+         c.genero AS comunidad_genero,
+         c.portada_url
+       FROM comunidad_publicacion_guardados cpg
+       JOIN comunidad_publicaciones cp ON cp.id = cpg.publicacion_id
+       JOIN comunidades c ON c.id = cp.comunidad_id
+       WHERE cpg.user_id = $1
+       ORDER BY cpg.created_at DESC`,
+      [targetUserId]
+    ),
+    consultarOpcional(
+      `SELECT
+         'comentario' AS tipo_guardado,
+         ccg.created_at AS guardado_en,
+         cc.id,
+         cc.publicacion_id,
+         cp.comunidad_id,
+         NULL::text AS titulo,
+         cc.texto,
+         c.genero AS comunidad_genero,
+         c.portada_url
+       FROM comunidad_comentario_guardados ccg
+       JOIN comunidad_comentarios cc ON cc.id = ccg.comentario_id
+       JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
+       JOIN comunidades c ON c.id = cp.comunidad_id
+       WHERE ccg.user_id = $1
+       ORDER BY ccg.created_at DESC`,
       [targetUserId]
     ),
     consultarOpcional(
@@ -700,26 +740,6 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
        ORDER BY f.created_at DESC`,
       [targetUserId]
     ),
-    targetUserId === viewerUserId
-      ? consultarOpcional(
-          `SELECT cp.id, cp.comunidad_id, cp.titulo, cp.texto, c.titulo AS comunidad_titulo, c.portada_url
-           FROM comunidad_publicacion_guardados cg
-           JOIN comunidad_publicaciones cp ON cp.id = cg.publicacion_id
-           JOIN comunidades c ON c.id = cp.comunidad_id
-           WHERE cg.user_id = $1 AND c.activa = true
-           ORDER BY cg.created_at DESC, cp.id DESC`,
-          [targetUserId]
-        )
-      : Promise.resolve({ rows: [] }),
-    targetUserId === viewerUserId
-      ? consultarOpcional(
-          `SELECT cc.id, cc.texto, cc.publicacion_id, cp.comunidad_id, cp.titulo, u.username
-           FROM comunidad_comentario_guardados cg
-           JOIN comunidad_comentarios cc ON cc.id = cg.comentario_id
-           JOIN comunidad_publicaciones cp ON cp.id = cc.publicacion_id
-           LEFT JOIN users u ON u.id = cc.user_id
-           WHERE cg.user_id = $1 ORDER BY cg.created_at DESC, cc.id DESC`, [targetUserId])
-      : Promise.resolve({ rows: [] }),
   ]);
 
   const usuario = usuarioResult.rows[0];
@@ -728,45 +748,33 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
   const seguidosStats = seguidosStatsResult.rows[0] || {};
   const reels = contenidoBloqueado ? [] : reelsResult.rows.map(mapearReelPerfil);
   const eventos = contenidoBloqueado ? [] : eventosResult.rows.map(mapearEventoPerfil);
-  const reelsGuardados = reelsGuardadosResult.rows.map((reel) => ({
-    ...mapearReelPerfil(reel),
-    guardadoTipo: 'reel',
-  }));
   const eventosGuardados = eventosGuardadosResult.rows.map((evento) => ({
     ...mapearEventoPerfil(evento),
     guardadoTipo: 'evento',
   }));
+  const reelsGuardados = reelsGuardadosResult.rows.map((reel) => ({
+    ...mapearReelPerfil(reel),
+    guardadoTipo: 'reel',
+  }));
+  const guardadosComunidad = [
+    ...publicacionesComunidadGuardadasResult.rows,
+    ...comentariosComunidadGuardadosResult.rows,
+  ]
+    .sort((a, b) => new Date(b.guardado_en) - new Date(a.guardado_en))
+    .map(mapearGuardadoComunidad);
 
   const configuracion = await obtenerConfiguracion(targetUserId).catch((error) => {
     if (error.code === '42P01') return CONFIGURACION_INICIAL;
     throw error;
   });
   const esPropio = targetUserId === viewerUserId;
-  const comunidad = contenidoBloqueado ? [] : await listProfileCommunity(targetUserId);
 
   return {
     perfil: mapearUsuarioPerfil(usuario, configuracion, esPropio),
     publicaciones: reels,
     eventos,
-    favoritos: esPropio ? favoritosResult.rows.map(mapearReelPerfil) : [],
-    guardados: esPropio ? [...reelsGuardados, ...eventosGuardados] : [],
-    guardadosComentarios: esPropio ? comentariosGuardadosResult.rows.map(item => ({
-      id: Number(item.id), tipo: 'comentario', guardadoTipo: 'comentario',
-      comunidadId: item.comunidad_id, publicacionId: Number(item.publicacion_id),
-      nombre: item.username ? '@' + item.username : 'Comentario',
-      detalle: item.titulo, texto: item.texto,
-    })) : [],
-    guardadosComunidad: esPropio ? comunidadGuardadaResult.rows.map(item => ({
-      id: Number(item.id),
-      tipo: 'comunidad',
-      guardadoTipo: 'comunidad',
-      comunidadId: item.comunidad_id,
-      nombre: item.titulo,
-      detalle: item.comunidad_titulo,
-      texto: item.texto,
-      imagen: item.portada_url || '',
-    })) : [],
-    comunidad,
+    likes: esPropio ? likesResult.rows.map(mapearReelPerfil) : [],
+    guardados: esPropio ? [...reelsGuardados, ...eventosGuardados, ...guardadosComunidad] : [],
     seguidores: seguidoresResult.rows.map((item) => mapearUsuarioPerfil(item)),
     seguidos: seguidosResult.rows.map((item) => mapearUsuarioPerfil(item)),
     siguiendo: Boolean(siguiendoResult.rows[0]?.siguiendo),
@@ -782,91 +790,30 @@ async function obtenerDatosPerfil(targetUserId, viewerUserId) {
 }
 
 const usuariosController = {
-  crearPublicacionComunidadPerfil: async (req, res) => {
-    try {
-      await asegurarUsuarioPublico(req.user);
-      const post = await createProfileCommunityPost({
-        userId: req.user.id,
-        texto: req.body?.texto,
-        attachmentType: req.body?.attachmentType,
-        attachmentId: req.body?.attachmentId,
-      });
-      res.status(201).json(post);
-    } catch (error) {
-      console.error('Error al publicar en la comunidad del perfil:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo publicar la actualización.' });
-    }
-  },
-
-  comentarPublicacionComunidadPerfil: async (req, res) => {
-    try {
-      await asegurarUsuarioPublico(req.user);
-      const comment = await createProfileCommunityComment({ userId: req.user.id, postId: req.params.id, texto: req.body?.texto });
-      res.status(201).json(comment);
-    } catch (error) {
-      console.error('Error al responder una publicación del perfil:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo enviar la respuesta.' });
-    }
-  },
-
-  eliminarPublicacionComunidadPerfil: async (req, res) => {
-    try {
-      const deleted = await deleteProfileCommunityPost({ userId: req.user.id, postId: req.params.id });
-      res.json({ ok: true, id: deleted.id });
-    } catch (error) {
-      console.error('Error al eliminar una publicación del perfil:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo eliminar la publicación.' });
-    }
-  },
-
-  denunciarPublicacionComunidadPerfil: async (req, res) => {
-    try {
-      const post = await getProfileCommunityPost(req.params.id);
-      if (!post) return res.status(404).json({ error: 'La publicación ya no está disponible.' });
-      const result = await registrarDenuncia({
-        reporterId: req.user.id,
-        reportedUserId: post.user_id,
-        contentType: 'perfil',
-        contentId: `perfil-comunidad:${post.id}`,
-        reason: req.body?.reason,
-        details: req.body?.detail,
-      });
-      res.json(result);
-    } catch (error) {
-      console.error('Error al denunciar una publicación del perfil:', error);
-      res.status(error.status || 500).json({ error: error.message || 'No se pudo enviar la denuncia.' });
-    }
-  },
-
   buscarUsuarios: async (req, res) => {
     const termino = String(req.query.query || '').trim();
 
-    if (!termino) {
-      return res.json([]);
-    }
-
     try {
-      await asegurarEsquemaUsuarios();
       const patron = `%${termino}%`;
       const result = await pool.query(
-        `SELECT *
+        termino ? `SELECT *
          FROM users
          WHERE
           username ILIKE $1 OR
           email ILIKE $1 OR
-          COALESCE(full_name, '') ILIKE $1 OR
-          COALESCE(artist_name, '') ILIKE $1 OR
-          COALESCE(bio, '') ILIKE $1 OR
-          COALESCE(artist_bio, '') ILIKE $1
+          COALESCE(display_name, '') ILIKE $1 OR
+          COALESCE(bio, '') ILIKE $1
          ORDER BY
           CASE
             WHEN lower(username) = lower($2) THEN 0
-            WHEN lower(COALESCE(artist_name, full_name, username)) = lower($2) THEN 1
+            WHEN lower(COALESCE(display_name, username)) = lower($2) THEN 1
             ELSE 2
           END,
           created_at DESC
-         LIMIT 20`,
-        [patron, termino]
+         LIMIT 20` : `SELECT *
+         FROM users
+         ORDER BY lower(COALESCE(NULLIF(display_name, ''), username)), lower(username), id`,
+        termino ? [patron, termino] : []
       );
 
       if (result.rows.length === 0) {
@@ -912,9 +859,7 @@ const usuariosController = {
     const cleanPassword = typeof password === 'string' ? password : '';
     const tipoUsuario = user_type || process.env.DEFAULT_USER_TYPE || 'musico';
     let authUserId = null;
-    let authUserCreadoConAdmin = false;
-    let authUserCreadoPorSql = false;
-    let authUserRecuperadoConLogin = false;
+    let authCreadoEnEsteRequest = false;
 
     if (!cleanEmail || !cleanPassword || !username) {
       return res.status(400).json({ error: 'Email, contrasena y nombre de usuario son obligatorios.' });
@@ -932,51 +877,30 @@ const usuariosController = {
     }
 
     try {
-      const usuarioExistente = await pool.query(
-        `SELECT id, email, username
-         FROM users
-         WHERE lower(email) = lower($1) OR lower(username) = lower($2)
-         LIMIT 1`,
-        [cleanEmail, cleanUsername]
-      );
-      if (usuarioExistente.rows[0]) {
-        const existente = usuarioExistente.rows[0];
-        if (String(existente.email || '').toLowerCase() === cleanEmail) {
-          return res.status(400).json({ error: 'El correo ya esta registrado. Inicia sesion.' });
-        }
+      const cuentaExistente = await buscarCuentaLocalExistente(cleanEmail, cleanUsername);
+      if (cuentaExistente?.email?.toLowerCase() === cleanEmail) {
+        return res.status(400).json({ error: 'El correo ya esta registrado. Inicia sesion.' });
+      }
+      if (cuentaExistente?.username?.toLowerCase() === cleanUsername) {
         return res.status(400).json({ error: 'Ese nombre de usuario ya esta en uso.' });
       }
 
-      const authUser = await crearUsuarioAuth({ cleanEmail, cleanPassword, cleanUsername });
-      authUserId = authUser.userId;
-      authUserCreadoConAdmin = authUser.creadoConAdmin;
-      authUserCreadoPorSql = Boolean(authUser.creadoPorSql);
-      authUserRecuperadoConLogin = Boolean(authUser.recuperadoConLogin);
+      const { user, creadoEnEsteRequest } = await crearUsuarioAuth({
+        email: cleanEmail,
+        password: cleanPassword,
+        username: cleanUsername,
+        userType: tipoUsuario,
+      });
 
-      const existente = await pool.query(
-        `SELECT *
-         FROM users
-         WHERE id = $1 OR lower(email) = lower($2) OR lower(username) = lower($3)
-         LIMIT 1`,
-        [authUserId, cleanEmail, cleanUsername]
-      );
-
-      if (existente.rows[0]) {
-        const row = existente.rows[0];
-        if (row.id === authUserId && String(row.email || '').toLowerCase() === cleanEmail) {
-          return res.status(authUserRecuperadoConLogin ? 200 : 201).json({
-            ...row,
-            creadoConAdmin: authUserCreadoConAdmin,
-            recuperadoConLogin: authUserRecuperadoConLogin,
-          });
-        }
-
-        return res.status(400).json({ error: 'El email o nombre de usuario ya esta en uso.' });
-      }
+      authUserId = user.id;
+      authCreadoEnEsteRequest = creadoEnEsteRequest;
 
       const query = `
         INSERT INTO users (id, email, username, user_type)
         VALUES ($1, $2, $3, $4)
+        ON CONFLICT (id) DO UPDATE
+        SET email = EXCLUDED.email,
+            user_type = EXCLUDED.user_type
         RETURNING *`;
 
       const result = await pool.query(query, [
@@ -986,22 +910,11 @@ const usuariosController = {
         tipoUsuario
       ]);
 
-      await crearNotificacion({
-        userId: authUserId,
-        actorId: null,
-        type: 'welcome',
-        title: 'Bienvenido a SONDAR',
-        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
-        targetUrl: '/descubrir',
-        uniqueKey: `welcome:${authUserId}`,
-      });
+      programarNotificacionBienvenida(authUserId);
 
-      res.status(201).json({
-        ...result.rows[0],
-        creadoConAdmin: authUserCreadoConAdmin,
-      });
+      res.status(201).json(result.rows[0]);
     } catch (error) {
-      if (authUserId && (authUserCreadoConAdmin || authUserCreadoPorSql)) {
+      if (authUserId && authCreadoEnEsteRequest) {
         await eliminarUsuarioAuthCreado(authUserId);
       }
 
@@ -1013,12 +926,12 @@ const usuariosController = {
         return res.status(400).json({ error: 'El tipo de usuario no es valido para la base de datos.' });
       }
 
-      if (esErrorApiKeySupabase(error)) {
-        return res.status(503).json({ error: 'La configuracion de Supabase del backend no es valida.' });
+      if (esUsuarioAuthExistente(error)) {
+        return res.status(400).json({ error: 'El correo ya esta registrado.' });
       }
 
-      if (error.__isAuthError || error.status) {
-        return res.status(400).json({ error: traducirErrorAuth(error) });
+      if (esTimeoutSupabase(error)) {
+        return res.status(503).json({ error: 'El servicio de autenticacion tardo demasiado. Proba de nuevo en unos segundos.' });
       }
 
       console.error('Error al crear cuenta:', error);
@@ -1031,7 +944,12 @@ const usuariosController = {
 
     try {
       const result = await pool.query(
-        'SELECT * FROM users WHERE id = $1',
+        `SELECT u.*,
+                (u.onboarding_completed OR (
+                  length(trim(u.display_name)) >= 2 AND u.birth_date IS NOT NULL
+                  AND (SELECT count(DISTINCT genre) FROM user_interests WHERE user_id = u.id) >= 3
+                )) IS TRUE AS onboarding_completed
+         FROM users u WHERE u.id = $1`,
         [userId]
       );
 
@@ -1046,113 +964,9 @@ const usuariosController = {
     }
   },
 
-  completarOnboarding: async (req, res) => {
-    const nombreLimpio = String(req.body?.nombre || '').trim();
-    const bioLimpia = String(req.body?.bio || '').trim();
-    const generos = normalizarGenerosOnboarding(req.body?.genres || req.body?.generos);
-    const fechaNacimiento = validarFechaNacimiento(req.body?.birthDate || req.body?.fechaNacimiento || req.body?.birth_date);
-    const client = await pool.connect();
-    let avatarSubido = null;
-    let transaccionActiva = false;
-
-    if (nombreLimpio.length < 2 || nombreLimpio.length > 80) {
-      client.release();
-      return res.status(400).json({ error: 'El nombre visible debe tener entre 2 y 80 caracteres.' });
-    }
-
-    if (bioLimpia.length > 180) {
-      client.release();
-      return res.status(400).json({ error: 'La bio no puede superar los 180 caracteres.' });
-    }
-
-    if (fechaNacimiento.error) {
-      client.release();
-      return res.status(400).json({ error: fechaNacimiento.error });
-    }
-
-    if (generos.length < 3) {
-      client.release();
-      return res.status(400).json({ error: 'Elegi al menos 3 generos para personalizar recomendaciones.' });
-    }
-
-    try {
-      await asegurarUsuarioPublico(req.user);
-      await asegurarEsquemaOnboarding();
-
-      avatarSubido = await subirAvatarUsuario(req.file, req.user.id, req.accessToken);
-
-      await client.query('BEGIN');
-      transaccionActiva = true;
-
-      const perfilAnterior = await client.query(
-        'SELECT profile_img_path FROM users WHERE id = $1',
-        [req.user.id]
-      );
-
-      const usuarioResult = await client.query(
-        `UPDATE users
-         SET full_name = $1,
-             artist_name = $1,
-             bio = $2,
-             artist_bio = $2,
-             birth_date = $3,
-             onboarding_completed = true,
-             profile_img_url = COALESCE($4, profile_img_url),
-             profile_img_path = COALESCE($5, profile_img_path),
-             updated_at = timezone('utc'::text, now())
-         WHERE id = $6
-         RETURNING *`,
-        [
-          nombreLimpio,
-          bioLimpia,
-          fechaNacimiento.fecha,
-          avatarSubido?.publicUrl || null,
-          avatarSubido?.path || null,
-          req.user.id,
-        ]
-      );
-
-      await client.query('DELETE FROM user_genre_preferences WHERE user_id = $1', [req.user.id]);
-      for (const [index, genero] of generos.entries()) {
-        await client.query(
-          `INSERT INTO user_genre_preferences (user_id, genero, peso, updated_at)
-           VALUES ($1, $2, $3, timezone('utc'::text, now()))
-           ON CONFLICT (user_id, genero) DO UPDATE
-           SET peso = EXCLUDED.peso,
-               updated_at = EXCLUDED.updated_at`,
-          [req.user.id, genero, generos.length - index]
-        );
-      }
-
-      await client.query('COMMIT');
-      transaccionActiva = false;
-
-      const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
-      if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
-        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch((error) => {
-          console.error('No se pudo eliminar el avatar anterior:', error);
-        });
-      }
-
-      res.json({
-        success: true,
-        perfil: mapearUsuarioPerfil(usuarioResult.rows[0], CONFIGURACION_INICIAL, true),
-        genres: generos,
-      });
-    } catch (error) {
-      if (transaccionActiva) await client.query('ROLLBACK').catch(() => null);
-      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
-      console.error('Error al completar onboarding:', error);
-      res.status(500).json({ error: req.file ? 'No se pudo guardar la foto. Volvé a elegirla e intentá nuevamente.' : 'No se pudo completar el perfil.' });
-    } finally {
-      client.release();
-    }
-  },
-
   obtenerConfiguracionActual: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
-      await asegurarEsquemaNotificaciones();
       const [configuracion, usuarioResult] = await Promise.all([
         obtenerConfiguracion(req.user.id),
         pool.query('SELECT username FROM users WHERE id = $1', [req.user.id]),
@@ -1175,7 +989,6 @@ const usuariosController = {
     const client = await pool.connect();
     try {
       await asegurarUsuarioPublico(req.user);
-      await asegurarEsquemaNotificaciones(client);
       await client.query('BEGIN');
       const usuarioResult = await client.query(
         'SELECT username FROM users WHERE id = $1',
@@ -1185,10 +998,10 @@ const usuariosController = {
         `INSERT INTO user_settings (
            user_id, telefono, codigo_pais, idioma, actividad_cuenta,
            notificar_interacciones, notificar_comentarios, notificar_seguidores,
-           notificar_publicaciones, notificar_menciones, reducir_movimiento,
-           mostrar_email, updated_at
+           notificar_publicaciones, notificar_menciones, notificar_mensajes,
+           reducir_movimiento, mostrar_email, updated_at
          ) VALUES (
-           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
            timezone('utc'::text, now())
          )
          ON CONFLICT (user_id) DO UPDATE SET
@@ -1201,6 +1014,7 @@ const usuariosController = {
            notificar_seguidores = EXCLUDED.notificar_seguidores,
            notificar_publicaciones = EXCLUDED.notificar_publicaciones,
            notificar_menciones = EXCLUDED.notificar_menciones,
+           notificar_mensajes = EXCLUDED.notificar_mensajes,
            reducir_movimiento = EXCLUDED.reducir_movimiento,
            mostrar_email = EXCLUDED.mostrar_email,
            updated_at = EXCLUDED.updated_at
@@ -1209,7 +1023,7 @@ const usuariosController = {
           req.user.id, c.telefono, c.codigoPais, c.idioma, c.actividadCuenta,
           c.notificarInteracciones, c.notificarComentarios,
           c.notificarSeguidores, c.notificarPublicaciones, c.notificarMenciones,
-          c.reducirMovimiento, c.mostrarEmail,
+          c.notificarMensajes, c.reducirMovimiento, c.mostrarEmail,
         ]
       );
 
@@ -1238,7 +1052,6 @@ const usuariosController = {
   exportarDatosActuales: async (req, res) => {
     try {
       await asegurarUsuarioPublico(req.user);
-      await asegurarEsquemaNotificaciones();
       const consultas = {
         cuenta: ['SELECT * FROM users WHERE id = $1', [req.user.id]],
         configuracion: ['SELECT * FROM user_settings WHERE user_id = $1', [req.user.id]],
@@ -1246,14 +1059,16 @@ const usuariosController = {
         eventos: ['SELECT * FROM eventos WHERE creador_id = $1 ORDER BY created_at DESC', [req.user.id]],
         seguimientos: ['SELECT * FROM follows WHERE follower_id = $1 OR following_id = $1', [req.user.id]],
         reels_que_gustan: ['SELECT * FROM reel_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        reels_guardados: ['SELECT * FROM reel_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         reels_compartidos: ['SELECT * FROM reel_shares WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         eventos_guardados: ['SELECT * FROM event_saves WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         comentarios_reels: ['SELECT * FROM reel_comments WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        publicaciones_comunidad: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        comentarios_comunidad: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        likes_comunidad: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
-        guardados_comunidad: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        publicaciones_foros: ['SELECT * FROM comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        membresias_foros: ['SELECT * FROM comunidad_miembros WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        comentarios_foros: ['SELECT * FROM comunidad_comentarios WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        likes_foros: ['SELECT * FROM comunidad_publicacion_likes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        guardados_foros: ['SELECT * FROM comunidad_publicacion_guardados WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        publicaciones_comunidad_perfil: ['SELECT * FROM perfil_comunidad_publicaciones WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
+        respuestas_comunidad_perfil: ['SELECT * FROM perfil_comunidad_respuestas WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         notificaciones: ['SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
         usuarios_silenciados: ['SELECT * FROM notification_mutes WHERE user_id = $1 ORDER BY created_at DESC', [req.user.id]],
       };
@@ -1289,6 +1104,99 @@ const usuariosController = {
     } catch (error) {
       console.error('Error al obtener perfil actual:', error);
       res.status(500).json({ error: 'No se pudo cargar el perfil.' });
+    }
+  },
+
+  completarOnboarding: async (req, res) => {
+    const nombre = String(req.body?.nombre || '').trim();
+    const bio = String(req.body?.bio || '').trim();
+    if (nombre.length < 2 || nombre.length > 32) {
+      return res.status(400).json({ error: 'El nombre visible debe tener entre 2 y 32 caracteres.' });
+    }
+    if (bio.length > 180) {
+      return res.status(400).json({ error: 'La bio no puede superar los 180 caracteres.' });
+    }
+    const validacion = validarFechaNacimiento(req.body?.birthDate);
+    if (validacion.error) return res.status(400).json({ error: validacion.error });
+    const validacionGeneros = validarGenerosOnboarding(req.body?.genres);
+    if (validacionGeneros.error) return res.status(400).json({ error: validacionGeneros.error });
+
+    let avatarSubido = null;
+    let avatarAdvertencia = null;
+    const client = await pool.connect();
+    try {
+      await asegurarUsuarioPublico(req.user);
+      const perfilAnterior = await client.query(
+        'SELECT profile_img_path FROM users WHERE id = $1',
+        [req.user.id]
+      );
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'onboarding', req.accessToken);
+      avatarSubido = avatarOpcional.avatar;
+      avatarAdvertencia = avatarOpcional.advertencia;
+
+      await client.query('BEGIN');
+      const result = await client.query(
+        `UPDATE users
+         SET display_name = $1,
+             bio = $2,
+             birth_date = $3,
+             onboarding_completed = true,
+             profile_img_url = COALESCE($4, profile_img_url),
+             profile_img_path = COALESCE($5, profile_img_path),
+             updated_at = timezone('utc'::text, now())
+         WHERE id = $6
+         RETURNING id, username, display_name, bio, profile_img_url, birth_date`,
+        [
+          nombre,
+          bio,
+          validacion.birthDate,
+          avatarSubido?.publicUrl || null,
+          avatarSubido?.path || null,
+          req.user.id,
+        ]
+      );
+      await client.query('DELETE FROM user_interests WHERE user_id = $1', [req.user.id]);
+      await client.query(
+        `INSERT INTO user_interests (user_id, genre)
+         SELECT $1, unnest($2::text[])`,
+        [req.user.id, validacionGeneros.generos]
+      );
+      await client.query('COMMIT');
+
+      const avatarAnteriorPath = perfilAnterior.rows[0]?.profile_img_path;
+      if (avatarSubido?.path && avatarAnteriorPath && avatarAnteriorPath !== avatarSubido.path) {
+        await eliminarAvatarUsuario(avatarAnteriorPath, req.accessToken).catch(() => null);
+      }
+
+      res.json({
+        ok: true,
+        perfil: {
+          id: result.rows[0].id,
+          username: result.rows[0].username,
+          nombre: result.rows[0].display_name || result.rows[0].username,
+          bio: result.rows[0].bio || '',
+          avatar: result.rows[0].profile_img_url || '',
+        },
+        birthDate: result.rows[0].birth_date,
+        genres: validacionGeneros.generos,
+        avatarWarning: avatarAdvertencia,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => null);
+      if (avatarSubido?.path) await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
+      if (esErrorValidacionArchivo(error)) {
+        return res.status(400).json({ error: error.message });
+      }
+      if (error.code === '23514' && error.constraint === 'user_interests_genre_check') {
+        return res.status(503).json({
+          code: 'CATALOGO_GENEROS_DESACTUALIZADO',
+          error: 'La base de datos del servidor tiene los generos desactualizados. El administrador debe actualizarla para completar tu perfil.',
+        });
+      }
+      console.error('Error al completar onboarding:', error);
+      res.status(500).json({ error: 'No se pudo completar el perfil.' });
+    } finally {
+      client.release();
     }
   },
 
@@ -1337,6 +1245,7 @@ const usuariosController = {
     const { nombre, bio, avatar } = req.body;
     const nombreLimpio = nombre?.trim();
     let avatarSubido = null;
+    let avatarAdvertencia = null;
 
     if (!nombreLimpio) {
       return res.status(400).json({ error: 'El nombre es obligatorio.' });
@@ -1348,12 +1257,13 @@ const usuariosController = {
         'SELECT profile_img_path FROM users WHERE id = $1',
         [req.user.id]
       );
-      avatarSubido = await subirAvatarUsuario(req.file, req.user.id, req.accessToken);
+      const avatarOpcional = await subirAvatarOpcional(req.file, req.user.id, 'perfil', req.accessToken);
+      avatarSubido = avatarOpcional.avatar;
+      avatarAdvertencia = avatarOpcional.advertencia;
       const avatarUrl = avatarSubido?.publicUrl || (/^https?:\/\//i.test(avatar || '') ? avatar : null);
       const result = await pool.query(
         `UPDATE users
-         SET full_name = $1,
-             artist_name = $1,
+         SET display_name = $1,
              bio = $2,
              profile_img_url = COALESCE($3, profile_img_url),
              profile_img_path = COALESCE($4, profile_img_path),
@@ -1376,10 +1286,17 @@ const usuariosController = {
         });
       }
 
-      res.json(mapearUsuarioPerfil(result.rows[0]));
+      res.json({
+        ...mapearUsuarioPerfil(result.rows[0]),
+        avatarWarning: avatarAdvertencia,
+      });
     } catch (error) {
       if (avatarSubido?.path) {
         await eliminarAvatarUsuario(avatarSubido.path, req.accessToken).catch(() => null);
+      }
+
+      if (esErrorValidacionArchivo(error)) {
+        return res.status(400).json({ error: error.message });
       }
 
       if (error.code === '23505') {
@@ -1498,7 +1415,6 @@ const usuariosController = {
     try {
       await asegurarUsuarioPublico(req.user);
       await asegurarEsquemaModeracion();
-      await asegurarEsquemaNotificaciones(client);
       const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
       if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
       if (usuarioEncontrado.id === req.user.id) {
@@ -1580,7 +1496,6 @@ const usuariosController = {
 
     try {
       await asegurarUsuarioPublico(req.user);
-      await asegurarEsquemaNotificaciones(client);
       const usuarioEncontrado = await buscarUsuarioPerfil(identificador);
       if (!usuarioEncontrado) return res.status(404).json({ error: 'Perfil no encontrado.' });
       if (usuarioEncontrado.id === req.user.id) {
@@ -1672,15 +1587,7 @@ const usuariosController = {
         tipoUsuario
       ]);
 
-      await crearNotificacion({
-        userId,
-        actorId: null,
-        type: 'welcome',
-        title: 'Bienvenido a SONDAR',
-        body: 'Aca vas a ver seguidores, respuestas, menciones y actividad de tus publicaciones.',
-        targetUrl: '/descubrir',
-        uniqueKey: `welcome:${userId}`,
-      });
+      programarNotificacionBienvenida(userId);
 
       res.status(201).json(result.rows[0]);
     } catch (error) {
@@ -1723,8 +1630,21 @@ const usuariosController = {
 
   eliminarCuentaActual: async (req, res) => {
     const userId = req.user.id;
+    const password = String(req.body?.password || '');
+
+    if (!password) {
+      return res.status(400).json({ error: 'Ingresa tu contrasena para eliminar la cuenta.' });
+    }
 
     try {
+      const { data: acceso, error: loginError } = await supabaseAuth.auth.signInWithPassword({
+        email: req.user.email,
+        password,
+      });
+      if (loginError || acceso.user?.id !== userId) {
+        return res.status(401).json({ error: 'La contrasena es incorrecta.' });
+      }
+
       const [perfil, eventos, reels] = await Promise.all([
         pool.query('SELECT profile_img_path, profile_img_url FROM users WHERE id = $1', [userId]),
         pool.query('SELECT img_path, img_url FROM eventos WHERE creador_id = $1', [userId]),
@@ -1746,15 +1666,14 @@ const usuariosController = {
           eliminarArchivoReel(reel.audio_path || extraerRutaPublica(reel.audio_url, REELS_BUCKET), req.accessToken),
         ]),
       ];
-      const storageResults = await Promise.allSettled(eliminacionesStorage);
-      storageResults
-        .filter((resultado) => resultado.status === 'rejected')
-        .forEach((resultado) => console.error('No se pudo limpiar un archivo al eliminar cuenta:', resultado.reason));
+      await Promise.all(eliminacionesStorage);
 
-      await pool.query('DELETE FROM users WHERE id = $1', [userId]).catch((error) => {
-        console.error('No se pudo eliminar el perfil publico antes del auth user:', error);
-      });
-      await eliminarUsuarioAuthCreado(userId);
+      await eliminarUsuarioAuthCreado(userId, { ignorarErrores: false });
+
+      const usuarioRestante = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);
+      if (usuarioRestante.rowCount > 0) {
+        throw new Error('La cuenta de autenticacion se elimino, pero el perfil publico sigue presente.');
+      }
 
       res.json({ success: true });
     } catch (error) {

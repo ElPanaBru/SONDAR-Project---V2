@@ -1,27 +1,76 @@
-import { GENEROS_MUSICALES } from "../lib/generos";
+import { GENEROS_MUSICALES, ETIQUETAS_GENEROS, normalizarGeneroMusical } from "../lib/generos";
+import { formatearPrecioEvento } from "../lib/formatearPrecioEvento";
+import { ordenarEventos } from "../lib/ordenarEventos";
+import ImagenAvatar from "../componentes/ImagenAvatar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./eventos.css";
 import L from "leaflet";
-import { apiUrl } from "../lib/api";
+import { maplibreGL } from "@maplibre/maplibre-gl-leaflet";
+import { setWorkerUrl } from "maplibre-gl";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
 import CampoMenciones from "../componentes/CampoMenciones";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
+import PerfilToast from "../componentes/PerfilToast";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import { usePreferencias } from "../contextos/preferencias";
 import "../componentes/eventoOrganizadorPopover.css";
 
+setWorkerUrl(maplibreWorkerUrl);
 
 const GENEROS_PERMITIDOS = GENEROS_MUSICALES;
 const GENEROS_PERMITIDOS_SET = new Set(GENEROS_PERMITIDOS);
-const separarGeneros = value => String(value || "").toLowerCase().split(/\s*(?:\/|,|\|)\s*/).map(item => item.trim()).filter(item => GENEROS_PERMITIDOS_SET.has(item));
+const MAX_GENEROS_EVENTO = 3;
+const ETIQUETAS_GENERO = ETIQUETAS_GENEROS;
 
 const DURACION_ACERCAMIENTO_MAPA = 0.8;
 const SUAVIDAD_ACERCAMIENTO_MAPA = 0.25;
 const DOS_MESES_EN_MS = 1000 * 60 * 60 * 24 * 30 * 2;
 const COORDENADAS_INICIALES = { lat: -34.6037, lng: -58.3816 };
+const URL_TILES_OPENSTREETMAP = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const URL_ESTILO_MAPA_OSCURO = "https://tiles.openfreemap.org/styles/dark";
+const JAWG_ACCESS_TOKEN = import.meta.env.VITE_JAWG_ACCESS_TOKEN?.trim();
+const URL_TILES_LAGOON = "https://tile.jawg.io/jawg-lagoon/{z}/{x}/{y}{r}.png";
+// Mantiene un mapa claro disponible mientras se configura el token de Jawg Lagoon.
+const URL_ESTILO_MAPA_CLARO = JAWG_ACCESS_TOKEN
+  ? URL_TILES_LAGOON + "?access-token=" + encodeURIComponent(JAWG_ACCESS_TOKEN)
+  : "https://tiles.openfreemap.org/styles/liberty";
+const CLAVE_TEMA_MAPA = "sondar:tema-mapa";
+const VERSION_CAPA_MAPA = 6;
+const ATRIBUCION_OPENSTREETMAP = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ATRIBUCION_OPENFREEMAP = '<a href="https://openfreemap.org">OpenFreeMap</a> &copy; <a href="https://openmaptiles.org">OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const ATRIBUCION_JAWG = '&copy; <a href="https://www.jawg.io/" title="Tiles Courtesy of Jawg Maps">Jawg Maps</a> ' + ATRIBUCION_OPENSTREETMAP;
+const crearCapaMapaPrincipal = (estilo) => {
+  if (JAWG_ACCESS_TOKEN && estilo === URL_ESTILO_MAPA_CLARO) {
+    const capa = L.tileLayer(estilo, {
+      maxNativeZoom: 22,
+      maxZoom: 24,
+      attribution: ATRIBUCION_JAWG,
+    });
+    capa.sondarStyleUrl = estilo;
+    capa.sondarStyleVersion = VERSION_CAPA_MAPA;
+    return capa;
+  }
+  const capa = maplibreGL({
+    style: estilo,
+    attributionControl: false,
+    interactive: false,
+  });
+  capa.sondarStyleUrl = estilo;
+  capa.sondarStyleVersion = VERSION_CAPA_MAPA;
+  capa.getAttribution = () => ATRIBUCION_OPENFREEMAP;
+  return capa;
+};
+const LOGO_EVENTO_PREDETERMINADO = "/sondar-icon.png?v=19";
 const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
   day: "2-digit",
   month: "long",
@@ -31,37 +80,68 @@ const FORMATEADOR_FECHA_VISIBLE = new Intl.DateTimeFormat("es-AR", {
 });
 
 const crearEventoVacio = () => ({
-  titulo: "",
-  descripcion: "",
   organizadorBusqueda: "",
   organizadores: [],
-  genero: "",
+  generos: [],
   lugar: "",
   fecha: "",
   hora: "",
   precio: "",
   link: "",
-  imagen: null,
-  nombreImagen: "",
   ...COORDENADAS_INICIALES,
-});
-
-const mapearEvento = (evento) => ({
-  ...evento,
-  img: evento.img || evento.img_url,
-  coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
 });
 
 const tieneCoordenadasValidas = (evento) =>
   evento.coords && !isNaN(evento.coords[0]) && !isNaN(evento.coords[1]);
 
-const normalizarGenero = (genero) => {
-  const gen = genero?.trim().toLowerCase() || "otros";
-  return GENEROS_PERMITIDOS_SET.has(gen) ? gen : "otros";
-};
+const normalizarGenero = normalizarGeneroMusical;
+
+const normalizarBusqueda = (valor) => String(valor || "")
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase();
 
 const mostrarGenero = (genero) => {
-  return separarGeneros(genero).map(valor => valor.charAt(0).toUpperCase() + valor.slice(1)).join(" / ");
+  const valor = normalizarGenero(genero);
+  return ETIQUETAS_GENERO[valor] || valor.charAt(0).toUpperCase() + valor.slice(1);
+};
+
+const generosDeEvento = (evento) => {
+  const recibidos = Array.isArray(evento?.generos) && evento.generos.length > 0
+    ? evento.generos
+    : [evento?.genero];
+  const generos = [...new Set(recibidos.map(normalizarGenero).filter(Boolean))].slice(0, MAX_GENEROS_EVENTO);
+  return generos;
+};
+
+const mostrarGenerosEvento = (evento) => generosDeEvento(evento).map(mostrarGenero).join(" / ");
+
+const mapearEvento = (evento) => {
+  const generos = generosDeEvento(evento);
+  return {
+    ...evento,
+    genero: generos[0],
+    generos,
+    img: LOGO_EVENTO_PREDETERMINADO,
+    coords: [parseFloat(evento.latitud), parseFloat(evento.longitud)],
+  };
+};
+
+const desplazarFiltrosConRueda = (event) => {
+  const contenedor = event.currentTarget;
+  if (contenedor.scrollWidth <= contenedor.clientWidth) return;
+
+  const desplazamiento = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+    ? event.deltaX
+    : event.deltaY;
+  const limiteDerecho = contenedor.scrollWidth - contenedor.clientWidth;
+  const puedeDesplazarse = desplazamiento > 0
+    ? contenedor.scrollLeft < limiteDerecho - 1
+    : contenedor.scrollLeft > 1;
+
+  if (!puedeDesplazarse) return;
+  event.preventDefault();
+  contenedor.scrollLeft += desplazamiento;
 };
 
 const escaparHtml = (valor) =>
@@ -97,34 +177,140 @@ const formatearFechaVisible = (fecha) => {
   return FORMATEADOR_FECHA_VISIBLE.format(valor);
 };
 
+const formatearDistancia = (distancia) => {
+  if (distancia == null || String(distancia).trim() === "") return "";
+  const kilometros = Number(distancia);
+  if (!Number.isFinite(kilometros)) return "";
+  if (kilometros < 1) return `${Math.max(1, Math.round(kilometros * 1000))} m`;
+  return `${kilometros < 10 ? kilometros.toFixed(1) : Math.round(kilometros)} km`;
+};
+
+function IconoPanel({ nombre, size = 20 }) {
+  const trazos = {
+    sol: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5" /></>,
+    luna: <path d="M20.5 13A8.5 8.5 0 0 1 11 3.5 8.5 8.5 0 1 0 20.5 13Z" />,
+    calendario: <><path d="M7 2v3M17 2v3M3.5 9h17" /><rect x="3.5" y="4.5" width="17" height="16" rx="3" /></>,
+    ubicacion: <><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
+    guardar: <path d="M6 3.5h12a1 1 0 0 1 1 1V21l-7-4-7 4V4.5a1 1 0 0 1 1-1Z" />,
+    compartir: <><circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" /></>,
+    subir: <path d="m6 14 6-6 6 6M12 8v12" />,
+    cerrar: <path d="m6 6 12 12M18 6 6 18" />,
+    musica: <><path d="M9 18V5l10-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="16" cy="16" r="3" /></>,
+    play: <path d="m9 6 9 6-9 6Z" />,
+    pausa: <><path d="M9 6v12M15 6v12" /></>,
+    izquierda: <path d="m15 5-7 7 7 7" />,
+    derecha: <path d="m9 5 7 7-7 7" />,
+    anterior: <><path d="M6 5v14" /><path d="m18 6-8 6 8 6Z" /></>,
+    siguiente: <><path d="M18 5v14" /><path d="m6 6 8 6-8 6Z" /></>,
+  };
+
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      {trazos[nombre]}
+    </svg>
+  );
+}
+
+function IndicadorPreviewReel({ portada, reproduciendo }) {
+  const [portadaFallida, setPortadaFallida] = useState(false);
+
+  if (portada && !portadaFallida) {
+    return (
+      <span className="evento-preview-indicador con-portada" aria-hidden="true">
+        <img src={portada} alt="" onError={() => setPortadaFallida(true)} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="evento-preview-indicador" aria-hidden="true">
+      {reproduciendo ? (
+        <span className="evento-preview-ecualizador"><i /><i /><i /></span>
+      ) : (
+        <IconoPanel nombre="musica" size={17} />
+      )}
+    </span>
+  );
+}
+
 export default function Eventos({ usuario }) {
-  const { t } = usePreferencias();
+  const { t, preferencias } = usePreferencias();
   const [searchParams] = useSearchParams();
   const eventoCompartido = searchParams.get("evento");
   const crearEventoParam = searchParams.get("crear");
+  const generoUrl = searchParams.get("genero")?.trim().toLowerCase() || "";
+  const filtroGeneroUrl = generoUrl && GENEROS_PERMITIDOS_SET.has(generoUrl) ? generoUrl : "todos";
+  const generosIniciales = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
   // Referencias para el mapa principal
   const mapRef = useRef(null);
+  const botonTemaRef = useRef(null);
+  const [temaMapa, setTemaMapa] = useState(() => {
+    try {
+      return localStorage.getItem(CLAVE_TEMA_MAPA) === "claro" ? "claro" : "oscuro";
+    } catch {
+      return "oscuro";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE_TEMA_MAPA, temaMapa);
+    } catch {
+      // El cambio funciona incluso si el navegador bloquea el almacenamiento.
+    }
+  }, [temaMapa]);
+  const listaEventosRef = useRef(null);
+  const [listaEventosAbierta, setListaEventosAbierta] = useState(false);
+  const [criterioOrdenEventos, setCriterioOrdenEventos] = useState("fecha");
+  const [sentidoOrdenEventos, setSentidoOrdenEventos] = useState("asc");
+  const [menuOrdenAbierto, setMenuOrdenAbierto] = useState(false);
+  const menuOrdenRef = useRef(null);
+  const botonOrdenRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOrdenAbierto) return;
+    const cerrarFuera = (event) => {
+      if (!menuOrdenRef.current?.contains(event.target)) setMenuOrdenAbierto(false);
+    };
+    document.addEventListener("pointerdown", cerrarFuera);
+    return () => document.removeEventListener("pointerdown", cerrarFuera);
+  }, [menuOrdenAbierto]);
+
   const mapInstance = useRef(null);
+  const tilesLayerRef = useRef(null);
   const markersLayer = useRef(null);
   const avisoTimer = useRef(null);
+  const eventoCompartidoProcesadoRef = useRef(null);
+  const firmaEncuadreEventosRef = useRef(null);
   
   // Referencias para el MINI MAPA del modal (Picker)
   const miniMapRef = useRef(null);
   const miniMapInstance = useRef(null);
   const miniMarkerRef = useRef(null);
-  const imagenEventoInputRef = useRef(null);
+  const audioPreviewRef = useRef(null);
+  const previewSolicitudRef = useRef(0);
+  const previewItemsRef = useRef(new Map());
 
   // Estados de UI y Filtros
   const [eventoActivo, setEventoActivo] = useState(null);
-  const [ultimoEventoDetalle, setUltimoEventoDetalle] = useState(null);
+  const [eventoCompartir, setEventoCompartir] = useState(null);
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [filtroGenero, setFiltroGenero] = useState("todos");
+  const [detalleExpandido, setDetalleExpandido] = useState(false);
+  const [exploradorPlegado, setExploradorPlegado] = useState(false);
+  const [generosVisibles, setGenerosVisibles] = useState(generosIniciales);
+  const [busquedaEventos, setBusquedaEventos] = useState("");
   const [aviso, setAviso] = useState("");
   const [zoomMapa, setZoomMapa] = useState(12);
   const [menuEventoAbierto, setMenuEventoAbierto] = useState(false);
+  const [eliminacionPendiente, setEliminacionPendiente] = useState(null);
   const [denunciaPendiente, setDenunciaPendiente] = useState(null);
   const [enviandoDenuncia, setEnviandoDenuncia] = useState(false);
-  const [hoverOrganizador, setHoverOrganizador] = useState(null);
+  const [reels, setReels] = useState([]);
+  const [cargandoReels, setCargandoReels] = useState(true);
+  const [reelActivo, setReelActivo] = useState(null);
+  const [posicionUsuario, setPosicionUsuario] = useState(null);
+  const [estadoUbicacion, setEstadoUbicacion] = useState("pendiente");
+  const [radioKm, setRadioKm] = useState("");
   
   const navigate = useNavigate();
 
@@ -151,14 +337,45 @@ export default function Eventos({ usuario }) {
 
   useEffect(() => () => clearTimeout(avisoTimer.current), []);
 
+  const solicitarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      setEstadoUbicacion("no-disponible");
+      return;
+    }
+    setEstadoUbicacion("solicitando");
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setPosicionUsuario({ lat: coords.latitude, lng: coords.longitude });
+        setEstadoUbicacion("lista");
+      },
+      (error) => {
+        setEstadoUbicacion(error.code === error.PERMISSION_DENIED ? "denegada" : "error");
+      },
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 10 * 60 * 1000 }
+    );
+  }, []);
+
+  useEffect(() => {
+    solicitarUbicacion();
+  }, [solicitarUbicacion]);
+
   // 1. Carga inicial de eventos desde el Backend
   useEffect(() => {
     let isMounted = true;
+    const controlador = new AbortController();
     const cargarEventos = async () => {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
-        const res = await fetch(apiUrl("/api/eventos"), {
+        const parametros = new URLSearchParams();
+        if (posicionUsuario) {
+          parametros.set("lat", String(posicionUsuario.lat));
+          parametros.set("lng", String(posicionUsuario.lng));
+          if (radioKm) parametros.set("radioKm", radioKm);
+        }
+        const endpoint = `/api/eventos${parametros.size ? `?${parametros.toString()}` : ""}`;
+        const res = await apiRequest(endpoint, {
+          signal: controlador.signal,
           headers: token
             ? {
                 Authorization: `Bearer ${token}`
@@ -178,68 +395,287 @@ export default function Eventos({ usuario }) {
           if (isMounted) setLoading(false);
         }
       } catch (error) {
+        if (error.name === "AbortError") return;
         console.error("Error de red:", error);
         if (isMounted) setLoading(false);
       }
     };
 
     cargarEventos();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      controlador.abort();
+    };
+  }, [radioKm, usuario?.id, posicionUsuario]);
+
+  useEffect(() => {
+    let activo = true;
+    const cargarReels = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const response = await apiRequest("/api/reels", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!response.ok) throw new Error("No se pudieron cargar las previews.");
+        const data = await response.json();
+        if (activo) setReels(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Error al cargar previews:", error);
+      } finally {
+        if (activo) setCargandoReels(false);
+      }
+    };
+    cargarReels();
+    return () => { activo = false; };
   }, [usuario?.id]);
+
+  useEffect(() => {
+    const agregarReelCreado = (event) => {
+      const reel = event.detail;
+      if (!reel?.id) return;
+      setReels((actuales) => [reel, ...actuales.filter((item) => item.id !== reel.id)]);
+    };
+    window.addEventListener("sondar:reel-creado", agregarReelCreado);
+    return () => window.removeEventListener("sondar:reel-creado", agregarReelCreado);
+  }, []);
 
   const eventoSeleccionado = useMemo(
     () => eventos.find((evento) => evento.id === eventoActivo),
     [eventos, eventoActivo]
   );
 
-  const detalleEvento = eventoSeleccionado || ultimoEventoDetalle;
+  const detalleEvento = eventoSeleccionado;
+
+  const reelsDelEvento = useMemo(() => {
+    if (!detalleEvento) return [];
+    const participantes = new Set([
+      detalleEvento.creador_id,
+      ...(detalleEvento.organizadores || []).map((organizador) => organizador.id),
+    ].filter(Boolean).map(String));
+    return reels.filter((reel) => participantes.has(String(reel.creadorId)));
+  }, [detalleEvento, reels]);
+
+  useEffect(() => {
+    previewSolicitudRef.current += 1;
+    const audio = audioPreviewRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    setReelActivo(null);
+  }, [detalleEvento?.id, detalleExpandido]);
+
+  useEffect(() => {
+    const audio = audioPreviewRef.current;
+    if (!audio || reelActivo === null) return undefined;
+
+    const claveReel = String(reelActivo);
+    const filaPreview = previewItemsRef.current.get(claveReel);
+    if (!filaPreview) return undefined;
+    let animacionId = null;
+    const actualizarProgreso = () => {
+      const duracion = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : 0;
+      const progreso = duracion
+        ? Math.min(1, Math.max(0, audio.currentTime / duracion))
+        : 0;
+      filaPreview.style.setProperty("--preview-progreso", String(progreso));
+    };
+    const movimientoReducido = Boolean(
+      preferencias.reducirMovimiento ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    );
+
+    if (movimientoReducido) {
+      actualizarProgreso();
+      audio.addEventListener("timeupdate", actualizarProgreso);
+      audio.addEventListener("durationchange", actualizarProgreso);
+      return () => {
+        audio.removeEventListener("timeupdate", actualizarProgreso);
+        audio.removeEventListener("durationchange", actualizarProgreso);
+        filaPreview.style.setProperty("--preview-progreso", "0");
+      };
+    }
+
+    const animarProgreso = () => {
+      actualizarProgreso();
+      if (!audio.paused && !audio.ended) {
+        animacionId = window.requestAnimationFrame(animarProgreso);
+      }
+    };
+    animacionId = window.requestAnimationFrame(animarProgreso);
+
+    return () => {
+      if (animacionId !== null) window.cancelAnimationFrame(animacionId);
+      filaPreview.style.setProperty("--preview-progreso", "0");
+    };
+  }, [preferencias.reducirMovimiento, reelActivo]);
 
   useEffect(() => {
     setMenuEventoAbierto(false);
   }, [eventoActivo]);
 
-  const eventosFiltrados = useMemo(
-    () => eventos.filter((evento) => {
-      const generos = separarGeneros(evento.genero);
-      return filtroGenero === "todos" || generos.includes(filtroGenero);
-    }),
-    [eventos, filtroGenero]
+  const eventosFiltrados = useMemo(() => {
+    const termino = normalizarBusqueda(busquedaEventos).trim();
+    return eventos.filter((evento) => {
+      const generosEvento = generosDeEvento(evento);
+      const generoVisible = generosVisibles.length === GENEROS_PERMITIDOS.length || generosEvento.some((genero) => generosVisibles.includes(genero));
+      if (!generoVisible) return false;
+      if (!termino) return true;
+
+      return [
+        evento.lugar,
+        evento.ubicacion,
+        evento.creador,
+        generosEvento.join(" "),
+      ].some((campo) => normalizarBusqueda(campo).includes(termino));
+    });
+  }, [busquedaEventos, eventos, generosVisibles]);
+
+  const eventosOrdenados = useMemo(
+    () => ordenarEventos(eventosFiltrados, criterioOrdenEventos + "-" + sentidoOrdenEventos),
+    [eventosFiltrados, criterioOrdenEventos, sentidoOrdenEventos]
   );
 
   const eventosConCoordenadas = useMemo(
     () => eventosFiltrados.filter(tieneCoordenadasValidas),
     [eventosFiltrados]
   );
+  const todosGenerosVisibles = generosVisibles.length === GENEROS_PERMITIDOS.length;
+
+  const seleccionarEventoEnMapa = useCallback((evento, expandir = false) => {
+    if (!evento) return;
+    setEventoActivo(evento.id);
+    setDetalleExpandido(expandir);
+    setMenuEventoAbierto(false);
+    if (tieneCoordenadasValidas(evento) && mapInstance.current) {
+      mapInstance.current.flyTo(evento.coords, 16, {
+        duration: DURACION_ACERCAMIENTO_MAPA,
+        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!detalleEvento) return;
+    if (generosDeEvento(detalleEvento).some((genero) => generosVisibles.includes(genero))) return;
+
+    setEventoActivo(null);
+    setDetalleExpandido(false);
+  }, [detalleEvento, generosVisibles]);
 
   // 2. Inicialización del Mapa Principal (Modo Oscuro)
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
 
-    const map = L.map(mapRef.current, {
+    const contenedorMapa = mapRef.current;
+    const map = L.map(contenedorMapa, {
       zoomControl: false,
-      attributionControl: false,
+      attributionControl: true,
       minZoom: 4,
       maxBounds: [[-85, -180], [85, 180]],
       maxBoundsViscosity: 1
     }).setView([-34.6037, -58.3816], 12);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom: 19,
-      noWrap: true,
-      bounds: [[-85, -180], [85, 180]]
-    }).addTo(map);
-
-    L.control.zoom({ position: "bottomright" }).addTo(map);
     map.on("zoomend", () => setZoomMapa(map.getZoom()));
+    map.on("click", (event) => {
+      const objetivo = event.originalEvent?.target;
+      if (objetivo?.closest?.(".evento-pin-wrapper, .evento-cluster-wrapper")) return;
+      setEventoActivo(null);
+      setDetalleExpandido(false);
+      setMenuEventoAbierto(false);
+    });
     markersLayer.current = L.layerGroup().addTo(map);
     mapInstance.current = map;
 
     return () => {
       map.remove();
+      contenedorMapa.classList.remove("mapa-dark-matter");
       mapInstance.current = null;
+      tilesLayerRef.current = null;
       markersLayer.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !posicionUsuario) return;
+    const { lat, lng } = posicionUsuario;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const pin = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: "mapa-ubicacion-usuario",
+        html: '<svg viewBox="0 0 28 36" aria-hidden="true"><defs><linearGradient id="sondar-ubicacion-gradiente" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffae00"/><stop offset="100%" stop-color="#ff5e00"/></linearGradient></defs><path d="M14 34S2 21 2 14a12 12 0 0 1 24 0c0 7-12 20-12 20Z" fill="url(#sondar-ubicacion-gradiente)" stroke="#080808" stroke-width="2"/><circle cx="14" cy="14" r="4" fill="#080808"/></svg>',
+        iconSize: [28, 36],
+        iconAnchor: [14, 34],
+        tooltipAnchor: [0, -32],
+      }),
+      title: "Tu ubicación",
+      alt: "Tu ubicación",
+      zIndexOffset: 1000,
+      bubblingMouseEvents: false,
+    }).addTo(map);
+    pin.bindTooltip("Tu ubicación", {
+      direction: "top",
+      className: "mapa-ubicacion-tooltip",
+    });
+    return () => { pin.remove(); };
+  }, [posicionUsuario]);
+  // Mantiene el control por encima de los paneles que ocupan su espacio.
+  useEffect(() => {
+    const boton = botonTemaRef.current;
+    const contenedor = mapRef.current?.parentElement;
+    if (!boton || !contenedor) return;
+    const paneles = contenedor.querySelectorAll(".eventos-sheet, .eventos-explorador");
+    const colocarBoton = () => {
+      const limites = contenedor.getBoundingClientRect();
+      const control = boton.getBoundingClientRect();
+      let margen = 18;
+      paneles.forEach((panel) => {
+        if (getComputedStyle(panel).opacity === "0") return;
+        const rect = panel.getBoundingClientRect();
+        if (rect.left < control.right && rect.right > control.left) {
+          margen = Math.max(margen, limites.bottom - rect.top + 12);
+        }
+      });
+      boton.style.bottom = margen + "px";
+    };
+    const observer = new ResizeObserver(colocarBoton);
+    observer.observe(contenedor);
+    paneles.forEach((panel) => observer.observe(panel));
+    colocarBoton();
+    return () => observer.disconnect();
+  }, [detalleEvento, detalleExpandido]);
+
+  // Mantiene la fuente correcta incluso cuando React conserva la instancia
+  // de Leaflet durante una recarga en caliente del modulo.
+  useEffect(() => {
+    const map = mapInstance.current;
+    const contenedor = mapRef.current;
+    if (!map || !contenedor) return;
+
+    const estilo = temaMapa === "claro" ? URL_ESTILO_MAPA_CLARO : URL_ESTILO_MAPA_OSCURO;
+    const capaActual = tilesLayerRef.current;
+    const usaFuenteActual = capaActual
+      && map.hasLayer(capaActual)
+      && capaActual.sondarStyleUrl === estilo
+      && capaActual.sondarStyleVersion === VERSION_CAPA_MAPA;
+
+    if (!usaFuenteActual) {
+      map.eachLayer((capa) => {
+        if (capa instanceof L.TileLayer || typeof capa.getMaplibreMap === "function") {
+          map.removeLayer(capa);
+        }
+      });
+      tilesLayerRef.current = crearCapaMapaPrincipal(estilo).addTo(map);
+    }
+
+    contenedor.classList.toggle("mapa-dark-matter", temaMapa === "oscuro");
+  });
 
   useEffect(() => {
     if (!loading && mapInstance.current) {
@@ -251,19 +687,27 @@ export default function Eventos({ usuario }) {
   }, [loading]);
 
   useEffect(() => {
-    if (!eventoCompartido || loading || eventos.length === 0) return;
+    if (!eventoCompartido) {
+      eventoCompartidoProcesadoRef.current = null;
+      return;
+    }
+    if (
+      loading ||
+      eventos.length === 0 ||
+      eventoCompartidoProcesadoRef.current === String(eventoCompartido)
+    ) return;
     const eventoDestino = eventos.find((evento) => String(evento.id) === String(eventoCompartido));
     if (!eventoDestino) return;
 
-    setUltimoEventoDetalle(eventoDestino);
-    setEventoActivo(eventoDestino.id);
-    if (eventoDestino.coords && mapInstance.current) {
-      mapInstance.current.flyTo(eventoDestino.coords, 16, {
-        duration: DURACION_ACERCAMIENTO_MAPA,
-        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
-      });
-    }
-  }, [eventoCompartido, eventos, loading]);
+    eventoCompartidoProcesadoRef.current = String(eventoCompartido);
+    const generoDestino = generosDeEvento(eventoDestino)[0];
+    setGenerosVisibles((actuales) =>
+      actuales.includes(generoDestino)
+        ? actuales
+        : GENEROS_PERMITIDOS.filter((genero) => [...actuales, generoDestino].includes(genero))
+    );
+    seleccionarEventoEnMapa(eventoDestino);
+  }, [eventoCompartido, eventos, loading, seleccionarEventoEnMapa]);
 
   useEffect(() => {
     if (crearEventoParam !== "evento") return;
@@ -271,6 +715,7 @@ export default function Eventos({ usuario }) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
+    window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-preview"));
     setMostrarModal(true);
   }, [crearEventoParam, mostrarAviso, usuario]);
 
@@ -287,12 +732,14 @@ export default function Eventos({ usuario }) {
 
     const miniMap = L.map(miniMapRef.current, {
       zoomControl: false,
-      attributionControl: false
+      attributionControl: true,
+      scrollWheelZoom: false
     }).setView([lat, lng], 14); // Buen nivel de zoom para ver alturas de calles al abrir
 
     // Capas claras de OpenStreetMap para máxima lectura de calles y plazas
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19
+    L.tileLayer(URL_TILES_OPENSTREETMAP, {
+      maxZoom: 19,
+      attribution: ATRIBUCION_OPENSTREETMAP
     }).addTo(miniMap);
 
     L.control.zoom({ position: "bottomleft" }).addTo(miniMap);
@@ -384,18 +831,20 @@ export default function Eventos({ usuario }) {
       const evento = grupo.eventos[0];
       const posicionFinal = evento.coords;
       const activo = eventoActivo === evento.id;
-      const imagenEvento = evento.img || evento.img_url || "/sondar-icon.png";
+      const avatarUrl = /^https?:\/\//i.test(String(evento.avatar || "")) ? evento.avatar : "";
+      const inicialCreador = escaparHtml(String(evento.creador || "A").trim().charAt(0).toUpperCase() || "A");
       const compacto = zoomMapa <= 11;
 
       const marker = L.marker(posicionFinal, {
         icon: L.divIcon({
           className: "evento-pin-wrapper",
           html: `
-            <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(evento.titulo)}" title="${escaparHtml(evento.titulo)}">
+            <button class="evento-pin ${activo ? "activo" : ""} ${compacto ? "compacto" : ""}" type="button" aria-label="${escaparHtml(`Evento de ${evento.creador || "Artista SONDAR"} en ${evento.lugar || evento.ubicacion || "ubicacion a confirmar"}`)}">
               <span class="evento-pin-pulse">
-                <img src="${escaparHtml(imagenEvento)}" alt="" />
+                <span class="evento-pin-inicial" aria-hidden="true">${inicialCreador}</span>
+                ${avatarUrl ? `<img src="${escaparHtml(avatarUrl)}" alt="" onerror="this.remove()" />` : ""}
               </span>
-              <strong>${escaparHtml(evento.titulo)}</strong>
+              <strong>${escaparHtml(evento.creador || "Artista SONDAR")}</strong>
             </button>
           `,
           iconSize: [150, 92],
@@ -403,22 +852,25 @@ export default function Eventos({ usuario }) {
         })
       });
 
-      marker.on("click", () => {
-        setUltimoEventoDetalle(evento);
-        setEventoActivo(evento.id);
-      mapInstance.current.flyTo(posicionFinal, 16, {
-        duration: DURACION_ACERCAMIENTO_MAPA,
-        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
-      });
-      });
+      marker.on("click", () => seleccionarEventoEnMapa(evento));
 
       marker.addTo(markersLayer.current);
     });
-  }, [eventosConCoordenadas, eventoActivo, zoomMapa]);
+  }, [eventosConCoordenadas, eventoActivo, seleccionarEventoEnMapa, zoomMapa]);
 
   // 5. Encuadre automático del mapa principal
   useEffect(() => {
-    if (!mapInstance.current || eventosConCoordenadas.length === 0) return;
+    if (!mapInstance.current) return;
+
+    const firmaEncuadre = eventosConCoordenadas
+      .map((evento) => `${evento.id}:${evento.coords[0]}:${evento.coords[1]}`)
+      .sort()
+      .join("|");
+
+    if (firmaEncuadreEventosRef.current === firmaEncuadre) return;
+    firmaEncuadreEventosRef.current = firmaEncuadre;
+
+    if (eventosConCoordenadas.length === 0) return;
 
     const coordsValidas = eventosConCoordenadas.map((evento) => evento.coords);
 
@@ -444,7 +896,7 @@ export default function Eventos({ usuario }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/eventos/${id}/guardar`), {
+      const response = await apiRequest(`/api/eventos/${id}/guardar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`
@@ -460,12 +912,90 @@ export default function Eventos({ usuario }) {
       setEventos((actuales) => actuales.map((evento) =>
         evento.id === id ? { ...evento, guardado: dataGuardado.guardado } : evento
       ));
-      setUltimoEventoDetalle((actual) =>
-        actual?.id === id ? { ...actual, guardado: dataGuardado.guardado } : actual
-      );
     } catch (error) {
       console.error(error);
       mostrarAviso(error.message || "No se pudo actualizar el guardado.");
+    }
+  };
+
+  const seleccionarEvento = useCallback((evento, expandir = false) => {
+    setEventoActivo(evento.id);
+    setDetalleExpandido(expandir);
+    if (tieneCoordenadasValidas(evento) && mapInstance.current) {
+      mapInstance.current.flyTo(evento.coords, expandir ? 15 : 16, {
+        duration: DURACION_ACERCAMIENTO_MAPA,
+        easeLinearity: SUAVIDAD_ACERCAMIENTO_MAPA,
+      });
+    }
+  }, []);
+
+  const navegarEntreEventos = (direccion) => {
+    if (eventosFiltrados.length === 0) return;
+    const indiceActual = eventosFiltrados.findIndex((evento) => evento.id === detalleEvento?.id);
+    const base = indiceActual >= 0 ? indiceActual : 0;
+    const siguienteIndice = (base + direccion + eventosFiltrados.length) % eventosFiltrados.length;
+    seleccionarEvento(eventosFiltrados[siguienteIndice]);
+  };
+
+  const cambiarFiltroGenero = useCallback((genero) => {
+    if (genero === "todos") {
+      setGenerosVisibles(GENEROS_PERMITIDOS);
+      return;
+    }
+
+    setGenerosVisibles([genero]);
+  }, []);
+
+  useEffect(() => {
+    const siguientes = filtroGeneroUrl === "todos" ? GENEROS_PERMITIDOS : [filtroGeneroUrl];
+    setGenerosVisibles((actuales) => {
+      const mismos =
+        actuales.length === siguientes.length &&
+        actuales.every((genero) => siguientes.includes(genero));
+      return mismos ? actuales : siguientes;
+    });
+  }, [filtroGeneroUrl]);
+
+  const compartirEvento = (evento) => {
+    const enlace = new URL(window.location.origin);
+    enlace.searchParams.set("evento", evento.id);
+    setEventoCompartir({ evento, enlace: enlace.toString() });
+  };
+
+  const alternarPreview = async (reel) => {
+    if (!detalleExpandido) return;
+    const audio = audioPreviewRef.current;
+    if (!audio) return;
+
+    if (!reel?.audio) {
+      previewSolicitudRef.current += 1;
+      audio.pause();
+      setReelActivo(null);
+      return;
+    }
+
+    if (String(reelActivo) === String(reel.id) && !audio.paused) {
+      previewSolicitudRef.current += 1;
+      audio.pause();
+      setReelActivo(null);
+      return;
+    }
+
+    const solicitud = ++previewSolicitudRef.current;
+    if (audio.getAttribute("src") !== reel.audio) {
+      audio.pause();
+      audio.src = reel.audio;
+    }
+
+    setReelActivo(null);
+    try {
+      await audio.play();
+      if (solicitud !== previewSolicitudRef.current) return;
+      setReelActivo(reel.id);
+    } catch {
+      if (solicitud !== previewSolicitudRef.current) return;
+      setReelActivo(null);
+      mostrarAviso("No se pudo reproducir esta preview");
     }
   };
 
@@ -488,7 +1018,7 @@ export default function Eventos({ usuario }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(apiUrl(`/api/eventos/${evento.id}/denunciar`), {
+      const response = await apiRequest(`/api/eventos/${evento.id}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -509,7 +1039,7 @@ export default function Eventos({ usuario }) {
           usuario,
           tipo: "evento",
           contenidoId: evento.id,
-          titulo: evento.titulo,
+          titulo: `Evento de ${evento.creador || "Artista SONDAR"}`,
           autor: evento.creador,
           motivo: etiquetaMotivoDenuncia(motivo),
           detalle,
@@ -526,39 +1056,37 @@ export default function Eventos({ usuario }) {
     }
   };
 
-  const eliminarEvento = async (evento) => {
-    if (!usuarioPuedeEliminarEvento(evento)) return;
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      if (!token) {
-        mostrarAviso("Tu sesion expiro. Volve a iniciar sesion.");
-        return;
-      }
-
-      const response = await fetch(apiUrl(`/api/eventos/${evento.id}`), {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "No se pudo eliminar el evento.");
-      }
-
-      setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
-      setEventoActivo(null);
-      setUltimoEventoDetalle(null);
-      setMenuEventoAbierto(false);
-      mostrarAviso("Evento eliminado");
-    } catch (error) {
-      console.error(error);
-      mostrarAviso("Hubo un error al eliminar el evento.");
+  const eliminarEvento = async (evento, password) => {
+    if (!usuarioPuedeEliminarEvento(evento)) {
+      throw new Error("No tenes permiso para eliminar este evento.");
     }
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    if (!token) {
+      throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+    }
+
+    const response = await apiRequest(`/api/eventos/${evento.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: { password },
+    });
+
+    if (!response.ok) {
+      const dataError = await response.json().catch(() => ({}));
+      throw new Error(dataError.error || "No se pudo eliminar el evento.");
+    }
+
+    setEventos((actuales) => actuales.filter((item) => item.id !== evento.id));
+    setEventoActivo(null);
+    setDetalleExpandido(false);
+    setMenuEventoAbierto(false);
+    setEliminacionPendiente(null);
+    mostrarAviso("Evento eliminado");
   };
 
   const handleCrearEvento = useCallback(() => {
@@ -566,24 +1094,20 @@ export default function Eventos({ usuario }) {
       mostrarAviso("Tenes que iniciar sesion para crear eventos");
       return;
     }
+    window.dispatchEvent(new CustomEvent("sondar:cerrar-crear-preview"));
     setMostrarModal(true);
   }, [mostrarAviso, usuario]);
 
   useEffect(() => {
     const abrirDesdeSidebar = () => handleCrearEvento();
+    const cerrarCreadorEvento = () => setMostrarModal(false);
     window.addEventListener("sondar:crear-evento", abrirDesdeSidebar);
-    return () => window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
+    window.addEventListener("sondar:cerrar-crear-evento", cerrarCreadorEvento);
+    return () => {
+      window.removeEventListener("sondar:crear-evento", abrirDesdeSidebar);
+      window.removeEventListener("sondar:cerrar-crear-evento", cerrarCreadorEvento);
+    };
   }, [handleCrearEvento]);
-
-  const handleFiltroGenero = (genero) => {
-    setFiltroGenero(genero);
-    setMenuEventoAbierto(false);
-    if (!eventoSeleccionado) return;
-    const activoVisible = genero === "todos" || separarGeneros(eventoSeleccionado.genero).includes(genero);
-    if (!activoVisible) {
-      setEventoActivo(null);
-    }
-  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -597,12 +1121,12 @@ export default function Eventos({ usuario }) {
       return;
     }
     if (nuevoEvento.organizadores.some((organizador) => organizador.id === persona.id)) {
-      mostrarAviso("Esa persona ya esta agregada como organizadora.");
+      mostrarAviso("Esa persona ya esta agregada como invitada.");
       setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
       return;
     }
     if (nuevoEvento.organizadores.length >= 8) {
-      mostrarAviso("Podes agregar hasta 8 coorganizadores.");
+      mostrarAviso("Podes agregar hasta 8 invitados o bandas invitadas.");
       setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda: "" }));
       return;
     }
@@ -620,29 +1144,25 @@ export default function Eventos({ usuario }) {
     }));
   };
 
-const handleImagen = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    // Guardamos el objeto File directo (mucho más liviano)
-    setNuevoEvento((prev) => ({
-      ...prev,
-      imagen: file,
-      nombreImagen: file.name
-    }));
+  const alternarGeneroNuevoEvento = (genero) => {
+    setNuevoEvento((actual) => {
+      if (actual.generos.includes(genero)) {
+        return { ...actual, generos: actual.generos.filter((item) => item !== genero) };
+      }
+      if (actual.generos.length >= MAX_GENEROS_EVENTO) return actual;
+      return { ...actual, generos: [...actual.generos, genero] };
+    });
   };
 
-  const limpiarImagenEvento = () => {
-    if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
-    setNuevoEvento((prev) => ({
-      ...prev,
-      imagen: null,
-      nombreImagen: ""
-    }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (subiendoRef.current) return;
+
+    if (nuevoEvento.generos.length === 0) {
+      mostrarAviso("Elegí al menos un género para el evento.");
+      return;
+    }
 
     // Validaciones de fecha: no permitir en el pasado ni demasiado futuro.
     // - Pasado: fecha+hora debe ser >= ahora
@@ -688,24 +1208,17 @@ const handleImagen = (e) => {
     setSubiendo(true);
     subiendoRef.current = true;
 
-    const formData = new FormData();
-    formData.append("titulo", nuevoEvento.titulo);
-    formData.append("descripcion", nuevoEvento.descripcion);
-    formData.append(
-      "organizadores",
-      JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id))
-    );
-    formData.append("genero", normalizarGenero(nuevoEvento.genero));
-    formData.append("ubicacion", nuevoEvento.lugar);
-    formData.append("fecha", formatearFecha(nuevoEvento.fecha, nuevoEvento.hora));
-    formData.append("precio", nuevoEvento.precio);
-    formData.append("link", nuevoEvento.link);
-    formData.append("latitud", nuevoEvento.lat);
-    formData.append("longitud", nuevoEvento.lng);
-
-    if (nuevoEvento.imagen) {
-      formData.append("imagen", nuevoEvento.imagen);
-    }
+    const datosEvento = {
+      organizadores: JSON.stringify(nuevoEvento.organizadores.map((organizador) => organizador.id)),
+      genero: nuevoEvento.generos[0],
+      generos: nuevoEvento.generos,
+      ubicacion: nuevoEvento.lugar,
+      fecha: formatearFecha(nuevoEvento.fecha, nuevoEvento.hora),
+      precio: nuevoEvento.precio,
+      link: nuevoEvento.link,
+      latitud: nuevoEvento.lat,
+      longitud: nuevoEvento.lng,
+    };
 
     try {
       const { data } = await supabase.auth.getSession();
@@ -716,12 +1229,12 @@ const handleImagen = (e) => {
         return;
       }
 
-      const response = await fetch(apiUrl("/api/eventos/crear"), {
+      const response = await apiRequest("/api/eventos/crear", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`
         },
-        body: formData
+        body: datosEvento
       });
 
       if (!response.ok) {
@@ -734,11 +1247,12 @@ const handleImagen = (e) => {
       const eventoParaMapa = mapearEvento(eventoGuardado);
 
       setEventos((actuales) => [eventoParaMapa, ...actuales]);
-      setUltimoEventoDetalle(eventoParaMapa);
+      window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
       setEventoActivo(eventoParaMapa.id);
+      setGenerosVisibles(GENEROS_PERMITIDOS);
+      setDetalleExpandido(true);
       
       setMostrarModal(false);
-      if (imagenEventoInputRef.current) imagenEventoInputRef.current.value = "";
 
       setNuevoEvento(crearEventoVacio());
       setMostrarBuscadorOrganizador(false);
@@ -754,29 +1268,134 @@ const handleImagen = (e) => {
     }
   };
   return (
-    <div className={`eventos-container ${eventoSeleccionado ? "detalle-abierto" : ""}`}>
-      <div ref={mapRef} className="eventos-mapa" aria-label="Mapa de eventos"></div>
+    <div className={`eventos-container ${detalleExpandido ? "detalle-abierto" : ""} ${listaEventosAbierta && !detalleExpandido ? "lista-abierta" : ""}`}>
+      <div ref={mapRef} className={`eventos-mapa mapa-tema-${temaMapa}`} aria-label="Mapa de eventos"></div>
+      <button
+        ref={botonTemaRef}
+        type="button"
+        className={`eventos-tema-mapa tema-${temaMapa}`}
+        onClick={() => setTemaMapa((actual) => actual === "oscuro" ? "claro" : "oscuro")}
+        aria-label={temaMapa === "oscuro" ? "Cambiar a mapa claro" : "Cambiar a mapa oscuro"}
+        title={temaMapa === "oscuro" ? "Cambiar a mapa claro" : "Cambiar a mapa oscuro"}
+      >
+        <IconoPanel nombre={temaMapa === "oscuro" ? "sol" : "luna"} size={20} />
+        <span>{temaMapa === "oscuro" ? "Mapa claro" : "Mapa oscuro"}</span>
+      </button>
 
-      <div className="eventos-panel">
-        <div className="eventos-header">
-          <div className="eventos-titulo">
-            <h2>{t("Eventos cerca tuyo")}</h2>
-            <label className="eventos-genero">
-              <span>Genero</span>
-              <select
-                className="eventos-filtro"
-                value={filtroGenero}
-                onChange={(e) => handleFiltroGenero(e.target.value)}
+      {!detalleExpandido && (
+        <aside
+          className={`eventos-lista-desplegable ${listaEventosAbierta ? "abierta" : ""}`}
+          aria-label="Lista de eventos"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setListaEventosAbierta(false);
+              listaEventosRef.current.focus();
+            }
+          }}
+        >
+          <button
+            ref={listaEventosRef}
+            type="button"
+            className="eventos-lista-tirador"
+            aria-expanded={listaEventosAbierta}
+            aria-controls="eventos-lista-panel"
+            aria-label={listaEventosAbierta ? "Cerrar lista de eventos" : "Abrir lista de eventos"}
+            title={listaEventosAbierta ? "Cerrar eventos" : "Ver eventos"}
+            onClick={() => { setListaEventosAbierta((abierta) => !abierta); setMenuOrdenAbierto(false); }}
+          >
+            <IconoPanel nombre="izquierda" size={20} />
+          </button>
+          <div id="eventos-lista-panel" className="eventos-lista-panel" inert={!listaEventosAbierta} aria-hidden={!listaEventosAbierta}>
+          <header className="eventos-lista-header">
+            <IconoPanel nombre="calendario" size={19} />
+            <strong>Eventos</strong>
+            <span className="eventos-lista-cantidad">{eventosFiltrados.length}</span>
+            <div
+              className="eventos-lista-orden"
+              ref={menuOrdenRef}
+              onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) setMenuOrdenAbierto(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && menuOrdenAbierto) {
+                  event.stopPropagation();
+                  setMenuOrdenAbierto(false);
+                  botonOrdenRef.current?.focus();
+                }
+              }}
+            >
+              <button
+                ref={botonOrdenRef}
+                type="button"
+                className="eventos-lista-orden-criterio"
+                aria-expanded={menuOrdenAbierto}
+                aria-controls="eventos-menu-orden"
+                aria-label={"Ordenar por " + criterioOrdenEventos}
+                onClick={() => setMenuOrdenAbierto((actual) => !actual)}
               >
-                <option value="todos">Todos</option>
-                {GENEROS_PERMITIDOS.map((genero) => (
-                  <option key={genero} value={genero}>{mostrarGenero(genero)}</option>
-                ))}
-              </select>
-            </label>
+                {{ fecha: "Fecha", precio: "Precio", distancia: "Distancia" }[criterioOrdenEventos]}
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+              <button
+                type="button"
+                className="eventos-lista-orden-sentido"
+                onClick={() => setSentidoOrdenEventos((actual) => actual === "asc" ? "desc" : "asc")}
+                aria-label={sentidoOrdenEventos === "asc" ? "Orden creciente. Cambiar a decreciente" : "Orden decreciente. Cambiar a creciente"}
+                title={sentidoOrdenEventos === "asc" ? "Creciente: cambiar a decreciente" : "Decreciente: cambiar a creciente"}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={sentidoOrdenEventos === "asc" ? "M12 19V5m-6 6 6-6 6 6" : "M12 5v14m-6-6 6 6 6-6"} />
+                </svg>
+              </button>
+              {menuOrdenAbierto ? (
+                <div id="eventos-menu-orden" className="eventos-menu-orden" role="group" aria-label="Ordenar eventos por">
+                  {[
+                    { valor: "fecha", texto: "Fecha" },
+                    { valor: "precio", texto: "Precio" },
+                    { valor: "distancia", texto: "Distancia" },
+                  ].map(({ valor, texto }) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={criterioOrdenEventos === valor}
+                      disabled={valor === "distancia" && !posicionUsuario}
+                      onClick={() => {
+                        setCriterioOrdenEventos(valor);
+                        setMenuOrdenAbierto(false);
+                        botonOrdenRef.current?.focus();
+                      }}
+                    >
+                      {texto}
+                      {criterioOrdenEventos === valor ? <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><path d="m5 12 4 4L19 6" /></svg> : null}
+                    </button>
+                  ))}
+                  {!posicionUsuario ? <small>Activa tu ubicaci&oacute;n para ordenar por distancia.</small> : null}
+                </div>
+              ) : null}
+            </div>
+          </header>
+          <div className="eventos-lista-contenido" aria-busy={loading}>
+            {loading ? (
+              <p role="status">Cargando eventos...</p>
+            ) : eventosFiltrados.length === 0 ? (
+              <p>{t("No hay eventos disponibles")}</p>
+            ) : eventosOrdenados.map((evento) => (
+              <EventoPerfilFila
+                key={evento.id}
+                seleccionado={eventoActivo === evento.id}
+                mostrarPrecioYDistancia
+                evento={{
+                  ...evento,
+                  nombre: evento.nombre || `Evento de ${evento.creador || "Artista SONDAR"}`,
+                  detalle: `${mostrarGenerosEvento(evento)} · ${evento.lugar || evento.ubicacion || "Lugar a confirmar"}`,
+                }}
+                onAbrir={() => seleccionarEventoEnMapa(evento)}
+              />
+            ))}
           </div>
-        </div>
-      </div>
+          </div>
+        </aside>
+      )}
 
       {loading && (
         <div style={{ position: "absolute", zIndex: 1000, top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "rgba(0,0,0,0.8)", padding: "1rem 2rem", borderRadius: "8px", color: "white" }}>
@@ -786,204 +1405,356 @@ const handleImagen = (e) => {
 
       {!loading && eventosFiltrados.length === 0 && (
         <div className="eventos-vacio">
-          {t("No hay eventos de este género")}
+          {t("No hay eventos disponibles")}
         </div>
       )}
 
-      {aviso && (
-        <div
-          className="eventos-toast"
-          role="status"
-          style={{ zIndex: 200000 }}
+      <section className={`eventos-explorador ${exploradorPlegado ? "plegado" : ""} ${detalleEvento ? "con-detalle" : ""} ${detalleExpandido ? "oculto" : ""}`} aria-label="Buscar y filtrar eventos">
+        <button
+          className="eventos-explorador-handle"
+          type="button"
+          aria-label={exploradorPlegado ? "Subir explorador de eventos" : "Bajar explorador de eventos"}
+          aria-expanded={!exploradorPlegado}
+          aria-controls="eventos-explorador-contenido"
+          onClick={() => setExploradorPlegado((actual) => !actual)}
         >
-          {aviso}
-        </div>
-      )}
-
-      <aside className={`evento-detalle ${eventoSeleccionado ? "abierto" : ""}`} aria-live="polite">
-        {detalleEvento && (
-          <>
-            <button className="evento-detalle-cerrar" type="button" onClick={() => setEventoActivo(null)}>
-              Cerrar
-            </button>
-
-            {detalleEvento ? (
-              <div className="evento-detalle-menu">
-                <button
-                  className="evento-detalle-menu-btn"
-                  type="button"
-                  aria-label="Opciones del evento"
-                  aria-expanded={menuEventoAbierto}
-                  onClick={() => setMenuEventoAbierto((actual) => !actual)}
-                >
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </button>
-                {menuEventoAbierto ? (
-                  <div className="evento-detalle-menu-popover">
-                    {usuarioPuedeEliminarEvento(detalleEvento) ? (
-                      <button type="button" onClick={() => eliminarEvento(detalleEvento)}>
-                        Eliminar
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMenuEventoAbierto(false);
-                          if (!usuario) {
-                            mostrarAviso("Tenes que iniciar sesion para denunciar publicaciones.");
-                            return;
-                          }
-                          setDenunciaPendiente(detalleEvento);
-                        }}
-                      >
-                        Denunciar publicacion
-                      </button>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div
-              className="evento-detalle-imagen"
-              style={{ backgroundImage: `url(${detalleEvento.img || detalleEvento.img_url || "/sondar-brand-icon-2026.png"})` }}
+          <span></span>
+        </button>
+        <div
+          className="eventos-explorador-contenido"
+          id="eventos-explorador-contenido"
+          aria-hidden={exploradorPlegado}
+        >
+          <header className="eventos-explorador-header">
+            <span className="eventos-explorador-icono" aria-hidden="true">
+              <img src="/sondar-explorar-mapa.png" alt="" />
+            </span>
+            <span className="eventos-explorador-texto">
+              <strong>Explora el mapa</strong>
+              <small>Elegi un evento para ver su informacion y escuchar a quienes participan.</small>
+            </span>
+            <em>{eventosFiltrados.length} eventos</em>
+          </header>
+          <div className="eventos-ubicacion-controles">
+            <button
+              type="button"
+              className={estadoUbicacion === "lista" ? "ubicacion-lista" : ""}
+              onClick={() => {
+                if (posicionUsuario && mapInstance.current) {
+                  mapInstance.current.setView(
+                    [posicionUsuario.lat, posicionUsuario.lng],
+                    Math.max(mapInstance.current.getZoom(), 14),
+                    { animate: !preferencias.reducirMovimiento }
+                  );
+                } else {
+                  solicitarUbicacion();
+                }
+              }}
+              disabled={estadoUbicacion === "solicitando"}
             >
-              <span>{mostrarGenero(detalleEvento.genero)}</span>
+              <IconoPanel nombre="ubicacion" size={16} />
+              {estadoUbicacion === "solicitando"
+                ? "Buscando ubicacion..."
+                : estadoUbicacion === "lista"
+                  ? "Ver mi ubicación"
+                  : "Usar mi ubicacion"}
+            </button>
+            <label>
+              <span>Distancia</span>
+              <select
+                value={radioKm}
+                onChange={(event) => setRadioKm(event.target.value)}
+                disabled={!posicionUsuario}
+                aria-label="Filtrar eventos por distancia"
+              >
+                <option value="">Todas</option>
+                <option value="10">Hasta 10 km</option>
+                <option value="25">Hasta 25 km</option>
+                <option value="50">Hasta 50 km</option>
+                <option value="100">Hasta 100 km</option>
+              </select>
+            </label>
+          </div>
+          {estadoUbicacion === "denegada" ? (
+            <p className="eventos-ubicacion-aviso">Permiti la ubicacion en el navegador para ver distancias y filtrar cercania.</p>
+          ) : null}
+          <label className="eventos-explorador-busqueda">
+            <span aria-hidden="true" className="eventos-explorador-lupa"></span>
+            <input
+              type="search"
+              value={busquedaEventos}
+              onChange={(event) => setBusquedaEventos(event.target.value)}
+              placeholder="Buscar eventos, lugares o artistas..."
+              aria-label="Buscar eventos"
+            />
+          </label>
+          <div className="eventos-explorador-generos" aria-label="Filtrar eventos por genero" onWheel={desplazarFiltrosConRueda}>
+            <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+            {GENEROS_PERMITIDOS.map((genero) => (
+              <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
+                {mostrarGenero(genero)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <PerfilToast mensaje={aviso} onClose={() => setAviso("")} duracion={2400} />
+
+      {eventoCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir evento"
+          nombre={`Evento de ${eventoCompartir.evento.creador || "Artista SONDAR"}`}
+          detalle={`${mostrarGenerosEvento(eventoCompartir.evento)} · ${eventoCompartir.evento.lugar || eventoCompartir.evento.ubicacion || "Lugar a confirmar"}`}
+          imagen={LOGO_EVENTO_PREDETERMINADO}
+          imagenContenida
+          enlace={eventoCompartir.enlace}
+          textoCompartir={`Descubri este evento en SONDAR ${eventoCompartir.enlace}`}
+          mensajeCopiado="Enlace del evento copiado"
+          onClose={() => setEventoCompartir(null)}
+          onAviso={mostrarAviso}
+        />
+      ) : null}
+
+      {detalleEvento ? (
+        <section className={`eventos-sheet ${detalleExpandido ? "expandido" : ""}`} aria-live="polite">
+        <button
+          className="eventos-sheet-handle"
+          type="button"
+          aria-label={detalleExpandido ? "Bajar detalle del evento" : "Abrir detalle del evento"}
+          aria-expanded={detalleExpandido}
+          onClick={() => detalleEvento && setDetalleExpandido((actual) => !actual)}
+          disabled={!detalleEvento}
+        >
+          <span></span>
+        </button>
+
+        <div className="eventos-sheet-resumen">
+          <button className="eventos-sheet-flecha" type="button" aria-label="Evento anterior" onClick={() => navegarEntreEventos(-1)} disabled={eventosFiltrados.length < 2}>
+            <IconoPanel nombre="izquierda" />
+          </button>
+          <button className="eventos-sheet-identidad" type="button" onClick={() => setDetalleExpandido(true)}>
+            <span className="eventos-sheet-avatar">
+              <ImagenAvatar src={detalleEvento.avatar} inicial={detalleEvento.creador || "A"} />
+            </span>
+            <span>
+              <strong>{detalleEvento.creador || "Artista SONDAR"}</strong>
+              <small>{mostrarGenerosEvento(detalleEvento)} · {formatearFechaVisible(detalleEvento.fecha)} · {detalleEvento.lugar || detalleEvento.ubicacion || "Lugar a confirmar"}</small>
+              <em>
+                {detalleEvento.motivo_recomendacion || "Evento en SONDAR"}
+                {" ? " + formatearPrecioEvento(detalleEvento.precio)}
+                {formatearDistancia(detalleEvento.distancia_km) ? ` · ${formatearDistancia(detalleEvento.distancia_km)} de vos` : ""}
+              </em>
+            </span>
+          </button>
+          <button className="eventos-sheet-flecha" type="button" aria-label="Evento siguiente" onClick={() => navegarEntreEventos(1)} disabled={eventosFiltrados.length < 2}>
+            <IconoPanel nombre="derecha" />
+          </button>
+          <div className="eventos-sheet-acciones">
+            <button className={`evento-guardar ${detalleEvento.guardado ? "activo" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}>
+              <IconoPanel nombre="guardar" />
+            </button>
+            <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}>
+              <IconoPanel nombre="compartir" />
+            </button>
+            <button className="eventos-sheet-expandir" type="button" aria-label="Abrir detalle" onClick={() => setDetalleExpandido(true)}>
+              <IconoPanel nombre="subir" />
+            </button>
+          </div>
+        </div>
+
+        {!detalleExpandido ? (
+          <div className="eventos-sheet-filtros">
+            <label className="eventos-explorador-busqueda eventos-sheet-busqueda">
+              <span aria-hidden="true" className="eventos-explorador-lupa"></span>
+              <input
+                type="search"
+                value={busquedaEventos}
+                onChange={(event) => setBusquedaEventos(event.target.value)}
+                placeholder="Buscar eventos, lugares o artistas..."
+                aria-label="Buscar eventos"
+              />
+            </label>
+            <div className="eventos-explorador-generos eventos-sheet-tags" aria-label="Filtrar eventos por genero" onWheel={desplazarFiltrosConRueda}>
+              <button className={todosGenerosVisibles ? "activo" : ""} type="button" aria-pressed={todosGenerosVisibles} onClick={() => cambiarFiltroGenero("todos")}>Todos</button>
+              {GENEROS_PERMITIDOS.map((genero) => (
+                <button className={!todosGenerosVisibles && generosVisibles.includes(genero) ? "activo" : ""} type="button" key={genero} aria-pressed={!todosGenerosVisibles && generosVisibles.includes(genero)} onClick={() => cambiarFiltroGenero(genero)}>
+                  {mostrarGenero(genero)}
+                </button>
+              ))}
             </div>
+          </div>
+        ) : null}
 
-            <div className="evento-detalle-info">
-              <span className="eventos-eyebrow">Evento seleccionado</span>
-              <h3>{detalleEvento.titulo}</h3>
-              {detalleEvento.descripcion ? (
-                <p className="evento-detalle-descripcion">
-                  {detalleEvento.descripcion}
-                </p>
-              ) : null}
-              <dl className="evento-detalle-datos">
+        {detalleExpandido ? (
+          <div className="eventos-sheet-contenido">
+            <div className="evento-sheet-info">
+              <div className="evento-sheet-titulo">
                 <div>
-                  <dt>Lugar</dt>
-                  <dd>{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</dd>
+                  <div className="evento-sheet-generos" aria-label="Géneros del evento">
+                    {generosDeEvento(detalleEvento).map((genero) => (
+                      <span className="evento-sheet-genero" key={genero}>{mostrarGenero(genero)}</span>
+                    ))}
+                  </div>
+                  <span className="evento-sheet-eyebrow">EVENTO</span>
                 </div>
-                <div>
-                  <dt>Fecha</dt>
-                  <dd>{formatearFechaVisible(detalleEvento.fecha)}</dd>
-                </div>
-                <div>
-                  <dt>Organiza</dt>
-                  <dd className="evento-organiza-dd" onMouseLeave={() => setHoverOrganizador(null)}>
-                    <span className="evento-organiza-identidad">
-                      <button
-                        type="button"
-                        className="evento-organiza-trigger"
-                        onMouseEnter={() => setHoverOrganizador(detalleEvento)}
-                        onMouseLeave={() => setHoverOrganizador(null)}
-                        onFocus={() => setHoverOrganizador(detalleEvento)}
-                        onBlur={() => setHoverOrganizador(null)}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (detalleEvento?.creador_id) {
-                            navigate(`/perfil/${detalleEvento.creador_id}`);
-                          }
-                        }}
-                        aria-label={`Ver perfil de ${detalleEvento.creador || "Anonimo"}`}
-                      >
-                        {detalleEvento.creador || "Anonimo"}
-                      </button>
-                    </span>
-
-                    {hoverOrganizador?.id === detalleEvento?.id ? (
-                      <div className="evento-organiza-popover" role="dialog" aria-label="Perfil del organizador">
-                        <div className="evento-organiza-popover-inner">
-                          <div className="evento-organiza-popover-header">
-                            <div className="evento-organiza-avatar">
-                              {hoverOrganizador?.avatar ? (
-                                <img src={hoverOrganizador.avatar} alt="" />
-                              ) : (
-                                <span>{String(hoverOrganizador?.creador || "A").charAt(0).toUpperCase()}</span>
-                              )}
-                            </div>
-                            <div className="evento-organiza-names">
-                              <strong>{hoverOrganizador?.creador || "Anonimo"}</strong>
-                              <span className="evento-organiza-handle">Perfil</span>
-
-
-
-
-
-                            </div>
-                          </div>
-
-
-                        </div>
+                <div className="evento-sheet-acciones-superiores">
+                  <button className={`evento-guardar ${detalleEvento.guardado ? "guardado" : ""}`} type="button" aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"} aria-pressed={Boolean(detalleEvento.guardado)} onClick={() => toggleGuardar(detalleEvento.id)}><IconoPanel nombre="guardar" /></button>
+                  <button type="button" aria-label="Compartir evento" onClick={() => compartirEvento(detalleEvento)}><IconoPanel nombre="compartir" /></button>
+                  <div className="evento-detalle-menu">
+                    <button className="evento-detalle-menu-btn" type="button" aria-label="Opciones del evento" aria-expanded={menuEventoAbierto} onClick={() => setMenuEventoAbierto((actual) => !actual)}>
+                      <span></span><span></span><span></span>
+                    </button>
+                    {menuEventoAbierto ? (
+                      <div className="evento-detalle-menu-popover">
+                        {usuarioPuedeEliminarEvento(detalleEvento) ? (
+                          <button type="button" onClick={() => {
+                            setMenuEventoAbierto(false);
+                            setEliminacionPendiente(detalleEvento);
+                          }}>Eliminar</button>
+                        ) : (
+                          <button type="button" onClick={() => {
+                            setMenuEventoAbierto(false);
+                            if (!usuario) return mostrarAviso("Tenes que iniciar sesion para denunciar publicaciones.");
+                            setDenunciaPendiente(detalleEvento);
+                          }}>Denunciar publicación</button>
+                        )}
                       </div>
                     ) : null}
-                    {Array.isArray(detalleEvento.organizadores) && detalleEvento.organizadores.length > 0 ? (
-                      <div className="evento-coorganizadores-lista" aria-label="Coorganizadores del evento">
-                        {detalleEvento.organizadores.map((organizador) => (
-                          <button
-                            className="evento-coorganizador-chip"
-                            type="button"
-                            key={organizador.id}
-                            onClick={() => navigate(`/perfil/${organizador.id}`)}
-                            aria-label={`Ver perfil de ${organizador.nombre || organizador.username}`}
-                          >
-                            <span className="evento-coorganizador-avatar">
-                              {organizador.avatar ? (
-                                <img src={organizador.avatar} alt="" />
-                              ) : (
-                                String(organizador.nombre || organizador.username || "O").charAt(0).toUpperCase()
-                              )}
-                            </span>
-                            <span>{organizador.nombre || organizador.username}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <small className="evento-organizador-principal">Creador principal</small>
-                    )}
-                  </dd>
+                  </div>
+                  <button type="button" aria-label="Cerrar detalle" onClick={() => setDetalleExpandido(false)}><IconoPanel nombre="cerrar" /></button>
                 </div>
-
-              </dl>
-              {detalleEvento.precio !== null && detalleEvento.precio !== undefined && detalleEvento.precio !== "" ? (
-                <p>Entrada: ${Number(detalleEvento.precio).toLocaleString("es-AR")}</p>
-              ) : null}
-
-              <div className="evento-detalle-acciones">
-                <button
-                  className="btn-like"
-                  aria-label={detalleEvento.guardado ? "Quitar guardado" : "Guardar evento"}
-                  onClick={() => toggleGuardar(detalleEvento.id)}
-                >
-                  {detalleEvento.guardado ? "Guardado" : "Guardar"}
-                </button>
-
-                {detalleEvento.link && (
-                  <a
-                    href={detalleEvento.link}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="btn-comprar"
-                  >
-                    Comprar
-                  </a>
-                )}
               </div>
+
+              <div className="evento-sheet-meta">
+                <span>
+                  <IconoPanel nombre="ubicacion" size={17} />
+                  <strong>{detalleEvento.lugar || detalleEvento.ubicacion || "Sin especificar"}</strong>
+                  <i aria-hidden="true">-</i>
+                  <IconoPanel nombre="calendario" size={17} />
+                  <time dateTime={detalleEvento.fecha}>{formatearFechaVisible(detalleEvento.fecha)}</time>
+                </span>
+              </div>
+
+              <dl className="evento-sheet-precio-distancia">
+                <div>
+                  <dt>Precio de entrada</dt>
+                  <dd>{formatearPrecioEvento(detalleEvento.precio)}</dd>
+                </div>
+                <div>
+                  <dt>Distancia</dt>
+                  <dd>{formatearDistancia(detalleEvento.distancia_km) ? formatearDistancia(detalleEvento.distancia_km) + " de vos" : "Distancia no disponible"}</dd>
+                </div>
+              </dl>
+
+              <div className="evento-sheet-organizadores">
+                <span>MÚSICOS</span>
+                <div className="evento-sheet-organizador-lista">
+                  <button type="button" onClick={() => detalleEvento.creador_id && navigate(`/perfil/${detalleEvento.creador_id}`)}>
+                    {detalleEvento.avatar ? <ImagenAvatar src={detalleEvento.avatar} inicial={detalleEvento.creador} /> : <i>{String(detalleEvento.creador || "A").charAt(0).toUpperCase()}</i>}
+                    {detalleEvento.creador || "Anónimo"}
+                  </button>
+                  {(detalleEvento.organizadores || []).map((organizador) => (
+                    <button type="button" key={organizador.id} onClick={() => navigate(`/perfil/${organizador.id}`)}>
+                      {organizador.avatar ? <ImagenAvatar src={organizador.avatar} inicial={organizador.nombre} /> : <i>{String(organizador.nombre || "A").charAt(0).toUpperCase()}</i>}
+                      {organizador.nombre || organizador.username}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {detalleEvento.link ? (
+                <div className="evento-sheet-botones">
+                  <a href={detalleEvento.link} target="_blank" rel="noreferrer">Ver entradas</a>
+                </div>
+              ) : null}
             </div>
-          </>
-        )}
-      </aside>
+
+            <section className="evento-previews" aria-labelledby="evento-previews-titulo">
+              <div className="evento-previews-encabezado">
+                <div><span>PREVIEWS</span><h3 id="evento-previews-titulo">Así suena este evento</h3></div>
+                <small>Previews publicadas por sus participantes</small>
+              </div>
+
+              {cargandoReels ? <p className="evento-previews-estado">Cargando previews...</p> : null}
+              {!cargandoReels && reelsDelEvento.length === 0 ? <p className="evento-previews-estado">Todavía no hay previews publicadas por quienes participan.</p> : null}
+              {reelsDelEvento.length > 0 ? (
+                <div className="evento-preview-lista" role="list">
+                  {reelsDelEvento.map((reel) => {
+                    const esReelActivo = String(reel.id) === String(reelActivo);
+                    const tituloReel = reel.titulo || reel.tema || "Canción sin título";
+
+                    return (
+                      <article
+                        className={`evento-preview-item ${esReelActivo ? "reproduciendo" : ""}`}
+                        data-preview-reel-id={String(reel.id)}
+                        key={reel.id}
+                        ref={(elemento) => {
+                          const clave = String(reel.id);
+                          if (elemento) previewItemsRef.current.set(clave, elemento);
+                          else previewItemsRef.current.delete(clave);
+                        }}
+                        role="listitem"
+                      >
+                        <IndicadorPreviewReel
+                          key={reel.portada || "sin-portada"}
+                          portada={reel.portada}
+                          reproduciendo={esReelActivo}
+                        />
+                        <span className="evento-preview-datos">
+                          <strong>{tituloReel}</strong>
+                          <small>{reel.artista || reel.usuario || "Artista SONDAR"} · {(reel.generos || [reel.genero]).filter(Boolean).map(mostrarGenero).join(" / ")}</small>
+                        </span>
+                        <button
+                          className="evento-preview-accion"
+                          type="button"
+                          onClick={() => alternarPreview(reel)}
+                          disabled={!reel.audio}
+                          aria-pressed={esReelActivo}
+                          aria-label={`${esReelActivo ? "Pausar" : "Reproducir"} preview de ${tituloReel}`}
+                        >
+                          <IconoPanel nombre={esReelActivo ? "pausa" : "play"} size={19} />
+                        </button>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </section>
+          </div>
+        ) : null}
+        <audio
+          ref={audioPreviewRef}
+          preload="metadata"
+          onPause={(event) => {
+            if (event.currentTarget.paused) setReelActivo(null);
+          }}
+          onError={() => {
+            setReelActivo(null);
+          }}
+          onEnded={() => {
+            previewSolicitudRef.current += 1;
+            setReelActivo(null);
+          }}
+        />
+        </section>
+      ) : null}
 
       <DenunciaModal
         abierto={Boolean(denunciaPendiente)}
-        titulo={denunciaPendiente?.titulo}
+        titulo={denunciaPendiente ? `Evento de ${denunciaPendiente.creador || "Artista SONDAR"}` : ""}
         enviando={enviandoDenuncia}
         onClose={() => setDenunciaPendiente(null)}
         onConfirm={(datos) => denunciarEvento(denunciaPendiente, datos)}
       />
+
+      {eliminacionPendiente ? (
+        <ConfirmarEliminacionModal
+          contenido="este evento"
+          onClose={() => setEliminacionPendiente(null)}
+          onConfirm={(password) => eliminarEvento(eliminacionPendiente, password)}
+        />
+      ) : null}
 
       {mostrarModal && (
         <div className="evento-modal-overlay">
@@ -1001,22 +1772,18 @@ const handleImagen = (e) => {
             </header>
 
             <form id="crear-evento-form" className="evento-modal-form" onSubmit={handleSubmit}>
-              <input type="text" name="titulo" placeholder="Nombre del evento" value={nuevoEvento.titulo} onChange={handleChange} required />
+              <div className="evento-modal-mapa-fijo">
+                <div className="mini-mapa-instruccion">
+                  Hacé click en el mapa o arrastrá el pin para ubicar el evento:
+                </div>
+                <div ref={miniMapRef} className="evento-minimapa"></div>
+              </div>
 
-              <textarea
-                className="evento-descripcion"
-                value={nuevoEvento.descripcion}
-                onChange={(event) => setNuevoEvento((actual) => ({ ...actual, descripcion: event.target.value }))}
-                maxLength={1000}
-                rows={3}
-                placeholder="Descripcion del evento (opcional)"
-                aria-label="Descripcion del evento"
-              />
-
-              <section className="evento-organizadores-selector" aria-label="Organizadores del evento">
+              <div className="evento-modal-campos-scroll">
+              <section className="evento-organizadores-selector" aria-label="Invitados y bandas invitadas del evento">
                 <div className="evento-organizadores-encabezado">
-                  <span>Organizadores</span>
-                  <small>Vos sos el creador principal</small>
+                  <span>Invitados o bandas invitadas</span>
+                  <small>Vos sos quien crea el evento</small>
                 </div>
 
                 {nuevoEvento.organizadores.length > 0 ? (
@@ -1043,7 +1810,7 @@ const handleImagen = (e) => {
                   aria-expanded={mostrarBuscadorOrganizador}
                 >
                   <span aria-hidden="true">+</span>
-                  Agregar organizador
+                  Agregar invitado
                 </button>
 
                 {mostrarBuscadorOrganizador ? (
@@ -1054,35 +1821,39 @@ const handleImagen = (e) => {
                     value={nuevoEvento.organizadorBusqueda}
                     onChange={(organizadorBusqueda) => setNuevoEvento((actual) => ({ ...actual, organizadorBusqueda }))}
                     onMentionSelect={agregarCoorganizador}
-                    placeholder="Escribi @ y busca a la persona"
-                    aria-label="Buscar coorganizador"
+                    placeholder="Escribi @ y busca a la persona o banda"
+                    aria-label="Buscar invitado o banda invitada"
                     autoFocus
                   />
                 ) : null}
               </section>
 
-            <select
-              name="genero"
-              value={nuevoEvento.genero}
-              onChange={handleChange}
-              required
-            >
-              <option value="" disabled>Seleccionar genero</option>
-              {GENEROS_PERMITIDOS.map((genero) => (
-                <option key={genero} value={genero}>{mostrarGenero(genero)}</option>
-              ))}
-            </select>
-
-              <label className="evento-file-selector">
-                <span>Seleccionar imagen</span>
-                <strong>{nuevoEvento.nombreImagen || "Sin archivo"}</strong>
-                <input ref={imagenEventoInputRef} type="file" accept="image/*" onChange={handleImagen} />
-              </label>
-              {nuevoEvento.nombreImagen ? (
-                <button className="evento-file-clear" type="button" onClick={limpiarImagenEvento}>
-                  Quitar imagen
-                </button>
-              ) : null}
+              <section className="evento-generos-selector" aria-labelledby="evento-generos-titulo">
+                <div className="evento-generos-encabezado">
+                  <span id="evento-generos-titulo">Géneros musicales</span>
+                  <small>{nuevoEvento.generos.length}/{MAX_GENEROS_EVENTO}</small>
+                </div>
+                <div className="evento-generos-opciones" role="group" aria-label="Seleccionar hasta tres géneros">
+                  {GENEROS_PERMITIDOS.map((genero) => {
+                    const seleccionado = nuevoEvento.generos.includes(genero);
+                    const limiteAlcanzado = nuevoEvento.generos.length >= MAX_GENEROS_EVENTO;
+                    return (
+                      <label
+                        className={`evento-genero-opcion ${seleccionado ? "seleccionado" : ""} ${!seleccionado && limiteAlcanzado ? "deshabilitado" : ""}`}
+                        key={genero}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={seleccionado}
+                          disabled={!seleccionado && limiteAlcanzado}
+                          onChange={() => alternarGeneroNuevoEvento(genero)}
+                        />
+                        <span>{mostrarGenero(genero)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
 
               <input
                 type="text"
@@ -1092,13 +1863,6 @@ const handleImagen = (e) => {
                 onChange={handleChange}
                 required
               />
-
-              <div className="mini-mapa-instruccion">
-                Hacé click en el mapa o arrastrá el pin para ubicar el evento:
-              </div>
-              
-              {/* Refactorizado con la nueva clase CSS limpia */}
-              <div ref={miniMapRef} className="evento-minimapa"></div>
 
               <input type="date" name="fecha" value={nuevoEvento.fecha} onChange={handleChange} required />
               <input type="time" name="hora" value={nuevoEvento.hora} onChange={handleChange} required />
@@ -1116,6 +1880,7 @@ const handleImagen = (e) => {
               <button className="evento-modal-publicar" type="submit" disabled={subiendo}>
                 {subiendo ? "Guardando..." : "Crear evento"}
               </button>
+              </div>
             </form>
           </section>
         </div>

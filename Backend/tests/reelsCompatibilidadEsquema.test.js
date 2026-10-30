@@ -1,0 +1,346 @@
+const { sql } = require('./helpers/sql');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const Module = require('node:module');
+const path = require('node:path');
+const test = require('node:test');
+
+const rutaControlador = require.resolve('../Controllers/reelController');
+
+function cargarControlador(columnasCompatibilidad, { reelGenerosDisponible = true } = {}) {
+  const consultas = [];
+  let insercion = null;
+  let insercionGeneros = null;
+  let consultaListado = null;
+  const poolFalso = {
+    async query(texto, valores = []) {
+      consultas.push(texto);
+
+      if (texto === 'BEGIN' || texto === 'COMMIT' || texto === 'ROLLBACK') {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (texto.includes('information_schema.columns')) {
+        return { rows: columnasCompatibilidad, rowCount: columnasCompatibilidad.length };
+      }
+
+      if (texto.includes("to_regclass('public.reel_generos')")) {
+        return { rows: [{ disponible: reelGenerosDisponible }], rowCount: 1 };
+      }
+
+      if (/CREATE TABLE IF NOT EXISTS reel_views|CREATE INDEX IF NOT EXISTS idx_reel_views_reel_id|CREATE TABLE IF NOT EXISTS reel_saves|CREATE INDEX IF NOT EXISTS idx_reel_saves_reel_id/.test(texto)) {
+        return { rows: [], rowCount: 0 };
+      }
+
+      if (/WITH senales_afinidad AS/.test(texto)) {
+        consultaListado = texto;
+        return {
+          rows: [{
+            id: 7,
+            titulo: 'Cancion de prueba',
+            genero: 'rock',
+            generos: ['rock'],
+            creador_id: 'usuario-prueba',
+            created_at: new Date().toISOString(),
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (/INSERT INTO users/.test(texto)) {
+        return { rows: [{ id: 'usuario-prueba' }], rowCount: 1 };
+      }
+
+      if (/INSERT INTO reels/.test(texto)) {
+        insercion = { texto, valores };
+        return {
+          rows: [{
+            id: 7,
+            titulo: 'Cancion de prueba',
+            genero: 'rock',
+            duracion: '0:30',
+            portada_url: 'https://storage.test/portada.webp',
+            audio_url: 'https://storage.test/audio.mp3',
+            creador_id: 'usuario-prueba',
+            color_principal: valores.find((valor) => /^#[0-9a-f]{6}$/.test(String(valor))) || null,
+          }],
+          rowCount: 1,
+        };
+      }
+
+      if (/INSERT INTO reel_generos/.test(texto)) {
+        insercionGeneros = { texto, valores };
+        return { rows: [], rowCount: valores[1]?.length || 0 };
+      }
+
+      if (/SELECT u\.profile_img_url/.test(texto)) {
+        return { rows: [{ profile_img_url: null }], rowCount: 1 };
+      }
+
+      throw new Error(`Consulta no esperada en la prueba: ${texto}`);
+    },
+    async connect() {
+      return {
+        query: (texto, valores) => poolFalso.query(texto, valores),
+        release() {},
+      };
+    },
+  };
+
+  const originalLoad = Module._load;
+  Module._load = function cargarModulo(request, parent, isMain) {
+    if (request === '../Pool_DB') return poolFalso;
+    if (request === '../services/supabaseClient') {
+      return { auth: { getUser: async () => ({ data: { user: null }, error: null }) } };
+    }
+    if (request === '../services/storageService') {
+      return {
+        subirPortadaReel: async (archivo) => archivo
+          ? { publicUrl: 'https://storage.test/portada.webp', path: 'portadas/portada.webp' }
+          : null,
+        subirAudioReel: async () => ({
+          publicUrl: 'https://storage.test/audio.mp3',
+          path: 'audios/audio.mp3',
+        }),
+        eliminarArchivoReel: async () => null,
+      };
+    }
+    if (request === '../services/notificationService') {
+      return {
+        crearNotificacion: async () => null,
+        eliminarNotificacion: async () => null,
+        nombreActor: () => 'Tester',
+        notificarMenciones: async () => null,
+        notificarSeguidores: async () => null,
+      };
+    }
+    if (request === '../services/moderationService') {
+      return {
+        asegurarEsquemaModeracion: async () => null,
+        registrarDenuncia: async () => null,
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+
+  delete require.cache[rutaControlador];
+  let controlador;
+  try {
+    controlador = require(rutaControlador);
+  } finally {
+    Module._load = originalLoad;
+  }
+
+  return {
+    controlador,
+    consultas,
+    obtenerInsercion: () => insercion,
+    obtenerInsercionGeneros: () => insercionGeneros,
+    obtenerConsultaListado: () => consultaListado,
+  };
+}
+
+function crearSolicitud() {
+  return {
+    body: {
+      titulo: 'Cancion de prueba',
+      genero: 'rock',
+      color_principal: '#AABBCC',
+    },
+    files: {
+      portada: [{ originalname: 'portada.webp' }],
+      audio: [{ originalname: 'audio.mp3' }],
+    },
+    user: {
+      id: '12345678-1234-1234-1234-123456789012',
+      email: 'tester@example.com',
+      user_metadata: { username: 'tester' },
+    },
+    accessToken: 'token-prueba',
+  };
+}
+
+function crearRespuesta() {
+  return {
+    statusCode: 200,
+    body: null,
+    status(codigo) {
+      this.statusCode = codigo;
+      return this;
+    },
+    json(cuerpo) {
+      this.body = cuerpo;
+      return this;
+    },
+  };
+}
+
+test('crear reel completa columnas antiguas obligatorias y tolera que color_principal no exista', async () => {
+  const escenario = cargarControlador([
+    { column_name: 'album', is_nullable: 'NO', column_default: null },
+    { column_name: 'descripcion', is_nullable: 'NO', column_default: null },
+  ]);
+  const respuesta = crearRespuesta();
+
+  await escenario.controlador.crearReel(crearSolicitud(), respuesta);
+
+  const insercion = escenario.obtenerInsercion();
+  assert.equal(respuesta.statusCode, 201);
+  assert.match(insercion.texto, /album/);
+  assert.match(insercion.texto, /descripcion/);
+  assert.doesNotMatch(insercion.texto, /color_principal/);
+  assert.equal(insercion.valores.filter((valor) => valor === 'Cancion de prueba').length, 2);
+  assert.ok(insercion.valores.includes(''));
+  assert.doesNotMatch(escenario.consultas.join('\n'), /ALTER TABLE public?\.?reels/i);
+});
+
+test('crear reel simplificado omite campos retirados y persiste color cuando la columna existe', async () => {
+  const escenario = cargarControlador([
+    { column_name: 'color_principal', is_nullable: 'YES', column_default: null },
+  ]);
+  const respuesta = crearRespuesta();
+
+  await escenario.controlador.crearReel(crearSolicitud(), respuesta);
+
+  const insercion = escenario.obtenerInsercion();
+  assert.equal(respuesta.statusCode, 201);
+  assert.doesNotMatch(insercion.texto, /album|descripcion/);
+  assert.match(insercion.texto, /color_principal/);
+  assert.ok(insercion.valores.includes('#aabbcc'));
+});
+
+test('crear reel informa exactamente los datos obligatorios ausentes aunque no llegue body', async () => {
+  const escenario = cargarControlador([]);
+  const respuesta = crearRespuesta();
+
+  await escenario.controlador.crearReel({ body: undefined, files: undefined }, respuesta);
+
+  assert.equal(respuesta.statusCode, 400);
+  assert.deepEqual(respuesta.body.camposFaltantes, ['titulo', 'genero', 'audio']);
+  assert.match(respuesta.body.error, /titulo, genero, audio/);
+  assert.equal(escenario.obtenerInsercion(), null);
+});
+
+test('crear reel acepta tema, genre y un audio individual normalizando el genero', async () => {
+  const escenario = cargarControlador([]);
+  const respuesta = crearRespuesta();
+  const solicitud = crearSolicitud();
+  solicitud.body = {
+    tema: '  Cancion por alias  ',
+    genre: '  ROCK  ',
+  };
+  solicitud.files = undefined;
+  solicitud.file = {
+    fieldname: 'audio',
+    originalname: 'audio.mp3',
+  };
+
+  await escenario.controlador.crearReel(solicitud, respuesta);
+
+  const insercion = escenario.obtenerInsercion();
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(insercion.valores[0], 'Cancion por alias');
+  assert.equal(insercion.valores[1], 'rock');
+  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['rock']]);
+  assert.doesNotMatch(insercion.texto, /album|descripcion/);
+});
+
+test('crear reel persiste hasta tres generos ordenados y conserva el primero como principal', async () => {
+  const escenario = cargarControlador([]);
+  const respuesta = crearRespuesta();
+  const solicitud = crearSolicitud();
+  solicitud.body.generos = JSON.stringify([' Urbano ', 'funk', 'jazz', 'funk']);
+
+  await escenario.controlador.crearReel(solicitud, respuesta);
+
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(escenario.obtenerInsercion().valores[1], 'urbano');
+  assert.deepEqual(escenario.obtenerInsercionGeneros().valores, [7, ['urbano', 'funk', 'jazz']]);
+  assert.equal(respuesta.body.genero, 'urbano');
+  assert.deepEqual(respuesta.body.generos, ['urbano', 'funk', 'jazz']);
+});
+
+test('listar reels conserva compatibilidad cuando reel_generos aun no existe', async () => {
+  const escenario = cargarControlador([], { reelGenerosDisponible: false });
+  const respuesta = crearRespuesta();
+
+  await escenario.controlador.listarReels({ headers: {}, query: {} }, respuesta);
+
+  assert.equal(respuesta.statusCode, 200);
+  assert.equal(respuesta.body.length, 1);
+  assert.equal(respuesta.body[0].genero, 'rock');
+  assert.deepEqual(respuesta.body[0].generos, ['rock']);
+  assert.doesNotMatch(escenario.obtenerConsultaListado(), /reel_generos/);
+});
+
+test('crear reel en esquema anterior guarda el genero principal sin consultar reel_generos', async () => {
+  const escenario = cargarControlador([], { reelGenerosDisponible: false });
+  const respuesta = crearRespuesta();
+  const solicitud = crearSolicitud();
+  solicitud.body.generos = ['rock', 'funk'];
+
+  await escenario.controlador.crearReel(solicitud, respuesta);
+
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(escenario.obtenerInsercionGeneros(), null);
+  assert.deepEqual(respuesta.body.generos, ['rock']);
+});
+
+test('crear reel rechaza mas de tres generos o generos fuera del catalogo', async () => {
+  const demasiados = cargarControlador([]);
+  const respuestaDemasiados = crearRespuesta();
+  const solicitudDemasiados = crearSolicitud();
+  solicitudDemasiados.body.generos = ['rock', 'funk', 'jazz', 'blues'];
+
+  await demasiados.controlador.crearReel(solicitudDemasiados, respuestaDemasiados);
+
+  assert.equal(respuestaDemasiados.statusCode, 400);
+  assert.match(respuestaDemasiados.body.error, /hasta 3 generos/);
+  assert.equal(demasiados.obtenerInsercion(), null);
+
+  const desconocido = cargarControlador([]);
+  const respuestaDesconocido = crearRespuesta();
+  const solicitudDesconocido = crearSolicitud();
+  solicitudDesconocido.body.generos = ['rock', 'tango'];
+
+  await desconocido.controlador.crearReel(solicitudDesconocido, respuestaDesconocido);
+
+  assert.equal(respuestaDesconocido.statusCode, 400);
+  assert.match(respuestaDesconocido.body.error, /Generos no permitidos: tango/);
+  assert.equal(desconocido.obtenerInsercion(), null);
+});
+
+test('la migracion focalizada vuelve opcionales los campos antiguos y agrega el color', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const controlador = fs.readFileSync(
+    path.join(raiz, 'Backend', 'Controllers', 'reelController.js'),
+    'utf8'
+  );
+  const migracion = sql('actual');
+
+  assert.match(controlador, /FROM information_schema\.columns/);
+  assert.doesNotMatch(controlador, /ALTER TABLE (?:public\.)?reels[\s\S]{0,100}color_principal/i);
+  assert.match(migracion, /ADD COLUMN IF NOT EXISTS color_principal text/i);
+  assert.match(migracion, /ALTER COLUMN album DROP NOT NULL/i);
+  assert.match(migracion, /ALTER COLUMN descripcion DROP NOT NULL/i);
+});
+
+test('reels admite tres generos en el formulario, la API y la base de datos', () => {
+  const raiz = path.join(__dirname, '..', '..');
+  const formulario = fs.readFileSync(
+    path.join(raiz, 'Frontend', 'src', 'componentes', 'CrearReelModal.jsx'),
+    'utf8'
+  );
+  const controlador = fs.readFileSync(
+    path.join(raiz, 'Backend', 'Controllers', 'reelController.js'),
+    'utf8'
+  );
+  const migracion = sql();
+
+  assert.match(formulario, /const MAX_GENEROS_REEL = 3/);
+  assert.match(formulario, /formData\.append\("generos", JSON\.stringify\(nuevoReel\.generos\)\)/);
+  assert.match(controlador, /INSERT INTO reel_generos \(reel_id, genero, posicion\)/);
+  assert.match(migracion, /CREATE TABLE public\.reel_generos/);
+  assert.match(migracion, /CHECK[\s\S]{0,100}posicion[\s\S]{0,100}1[\s\S]{0,100}3/);
+  assert.match(migracion, /FOREIGN KEY \(reel_id\) REFERENCES public\.reels\(id\) ON DELETE CASCADE/);
+});

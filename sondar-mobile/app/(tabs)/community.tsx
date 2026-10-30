@@ -23,9 +23,6 @@ type Post = { id: number; userId?: string; avatar?: string; comunidadId: string;
 type FeedRow = { kind: 'intro' | 'filters' } | { kind: 'post'; post: Post };
 
 const countComments = (items: Comment[]): number => items.reduce((total, item) => total + 1 + countComments(item.respuestas || []), 0);
-const removeComment = (items: Comment[], id: number): Comment[] => items
-  .filter(item => item.id !== id)
-  .map(item => ({ ...item, respuestas: removeComment(item.respuestas || [], id) }));
 
 export default function CommunityScreen() {
   const { token, user } = useAuth();
@@ -43,6 +40,8 @@ export default function CommunityScreen() {
   const [form, setForm] = useState({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' });
   const [eventAttachment, setEventAttachment] = useState<CommunityAttachment | null>(null);
   const [reelAttachment, setReelAttachment] = useState<CommunityAttachment | null>(null);
+  const interactionLocks = useRef(new Set<string>());
+  const commentLikeLocks = useRef(new Set<number>());
   const commentSaveLocks = useRef(new Set<number>());
   const [openPost, setOpenPost] = useState<Post | null>(null);
   const [comment, setComment] = useState('');
@@ -112,11 +111,11 @@ export default function CommunityScreen() {
 
   const threadCommunity = communities.find(item => String(item.id) === String(openPost?.comunidadId));
 
-  async function updateMembership(id: string, join: boolean) {
+  async function updateMembership(id: string) {
     if (membershipLock.current) return;
     membershipLock.current = true; setMembershipBusy(true);
     try {
-      const result = await api<{ unido: boolean; miembros: number }>(`/api/comunidades/${id}/membresia`, { token, method: join ? 'PUT' : 'DELETE' });
+      const result = await api<{ unido: boolean; miembros: number }>(`/api/comunidades/${id}/membresia`, { token, method: 'POST' });
       setCommunities(items => items.map(item => item.id === id ? { ...item, ...result } : item));
       setActive(item => item?.id === id ? { ...item, ...result } : item);
     } catch (e) { Alert.alert('Comunidad', e instanceof Error ? e.message : 'No se pudo actualizar.'); }
@@ -124,7 +123,7 @@ export default function CommunityScreen() {
   }
 
   async function membership() {
-    if (active) await updateMembership(active.id, !active.unido);
+    if (active) await updateMembership(active.id);
   }
 
   function openThread(post: Post) {
@@ -146,13 +145,16 @@ export default function CommunityScreen() {
   }
 
   async function interact(post: Post, kind: 'like' | 'guardar') {
+    const key = `${kind}:${post.id}`;
+    if (interactionLocks.current.has(key)) return;
+    interactionLocks.current.add(key);
     try {
       const result = await api<any>(`/api/comunidades/publicaciones/${post.id}/${kind}`, { method: 'POST', token });
       setPosts(items => items.map(item => item.id === post.id ? { ...item, ...result } : item));
       setOpenPost(item => item?.id === post.id ? { ...item, ...result } : item);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo completar la accion.');
-    }
+    } finally { interactionLocks.current.delete(key); }
   }
 
   async function publish() {
@@ -165,7 +167,7 @@ export default function CommunityScreen() {
     publishLock.current = true;
     setPublishing(true);
     try {
-      const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, eventoId: eventAttachment?.id, reelId: reelAttachment?.id, etiqueta: form.etiqueta || active.genero }) });
+      const created = await api<Post>(`/api/comunidades/${active.id}/publicaciones`, { method: 'POST', token, body: JSON.stringify({ ...form, eventoAsociadoId: eventAttachment?.id, reelAsociadoId: reelAttachment?.id, etiqueta: form.etiqueta || active.genero }) });
       setPosts(items => [normalizeCommunityPost(created), ...items]);
       setCreating(false);
       setForm({ titulo: '', texto: '', tipo: 'reciente', etiqueta: '' });
@@ -208,7 +210,7 @@ export default function CommunityScreen() {
     if (commentSaveLocks.current.has(target.id)) return;
     commentSaveLocks.current.add(target.id);
     try {
-      const result = await api<{ guardado: boolean }>('/api/comunidades/comentarios/' + target.id + '/guardar', { token, method: target.guardado ? 'DELETE' : 'PUT' });
+      const result = await api<{ guardado: boolean }>('/api/comunidades/comentarios/' + target.id + '/guardar', { token, method: 'POST' });
       const update = (post: Post) => ({ ...post, comentarios: updateComment(post.comentarios || [], target.id, item => ({ ...item, guardado: result.guardado })) });
       setPosts(items => items.map(update));
       setOpenPost(current => current ? update(current) : current);
@@ -223,6 +225,8 @@ export default function CommunityScreen() {
   }
 
   async function toggleCommentLike(target: Comment) {
+    if (commentLikeLocks.current.has(target.id)) return;
+    commentLikeLocks.current.add(target.id);
     try {
       const result = await api<{ id: number; liked: boolean; likes: number; votos?: number }>(`/api/comunidades/comentarios/${target.id}/like`, { method: 'POST', token });
       const update = (post: Post) => ({
@@ -233,37 +237,7 @@ export default function CommunityScreen() {
       setOpenPost(current => current ? update(current) : current);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar el me gusta.');
-    }
-  }
-
-  function deleteComment(target: Comment) {
-    if (!openPost) return;
-    if (!token) {
-      Alert.alert('SONDAR', 'Inicia sesion para eliminar comentarios.');
-      return;
-    }
-
-    const postId = openPost.id;
-    Alert.alert('Eliminar comentario', 'Esta accion no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api(`/api/comunidades/comentarios/${target.id}`, { method: 'DELETE', token });
-            const update = (post: Post) => {
-              const comentarios = removeComment(post.comentarios || [], target.id);
-              return { ...post, comentarios, comentariosTotal: countComments(comentarios) };
-            };
-            setPosts(items => items.map(item => item.id === postId ? update(item) : item));
-            setOpenPost(current => current ? update(current) : current);
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el comentario.');
-          }
-        },
-      },
-    ]);
+    } finally { commentLikeLocks.current.delete(target.id); }
   }
 
   async function submitReport(payload: ReportPayload) {
@@ -436,7 +410,7 @@ export default function CommunityScreen() {
                 contentContainerStyle={{ gap: 13, paddingVertical: 12 }}
                 keyboardShouldPersistTaps="handled"
                 ListEmptyComponent={<Empty title="Sin respuestas todavia" />}
-                renderItem={({ item }) => <CommunityComment item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onDelete={deleteComment} onSave={toggleCommentSave} onProfile={openCommentProfile} />}
+                renderItem={({ item }) => <CommunityComment item={item} currentUserId={user?.id} onLike={toggleCommentLike} onReply={setReplyTo} onSave={toggleCommentSave} onProfile={openCommentProfile} />}
               />
               {replyTo ? (
                 <View style={styles.replyBanner}>
@@ -448,7 +422,7 @@ export default function CommunityScreen() {
               ) : null}
               {!threadCommunity?.unido ? <View style={styles.joinToComment}>
                 <Text style={ui.muted}>Unite a esta comunidad para enviar tu comentario.</Text>
-                <Button disabled={membershipBusy} onPress={() => void updateMembership(openPost.comunidadId, true)}>
+                <Button disabled={membershipBusy} onPress={() => void updateMembership(openPost.comunidadId)}>
                   {membershipBusy ? 'Uniendo...' : 'Unirme para comentar'}
                 </Button>
               </View> : null}
@@ -473,7 +447,7 @@ export default function CommunityScreen() {
   );
 }
 
-function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, onSave, onProfile, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onDelete: (item: Comment) => void; onSave: (item: Comment) => void; onProfile: (item: Comment) => void; nested?: boolean; rootId?: number }) {
+function CommunityComment({ item, currentUserId, onLike, onReply, onSave, onProfile, nested = false, rootId }: { item: Comment; currentUserId?: string; onLike: (item: Comment) => void; onReply: (target: ReplyTarget) => void; onSave: (item: Comment) => void; onProfile: (item: Comment) => void; nested?: boolean; rootId?: number }) {
   const parentId = rootId || item.id;
   const displayName = item.usuario || (item.autor ? `@${String(item.autor).replace(/^@/, '')}` : '@usuario');
   const canDelete = Boolean(currentUserId && item.userId === currentUserId);
@@ -500,16 +474,10 @@ function CommunityComment({ item, currentUserId, onLike, onReply, onDelete, onSa
               <Ionicons name={item.guardado ? 'bookmark' : 'bookmark-outline'} size={15} color={item.guardado ? palette.orange : palette.muted} />
               <Text style={styles.commentActionText}>{item.guardado ? 'Guardado' : 'Guardar'}</Text>
             </Pressable>
-            {canDelete ? (
-              <Pressable onPress={() => onDelete(item)} hitSlop={8} style={styles.commentLike}>
-                <Ionicons name="trash-outline" size={15} color={palette.muted} />
-                <Text style={styles.commentActionText}>Eliminar</Text>
-              </Pressable>
-            ) : null}
           </View>
         </View>
       </View>
-      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onDelete={onDelete} onSave={onSave} onProfile={onProfile} nested rootId={parentId} />)}
+      {item.respuestas?.map(reply => <CommunityComment key={reply.id} item={reply} currentUserId={currentUserId} onLike={onLike} onReply={onReply} onSave={onSave} onProfile={onProfile} nested rootId={parentId} />)}
     </View>
   );
 }

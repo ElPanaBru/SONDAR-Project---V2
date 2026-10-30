@@ -1,8 +1,10 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { NavLink, useNavigate } from "react-router-dom";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
+import PerfilSocialModal from "./PerfilSocialModal";
 import "./sidebarNav.css";
 
 const iconos = {
@@ -10,11 +12,34 @@ const iconos = {
     "M509-269q-29-29-29-71t29-71q29-29 71-29t71 29q29 29 29 71t-29 71q-29 29-71 29t-71-29ZM200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
   descubrir:
     "m300-300 280-80 80-280-280 80-80 280Zm180-120q-25 0-42.5-17.5T420-480q0-25 17.5-42.5T480-540q25 0 42.5 17.5T540-480q0 25-17.5 42.5T480-420Zm0 340q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z",
-  comunidad:
-    "M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Z",
+  mensajes:
+    "M160-160v-560q0-33 23.5-56.5T240-800h480q33 0 56.5 23.5T800-720v360q0 33-23.5 56.5T720-280H320L160-160Zm114-200h446v-360H240v365l34-5Z",
 };
 
 function Icono({ nombre }) {
+  if (nombre === "comunidad") {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 96 96"
+        width="24"
+        height="24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="5.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="48" cy="27" r="16" />
+        <circle cx="21.5" cy="37" r="11.5" />
+        <circle cx="74.5" cy="37" r="11.5" />
+        <path d="M28 77v-7c0-14 8.9-24 20-24s20 10 20 24v7" />
+        <path d="M7 69v-5c0-11 6.4-19 14.5-19 6.1 0 11.3 4.1 13.5 10.4" />
+        <path d="M89 69v-5c0-11-6.4-19-14.5-19-6.1 0-11.3 4.1-13.5 10.4" />
+      </svg>
+    );
+  }
+
   return (
     <svg aria-hidden="true" viewBox="0 -960 960 960" width="24" height="24" fill="currentColor">
       <path d={iconos[nombre]} />
@@ -22,16 +47,22 @@ function Icono({ nombre }) {
   );
 }
 
+const LIMITE_SEGUIDOS = 7;
+
 const links = [
   { to: "/", label: "Eventos", icon: "eventos", end: true },
-  { to: "/descubrir", label: "Descubrir", icon: "descubrir" },
-  { to: "/comunidad", label: "Comunidad", icon: "comunidad" },
+  { to: "/descubrir", label: "Preview", icon: "descubrir" },
+  { to: "/comunidad", label: "Foros", icon: "comunidad" },
+  { to: "/mensajes", label: "Mensajes", icon: "mensajes" },
 ];
 
 export default function SidebarNav({ usuario }) {
   const { t } = usePreferencias();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [seguidos, setSeguidos] = useState([]);
+  const [mostrarTodos, setMostrarTodos] = useState(false);
+  const [listaSeguidosAbierta, setListaSeguidosAbierta] = useState(false);
 
   useEffect(() => {
     let activo = true;
@@ -47,7 +78,7 @@ export default function SidebarNav({ usuario }) {
         const token = data.session?.access_token;
         if (!token) return;
 
-        const response = await fetch(apiUrl("/api/usuarios/me/seguidos"), {
+        const response = await apiRequest("/api/usuarios/me/seguidos", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -69,8 +100,15 @@ export default function SidebarNav({ usuario }) {
     };
   }, [usuario]);
 
+  const abrirPerfilSeguido = (perfil) => {
+    setListaSeguidosAbierta(false);
+    if (!perfil?.id) return;
+    navigate(perfil.id === usuario?.id ? "/perfil" : `/perfil/${perfil.id}`);
+  };
+
   return (
     <aside className={`sidebar-nav ${open ? "open" : ""}`} aria-label="Navegación principal">
+      <div className="sidebar-header">
       <button
         type="button"
         className="sidebar-toggle"
@@ -84,16 +122,24 @@ export default function SidebarNav({ usuario }) {
           <span />
         </span>
       </button>
+      <NavLink to="/" className="sidebar-brand" aria-label="SONDAR - Inicio">
+        <span className="sidebar-brand-icon" aria-hidden="true">
+          <img src="/sondar-brand-transparent.png" alt="" />
+        </span>
+        <span className="sidebar-brand-wordmark" aria-hidden="true">
+          <img src="/sondar-brand-transparent.png" alt="" />
+        </span>
+      </NavLink>
+      </div>
 
       <div className="sidebar-content" role="navigation">
         <div className="sidebar-section">
-          <div className="sidebar-section-title">{t("Ir a...")}</div>
           {links.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               end={item.end}
-              className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+              className={({ isActive }) => `sidebar-link sidebar-main-link ${isActive ? "active" : ""}`}
             >
               <span className="sidebar-link-icon" aria-hidden="true">
                 <Icono nombre={item.icon} />
@@ -104,28 +150,64 @@ export default function SidebarNav({ usuario }) {
         </div>
 
         <div className="sidebar-section sidebar-following-section">
-          <div className="sidebar-section-title">{t("Siguiendo")}</div>
-          {seguidos.map((perfil) => (
-            <NavLink
-              key={perfil.id}
-              to={`/perfil/${perfil.id}`}
-              className="sidebar-link sidebar-following-link"
-            >
-              <span
-                className="sidebar-following-avatar"
-                style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
-                aria-hidden="true"
+          <button
+            type="button"
+            className="sidebar-section-title sidebar-following-title"
+            onClick={() => setListaSeguidosAbierta(true)}
+            aria-haspopup="dialog"
+          >
+            {t("Siguiendo")}
+          </button>
+          <div id="sidebar-seguidos" className="sidebar-following-list">
+            {(mostrarTodos ? seguidos : seguidos.slice(0, LIMITE_SEGUIDOS)).map((perfil) => (
+              <NavLink
+                key={perfil.id}
+                to={`/perfil/${perfil.id}`}
+                className="sidebar-link sidebar-following-link"
               >
-                {perfil.avatar ? <img src={perfil.avatar} alt="" /> : perfil.nombre.charAt(0).toUpperCase()}
+                <span
+                  className="sidebar-following-avatar"
+                  style={{ background: "linear-gradient(135deg, #ffae00, #ff5e00)" }}
+                  aria-hidden="true"
+                >
+                  {perfil.avatar ? <ImagenAvatar src={perfil.avatar} inicial={perfil.nombre} /> : perfil.nombre.charAt(0).toUpperCase()}
+                </span>
+                <span className="sidebar-link-text">
+                  <strong>{perfil.nombre}</strong>
+                  <small>{perfil.usuario}</small>
+                </span>
+              </NavLink>
+            ))}
+          </div>
+          {seguidos.length > LIMITE_SEGUIDOS && (
+            <button
+              type="button"
+              className="sidebar-link sidebar-following-toggle"
+              onClick={() => setMostrarTodos((value) => !value)}
+              aria-expanded={mostrarTodos}
+              aria-controls="sidebar-seguidos"
+              aria-label={t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}
+              title={t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}
+            >
+              <span className="sidebar-link-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={mostrarTodos ? "m6 15 6-6 6 6" : "m6 9 6 6 6-6"} />
+                </svg>
               </span>
-              <span className="sidebar-link-text">
-                <strong>{perfil.nombre}</strong>
-                <small>{perfil.usuario}</small>
-              </span>
-            </NavLink>
-          ))}
+              <span className="sidebar-link-text">{t(mostrarTodos ? "Mostrar menos" : "Mostrar más")}</span>
+            </button>
+          )}
         </div>
       </div>
+
+      <PerfilSocialModal
+        abierto={listaSeguidosAbierta}
+        titulo="Seguidos"
+        perfiles={seguidos}
+        mensajeVacio="Todavia no seguis a nadie."
+        onClose={() => setListaSeguidosAbierta(false)}
+        onSelect={abrirPerfilSeguido}
+      />
     </aside>
   );
 }

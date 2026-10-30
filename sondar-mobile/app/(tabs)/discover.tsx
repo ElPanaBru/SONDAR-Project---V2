@@ -1,4 +1,5 @@
 import { AudioFragmentPicker } from '@/components/audio-fragment-picker';
+import { PasswordConfirmModal } from '@/components/password-confirm-modal';
 import { audioFragment, fragmentTime, type AudioFragment } from '@/lib/audio-fragment';
 import { KeyboardArea } from '@/components/keyboard-layout';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,33 @@ const removeComment = (items: Comment[], id: number): Comment[] => items
   .map(item => ({ ...item, respuestas: removeComment(item.respuestas || [], id) }));
 const emptyReelForm = () => ({ tema: '', generos: [] as string[] });
 
+type ListenSession = { id: string; listenedMs: number; durationMs: number | null; maxRatio: number; replayCount: number; previousTime: number; lastTick: number; lastSentAt: number };
+
+function newListenSessionId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === 'x' ? random : (random & 0x3) | 0x8).toString(16);
+  });
+}
+
+function sendListenSession(reelId: number, session: ListenSession, final = false) {
+  const positionRatio = Math.max(0, Math.min(1, session.maxRatio));
+  const listenedRatio = session.durationMs ? session.listenedMs / session.durationMs : positionRatio;
+  const completionRatio = Math.max(0, Math.min(1, positionRatio, listenedRatio));
+  void api(`/api/reels/${reelId}/interaccion`, {
+    method: 'POST',
+    body: JSON.stringify({
+      sessionId: session.id,
+      listenedMs: Math.round(session.listenedMs),
+      durationMs: session.durationMs,
+      completionRatio,
+      completed: completionRatio >= 0.95,
+      skipped: final && completionRatio < 0.35 && session.listenedMs < 8000,
+      replayCount: session.replayCount,
+    }),
+  }).catch(() => null);
+}
+
 export default function DiscoverScreen() {
   const { token, user } = useAuth();
   const navigation = useNavigation<BottomTabNavigationProp<{ discover: undefined }>>();
@@ -48,6 +76,7 @@ export default function DiscoverScreen() {
   const publishLock = useRef(false);
   const [sending, setSending] = useState(false);
   const followLocks = useRef(new Set<string>());
+  const interactionLocks = useRef(new Set<string>());
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -55,9 +84,13 @@ export default function DiscoverScreen() {
   const [cover, setCover] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [audio, setAudio] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [fragment, setFragment] = useState<AudioFragment | null>(null);
+  const [audioDuration, setAudioDuration] = useState(0);
   const [shareBusy, setShareBusy] = useState(false);
   const [reportTarget, setReportTarget] = useState<Reel | null>(null);
   const [reportBusy, setReportBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Reel | null>(null);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const reelsList = useRef<FlatList<Reel>>(null);
   const viewed = useRef(new Set<number>());
   const tabBarHeight = useBottomTabBarHeight();
@@ -106,10 +139,14 @@ export default function DiscoverScreen() {
   }, [loading, reelId, reels]);
 
   async function interact(reel: Reel, kind: 'like' | 'guardar') {
+    const key = `${kind}:${reel.backendId || reel.id}`;
+    if (interactionLocks.current.has(key)) return;
+    interactionLocks.current.add(key);
     try {
       const result = await api<any>(`/api/reels/${reel.backendId || reel.id}/${kind}`, { method: 'POST', token });
       setReels(items => items.map(item => item.id === reel.id ? { ...item, ...result, liked: kind === 'like' ? result.liked : item.liked, guardado: kind === 'guardar' ? result.guardado : item.guardado } : item));
     } catch (e) { Alert.alert('SONDAR', e instanceof Error ? e.message : 'No se pudo completar la acción.'); }
+    finally { interactionLocks.current.delete(key); }
   }
 
   async function openComments(reel: Reel) {
@@ -227,21 +264,23 @@ export default function DiscoverScreen() {
   }
 
   function removeReel(reel: Reel) {
-    Alert.alert('Eliminar lanzamiento', 'Esta acción no se puede deshacer.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await api(`/api/reels/${reel.backendId || reel.id}`, { method: 'DELETE', token });
-            setReels(current => current.filter(item => item.id !== reel.id));
-          } catch (e) {
-            Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el lanzamiento.');
-          }
-        },
-      },
-    ]);
+    setDeletePassword('');
+    setDeleteTarget(reel);
+  }
+
+  async function confirmDeleteReel() {
+    if (!deleteTarget || !deletePassword || deleting) return;
+    setDeleting(true);
+    try {
+      await api(`/api/reels/${deleteTarget.backendId || deleteTarget.id}`, { method: 'DELETE', token, body: JSON.stringify({ password: deletePassword }) });
+      setReels(current => current.filter(item => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeletePassword('');
+    } catch (e) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el lanzamiento.');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   function openOptions(reel: Reel) {
@@ -266,6 +305,7 @@ export default function DiscoverScreen() {
     const result = await DocumentPicker.getDocumentAsync({ type: 'audio/*', copyToCacheDirectory: true });
     if (!result.canceled) {
       setFragment(null);
+      setAudioDuration(0);
       setAudio(result.assets[0]);
     }
   }
@@ -285,17 +325,17 @@ export default function DiscoverScreen() {
   async function publish() {
     if (publishLock.current) return;
     if (!form.tema.trim() || !audio || form.generos.length === 0) return setError('Completá el nombre de la canción, elegí al menos un género y seleccioná un audio.');
-    if (!fragment || fragment.end <= fragment.start) return setError('Esperá a que cargue el audio y elegí el fragmento.');
+    if (!audioDuration) return setError('Esperá a que cargue la duración del audio.');
     publishLock.current = true;
     setBusy(true);
     try {
       const body = new FormData();
-      body.append('tema', form.tema.trim()); body.append('album', form.tema.trim()); body.append('genero', form.generos.join(' / '));
-      body.append('duracion', fragmentTime(fragment.end - fragment.start));
-      body.append('fragmentStart', String(fragment.start)); body.append('fragmentEnd', String(fragment.end));
+      body.append('tema', form.tema.trim()); body.append('album', form.tema.trim()); body.append('genero', form.generos[0]);
+      body.append('generos', JSON.stringify(form.generos));
+      body.append('duracion', fragmentTime(audioDuration));
       body.append('audio', mediaPart({ ...audio, fileName: audio.name }, 'audio.mp3')); if (cover) body.append('portada', mediaPart(cover, 'portada.jpg'));
       const created = normalizeReel(await api<Reel>('/api/reels/crear', { method: 'POST', token, body }));
-      setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setForm(emptyReelForm()); setError('');
+      setReels(items => [created, ...items]); setActive(created.id); setCreating(false); setCover(null); setAudio(null); setAudioDuration(0); setFragment(null); setForm(emptyReelForm()); setError('');
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo publicar.'); }
     finally { publishLock.current = false; setBusy(false); }
   }
@@ -310,7 +350,7 @@ export default function DiscoverScreen() {
       <Header title="Descubrir" subtitle="Nuevos sonidos" actions={<><IconButton name="chatbubbles-outline" onPress={() => router.push('/messages')} /><NotificationButton /><IconButton name="add" active onPress={() => setCreating(true)} /></>} />
       <View style={{ flex: 1, marginBottom: tabBarHeight }} onLayout={event => setReelHeight(Math.max(1, Math.floor(event.nativeEvent.layout.height)))}>
       {loading ? <Loading /> : error && !reels.length ? <View style={{ padding: 16 }}><ErrorNotice message={error} /><Empty title="No pudimos cargar música" /></View> : (
-        <FlatList ref={reelsList} data={reels} keyExtractor={item => String(item.id)} style={[styles.reelsList, { height: reelHeight }]} pagingEnabled snapToInterval={reelHeight} decelerationRate="fast" disableIntervalMomentum getItemLayout={(_, index) => ({ length: reelHeight, offset: reelHeight * index, index })} removeClippedSubviews={false} showsVerticalScrollIndicator={false} onViewableItemsChanged={viewability} viewabilityConfig={{ itemVisiblePercentThreshold: 65 }} ListEmptyComponent={<Empty title="Todavía no hay lanzamientos" text="Sé la primera persona en compartir música." />} renderItem={({ item }) => <ReelCard height={reelHeight} reel={item} active={active === item.id} screenFocused={isFocused && appActive && !creating && !commentReel && !shareReel} mine={item.creadorId === user?.id} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onComments={() => openComments(item)} onShare={() => share(item)} onFollow={() => toggleFollow(item)} onReport={() => openOptions(item)} />} />
+        <FlatList ref={reelsList} data={reels} keyExtractor={item => String(item.id)} style={[styles.reelsList, { height: reelHeight }]} pagingEnabled snapToInterval={reelHeight} decelerationRate="fast" disableIntervalMomentum getItemLayout={(_, index) => ({ length: reelHeight, offset: reelHeight * index, index })} removeClippedSubviews={false} showsVerticalScrollIndicator={false} onViewableItemsChanged={viewability} viewabilityConfig={{ itemVisiblePercentThreshold: 65 }} ListEmptyComponent={<Empty title="Todavía no hay lanzamientos" text="Sé la primera persona en compartir música." />} renderItem={({ item }) => <ReelCard height={reelHeight} reel={item} active={active === item.id} screenFocused={isFocused && appActive && !creating && !commentReel && !shareReel} mine={item.creadorId === user?.id} canTrack={Boolean(user?.id)} onLike={() => interact(item, 'like')} onSave={() => interact(item, 'guardar')} onComments={() => openComments(item)} onShare={() => share(item)} onFollow={() => toggleFollow(item)} onReport={() => openOptions(item)} />} />
       )}
       </View>
 
@@ -360,21 +400,22 @@ export default function DiscoverScreen() {
 
           <View style={styles.fileRow}>
             <View style={styles.fileColumn}><Pressable onPress={pickCover} style={styles.filePicker}><Ionicons name="image-outline" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir portada</Text><Text style={styles.filePickerName} numberOfLines={1}>{cover?.fileName || 'JPG, PNG o WEBP'}</Text></View></Pressable>{cover ? <Button kind="secondary" onPress={() => setCover(null)}>Quitar portada</Button> : null}</View>
-            <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => { setAudio(null); setFragment(null); }}>Quitar audio</Button> : null}</View>
+            <View style={styles.fileColumn}><Pressable onPress={pickAudio} style={styles.filePicker}><Ionicons name="musical-note" size={21} color="#111" /><View style={{ flex: 1 }}><Text style={styles.filePickerTitle}>Elegir audio</Text><Text style={styles.filePickerName} numberOfLines={1}>{audio?.name || 'MP3, WAV u OGG'}</Text></View></Pressable>{audio ? <Button kind="secondary" onPress={() => { setAudio(null); setAudioDuration(0); setFragment(null); }}>Quitar audio</Button> : null}</View>
           </View>
 
 
-          {creating && audio ? <AudioFragmentPicker key={audio.uri} uri={audio.uri} name={audio.name} value={fragment} onChange={setFragment} disabled={busy} /> : null}
+          {creating && audio ? <AudioFragmentPicker key={audio.uri} uri={audio.uri} name={audio.name} value={fragment} onChange={setFragment} onDurationChange={setAudioDuration} selectionEnabled={false} disabled={busy} /> : null}
           <Button onPress={publish} disabled={busy || !fragment}>{busy ? 'Publicando…' : 'Publicar preview'}</Button>
         </Screen>
       </Modal>
       <ReportModal visible={Boolean(reportTarget)} subject={reportTarget ? `${reportTarget.tema} · ${reportTarget.artista}` : ''} busy={reportBusy} onClose={() => setReportTarget(null)} onSubmit={submitReport} />
+      <PasswordConfirmModal visible={Boolean(deleteTarget)} title="Eliminar lanzamiento" description="Esta acción no se puede deshacer. Confirma tu contraseña para continuar." password={deletePassword} busy={deleting} onPasswordChange={setDeletePassword} onCancel={() => setDeleteTarget(null)} onConfirm={() => void confirmDeleteReel()} />
     </Screen>
   );
 }
 
 /* eslint-disable react-hooks/immutability -- expo-video exposes currentTime as an intentionally writable, imperative seek API. */
-function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, onComments, onShare, onFollow, onReport }: { height: number; reel: Reel; active: boolean; screenFocused: boolean; mine: boolean; onLike: () => void; onSave: () => void; onComments: () => void; onShare: () => void; onFollow: () => void; onReport: () => void }) {
+function ReelCard({ height, reel, active, screenFocused, mine, canTrack, onLike, onSave, onComments, onShare, onFollow, onReport }: { height: number; reel: Reel; active: boolean; screenFocused: boolean; mine: boolean; canTrack: boolean; onLike: () => void; onSave: () => void; onComments: () => void; onShare: () => void; onFollow: () => void; onReport: () => void }) {
   const player = useVideoPlayer(reel.audio || null, instance => { instance.loop = false; instance.timeUpdateEventInterval = .25; });
   const loaded = useEvent(player, 'sourceLoad');
   const sourceDuration = loaded?.duration || player.duration;
@@ -391,6 +432,9 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   const scrubbingRef = useRef(false);
   const resumeAfterSeek = useRef(false);
   const manuallyPaused = useRef(false);
+  const listenSession = useRef<ListenSession | null>(null);
+  const playingRef = useRef(playing);
+  playingRef.current = playing;
   const playable = Boolean(reel.audio);
   const duration = fragmentLength;
   const percent = duration > 0 ? Math.min(100, Math.max(0, (progress.current / duration) * 100)) : 0;
@@ -410,7 +454,20 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
   }, [active, fragmentEnd, fragmentStart, player, playable, screenFocused, fragmentLength]);
 
   useEffect(() => {
-    if (!active || !screenFocused || !playable) return;
+    if (!active || !screenFocused || !playable || fragmentLength <= 0) return;
+    if (canTrack && reel.backendId) {
+      const now = Date.now();
+      listenSession.current = {
+        id: newListenSessionId(),
+        listenedMs: 0,
+        durationMs: Math.round(fragmentLength * 1000),
+        maxRatio: 0,
+        replayCount: 0,
+        previousTime: player.currentTime,
+        lastTick: now,
+        lastSentAt: now,
+      };
+    }
     const interval = setInterval(() => {
       if (scrubbingRef.current) return;
       if (player.currentTime >= fragmentEnd && !manuallyPaused.current) {
@@ -419,10 +476,32 @@ function ReelCard({ height, reel, active, screenFocused, mine, onLike, onSave, o
       }
       const nextCurrent = Number.isFinite(player.currentTime) ? player.currentTime : 0;
       setProgress({ current: Math.min(fragmentLength, Math.max(0, nextCurrent - fragmentStart)), duration: fragmentLength });
+      const session = listenSession.current;
+      if (session && reel.backendId) {
+        const now = Date.now();
+        if (playingRef.current) session.listenedMs += Math.min(2000, Math.max(0, now - session.lastTick));
+        session.lastTick = now;
+        const ratio = Math.max(0, Math.min(1, (nextCurrent - fragmentStart) / fragmentLength));
+        if (nextCurrent + 0.5 < session.previousTime) {
+          session.replayCount += 1;
+          session.maxRatio = 1;
+        } else {
+          session.maxRatio = Math.max(session.maxRatio, ratio);
+        }
+        session.previousTime = nextCurrent;
+        if (now - session.lastSentAt >= 4500) {
+          session.lastSentAt = now;
+          sendListenSession(reel.backendId, session);
+        }
+      }
     }, 250);
 
-    return () => clearInterval(interval);
-  }, [active, fragmentEnd, fragmentLength, fragmentStart, player, playable, screenFocused]);
+    return () => {
+      clearInterval(interval);
+      if (listenSession.current && reel.backendId) sendListenSession(reel.backendId, listenSession.current, true);
+      listenSession.current = null;
+    };
+  }, [active, canTrack, fragmentEnd, fragmentLength, fragmentStart, player, playable, reel.backendId, screenFocused]);
 
   useEffect(() => {
     const subscription = player.addListener('playToEnd', () => {

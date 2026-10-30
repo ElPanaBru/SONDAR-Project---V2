@@ -7,49 +7,34 @@ const PERFILES_BUCKET = process.env.SUPABASE_PERFILES_BUCKET || 'perfiles';
 const EVENTOS_BUCKET = process.env.SUPABASE_EVENTOS_BUCKET || 'eventos';
 const REELS_BUCKET = process.env.SUPABASE_REELS_BUCKET || 'reels';
 
-async function listar(bucket, carpeta) {
-  const resultados = [];
-  let offset = 0;
-  while (true) {
-    const { data, error } = await supabase.storage.from(bucket).list(carpeta, {
-      limit: 1000,
-      offset,
-      sortBy: { column: 'name', order: 'asc' },
-    });
-    if (error) throw new Error(`No se pudo listar ${bucket}/${carpeta}: ${error.message}`);
-    resultados.push(...(data || []));
-    if (!data || data.length < 1000) return resultados;
-    offset += data.length;
-  }
-}
-
-async function listarPerfiles() {
-  const carpetas = await listar(PERFILES_BUCKET, 'usuarios');
-  const resultados = [];
-  for (const carpeta of carpetas.filter((entrada) => !entrada.id)) {
-    const archivos = await listar(PERFILES_BUCKET, `usuarios/${carpeta.name}`);
-    resultados.push(...archivos
-      .filter((archivo) => archivo.id)
-      .map((archivo) => `usuarios/${carpeta.name}/${archivo.name}`));
-  }
-  return resultados;
-}
-
 async function listarArchivos() {
-  const [perfiles, eventos, portadas, audios] = await Promise.all([
-    listarPerfiles(),
-    listar(EVENTOS_BUCKET, 'eventos'),
-    listar(REELS_BUCKET, 'reels/portadas'),
-    listar(REELS_BUCKET, 'reels/audios'),
-  ]);
+  const result = await pool.query(
+    `SELECT bucket_id, name
+     FROM storage.objects
+     WHERE bucket_id = ANY($1::text[])
+     ORDER BY bucket_id, name`,
+    [[PERFILES_BUCKET, EVENTOS_BUCKET, REELS_BUCKET]]
+  );
+  const rutasDe = (bucket) => result.rows
+    .filter((row) => row.bucket_id === bucket && !row.name.endsWith('/.emptyFolderPlaceholder'))
+    .map((row) => row.name);
   return {
-    perfiles,
-    eventos: eventos.filter((archivo) => archivo.id).map((archivo) => `eventos/${archivo.name}`),
-    reels: [
-      ...portadas.filter((archivo) => archivo.id).map((archivo) => `reels/portadas/${archivo.name}`),
-      ...audios.filter((archivo) => archivo.id).map((archivo) => `reels/audios/${archivo.name}`),
-    ],
+    perfiles: rutasDe(PERFILES_BUCKET),
+    eventos: rutasDe(EVENTOS_BUCKET),
+    reels: rutasDe(REELS_BUCKET),
   };
+}
+
+function storageParaLimpieza() {
+  const accessToken = process.env.SUPABASE_STORAGE_ACCESS_TOKEN;
+  if (accessToken) return supabase.crearStorageAutenticado(accessToken);
+
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (serviceKey.split('.').length === 3) return supabase.storage;
+
+  throw new Error(
+    'Para borrar huerfanos configura SUPABASE_STORAGE_ACCESS_TOKEN o una SUPABASE_SERVICE_ROLE_KEY JWT heredada.'
+  );
 }
 
 async function main() {
@@ -81,6 +66,7 @@ async function main() {
   console.log(JSON.stringify({ modo: eliminar ? 'eliminar' : 'simulacion', huerfanos }, null, 2));
   if (!eliminar) return;
 
+  const storage = storageParaLimpieza();
   for (const [bucket, rutas] of Object.entries(huerfanos)) {
     if (rutas.length === 0) continue;
     const bucketReal = bucket === 'perfiles'
@@ -88,8 +74,11 @@ async function main() {
       : bucket === 'eventos'
         ? EVENTOS_BUCKET
         : REELS_BUCKET;
-    const { error } = await supabase.storage.from(bucketReal).remove(rutas);
-    if (error) throw new Error(`No se pudieron eliminar archivos de ${bucketReal}: ${error.message}`);
+    for (let indice = 0; indice < rutas.length; indice += 100) {
+      const lote = rutas.slice(indice, indice + 100);
+      const { error } = await storage.from(bucketReal).remove(lote);
+      if (error) throw new Error(`No se pudieron eliminar archivos de ${bucketReal}: ${error.message}`);
+    }
   }
 }
 

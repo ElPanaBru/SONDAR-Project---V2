@@ -1,0 +1,10 @@
+.perfil-guardados { padding-top: 20px; min-width: 0; }
+.perfil-guardados-filtros { width: fit-content; max-width: 100%; margin-inline: auto; margin-bottom: 16px; display: flex; gap: 8px; overflow-x: auto; padding: 4px 3px 10px; }
+.perfil-guardados-filtros button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; gap: 8px; min-height: 44px; padding: 0 15px; border: 1px solid #303030; border-radius: 22px; background: #171717; color: #c5c5c5; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.perfil-guardados-filtros button:hover { background: #252525; color: #fff; }
+.perfil-guardados-filtros button[aria-pressed="true"] { background: #332508; color: #ffc45c; border-color: #9b701c; }
+.perfil-guardados-filtros button:focus-visible { outline: 2px solid #ffbd4b; outline-offset: 2px; }
+.perfil-guardados-filtros .material-symbols-rounded { font-size: 19px; }
+.perfil-guardados-cantidad { min-width: 21px; padding: 2px 5px; border-radius: 8px; background: rgb(255 255 255 / 7%); font-size: 11px; text-align: center; }
+.perfil-guardados-vacio > .material-symbols-rounded { font-size: 36px; }
+@media (max-width: 560px) { .perfil-guardados-filtros button { padding-inline: 12px; } }

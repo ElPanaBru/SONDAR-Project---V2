@@ -1,38 +1,59 @@
-import emailjs from "@emailjs/browser";
+import { supabase } from "../lib/supabaseClient";
+const API_URL = import.meta.env.VITE_API_URL;
+export async function avisarDenunciaASoporte({
+  tipo,
+  contenidoId,
+  titulo,
+  autor,
+  motivo,
+  detalle,
+  nombreUsuario,
+  url,
+}) {
+  const urlContenido = url || window.location.href;
 
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || "service_ckdohp4";
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "template_jl05slh";
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "zEobDbcTNOMCmcI0O";
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw sessionError;
+  }
+  if (!session?.access_token) {
+    throw new Error("Debes iniciar sesión para enviar una denuncia.");
+  }
 
-export async function avisarDenunciaASoporte({ usuario, tipo, contenidoId, titulo, autor, motivo, detalle }) {
-  const email = usuario?.email || "usuario-sin-email@sondar.app";
-  const nombre =
-    usuario?.user_metadata?.username ||
-    usuario?.user_metadata?.name ||
-    email.split("@")[0] ||
-    "Usuario SONDAR";
-  const asunto = `Nueva denuncia de ${tipo} #${contenidoId}`;
-  const mensaje = [
-    `Tipo: ${tipo}`,
-    `ID: ${contenidoId}`,
-    `Titulo/perfil: ${titulo || "Sin titulo"}`,
-    `Autor denunciado: ${autor || "Sin identificar"}`,
-    `Motivo: ${motivo || "Sin especificar"}`,
-    `Detalle: ${detalle || "Sin detalle adicional"}`,
-    `Reportado por: ${nombre} (${email})`,
-    `URL: ${window.location.href}`,
-  ].join("\n");
-
-  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-  await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-    subject: asunto,
-    title: asunto,
-    name: nombre,
-    message: mensaje,
-    email,
-    user_email: email,
-    from_email: email,
-    reply_to: email,
-    from_name: nombre,
+  const response = await fetch(`${API_URL}/api/soporte/mensaje`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      tipo: "denuncia",
+      contenidoTipo: tipo,
+      contenidoId,
+      titulo,
+      autor,
+      motivo,
+      detalle,
+      nombreUsuario,
+      url: urlContenido,
+    }),
   });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    // La respuesta puede no contener JSON.
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data?.error || "No se pudo enviar la denuncia al equipo de soporte."
+    );
+  }
+
+  return data;
 }

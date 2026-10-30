@@ -1,14 +1,18 @@
+import { nombreGeneroMusical } from "../lib/generos";
+import BuscarSkeleton from "../componentes/BuscarSkeleton";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import FechaEvento from "../componentes/FechaEvento";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./buscar.css";
 
 const TABS = [
   { id: "todo", label: "Todo" },
   { id: "usuarios", label: "Usuarios" },
-  { id: "reels", label: "Reels" },
+  { id: "reels", label: "Previews" },
   { id: "eventos", label: "Eventos" },
 ];
 
@@ -62,7 +66,7 @@ function formatearFecha(fecha) {
 
 function mostrarGenero(genero) {
   if (!genero) return "Sin genero";
-  return genero === "edm" ? "EDM" : genero.charAt(0).toUpperCase() + genero.slice(1);
+  return nombreGeneroMusical(genero);
 }
 
 export default function Buscar({ usuario }) {
@@ -74,7 +78,9 @@ export default function Buscar({ usuario }) {
   const [usuarios, setUsuarios] = useState([]);
   const [reels, setReels] = useState([]);
   const [eventos, setEventos] = useState([]);
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [consultaCargada, setConsultaCargada] = useState(null);
+  const mostrandoCarga = cargando || consultaCargada !== query;
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -85,14 +91,6 @@ export default function Buscar({ usuario }) {
     let activo = true;
 
     const cargarResultados = async () => {
-      if (!query) {
-        setUsuarios([]);
-        setReels([]);
-        setEventos([]);
-        setError("");
-        return;
-      }
-
       setCargando(true);
       setError("");
 
@@ -103,9 +101,9 @@ export default function Buscar({ usuario }) {
         const encodedQuery = encodeURIComponent(query);
 
         const [usuariosResult, reelsResult, eventosResult] = await Promise.allSettled([
-          fetch(apiUrl(`/api/usuarios?query=${encodedQuery}`), { headers }),
-          fetch(apiUrl("/api/reels"), { headers }),
-          fetch(apiUrl("/api/eventos"), { headers }),
+          apiRequest(query ? `/api/usuarios?query=${encodedQuery}` : "/api/usuarios", { headers }),
+          apiRequest("/api/reels", { headers }),
+          apiRequest("/api/eventos", { headers }),
         ]);
 
         const usuariosData =
@@ -126,24 +124,22 @@ export default function Buscar({ usuario }) {
         setUsuarios(usuariosData);
         setReels(
           reelsData.filter((reel) =>
-            coincide(reel, ["tema", "album", "artista", "usuario", "genero", "descripcion"], query)
+            coincide(reel, ["tema", "artista", "usuario", "genero"], query)
           )
         );
         setEventos(
-          eventosData
-            .map((evento) => ({
-              ...evento,
-              img: evento.img || evento.img_url,
-            }))
-            .filter((evento) =>
-              coincide(evento, ["titulo", "genero", "lugar", "ubicacion", "creador"], query)
-            )
+          eventosData.filter((evento) =>
+            coincide(evento, ["genero", "generos", "lugar", "ubicacion", "creador"], query)
+          )
         );
       } catch (err) {
         console.error(err);
         if (activo) setError("No se pudo completar la busqueda.");
       } finally {
-        if (activo) setCargando(false);
+        if (activo) {
+          setConsultaCargada(query);
+          setCargando(false);
+        }
       }
     };
 
@@ -207,7 +203,7 @@ export default function Buscar({ usuario }) {
           <small>{item.artista} - {mostrarGenero(item.genero)}</small>
         </span>
       </button>
-      <span className="buscar-tag">Reel</span>
+      <span className="buscar-tag">Preview</span>
       <small className="buscar-meta">{formatearNumero(item.likes)} me gusta</small>
       <button className="buscar-icon-action" type="button" onClick={() => abrirReel(item)} aria-label={`Abrir ${item.tema}`}>
         <IconoBuscar nombre="reel" />
@@ -216,35 +212,12 @@ export default function Buscar({ usuario }) {
   );
 
   const renderEvento = (item) => (
-    <article className="buscar-row" key={`evento-${item.id}`}>
-      <button className="buscar-row-main" type="button" onClick={() => abrirEvento(item)}>
-        {renderImagen(item.img, item.titulo)}
-        <span>
-          <strong>{item.titulo}</strong>
-          <small>{item.lugar || item.ubicacion || "Lugar sin definir"} - {mostrarGenero(item.genero)}</small>
-        </span>
-      </button>
-      <span className="buscar-tag">Evento</span>
-      <small className="buscar-meta">{formatearFecha(item.fecha)}</small>
-      <button className="buscar-icon-action" type="button" onClick={() => abrirEvento(item)} aria-label={`Abrir ${item.titulo}`}>
-        <IconoBuscar nombre="evento" />
-      </button>
-    </article>
+    <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={abrirEvento} />
   );
 
   const renderLista = () => {
-    if (!query) {
-      return (
-        <div className="buscar-empty">
-          <IconoBuscar nombre="reel" />
-          <h2>{t("Busca en SONDAR")}</h2>
-          <p>Encontra usuarios, reels y eventos desde un solo lugar.</p>
-        </div>
-      );
-    }
-
-    if (cargando) {
-      return <div className="buscar-empty">{t("Buscando...")}</div>;
+    if (mostrandoCarga) {
+      return <BuscarSkeleton tab={tabActiva} />;
     }
 
     if (error) {
@@ -254,49 +227,51 @@ export default function Buscar({ usuario }) {
     if (totalResultados === 0) {
       return (
         <div className="buscar-empty">
-          <h2>No hay resultados para "{query}"</h2>
-          <p>Proba con otro artista, genero, evento o cancion.</p>
+          <h2>{query ? `No hay resultados para "${query}"` : "Todavía no hay contenido para mostrar"}</h2>
+          <p>{query ? "Proba con otro artista, genero, evento o cancion." : "Los usuarios, previews y eventos aparecerán acá."}</p>
         </div>
       );
     }
 
     if (tabActiva === "usuarios") {
       return usuarios.length > 0 ? usuarios.map(renderUsuario) : (
-        <div className="buscar-empty">No encontramos usuarios para "{query}".</div>
+        <div className="buscar-empty">{query ? `No encontramos usuarios para "${query}".` : "Todavía no hay usuarios para mostrar."}</div>
       );
     }
 
     if (tabActiva === "reels") {
       return reels.length > 0 ? reels.map(renderReel) : (
-        <div className="buscar-empty">No encontramos reels para "{query}".</div>
+        <div className="buscar-empty">{query ? `No encontramos previews para "${query}".` : "Todavía no hay previews para mostrar."}</div>
       );
     }
 
     if (tabActiva === "eventos") {
       return eventos.length > 0 ? eventos.map(renderEvento) : (
-        <div className="buscar-empty">No encontramos eventos para "{query}".</div>
+        <div className="buscar-empty">{query ? `No encontramos eventos para "${query}".` : "Todavía no hay eventos para mostrar."}</div>
       );
     }
 
     return (
       <>
-        {resultadoDestacado ? (
+        {query && resultadoDestacado ? (
           <button
-            className="buscar-destacado"
+            className={`buscar-destacado${resultadoDestacado.tipo === "evento" ? " buscar-destacado-evento" : ""}`}
             type="button"
             onClick={() => abrirResultado(resultadoDestacado)}
           >
-            {resultadoDestacado.tipo === "usuario"
+            {resultadoDestacado.tipo === "evento"
+              ? <FechaEvento fecha={resultadoDestacado.item.fecha} />
+              : resultadoDestacado.tipo === "usuario"
               ? renderImagen(resultadoDestacado.item.avatar, resultadoDestacado.item.nombre, "usuario grande")
-              : renderImagen(resultadoDestacado.item.portada || resultadoDestacado.item.img, resultadoDestacado.item.tema || resultadoDestacado.item.titulo, "grande")}
+              : renderImagen(resultadoDestacado.item.portada || resultadoDestacado.item.img, resultadoDestacado.item.tema || resultadoDestacado.item.creador || "Artista SONDAR", "grande")}
             <span>
               <small>Mejor resultado</small>
               <strong>
-                {resultadoDestacado.item.tema || resultadoDestacado.item.nombre || resultadoDestacado.item.titulo}
+                {resultadoDestacado.item.tema || resultadoDestacado.item.nombre || resultadoDestacado.item.creador || "Artista SONDAR"}
               </strong>
               <em>
                 {resultadoDestacado.tipo === "reel"
-                  ? `Reel - ${resultadoDestacado.item.artista}`
+                  ? `Preview - ${resultadoDestacado.item.artista}`
                   : resultadoDestacado.tipo === "usuario"
                     ? `Usuario - ${resultadoDestacado.item.usuario}`
                     : `Evento - ${formatearFecha(resultadoDestacado.item.fecha)}`}
@@ -309,19 +284,19 @@ export default function Buscar({ usuario }) {
           <section className="buscar-section">
             <header>
               <h2>{t("Usuarios")}</h2>
-              <button type="button" onClick={() => setTabActiva("usuarios")}>Ver mas</button>
+              {query && usuarios.length > 4 ? <button type="button" onClick={() => setTabActiva("usuarios")}>Ver mas</button> : null}
             </header>
-            {usuarios.slice(0, 4).map(renderUsuario)}
+            {(query ? usuarios.slice(0, 4) : usuarios).map(renderUsuario)}
           </section>
         ) : null}
 
         {reels.length > 0 ? (
           <section className="buscar-section">
             <header>
-              <h2>{t("Reels")}</h2>
-              <button type="button" onClick={() => setTabActiva("reels")}>Ver mas</button>
+              <h2>{t("Previews")}</h2>
+              {query && reels.length > 4 ? <button type="button" onClick={() => setTabActiva("reels")}>Ver mas</button> : null}
             </header>
-            {reels.slice(0, 4).map(renderReel)}
+            {(query ? reels.slice(0, 4) : reels).map(renderReel)}
           </section>
         ) : null}
 
@@ -329,9 +304,9 @@ export default function Buscar({ usuario }) {
           <section className="buscar-section">
             <header>
               <h2>{t("Eventos")}</h2>
-              <button type="button" onClick={() => setTabActiva("eventos")}>Ver mas</button>
+              {query && eventos.length > 4 ? <button type="button" onClick={() => setTabActiva("eventos")}>Ver mas</button> : null}
             </header>
-            {eventos.slice(0, 4).map(renderEvento)}
+            {(query ? eventos.slice(0, 4) : eventos).map(renderEvento)}
           </section>
         ) : null}
       </>
@@ -341,9 +316,8 @@ export default function Buscar({ usuario }) {
   return (
     <section className="buscar-page">
       <header className="buscar-header">
-        <span>Busqueda global</span>
-        <h1>{query ? `${t("Resultados para")} "${query}"` : t("Buscar")}</h1>
-        <p>Usuarios, reels y eventos reunidos en una misma pantalla.</p>
+        <h1>{query ? `${t("Resultados para")} "${query}"` : t("Explorar SONDAR")}</h1>
+        <p>{query ? "Usuarios, previews y eventos reunidos en una misma pantalla." : "Descubrí todos los usuarios, previews y eventos. Usá las pestañas para explorar por tipo."}</p>
       </header>
 
       <div className="buscar-tabs" aria-label="Filtros de busqueda">
@@ -362,13 +336,13 @@ export default function Buscar({ usuario }) {
               onClick={() => setTabActiva(tab.id)}
             >
               {tab.label}
-              {query ? <small>{cantidad}</small> : null}
+              {mostrandoCarga ? <span className="buscar-skeleton-bloque buscar-skeleton-conteo" aria-label="Cargando cantidad de resultados" /> : <small>{cantidad}</small>}
             </button>
           );
         })}
       </div>
 
-      <div className="buscar-resultados">
+      <div className="buscar-resultados" aria-busy={mostrandoCarga}>
         {renderLista()}
       </div>
     </section>

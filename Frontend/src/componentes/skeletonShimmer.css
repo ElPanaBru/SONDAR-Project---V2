@@ -1,0 +1,26 @@
+/* Shared loading shimmer; motion is controlled by SONDAR's preference. */
+:is(.buscar-skeleton-bloque, .comunidad-skeleton-bloque, .descubrir-skeleton-bloque, .mensajes-skeleton-bloque, .perfil-skeleton, .avatar-imagen-cargando) {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+:is(.buscar-skeleton-bloque, .comunidad-skeleton-bloque, .descubrir-skeleton-bloque, .mensajes-skeleton-bloque, .perfil-skeleton, .avatar-imagen-cargando)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 15%, rgb(255 255 255 / 4%) 35%, rgb(255 255 255 / 12%) 50%, rgb(255 255 255 / 4%) 65%, transparent 85%);
+  transform: translateX(-100%);
+  animation: sondar-skeleton-shimmer 2.7s linear -0.9s infinite;
+}
+
+@keyframes sondar-skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+body.sondar-reducir-movimiento :is(.buscar-skeleton-bloque, .comunidad-skeleton-bloque, .descubrir-skeleton-bloque, .mensajes-skeleton-bloque, .perfil-skeleton, .avatar-imagen-cargando)::after {
+  animation: none;
+  opacity: 0;
+}

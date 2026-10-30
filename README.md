@@ -1,40 +1,29 @@
-# React + Vite
+# SONDAR
 
-## App móvil
+Aplicación de música y comunidades. Esta rama es `Mobile-Local`: incluye el cliente web de `Web_BDD_Local`, la API web, el cliente Expo y las migraciones web como fuente única de verdad.
 
-Esta rama `Mobile-Local` usa Supabase y PostgreSQL locales con Docker Desktop. El arranque prepara la base y las variables automaticamente. Ver [configuracion y migraciones locales](docs/MOBILE_LOCAL.md).
+## Desarrollo local web y móvil
 
-La app móvil necesita que Expo y la API estén activos al mismo tiempo. Desde la raíz del proyecto ejecutá:
+Desde la raíz de esta rama, `npm run dev` y `npm run son` usan el mismo proyecto Docker. Ambos levantan Vite, una API web, Metro/Expo y la misma instancia Supabase local con `project_id = SONDAR-Project---V2`.
 
-```bash
-npm run dev:mobile
+```powershell
+npm ci
+npm run dev
 ```
 
-Para el primer inicio en Expo Go o después de cambiar el SDK:
+Abrí la web en http://localhost:3001. Para escanear el QR de Expo Go desde un teléfono en la misma red:
 
-```bash
-npm run dev:mobile:clear
+```powershell
+npm run son
+npm run docker:logs
 ```
 
-No uses solamente `npx expo start` para probar registro, eventos o publicaciones: ese comando levanta Expo, pero no el backend del puerto `3000`.
+Guía de puertos, variables, migraciones y detención: [docs/DOCKER_LOCAL_UNIFICADO.md](docs/DOCKER_LOCAL_UNIFICADO.md). Referencia móvil: [docs/MOBILE_LOCAL.md](docs/MOBILE_LOCAL.md).
 
-Si Expo Go conserva una versión anterior, detené Expo y reinicialo desde `sondar-mobile` con:
+## Detener sin borrar la base
 
-```bash
-npx expo start --clear --lan
+```powershell
+npm run docker:down
 ```
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+El historial canónico está en `supabase/migrations`. No usar `supabase db reset --local` si necesitás conservar los datos locales.

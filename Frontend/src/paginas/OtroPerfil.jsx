@@ -1,18 +1,25 @@
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import PerfilSkeleton from "../componentes/PerfilSkeleton";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
+import PerfilComunidad from "../componentes/PerfilComunidad";
+import PerfilSocialModal from "../componentes/PerfilSocialModal";
 import PerfilToast from "../componentes/PerfilToast";
-import DenunciaModal, { etiquetaMotivoDenuncia } from "../componentes/DenunciaModal";
-import { apiUrl } from "../lib/api";
+import DenunciaModal from "../componentes/DenunciaModal";
+import { etiquetaMotivoDenuncia } from "../lib/denuncias";
+import { apiRequest } from "../lib/api";
 import { avisarDenunciaASoporte } from "../lib/reportarContenido";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./miperfil.css";
 import "./otroperfil.css";
 
 const iconosPerfil = {
   grid: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-480h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-360h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-200h160v-80H200v80Zm240 0h160v-80H440v80Zm240 0h80v-80h-80v80Z",
   calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
+  community: "M80-160v-120q0-45 23.5-84.5T168-427q67-34 144.5-53.5T480-500q90 0 167.5 19.5T792-427q42 23 65 62.5t23 84.5v120H80Zm400-420q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47Z",
   share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
   lock: "M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm240-200q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80Z",
   bell: "M160-200v-80h80v-280q0-83 50-147.5T420-792v-28q0-25 17.5-42.5T480-880q25 0 42.5 17.5T540-820v28q80 20 130 84.5T720-560v280h80v80H160Zm320 120q-33 0-56.5-23.5T400-160h160q0 33-23.5 56.5T480-80ZM320-280h320v-280q0-66-47-113t-113-47q-66 0-113 47t-47 113v280Z",
@@ -35,6 +42,7 @@ const contenidoVacio = {
   seguidos: [],
   stats: {
     publicaciones: 0,
+    reels: 0,
     seguidores: 0,
     seguidos: 0,
   },
@@ -55,7 +63,7 @@ function crearPerfilDesdeEstado(artista) {
     id: artista.creadorId || "",
     nombre: artista.artista,
     usuario: artista.usuario,
-    bio: artista.descripcion,
+    bio: "Artista en SONDAR.",
     avatar: artista.portada,
   };
 }
@@ -66,10 +74,14 @@ function formatearNumero(valor) {
 
 function destinoContenido(item) {
   if (item.tipo === "evento") return `/?evento=${item.id}`;
-  return `/descubrir?lanzamiento=db-${item.id}`;
+  const parametros = new URLSearchParams({ lanzamiento: `db-${item.id}` });
+  if (item.creadorId) parametros.set("creador", item.creadorId);
+  return `/descubrir?${parametros.toString()}`;
 }
 
 function tarjetaContenido(item, onAbrir) {
+  if (item.tipo === "evento") return <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={onAbrir} />;
+
   return (
     <article
       className="perfil-publicacion-card"
@@ -113,7 +125,7 @@ export default function OtroPerfil({ usuarioActual }) {
   const [siguiendo, setSiguiendo] = useState(false);
   const [silenciado, setSilenciado] = useState(false);
   const [tabActiva, setTabActiva] = useState("publicaciones");
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState("");
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
@@ -123,8 +135,9 @@ export default function OtroPerfil({ usuarioActual }) {
 
   const opcionesPerfil = useMemo(
     () => [
-      { id: "publicaciones", label: t("Publicaciones"), icono: "grid", mensaje: t("Aún no hay publicaciones.") },
+      { id: "publicaciones", label: t("Previews"), icono: "grid", mensaje: t("Aún no hay previews.") },
       { id: "eventos", label: t("Eventos"), icono: "calendar", mensaje: t("Aún no hay eventos.") },
+      { id: "comunidad", label: t("Comunidad"), icono: "community", mensaje: t("Aún no hay publicaciones en la comunidad.") },
     ],
     [t]
   );
@@ -134,9 +147,15 @@ export default function OtroPerfil({ usuarioActual }) {
 
   useEffect(() => {
     if (usuarioActual?.id && identificador === usuarioActual.id) {
-      navigate("/perfil", { replace: true });
+      navigate(`/perfil${location.search}`, { replace: true });
     }
-  }, [identificador, navigate, usuarioActual?.id]);
+  }, [identificador, location.search, navigate, usuarioActual?.id]);
+
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("tab") === "comunidad") {
+      setTabActiva("comunidad");
+    }
+  }, [location.search]);
 
   useEffect(() => {
     let activo = true;
@@ -151,7 +170,7 @@ export default function OtroPerfil({ usuarioActual }) {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
 
-        const response = await fetch(apiUrl(`/api/usuarios/${identificador}/perfil`), {
+        const response = await apiRequest(`/api/usuarios/${identificador}/perfil`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -201,7 +220,7 @@ export default function OtroPerfil({ usuarioActual }) {
         return;
       }
 
-      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/seguir`), {
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/seguir`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -233,6 +252,25 @@ export default function OtroPerfil({ usuarioActual }) {
     }
   };
 
+  const iniciarMensaje = async () => {
+    if (!usuarioActual) {
+      setAviso("Tenes que iniciar sesion para enviar mensajes.");
+      return;
+    }
+    if (!perfil.id) return;
+    try {
+      const response = await apiRequest("/api/mensajes/conversaciones", {
+        method: "POST",
+        body: { userId: perfil.id },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo iniciar la conversacion.");
+      navigate(`/mensajes?conversacion=${encodeURIComponent(data.id)}`);
+    } catch (error) {
+      setAviso(error.message || "No se pudo iniciar la conversacion.");
+    }
+  };
+
   const alternarSilencio = async () => {
     if (!usuarioActual || !siguiendo) return;
     try {
@@ -242,8 +280,7 @@ export default function OtroPerfil({ usuarioActual }) {
         setAviso("Tu sesion expiro. Volve a iniciar sesion.");
         return;
       }
-      const response = await fetch(
-        apiUrl(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`),
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/silenciar-notificaciones`,
         {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
@@ -298,8 +335,7 @@ export default function OtroPerfil({ usuarioActual }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(
-        apiUrl(`/api/usuarios/${perfil.id || identificador}/bloquear`),
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/bloquear`,
         {
           method: "POST",
           headers: {
@@ -327,7 +363,7 @@ export default function OtroPerfil({ usuarioActual }) {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
-      const response = await fetch(apiUrl(`/api/usuarios/${perfil.id || identificador}/denunciar`), {
+      const response = await apiRequest(`/api/usuarios/${perfil.id || identificador}/denunciar`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -367,19 +403,20 @@ export default function OtroPerfil({ usuarioActual }) {
   const renderContenidoActivo = () => {
     const items = contenido[tabActiva] || [];
 
-    if (cargando) {
+    if (tabActiva === "comunidad") {
       return (
-        <div className="perfil-empty-state">
-          <span><IconoPerfil nombre={contenidoActivo?.icono || "grid"} /></span>
-          <h3>{t("Cargando perfil...")}</h3>
-          <p>Estamos trayendo el contenido desde Supabase.</p>
-        </div>
+        <PerfilComunidad
+          perfil={perfil}
+          usuarioActual={usuarioActual}
+          esPropio={Boolean(esPerfilPropio)}
+          onAviso={setAviso}
+        />
       );
     }
 
     if (items.length > 0) {
       return (
-        <div className="perfil-publicaciones-grid">
+        <div className={tabActiva === "eventos" ? "perfil-eventos-lista" : "perfil-publicaciones-grid"}>
           {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
         </div>
       );
@@ -394,13 +431,15 @@ export default function OtroPerfil({ usuarioActual }) {
     );
   };
 
+  if (cargando) return <PerfilSkeleton ajeno />;
+
   return (
     <section className="perfil-page otroperfil-page">
       <header className="perfil-card">
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar otroperfil-avatar">
             {perfil.avatar ? (
-              <img src={perfil.avatar} alt={perfil.nombre} />
+              <ImagenAvatar src={perfil.avatar} alt={perfil.nombre} inicial={perfil.nombre} />
             ) : (
               <span>{perfil.nombre.charAt(0).toUpperCase()}</span>
             )}
@@ -418,6 +457,13 @@ export default function OtroPerfil({ usuarioActual }) {
                   onClick={alternarSeguimiento}
                 >
                   {siguiendo ? "Siguiendo" : "Seguir"}
+                </button>
+                <button
+                  className="otroperfil-accion-texto"
+                  type="button"
+                  onClick={iniciarMensaje}
+                >
+                  Mensaje
                 </button>
                 {siguiendo ? (
                   <button
@@ -482,7 +528,7 @@ export default function OtroPerfil({ usuarioActual }) {
           </div>
 
           <div className="perfil-stats">
-            <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
+            <p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>
             {usuarioActual ? (
               <button type="button" onClick={() => abrirListaSocial("seguidores")}>
                 <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
@@ -509,59 +555,18 @@ export default function OtroPerfil({ usuarioActual }) {
 
       <PerfilToast mensaje={aviso} onClose={() => setAviso("")} />
 
-      {listaSocialActiva ? (
-        <div className="perfil-modal-overlay" role="presentation" onMouseDown={() => setListaSocialActiva(null)}>
-          <section
-            className="perfil-social-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="perfil-social-titulo"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="perfil-modal-header">
-              <h2 id="perfil-social-titulo">
-                {listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
-              </h2>
-              <button
-                className="perfil-modal-close"
-                type="button"
-                onClick={() => setListaSocialActiva(null)}
-                aria-label="Cerrar lista"
-              >
-                x
-              </button>
-            </div>
-            <div className="perfil-social-lista">
-              {(contenido[listaSocialActiva] || []).length > 0 ? (
-                contenido[listaSocialActiva].map((perfilSocial) => (
-                  <button
-                    className="perfil-social-item"
-                    type="button"
-                    key={perfilSocial.id}
-                    onClick={() => abrirPerfilSocial(perfilSocial)}
-                  >
-                    <span>
-                      {perfilSocial.avatar ? (
-                        <img src={perfilSocial.avatar} alt="" />
-                      ) : (
-                        perfilSocial.nombre.charAt(0).toUpperCase()
-                      )}
-                    </span>
-                    <strong>{perfilSocial.nombre}</strong>
-                    <small>{perfilSocial.usuario}</small>
-                  </button>
-                ))
-              ) : (
-                <p className="perfil-social-vacio">
-                  {listaSocialActiva === "seguidores"
-                    ? "Todavia no hay seguidores."
-                    : "Todavia no sigue a nadie."}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <PerfilSocialModal
+        abierto={Boolean(listaSocialActiva)}
+        titulo={listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
+        perfiles={contenido[listaSocialActiva] || []}
+        mensajeVacio={
+          listaSocialActiva === "seguidores"
+            ? "Todavia no hay seguidores."
+            : "Todavia no sigue a nadie."
+        }
+        onClose={() => setListaSocialActiva(null)}
+        onSelect={abrirPerfilSocial}
+      />
 
       <DenunciaModal
         abierto={denunciaPendiente}

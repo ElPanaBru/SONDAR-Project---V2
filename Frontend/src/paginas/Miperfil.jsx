@@ -1,17 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import ImagenAvatar from "../componentes/ImagenAvatar";
+import PerfilGuardados from "../componentes/PerfilGuardados";
+import EventoPerfilFila from "../componentes/EventoPerfilFila";
+import ConfirmarEliminacionModal from "../componentes/ConfirmarEliminacionModal";
+import PerfilSkeleton from "../componentes/PerfilSkeleton";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import CompartirPerfilModal from "../componentes/CompartirPerfilModal";
+import CompartirContenidoModal from "../componentes/CompartirContenidoModal";
+import PerfilComunidad from "../componentes/PerfilComunidad";
+import PerfilSocialModal from "../componentes/PerfilSocialModal";
 import PerfilToast from "../componentes/PerfilToast";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import { supabase } from "../lib/supabaseClient";
-import { usePreferencias } from "../contextos/PreferenciasContext";
+import { usePreferencias } from "../contextos/preferencias";
 import "./miperfil.css";
 
 const iconosPerfil = {
+  eliminar: "M280-80q-33 0-56.5-23.5T200-160v-600h-40v-80h200v-40h240v40h200v80h-40v600q0 33-23.5 56.5T680-80H280Zm400-680H280v600h400v-600ZM360-240h80v-440h-80v440Zm160 0h80v-440h-80v440Z",
   grid: "M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-480h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-360h160v-160H200v160Zm240 0h160v-160H440v160Zm240 0h80v-160h-80v160ZM200-200h160v-80H200v80Zm240 0h160v-80H440v80Zm240 0h80v-80h-80v80Z",
   calendar: "M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80H200Zm0-80h560v-400H200v400Zm0-480h560v-80H200v80Z",
   heart: "m480-120-58-52q-101-91-167-157T150-447q-39-51-54.5-94T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 50-15.5 93T810-447q-39 52-105 118T538-172l-58 52Z",
   bookmark: "M200-120v-640q0-33 23.5-56.5T280-840h400q33 0 56.5 23.5T760-760v640L480-240 200-120Z",
+  community: "M80-160v-120q0-45 23.5-84.5T168-427q67-34 144.5-53.5T480-500q90 0 167.5 19.5T792-427q42 23 65 62.5t23 84.5v120H80Zm400-420q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47Z",
   share: "M720-80q-50 0-85-35t-35-85q0-7 1-14.5t3-13.5L322-392q-17 15-38 23.5t-44 8.5q-50 0-85-35t-35-85q0-50 35-85t85-35q23 0 44 8.5t38 23.5l282-164q-2-6-3-13.5t-1-14.5q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35q-23 0-44-8.5T638-712L356-548q2 6 3 13.5t1 14.5q0 7-1 14.5t-3 13.5l282 164q17-15 38-23.5t44-8.5q50 0 85 35t35 85q0 50-35 85t-85 35Z",
   lock: "M240-80q-33 0-56.5-23.5T160-160v-400q0-33 23.5-56.5T240-640h40v-80q0-83 58.5-141.5T480-920q83 0 141.5 58.5T680-720v80h40q33 0 56.5 23.5T800-560v400q0 33-23.5 56.5T720-80H240Zm240-200q33 0 56.5-23.5T560-360q0-33-23.5-56.5T480-440q-33 0-56.5 23.5T400-360q0 33 23.5 56.5T480-280ZM360-640h240v-80q0-50-35-85t-85-35q-50 0-85 35t-35 85v80Z",
 };
@@ -19,12 +29,13 @@ const iconosPerfil = {
 const contenidoInicial = {
   publicaciones: [],
   eventos: [],
-  favoritos: [],
+  likes: [],
   guardados: [],
   seguidores: [],
   seguidos: [],
   stats: {
     publicaciones: 0,
+    reels: 0,
     seguidores: 0,
     seguidos: 0,
   },
@@ -59,17 +70,85 @@ function formatearNumero(valor) {
 
 function iconoTab(tab) {
   if (tab === "eventos") return "calendar";
-  if (tab === "favoritos") return "heart";
+  if (tab === "likes") return "heart";
   if (tab === "guardados") return "bookmark";
+  if (tab === "comunidad") return "community";
   return "grid";
 }
 
 function destinoContenido(item) {
   if (item.tipo === "evento") return `/?evento=${item.id}`;
-  return `/descubrir?lanzamiento=db-${item.id}`;
+  if (item.tipo === "publicacion-comunidad" || item.tipo === "comentario-comunidad") {
+    const parametros = new URLSearchParams({
+      comunidad: item.comunidadId,
+      publicacion: String(item.publicacionId),
+    });
+    if (item.comentarioId) parametros.set("comentario", String(item.comentarioId));
+    return `/comunidad?${parametros.toString()}`;
+  }
+  const parametros = new URLSearchParams({ lanzamiento: `db-${item.id}` });
+  if (item.creadorId) parametros.set("creador", item.creadorId);
+  return `/descubrir?${parametros.toString()}`;
 }
 
-function tarjetaContenido(item, onAbrir) {
+function EventoPerfilConAcciones({ item, onAbrir, onEliminar, onCompartir }) {
+  const [abierto, setAbierto] = useState(false);
+  const contenedorRef = useRef(null);
+  const botonRef = useRef(null);
+  const opcionesId = useId();
+
+  useEffect(() => {
+    if (!abierto) return;
+    const cerrarFuera = (event) => {
+      if (!contenedorRef.current?.contains(event.target)) setAbierto(false);
+    };
+    document.addEventListener("pointerdown", cerrarFuera);
+    return () => document.removeEventListener("pointerdown", cerrarFuera);
+  }, [abierto]);
+
+  const ejecutar = (accion) => {
+    setAbierto(false);
+    botonRef.current?.focus();
+    accion(item);
+  };
+
+  return (
+    <div className="perfil-evento-con-acciones">
+      <EventoPerfilFila evento={item} onAbrir={onAbrir} />
+      <div className="perfil-evento-acciones" ref={contenedorRef}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setAbierto(false);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setAbierto(false);
+            botonRef.current?.focus();
+          }
+        }}
+      >
+        <button ref={botonRef} className="perfil-evento-opciones" type="button"
+          title="Opciones del evento" aria-label={`Opciones del evento de ${item.nombre || "mi perfil"}`}
+          aria-expanded={abierto} aria-controls={opcionesId} onClick={() => setAbierto(!abierto)}
+        ><span aria-hidden="true">...</span></button>
+        {abierto && (
+          <div className="perfil-evento-menu" id={opcionesId}>
+            <button type="button" onClick={() => ejecutar(onCompartir)}><IconoPerfil nombre="share" size={18} />Compartir</button>
+            {onEliminar && <button className="perfil-evento-menu-eliminar" type="button" onClick={() => ejecutar(onEliminar)}><IconoPerfil nombre="eliminar" size={18} />Eliminar</button>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function tarjetaContenido(item, onAbrir, onEliminar, onCompartir) {
+  if (item.tipo === "evento" && onCompartir) {
+    return (
+      <EventoPerfilConAcciones key={`evento-${item.id}`} item={item} onAbrir={onAbrir} onEliminar={onEliminar} onCompartir={onCompartir} />
+    );
+  }
+  if (item.tipo === "evento") return <EventoPerfilFila key={`evento-${item.id}`} evento={item} onAbrir={onAbrir} />;
+
   return (
     <article
       className="perfil-publicacion-card"
@@ -102,32 +181,42 @@ function tarjetaContenido(item, onAbrir) {
   );
 }
 
-export default function MiPerfil({ usuario }) {
+export default function MiPerfil({ usuario, tabInicial = "publicaciones" }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = usePreferencias();
   const [editando, setEditando] = useState(false);
-  const [tabActiva, setTabActiva] = useState("publicaciones");
+  const [tabActiva, setTabActiva] = useState(tabInicial);
   const [perfil, setPerfil] = useState(() => perfilDesdeUsuario(usuario));
   const [perfilEditado, setPerfilEditado] = useState(() => perfilDesdeUsuario(usuario));
   const [contenido, setContenido] = useState(contenidoInicial);
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [aviso, setAviso] = useState("");
+  const [eventoEliminar, setEventoEliminar] = useState(null);
+  const [eventoCompartir, setEventoCompartir] = useState(null);
   const [listaSocialActiva, setListaSocialActiva] = useState(null);
   const [compartirAbierto, setCompartirAbierto] = useState(false);
   const [avatarArchivo, setAvatarArchivo] = useState(null);
+  const [avatarArrastrado, setAvatarArrastrado] = useState(false);
 
   const opcionesPerfil = useMemo(
     () => [
-      { id: "publicaciones", label: t("Publicaciones"), mensaje: t("Aún no hay publicaciones.") },
+      { id: "publicaciones", label: t("Previews"), mensaje: t("Aún no hay previews.") },
       { id: "eventos", label: t("Eventos"), mensaje: t("Aún no hay eventos.") },
-      { id: "favoritos", label: t("Favoritos"), mensaje: t("Aún no hay favoritos.") },
+      { id: "likes", label: t("Likes"), mensaje: t("Aún no hay likes.") },
       { id: "guardados", label: t("Guardados"), mensaje: t("Aún no hay guardados.") },
+      { id: "comunidad", label: t("Comunidad"), mensaje: t("Aún no hay publicaciones en la comunidad.") },
     ],
     [t]
   );
 
   const contenidoActivo = opcionesPerfil.find((opcion) => opcion.id === tabActiva);
   const inicial = perfil.nombre.trim().charAt(0).toUpperCase() || "S";
+
+  useEffect(() => {
+    const tabSolicitada = new URLSearchParams(location.search).get("tab");
+    setTabActiva(tabSolicitada === "comunidad" ? "comunidad" : tabInicial);
+  }, [location.search, tabInicial]);
 
   useEffect(() => {
     const avatarPreview = perfilEditado.avatar;
@@ -140,21 +229,13 @@ export default function MiPerfil({ usuario }) {
     let activo = true;
 
     const cargarPerfil = async () => {
-      if (!usuario) {
-        const fallback = perfilDesdeUsuario(null);
-        setPerfil(fallback);
-        setPerfilEditado(fallback);
-        setContenido(contenidoInicial);
-        return;
-      }
-
       setCargando(true);
       try {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
-        if (!token) return;
+        if (!token) throw new Error("Iniciá sesión para ver tu perfil.");
 
-        const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+        const response = await apiRequest("/api/usuarios/me/perfil", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -173,7 +254,7 @@ export default function MiPerfil({ usuario }) {
         setContenido({
           publicaciones: dataPerfil.publicaciones || [],
           eventos: dataPerfil.eventos || [],
-          favoritos: dataPerfil.favoritos || [],
+          likes: dataPerfil.likes || [],
           guardados: dataPerfil.guardados || [],
           seguidores: dataPerfil.seguidores || [],
           seguidos: dataPerfil.seguidos || [],
@@ -191,7 +272,38 @@ export default function MiPerfil({ usuario }) {
     return () => {
       activo = false;
     };
-  }, [usuario]);
+  // La renovación de sesión al recuperar el foco no cambia el perfil consultado.
+  }, [usuario?.id]);
+
+  const eliminarEvento = async (password) => {
+    if (!usuario?.id || eventoEliminar?.creadorId !== usuario.id) {
+      throw new Error("No tenes permiso para eliminar este evento.");
+    }
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error("Tu sesion expiro. Volve a iniciar sesion.");
+
+    const response = await apiRequest(`/api/eventos/${eventoEliminar.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+      body: { password },
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || "No se pudo eliminar el evento.");
+    }
+
+    const conservarItem = (item) => !(item.tipo === "evento" && item.id === eventoEliminar.id);
+    setContenido((actual) => ({
+      ...actual,
+      eventos: actual.eventos.filter(conservarItem),
+      likes: actual.likes.filter(conservarItem),
+      guardados: actual.guardados.filter(conservarItem),
+    }));
+    setEventoEliminar(null);
+    setAviso("Evento eliminado");
+    window.dispatchEvent(new CustomEvent("sondar:comunidad-perfil-actualizada"));
+  };
 
   const abrirEditor = () => {
     setPerfilEditado(perfil);
@@ -212,15 +324,26 @@ export default function MiPerfil({ usuario }) {
     });
   };
 
-  const handleAvatar = (event) => {
-    const file = event.target.files[0];
+  const seleccionarAvatar = (file) => {
     if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setAviso("Arrastra un archivo de imagen valido.");
+      return;
+    }
 
     setAvatarArchivo(file);
     setPerfilEditado((prev) => ({
       ...prev,
       avatar: URL.createObjectURL(file),
     }));
+  };
+
+  const handleAvatar = (event) => seleccionarAvatar(event.target.files?.[0]);
+
+  const soltarAvatar = (event) => {
+    event.preventDefault();
+    setAvatarArrastrado(false);
+    seleccionarAvatar(event.dataTransfer.files?.[0]);
   };
 
   const guardarPerfil = async (event) => {
@@ -239,7 +362,7 @@ export default function MiPerfil({ usuario }) {
       formData.append("bio", perfilEditado.bio || "");
       if (avatarArchivo) formData.append("avatar", avatarArchivo);
 
-      const response = await fetch(apiUrl("/api/usuarios/me/perfil"), {
+      const response = await apiRequest("/api/usuarios/me/perfil", {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -291,20 +414,34 @@ export default function MiPerfil({ usuario }) {
   const renderContenidoActivo = () => {
     const items = contenido[tabActiva] || [];
 
-    if (cargando) {
+    if (tabActiva === "comunidad") {
       return (
-        <div className="perfil-empty-state">
-          <span><IconoPerfil nombre={iconoTab(tabActiva)} size={34} /></span>
-          <h3>{t("Cargando perfil...")}</h3>
-          <p>Estamos trayendo tu contenido desde Supabase.</p>
-        </div>
+        <PerfilComunidad
+          perfil={perfil}
+          usuarioActual={usuario}
+          esPropio
+          reelsPropios={contenido.publicaciones}
+          eventosPropios={contenido.eventos}
+          onAviso={setAviso}
+        />
       );
+    }
+
+    if (tabActiva === "guardados") {
+      return <PerfilGuardados items={items} renderItem={(item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem)))} />;
     }
 
     if (items.length > 0) {
       return (
-        <div className="perfil-publicaciones-grid">
-          {items.map((item) => tarjetaContenido(item, (contenidoItem) => navigate(destinoContenido(contenidoItem))))}
+        <div className={tabActiva === "eventos" ? "perfil-eventos-lista" : "perfil-publicaciones-grid"}>
+          {items.map((item) => tarjetaContenido(
+            item,
+            (contenidoItem) => navigate(destinoContenido(contenidoItem)),
+            tabActiva === "eventos" && usuario?.id && item.creadorId === usuario.id
+              ? setEventoEliminar
+              : undefined,
+            tabActiva === "eventos" ? setEventoCompartir : undefined
+          ))}
         </div>
       );
     }
@@ -318,13 +455,15 @@ export default function MiPerfil({ usuario }) {
     );
   };
 
+  if (cargando) return <PerfilSkeleton />;
+
   return (
     <section className="perfil-page">
       <header className="perfil-card">
         <div className="perfil-avatar-zone">
           <div className="perfil-avatar">
             {perfil.avatar ? (
-              <img src={perfil.avatar} alt={perfil.nombre} />
+              <ImagenAvatar src={perfil.avatar} alt={perfil.nombre} inicial={perfil.nombre} />
             ) : (
               <span>{inicial}</span>
             )}
@@ -344,7 +483,7 @@ export default function MiPerfil({ usuario }) {
           </div>
 
           <div className="perfil-stats">
-            <p><strong>{formatearNumero(contenido.stats.publicaciones)}</strong> publicaciones</p>
+            <p><strong>{formatearNumero(contenido.stats.reels ?? contenido.publicaciones.length)}</strong> previews</p>
             <button type="button" onClick={() => abrirListaSocial("seguidores")}>
               <strong>{formatearNumero(contenido.stats.seguidores)}</strong> seguidores
             </button>
@@ -362,6 +501,26 @@ export default function MiPerfil({ usuario }) {
       </header>
 
       <PerfilToast mensaje={aviso} onClose={() => setAviso("")} />
+      {eventoCompartir ? (
+        <CompartirContenidoModal
+          titulo="Compartir evento"
+          nombre={eventoCompartir.nombre}
+          detalle={eventoCompartir.detalle}
+          imagen={eventoCompartir.imagen}
+          imagenContenida
+          enlace={new URL(destinoContenido(eventoCompartir), window.location.origin).toString()}
+          textoCompartir={`${eventoCompartir.nombre}: ${new URL(destinoContenido(eventoCompartir), window.location.origin)}`}
+          onClose={() => setEventoCompartir(null)}
+          onAviso={setAviso}
+        />
+      ) : null}
+      {eventoEliminar ? (
+        <ConfirmarEliminacionModal
+          contenido={`el evento de ${eventoEliminar.nombre || "tu perfil"}`}
+          onClose={() => setEventoEliminar(null)}
+          onConfirm={eliminarEvento}
+        />
+      ) : null}
 
       {editando ? (
         <div className="perfil-modal-overlay" role="dialog" aria-modal="true">
@@ -377,14 +536,22 @@ export default function MiPerfil({ usuario }) {
               <div className="perfil-modal-avatar">
                 <div className="perfil-avatar">
                   {perfilEditado.avatar ? (
-                    <img src={perfilEditado.avatar} alt={perfilEditado.nombre} />
+                    <ImagenAvatar src={perfilEditado.avatar} alt={perfilEditado.nombre} inicial={perfilEditado.nombre} />
                   ) : (
                     <span>{perfilEditado.nombre.trim().charAt(0).toUpperCase() || "S"}</span>
                   )}
                 </div>
 
-                <label className="perfil-avatar-upload">
-                  Cambiar foto
+                <label
+                  className={`perfil-avatar-upload ${avatarArrastrado ? "arrastrando" : ""}`}
+                  onDragEnter={(event) => { event.preventDefault(); setAvatarArrastrado(true); }}
+                  onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }}
+                  onDragLeave={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setAvatarArrastrado(false);
+                  }}
+                  onDrop={soltarAvatar}
+                >
+                  Elegir o arrastrar foto
                   <input type="file" accept="image/*" onChange={handleAvatar} />
                 </label>
               </div>
@@ -425,59 +592,18 @@ export default function MiPerfil({ usuario }) {
         </div>
       ) : null}
 
-      {listaSocialActiva ? (
-        <div className="perfil-modal-overlay" role="presentation" onMouseDown={() => setListaSocialActiva(null)}>
-          <section
-            className="perfil-social-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="perfil-social-titulo"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="perfil-modal-header">
-              <h2 id="perfil-social-titulo">
-                {listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
-              </h2>
-              <button
-                className="perfil-modal-close"
-                type="button"
-                onClick={() => setListaSocialActiva(null)}
-                aria-label="Cerrar lista"
-              >
-                x
-              </button>
-            </div>
-            <div className="perfil-social-lista">
-              {(contenido[listaSocialActiva] || []).length > 0 ? (
-                contenido[listaSocialActiva].map((perfilSocial) => (
-                  <button
-                    className="perfil-social-item"
-                    type="button"
-                    key={perfilSocial.id}
-                    onClick={() => abrirPerfilSocial(perfilSocial)}
-                  >
-                    <span>
-                      {perfilSocial.avatar ? (
-                        <img src={perfilSocial.avatar} alt="" />
-                      ) : (
-                        perfilSocial.nombre.charAt(0).toUpperCase()
-                      )}
-                    </span>
-                    <strong>{perfilSocial.nombre}</strong>
-                    <small>{perfilSocial.usuario}</small>
-                  </button>
-                ))
-              ) : (
-                <p className="perfil-social-vacio">
-                  {listaSocialActiva === "seguidores"
-                    ? "Todavia no hay seguidores."
-                    : "Todavia no seguis a nadie."}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <PerfilSocialModal
+        abierto={Boolean(listaSocialActiva)}
+        titulo={listaSocialActiva === "seguidores" ? "Seguidores" : "Seguidos"}
+        perfiles={contenido[listaSocialActiva] || []}
+        mensajeVacio={
+          listaSocialActiva === "seguidores"
+            ? "Todavia no hay seguidores."
+            : "Todavia no seguis a nadie."
+        }
+        onClose={() => setListaSocialActiva(null)}
+        onSelect={abrirPerfilSocial}
+      />
 
       {compartirAbierto ? (
         <CompartirPerfilModal

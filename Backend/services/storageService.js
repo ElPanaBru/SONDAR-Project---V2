@@ -1,8 +1,6 @@
 const crypto = require('crypto');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
 const supabase = require('./supabaseClient');
-const { asegurarEsquemaStorage } = require('./storageSchema');
 
 const EVENTOS_BUCKET = process.env.SUPABASE_EVENTOS_BUCKET || 'eventos';
 const REELS_BUCKET = process.env.SUPABASE_REELS_BUCKET || 'reels';
@@ -10,18 +8,87 @@ const PERFILES_BUCKET = process.env.SUPABASE_PERFILES_BUCKET || 'perfiles';
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const AUDIO_MIME_TYPES = new Set(['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4']);
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY
-  || process.env.VITE_SUPABASE_ANON_KEY
-  || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const AUDIO_MIME_TYPES = new Set([
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+  'audio/ogg',
+  'audio/webm',
+  'audio/mp4',
+  'audio/x-m4a',
+]);
 
-function clienteStorage(accessToken) {
-  if (!accessToken || !supabaseUrl || !supabaseAnonKey) return supabase;
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: `Bearer ${accessToken}` } },
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+function urlPublicaDeStorage(url) {
+  const basePublica = process.env.SUPABASE_PUBLIC_URL;
+  if (!basePublica || !url) return url;
+
+  try {
+    const interna = new URL(process.env.SUPABASE_URL);
+    const resultado = new URL(url);
+    const publica = new URL(basePublica);
+    if (resultado.origin !== interna.origin) return url;
+
+    resultado.protocol = publica.protocol;
+    resultado.host = publica.host;
+    resultado.pathname = `${publica.pathname.replace(/\/$/, '')}${resultado.pathname}`;
+    return resultado.toString();
+  } catch {
+    return url;
+  }
+}
+
+function errorArchivo(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function tieneFirmaImagen(file) {
+  const buffer = file?.buffer;
+  if (!buffer || buffer.length < 12) return false;
+
+  if (file.mimetype === 'image/jpeg') {
+    return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  }
+  if (file.mimetype === 'image/png') {
+    return buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  }
+  if (file.mimetype === 'image/webp') {
+    return buffer.subarray(0, 4).toString('ascii') === 'RIFF'
+      && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  }
+  if (file.mimetype === 'image/gif') {
+    const firma = buffer.subarray(0, 6).toString('ascii');
+    return firma === 'GIF87a' || firma === 'GIF89a';
+  }
+  return false;
+}
+
+function tieneFirmaAudio(file) {
+  const buffer = file?.buffer;
+  if (!buffer || buffer.length < 12) return false;
+  const mime = file.mimetype;
+
+  if (mime === 'audio/mpeg' || mime === 'audio/mp3') {
+    return buffer.subarray(0, 3).toString('ascii') === 'ID3'
+      || (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0);
+  }
+  if (mime === 'audio/wav' || mime === 'audio/x-wav' || mime === 'audio/wave') {
+    return buffer.subarray(0, 4).toString('ascii') === 'RIFF'
+      && buffer.subarray(8, 12).toString('ascii') === 'WAVE';
+  }
+  if (mime === 'audio/ogg') {
+    return buffer.subarray(0, 4).toString('ascii') === 'OggS';
+  }
+  if (mime === 'audio/webm') {
+    return buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  }
+  if (mime === 'audio/mp4' || mime === 'audio/x-m4a') {
+    return buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+  }
+  return false;
 }
 
 function extraerRutaPublica(publicUrl, bucket) {
@@ -41,11 +108,15 @@ function validarImagen(file) {
   if (!file) return;
 
   if (!IMAGE_MIME_TYPES.has(file.mimetype)) {
-    throw new Error('Formato de imagen no permitido.');
+    throw errorArchivo('Formato de imagen no permitido.', 415);
   }
 
   if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error('La imagen no puede superar los 5MB.');
+    throw errorArchivo('La imagen no puede superar los 5MB.', 413);
+  }
+
+  if (!tieneFirmaImagen(file)) {
+    throw errorArchivo('El archivo seleccionado no contiene una imagen valida.', 415);
   }
 }
 
@@ -53,11 +124,15 @@ function validarAudio(file) {
   if (!file) return;
 
   if (!AUDIO_MIME_TYPES.has(file.mimetype)) {
-    throw new Error('Formato de audio no permitido.');
+    throw errorArchivo('Formato de audio no permitido.', 415);
   }
 
   if (file.size > MAX_AUDIO_BYTES) {
-    throw new Error('El audio no puede superar los 20MB.');
+    throw errorArchivo('El audio no puede superar los 20MB.', 413);
+  }
+
+  if (!tieneFirmaAudio(file)) {
+    throw errorArchivo('El archivo seleccionado no contiene un audio valido.', 415);
   }
 }
 
@@ -65,13 +140,14 @@ async function subirArchivo(bucket, carpeta, file, validar, accessToken) {
   if (!file) return null;
 
   validar(file);
-  await asegurarEsquemaStorage();
 
   const extension = path.extname(file.originalname || '').toLowerCase();
   const storagePath = `${carpeta}/${Date.now()}-${crypto.randomUUID()}${extension}`;
 
-  const storage = clienteStorage(accessToken);
-  const { error } = await storage.storage
+  const storage = accessToken
+    ? supabase.crearStorageAutenticado?.(accessToken) || supabase.storage
+    : supabase.storage;
+  const { error } = await storage
     .from(bucket)
     .upload(storagePath, file.buffer, {
       contentType: file.mimetype,
@@ -82,36 +158,43 @@ async function subirArchivo(bucket, carpeta, file, validar, accessToken) {
     throw new Error(`No se pudo subir el archivo: ${error.message}`);
   }
 
-  const { data } = storage.storage
+  const { data } = storage
     .from(bucket)
     .getPublicUrl(storagePath);
 
   return {
     path: storagePath,
-    publicUrl: data.publicUrl
+    publicUrl: urlPublicaDeStorage(data.publicUrl)
   };
 }
 
-async function subirImagenEvento(file, userId, accessToken) {
-  return subirArchivo(EVENTOS_BUCKET, `eventos/${userId}`, file, validarImagen, accessToken);
-}
-
 async function subirPortadaReel(file, userId, accessToken) {
-  return subirArchivo(REELS_BUCKET, `reels/portadas/${userId}`, file, validarImagen, accessToken);
+  const carpeta = userId ? `reels/portadas/${userId}` : 'reels/portadas';
+  return subirArchivo(REELS_BUCKET, carpeta, file, validarImagen, accessToken);
 }
 
 async function subirAudioReel(file, userId, accessToken) {
-  return subirArchivo(REELS_BUCKET, `reels/audios/${userId}`, file, validarAudio, accessToken);
+  const carpeta = userId ? `reels/audios/${userId}` : 'reels/audios';
+  return subirArchivo(REELS_BUCKET, carpeta, file, validarAudio, accessToken);
 }
 
 async function subirAvatarUsuario(file, userId, accessToken) {
   return subirArchivo(PERFILES_BUCKET, `usuarios/${userId}`, file, validarImagen, accessToken);
 }
 
+function storageParaEliminar(accessToken) {
+  if (!accessToken) {
+    const error = new Error('Se necesita una sesion valida para eliminar archivos de Storage.');
+    error.code = 'SUPABASE_STORAGE_TOKEN_REQUIRED';
+    throw error;
+  }
+  return supabase.crearStorageAutenticado?.(accessToken) || supabase.storage;
+}
+
 async function eliminarImagenEvento(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const { error } = await clienteStorage(accessToken).storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(EVENTOS_BUCKET)
     .remove([storagePath]);
   if (error) throw new Error(`No se pudo eliminar la imagen del evento: ${error.message}`);
@@ -120,23 +203,22 @@ async function eliminarImagenEvento(storagePath, accessToken) {
 async function eliminarArchivoReel(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const { error } = await clienteStorage(accessToken).storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(REELS_BUCKET)
     .remove([storagePath]);
-  if (error) throw new Error(`No se pudo eliminar el archivo del reel: ${error.message}`);
+  if (error) throw new Error(`No se pudo eliminar el archivo de la preview: ${error.message}`);
 }
 
 async function eliminarAvatarUsuario(storagePath, accessToken) {
   if (!storagePath) return;
 
-  const { error } = await clienteStorage(accessToken).storage
+  const { error } = await storageParaEliminar(accessToken)
     .from(PERFILES_BUCKET)
     .remove([storagePath]);
   if (error) throw new Error(`No se pudo eliminar el avatar: ${error.message}`);
 }
 
 module.exports = {
-  subirImagenEvento,
   eliminarImagenEvento,
   subirPortadaReel,
   subirAudioReel,

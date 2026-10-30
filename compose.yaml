@@ -1,0 +1,112 @@
+name: sondar-local
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: api
+    init: true
+    environment:
+      PORT: "3000"
+      FRONTEND_URL: http://localhost:3001
+      DB_HOST: ${SONDAR_SUPABASE_DB_HOST:-supabase_db_SONDAR-Project---V2}
+      DB_PORT: "5432"
+      DB_NAME: ${SONDAR_SUPABASE_DB_NAME:-postgres}
+      DB_USER: ${SONDAR_SUPABASE_DB_USER:-postgres}
+      DB_SSL: "false"
+      SUPABASE_URL: http://${SONDAR_SUPABASE_KONG_HOST:-supabase_kong_SONDAR-Project---V2}:8000
+      SUPABASE_PUBLIC_URL: http://localhost:54321
+      SONDAR_SCHEMA_MODE: manual
+      RESEND_API_KEY: re_local_development
+    env_file:
+      - path: ./Backend/.env.docker.local
+        required: true
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./Backend:/workspace/Backend
+      - ./docker/empty.env:/workspace/Backend/.env:ro
+      - ./shared:/workspace/shared:ro
+      - api_node_modules:/workspace/Backend/node_modules
+    networks:
+      - sondar-local
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: web
+    init: true
+    env_file:
+      - path: ./.env.docker.public
+        required: true
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./Frontend:/workspace/Frontend
+      - ./docker/empty.env:/workspace/Frontend/.env:ro
+      - ./docker/empty.env:/workspace/Frontend/.env.local:ro
+      - ./docker/empty.env:/workspace/Frontend/.env.development:ro
+      - ./docker/empty.env:/workspace/Frontend/.env.development.local:ro
+      - ./shared:/workspace/shared:ro
+      - web_node_modules:/workspace/Frontend/node_modules
+    networks:
+      - sondar-local
+    depends_on:
+      api:
+        condition: service_healthy
+
+  mobile:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: mobile
+    init: true
+    environment:
+      CI: "1"
+      EXPO_OFFLINE: "1"
+      EXPO_PACKAGER_PROXY_URL: http://${SONDAR_LAN_IP:-localhost}:8081
+      REACT_NATIVE_PACKAGER_HOSTNAME: ${SONDAR_LAN_IP:-localhost}
+      SONDAR_EXPO_CLEAR: ${SONDAR_EXPO_CLEAR:-0}
+      EXPO_PUBLIC_SUPABASE_LOCAL: "true"
+      SONDAR_LOCAL_API_URL: http://api:3000
+      SONDAR_LOCAL_SUPABASE_URL: http://${SONDAR_SUPABASE_KONG_HOST:-supabase_kong_SONDAR-Project---V2}:8000
+    env_file:
+      - path: ./.env.docker.public
+        required: true
+    ports:
+      - "${SONDAR_LAN_IP:-127.0.0.1}:8081:8081"
+    volumes:
+      - ./sondar-mobile:/workspace/sondar-mobile
+      - ./docker/empty.env:/workspace/sondar-mobile/.env:ro
+      - ./docker/empty.env:/workspace/sondar-mobile/.env.local:ro
+      - ./docker/empty.env:/workspace/sondar-mobile/.env.development:ro
+      - ./docker/empty.env:/workspace/sondar-mobile/.env.development.local:ro
+      - ./shared:/workspace/shared:ro
+      - mobile_node_modules:/workspace/sondar-mobile/node_modules
+    networks:
+      - sondar-local
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api_node_modules:
+  web_node_modules:
+  mobile_node_modules:
+
+networks:
+  sondar-local:
+    name: sondar-local
+    external: true

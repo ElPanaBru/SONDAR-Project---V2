@@ -20,6 +20,26 @@ type Conversation = {
   messages?: Message[];
 };
 
+function mapMessage(value: any): Message {
+  return {
+    id: String(value?.id || ''),
+    text: String(value?.texto || ''),
+    createdAt: value?.creadoEn || new Date().toISOString(),
+    mine: Boolean(value?.propio),
+  };
+}
+
+function mapConversation(value: any): Conversation {
+  return {
+    id: String(value?.id || ''),
+    person: contactFrom(value?.usuario),
+    lastMessage: String(value?.ultimoMensaje?.texto || ''),
+    updatedAt: value?.ultimaActividad || value?.ultimoMensaje?.creadoEn || '',
+    unread: Number(value?.noLeidos || 0),
+    messages: [],
+  };
+}
+
 function contactFrom(value: any): Contact {
   const profile = value?.perfil || value || {};
   return {
@@ -64,12 +84,15 @@ export default function MessagesScreen() {
     const revision = conversationRevision.current;
     if (!quiet) setLoading(true);
     try {
-      const data = await api<Conversation[]>('/api/mensajes', { token });
+      const data = await api<any[]>('/api/mensajes/conversaciones', { token });
       if (revision !== conversationRevision.current) return;
-      setConversations(current => data.map(item => ({
-        ...item,
+      setConversations(current => data.map(value => {
+        const item = mapConversation(value);
+        return {
+          ...item,
         messages: current.find(existing => existing.id === item.id)?.messages,
-      })));
+        };
+      }));
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron cargar los mensajes.');
@@ -91,8 +114,17 @@ export default function MessagesScreen() {
     setSelectedId(conversationId);
     setChatBusy(true);
     try {
-      const conversation = await api<Conversation>(`/api/mensajes/${conversationId}`, { token });
-      setConversations(current => mergeConversation(current, { ...conversation, unread: 0 }));
+      const result = await api<{ items?: any[] }>(`/api/mensajes/conversaciones/${conversationId}/mensajes?limit=60`, { token });
+      await api(`/api/mensajes/conversaciones/${conversationId}/leer`, { method: 'PATCH', token });
+      setConversations(current => {
+        const existing = current.find(item => item.id === conversationId);
+        if (!existing) return current;
+        return mergeConversation(current, {
+          ...existing,
+          messages: (result.items || []).map(mapMessage),
+          unread: 0,
+        });
+      });
       setError('');
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: false }));
     } catch (e) {
@@ -109,12 +141,12 @@ export default function MessagesScreen() {
     setOpening(true);
     setSearchError('');
     try {
-      const conversation = await api<Conversation>('/api/mensajes', {
+      const conversation = await api<any>('/api/mensajes/conversaciones', {
         method: 'POST',
         token,
-        body: JSON.stringify({ recipientId: person.id }),
+        body: JSON.stringify({ userId: person.id }),
       });
-      setConversations(current => mergeConversation(current, { ...conversation, messages: [] }));
+      setConversations(current => mergeConversation(current, mapConversation(conversation)));
       setSearching(false);
       setQuery('');
       setResults([]);
@@ -193,11 +225,12 @@ export default function MessagesScreen() {
     if (!selected || !text || sending) return;
     setSending(true);
     try {
-      const message = await api<Message>(`/api/mensajes/${selected.id}`, {
+      const response = await api<any>(`/api/mensajes/conversaciones/${selected.id}/mensajes`, {
         method: 'POST',
         token,
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ texto: text }),
       });
+      const message = mapMessage(response);
       setConversations(current => {
         const existing = current.find(item => item.id === selected.id);
         if (!existing) return current;

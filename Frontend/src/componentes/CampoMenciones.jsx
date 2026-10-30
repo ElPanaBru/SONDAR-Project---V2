@@ -1,5 +1,6 @@
+import ImagenAvatar from "./ImagenAvatar";
 import { useEffect, useRef, useState } from "react";
-import { apiUrl } from "../lib/api";
+import { apiRequest } from "../lib/api";
 import "./menciones.css";
 
 function detectarMencion(texto, cursor) {
@@ -33,7 +34,7 @@ export default function CampoMenciones({
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       try {
-        const response = await fetch(apiUrl(`/api/usuarios?query=${encodeURIComponent(mencion.query)}`), {
+        const response = await apiRequest(`/api/usuarios?query=${encodeURIComponent(mencion.query)}`, {
           signal: controller.signal,
         });
         if (!response.ok) return;
@@ -135,7 +136,7 @@ export default function CampoMenciones({
               onClick={() => seleccionar(usuario)}
             >
               <span className="mencion-avatar">
-                {usuario.avatar ? <img src={usuario.avatar} alt="" /> : (usuario.nombre || "S").charAt(0).toUpperCase()}
+                {usuario.avatar ? <ImagenAvatar src={usuario.avatar} inicial={usuario.nombre} /> : (usuario.nombre || "S").charAt(0).toUpperCase()}
               </span>
               <span>
                 <strong>{usuario.nombre}</strong>

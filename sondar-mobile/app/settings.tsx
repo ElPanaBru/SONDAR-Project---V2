@@ -64,7 +64,7 @@ export default function SettingsScreen() {
       if (!email) throw new Error('No pudimos identificar el email de la cuenta.');
       const { error: verificationError } = await supabase.auth.signInWithPassword({ email, password: deletePassword });
       if (verificationError) throw new Error('La contraseña ingresada no es correcta.');
-      await api('/api/usuarios/me', { method: 'DELETE', token });
+      await api('/api/usuarios/me', { method: 'DELETE', token, body: JSON.stringify({ password: deletePassword }) });
       setDeleteOpen(false);
       setDeletePassword('');
       await signOut();

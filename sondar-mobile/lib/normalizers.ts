@@ -74,6 +74,7 @@ export function normalizeEvent(item: AnyRecord = {}) {
   const place = item.lugar || item.ubicacion || '';
   const avatar = item.avatar || item.profile_img_url || '';
   const image = item.img || item.img_url || item.imagen || item.portada || avatar || '';
+  const generos = normalizeGenres(item.generos?.length ? item.generos : item.genero);
   const previews = Array.isArray(item.previews)
     ? item.previews.map(normalizeReel)
     : Array.isArray(item.reels)
@@ -82,9 +83,10 @@ export function normalizeEvent(item: AnyRecord = {}) {
   return {
     ...item,
     id: item.id,
-    titulo: item.titulo || item.nombre || 'Evento SONDAR',
+    titulo: item.titulo || item.nombre || item.creador || item.username || 'Evento SONDAR',
     descripcion: item.descripcion || '',
-    genero: item.genero || 'otros',
+    genero: generos.join(' / ') || 'otros',
+    generos,
     lugar: place,
     ubicacion: place,
     fecha: item.fecha,
